@@ -27,91 +27,62 @@ const LLM_PROVIDERS = [
   { id: 'mistral', label: 'Mistral', icon: '🟡' },
 ]
 
-// VAPI pricing components ($/min)
-const VAPI_PLATFORM_FEE = 0.05
-const TELEPHONY_COST = 0.01
+// Latency estimates per component (ms)
+const STT_LATENCY = { deepgram: 800 }
+const TTS_LATENCY = { vapi: 500, '11labs': 500 }
 
-// STT pricing per provider ($/min, latency in ms)
-const STT_PRICING = {
-  deepgram:   { cost: 0.0100,  latency: 800,  label: 'Deepgram' },
-  assemblyai: { cost: 0.00025, latency: 900,  label: 'Assembly AI' },
-  azure:      { cost: 0.0170,  latency: 850,  label: 'Azure' },
-  gladia:     { cost: 0.0126,  latency: 850,  label: 'Gladia' },
-}
-
-// TTS pricing per voice provider ($/min, latency in ms)
-const TTS_PRICING = {
-  vapi:     { cost: 0.0216, latency: 500, label: 'VAPI Voices' },
-  '11labs': { cost: 0.0360, latency: 500, label: 'ElevenLabs' },
-  deepgram: { cost: 0.0108, latency: 400, label: 'Deepgram' },
-  openai:   { cost: 0.0108, latency: 450, label: 'OpenAI' },
-  azure:    { cost: 0.0108, latency: 450, label: 'Azure' },
-  playht:   { cost: 0.0648, latency: 600, label: 'PlayHT' },
-  smallest: { cost: 0.0200, latency: 450, label: 'Smallest AI' },
-}
-
-// Models only store LLM-specific cost ($/min) and latency (ms)
 const MODELS_BY_PROVIDER = {
   'openai': [
-    { model: 'gpt-4o', label: 'GPT-4o', llmCost: 0.04, llmLatency: 700 },
-    { model: 'gpt-4o-mini', label: 'GPT-4o Mini', llmCost: 0.01, llmLatency: 400 },
-    { model: 'gpt-4-turbo', label: 'GPT-4 Turbo', llmCost: 0.06, llmLatency: 1200 },
-    { model: 'gpt-4', label: 'GPT-4', llmCost: 0.10, llmLatency: 2000 },
-    { model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', llmCost: 0.005, llmLatency: 300 },
+    { model: 'gpt-4o', label: 'GPT-4o', llmLatency: 700 },
+    { model: 'gpt-4o-mini', label: 'GPT-4o Mini', llmLatency: 400 },
+    { model: 'gpt-4-turbo', label: 'GPT-4 Turbo', llmLatency: 1200 },
+    { model: 'gpt-4', label: 'GPT-4', llmLatency: 2000 },
+    { model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', llmLatency: 300 },
   ],
   'anthropic': [
-    { model: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', llmCost: 0.03, llmLatency: 1200 },
-    { model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', llmCost: 0.01, llmLatency: 500 },
-    { model: 'claude-3-opus-20240229', label: 'Claude 3 Opus', llmCost: 0.15, llmLatency: 3000 },
+    { model: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', llmLatency: 1200 },
+    { model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', llmLatency: 500 },
+    { model: 'claude-3-opus-20240229', label: 'Claude 3 Opus', llmLatency: 3000 },
   ],
   'google': [
-    { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', llmCost: 0.03, llmLatency: 800 },
-    { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', llmCost: 0.005, llmLatency: 300 },
+    { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', llmLatency: 800 },
+    { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', llmLatency: 300 },
   ],
   'groq': [
-    { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', llmCost: 0.01, llmLatency: 200 },
-    { model: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B Reasoning', llmCost: 0.01, llmLatency: 200 },
-    { model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', llmCost: 0.01, llmLatency: 200 },
-    { model: 'llama3-70b-8192', label: 'Llama 3 70B', llmCost: 0.01, llmLatency: 200 },
-    { model: 'llama3-8b-8192', label: 'Llama 3 8B', llmCost: 0.01, llmLatency: 200 },
-    { model: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B', llmCost: 0.01, llmLatency: 200 },
-    { model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B', llmCost: 0.01, llmLatency: 200 },
-    { model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B', llmCost: 0.01, llmLatency: 200 },
-    { model: 'gemma2-9b-it', label: 'Gemma 2 9B', llmCost: 0.01, llmLatency: 200 },
-    { model: 'mistral-saba-24b', label: 'Mistral Saba 24B', llmCost: 0.01, llmLatency: 200 },
-    { model: 'moonshotai/kimi-k2-instruct-0905', label: 'Moonshot Kimi K2', llmCost: 0.01, llmLatency: 200 },
-    { model: 'compound-beta', label: 'Compound Beta', llmCost: 0.01, llmLatency: 200 },
-    { model: 'compound-beta-mini', label: 'Compound Beta Mini', llmCost: 0.01, llmLatency: 200 },
+    { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', llmLatency: 200 },
+    { model: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B Reasoning', llmLatency: 200 },
+    { model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', llmLatency: 200 },
+    { model: 'llama3-70b-8192', label: 'Llama 3 70B', llmLatency: 200 },
+    { model: 'llama3-8b-8192', label: 'Llama 3 8B', llmLatency: 200 },
+    { model: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B', llmLatency: 200 },
+    { model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B', llmLatency: 200 },
+    { model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B', llmLatency: 200 },
+    { model: 'gemma2-9b-it', label: 'Gemma 2 9B', llmLatency: 200 },
+    { model: 'mistral-saba-24b', label: 'Mistral Saba 24B', llmLatency: 200 },
+    { model: 'moonshotai/kimi-k2-instruct-0905', label: 'Moonshot Kimi K2', llmLatency: 200 },
+    { model: 'compound-beta', label: 'Compound Beta', llmLatency: 200 },
+    { model: 'compound-beta-mini', label: 'Compound Beta Mini', llmLatency: 200 },
   ],
   'deepseek': [
-    { model: 'deepseek-chat', label: 'DeepSeek Chat', llmCost: 0.005, llmLatency: 600 },
-    { model: 'deepseek-coder', label: 'DeepSeek Coder', llmCost: 0.005, llmLatency: 600 },
+    { model: 'deepseek-chat', label: 'DeepSeek Chat', llmLatency: 600 },
+    { model: 'deepseek-coder', label: 'DeepSeek Coder', llmLatency: 600 },
   ],
   'mistral': [
-    { model: 'mistral-large-latest', label: 'Mistral Large', llmCost: 0.02, llmLatency: 800 },
-    { model: 'mistral-medium-latest', label: 'Mistral Medium', llmCost: 0.01, llmLatency: 500 },
-    { model: 'mistral-small-latest', label: 'Mistral Small', llmCost: 0.005, llmLatency: 300 },
+    { model: 'mistral-large-latest', label: 'Mistral Large', llmLatency: 800 },
+    { model: 'mistral-medium-latest', label: 'Mistral Medium', llmLatency: 500 },
+    { model: 'mistral-small-latest', label: 'Mistral Small', llmLatency: 300 },
   ],
 }
 
-// Max values for scaling the indicator bars
-const MAX_COST = 0.30   // $/min
 const MAX_LATENCY = 5000 // ms
 
-// Computes full pricing breakdown based on model + voice provider
-// sttProvider defaults to 'deepgram' (no STT selector in UI currently)
-function getModelPricing(provider, model, voiceProv, sttProvider = 'deepgram') {
+function getModelLatency(provider, model, voiceProv) {
   const models = MODELS_BY_PROVIDER[provider] || []
   const m = models.find(entry => entry.model === model)
   if (!m) return null
-  const stt = STT_PRICING[sttProvider] || STT_PRICING.deepgram
-  const tts = TTS_PRICING[voiceProv] || TTS_PRICING.vapi
-  const totalCost = VAPI_PLATFORM_FEE + TELEPHONY_COST + m.llmCost + stt.cost + tts.cost
-  const totalLatency = stt.latency + m.llmLatency + tts.latency
-  return {
-    cost: { vapi: VAPI_PLATFORM_FEE, telephony: TELEPHONY_COST, model: m.llmCost, stt: stt.cost, tts: tts.cost, total: totalCost },
-    latency: { stt: stt.latency, model: m.llmLatency, tts: tts.latency, total: totalLatency },
-  }
+  const stt = STT_LATENCY.deepgram
+  const tts = TTS_LATENCY[voiceProv] || TTS_LATENCY.vapi
+  return { stt, model: m.llmLatency, tts, total: stt + m.llmLatency + tts }
 }
 
 const VOICE_PROVIDERS = [
@@ -990,10 +961,10 @@ Important:
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   {(MODELS_BY_PROVIDER[modelProvider] || []).map(m => {
-                    const p = getModelPricing(modelProvider, m.model, voiceProvider)
+                    const lat = getModelLatency(modelProvider, m.model, voiceProvider)
                     return (
                       <option key={m.model} value={m.model}>
-                        {m.label} — ${p ? p.cost.total.toFixed(2) : '?'}/min · {p ? p.latency.total : '?'}ms
+                        {m.label} · {lat ? `~${lat.total}ms` : ''}
                       </option>
                     )
                   })}
@@ -1002,22 +973,14 @@ Important:
             </div>
           </div>
 
-          {/* Cost & Latency Indicators */}
+          {/* Latency Indicator */}
           {(() => {
-            const pricing = getModelPricing(modelProvider, modelName, voiceProvider)
-            if (!pricing) return null
-            const { cost, latency } = pricing
-            const costSegments = [
-              { label: 'VAPI Platform', value: cost.vapi, color: '#2dd4bf', max: MAX_COST, unit: '$', suffix: '/min' },
-              { label: 'Telephony', value: cost.telephony, color: '#a78bfa', max: MAX_COST, unit: '$', suffix: '/min' },
-              { label: 'Model (LLM)', value: cost.model, color: '#f97316', max: MAX_COST, unit: '$', suffix: '/min' },
-              { label: 'STT (Deepgram)', value: cost.stt, color: '#3b82f6', max: MAX_COST, unit: '$', suffix: '/min' },
-              { label: `TTS (${voiceProvider === '11labs' ? 'ElevenLabs' : 'VAPI'})`, value: cost.tts, color: '#ec4899', max: MAX_COST, unit: '$', suffix: '/min' },
-            ]
-            const latencySegments = [
-              { label: 'STT (Deepgram)', value: latency.stt, color: '#3b82f6', max: MAX_LATENCY, unit: '', suffix: 'ms' },
-              { label: 'Model (LLM)', value: latency.model, color: '#f97316', max: MAX_LATENCY, unit: '', suffix: 'ms' },
-              { label: `TTS (${voiceProvider === '11labs' ? 'ElevenLabs' : 'VAPI'})`, value: latency.tts, color: '#60a5fa', max: MAX_LATENCY, unit: '', suffix: 'ms' },
+            const latency = getModelLatency(modelProvider, modelName, voiceProvider)
+            if (!latency) return null
+            const segments = [
+              { label: 'STT (Deepgram)', value: latency.stt, color: '#3b82f6', max: MAX_LATENCY, suffix: 'ms' },
+              { label: 'Model (LLM)', value: latency.model, color: '#f97316', max: MAX_LATENCY, suffix: 'ms' },
+              { label: `TTS (${voiceProvider === '11labs' ? 'ElevenLabs' : 'VAPI'})`, value: latency.tts, color: '#60a5fa', max: MAX_LATENCY, suffix: 'ms' },
             ]
             const BarSegment = ({ seg }) => (
               <div
@@ -1030,51 +993,28 @@ Important:
                     <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
                     <span>{seg.label}</span>
                   </div>
-                  <div className="text-sm font-bold mt-0.5">{seg.unit}{seg.value.toFixed(seg.unit === '$' ? 4 : 0)}{seg.suffix}</div>
+                  <div className="text-sm font-bold mt-0.5">{seg.value}{seg.suffix}</div>
                   <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent" style={{ borderTopColor: 'rgba(17,24,39,0.95)' }} />
                 </div>
               </div>
             )
             return (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Cost Bar */}
-                <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card px-4 py-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Cost</span>
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white">~${cost.total.toFixed(2)}/min</span>
-                  </div>
-                  <div className="flex h-3 w-full rounded-full overflow-visible bg-gray-100 dark:bg-gray-700/50 relative">
-                    {costSegments.map((seg, i) => (
-                      <BarSegment key={i} seg={seg} />
-                    ))}
-                  </div>
-                  <div className="flex gap-3 mt-2.5 flex-wrap">
-                    {costSegments.map((seg, i) => (
-                      <span key={i} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
-                        <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: seg.color }} />{seg.label.split(' (')[0]}
-                      </span>
-                    ))}
-                  </div>
+              <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Latency</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">~{latency.total}ms</span>
                 </div>
-
-                {/* Latency Bar */}
-                <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card px-4 py-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Latency</span>
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white">~{latency.total}ms</span>
-                  </div>
-                  <div className="flex h-3 w-full rounded-full overflow-visible bg-gray-100 dark:bg-gray-700/50 relative">
-                    {latencySegments.map((seg, i) => (
-                      <BarSegment key={i} seg={seg} />
-                    ))}
-                  </div>
-                  <div className="flex gap-3 mt-2.5 flex-wrap">
-                    {latencySegments.map((seg, i) => (
-                      <span key={i} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
-                        <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: seg.color }} />{seg.label.split(' (')[0]}
-                      </span>
-                    ))}
-                  </div>
+                <div className="flex h-3 w-full rounded-full overflow-visible bg-gray-100 dark:bg-gray-700/50 relative">
+                  {segments.map((seg, i) => (
+                    <BarSegment key={i} seg={seg} />
+                  ))}
+                </div>
+                <div className="flex gap-3 mt-2.5 flex-wrap">
+                  {segments.map((seg, i) => (
+                    <span key={i} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: seg.color }} />{seg.label.split(' (')[0]}
+                    </span>
+                  ))}
                 </div>
               </div>
             )

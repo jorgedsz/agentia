@@ -18,7 +18,7 @@ const authMiddleware = async (req, res, next) => {
         where: { id: decoded.teamMemberId },
         include: {
           account: {
-            select: { id: true, email: true, name: true, role: true, agencyId: true }
+            select: { id: true, email: true, name: true, role: true, agencyId: true, outboundRate: true, inboundRate: true }
           }
         }
       });
@@ -47,7 +47,7 @@ const authMiddleware = async (req, res, next) => {
     // Regular user authentication
     const user = await req.prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, email: true, name: true, role: true, agencyId: true }
+      select: { id: true, email: true, name: true, role: true, agencyId: true, outboundRate: true, inboundRate: true }
     });
 
     if (!user) {

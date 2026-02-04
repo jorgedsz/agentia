@@ -251,6 +251,21 @@ export default function DashboardLayout() {
                 </div>
               )}
             </div>
+            {/* Call Rates */}
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-dark-border space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-400">Outbound Rate</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  ${(user?.outboundRate ?? 0.10).toFixed(2)}/min
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600 dark:text-gray-400">Inbound Rate</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  ${(user?.inboundRate ?? 0.05).toFixed(2)}/min
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
