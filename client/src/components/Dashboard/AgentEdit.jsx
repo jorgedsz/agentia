@@ -30,34 +30,30 @@ const LLM_MODELS = [
 ]
 
 const VOICE_PROVIDERS = [
-  { id: '11labs', label: 'ElevenLabs', icon: '||' },
-  { id: 'vapi', label: 'VAPI Default', icon: '◯' },
+  { id: 'vapi', label: 'VAPI Voices', icon: '◯' },
 ]
 
 const VOICES_BY_PROVIDER = {
-  '11labs': [
-    { voiceId: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily - velvety actress' },
-    { voiceId: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel - calm female' },
-    { voiceId: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella - soft female' },
-    { voiceId: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli - emotional female' },
-    { voiceId: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda - friendly female' },
-    { voiceId: 'FGY2WhTYpPnrIDTdsKH5', name: 'Laura - upbeat female' },
-    { voiceId: 'jsCqWAovK2LkecY7zXl4', name: 'Freya - expressive female' },
-    { voiceId: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica - expressive female' },
-    { voiceId: 'iP95p4xoKVk53GoZ742B', name: 'Chris - casual male' },
-    { voiceId: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel - authoritative male' },
-    { voiceId: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh - deep male' },
-    { voiceId: 'ErXwobaYiN019PkySvjV', name: 'Antoni - well-rounded male' },
-    { voiceId: 'pNInz6obpgDQGcFmaJgB', name: 'Adam - deep male' },
-    { voiceId: 'flq6f7yk4E4fJM5XTYuZ', name: 'Michael - narrator male' },
-    { voiceId: 'JBFqnCBsd6RMkjVDRZzb', name: 'George - British male' },
-    { voiceId: 'nPczCjzI2devNBz1zQrb', name: 'Brian - deep male' },
-  ],
   'vapi': [
-    { voiceId: 'jennifer-playht', name: 'Jennifer (Female)' },
-    { voiceId: 'melissa-playht', name: 'Melissa (Female)' },
-    { voiceId: 'will-playht', name: 'Will (Male)' },
-    { voiceId: 'chris-playht', name: 'Chris (Male)' },
+    { voiceId: 'Lily', name: 'Lily (Female)' },
+    { voiceId: 'Kylie', name: 'Kylie (Female)' },
+    { voiceId: 'Savannah', name: 'Savannah (Female)' },
+    { voiceId: 'Hana', name: 'Hana (Female)' },
+    { voiceId: 'Neha', name: 'Neha (Female)' },
+    { voiceId: 'Paige', name: 'Paige (Female)' },
+    { voiceId: 'Leah', name: 'Leah (Female)' },
+    { voiceId: 'Tara', name: 'Tara (Female)' },
+    { voiceId: 'Jess', name: 'Jess (Female)' },
+    { voiceId: 'Mia', name: 'Mia (Female)' },
+    { voiceId: 'Zoe', name: 'Zoe (Female)' },
+    { voiceId: 'Elliot', name: 'Elliot (Male)' },
+    { voiceId: 'Rohan', name: 'Rohan (Male)' },
+    { voiceId: 'Cole', name: 'Cole (Male)' },
+    { voiceId: 'Harry', name: 'Harry (Male)' },
+    { voiceId: 'Spencer', name: 'Spencer (Male)' },
+    { voiceId: 'Leo', name: 'Leo (Male)' },
+    { voiceId: 'Dan', name: 'Dan (Male)' },
+    { voiceId: 'Zac', name: 'Zac (Male)' },
   ],
 }
 
@@ -139,8 +135,8 @@ export default function AgentEdit() {
   const [firstMessage, setFirstMessage] = useState('')
   const [modelProvider, setModelProvider] = useState('groq')
   const [modelName, setModelName] = useState('llama-3.3-70b-versatile')
-  const [voiceProvider, setVoiceProvider] = useState('11labs')
-  const [voiceId, setVoiceId] = useState('pFZP5JQG7iQjIQuC4Bku')
+  const [voiceProvider, setVoiceProvider] = useState('vapi')
+  const [voiceId, setVoiceId] = useState('Lily')
   const [addVoiceManually, setAddVoiceManually] = useState(false)
   const [customVoiceId, setCustomVoiceId] = useState('')
 
