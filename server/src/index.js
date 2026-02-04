@@ -50,6 +50,22 @@ app.get('/api/health', (req, res) => {
 
 // One-time seed endpoint (remove after use)
 const bcrypt = require('bcrypt');
+const { execSync } = require('child_process');
+
+// Sync database schema
+app.get('/api/sync-db-xyz123', async (req, res) => {
+  try {
+    const output = execSync('npx prisma db push --accept-data-loss', {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: { ...process.env }
+    });
+    res.json({ message: 'Database synced!', output });
+  } catch (error) {
+    res.status(500).json({ error: error.message, stderr: error.stderr });
+  }
+});
+
 app.get('/api/seed-owner-xyz123', async (req, res) => {
   try {
     const existing = await prisma.user.findFirst({ where: { role: 'OWNER' } });
