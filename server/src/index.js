@@ -48,6 +48,29 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// One-time seed endpoint (remove after use)
+const bcrypt = require('bcrypt');
+app.get('/api/seed-owner-xyz123', async (req, res) => {
+  try {
+    const existing = await prisma.user.findFirst({ where: { role: 'OWNER' } });
+    if (existing) {
+      return res.json({ message: 'Owner already exists', email: existing.email });
+    }
+    const hashedPassword = await bcrypt.hash('test123', 10);
+    const owner = await prisma.user.create({
+      data: {
+        email: 'jorgedsz1504@gmail.com',
+        password: hashedPassword,
+        name: 'Jorge',
+        role: 'OWNER'
+      }
+    });
+    res.json({ message: 'Owner created!', email: owner.email });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
