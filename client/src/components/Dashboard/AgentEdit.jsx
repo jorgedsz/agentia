@@ -957,7 +957,7 @@ Important:
                 >
                   {(MODELS_BY_PROVIDER[modelProvider] || []).map(m => (
                     <option key={m.model} value={m.model}>
-                      {m.label}
+                      {m.label} — ${m.cost.total.toFixed(2)}/min · {m.latency.total}ms
                     </option>
                   ))}
                 </select>
