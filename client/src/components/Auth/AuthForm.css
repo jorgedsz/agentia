@@ -1,0 +1,10 @@
+/* Additional auth form styles (Tailwind handles most styling) */
+
+.auth-form input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.auth-form button:active {
+  transform: scale(0.98);
+}

@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Role: OWNER = full access, AGENCY = access to own clients, CLIENT = own account only
+model User {
+  id                Int                @id @default(autoincrement())
+  email             String             @unique
+  password          String
+  name              String?
+  role              String             @default("CLIENT") // OWNER, AGENCY, CLIENT
+  vapiCredits       Float              @default(0) // VAPI call credits balance
+  outboundRate      Float              @default(0.10) // $ per minute for outbound calls
+  inboundRate       Float              @default(0.05) // $ per minute for inbound calls
+  agencyId          Int?               // If CLIENT, belongs to this agency
+  agency            User?              @relation("AgencyClients", fields: [agencyId], references: [id])
+  clients           User[]             @relation("AgencyClients") // If AGENCY, these are their clients
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  agents            Agent[]
+  twilioCredentials TwilioCredentials?
+  teamMembers       TeamMember[]       @relation("AccountTeamMembers")
+  ghlIntegration    GHLIntegration?
+}
+
+model GHLIntegration {
+  id              Int      @id @default(autoincrement())
+  privateToken    String   // Encrypted Private Integration Token
+  locationId      String?  // GHL Location ID
+  locationName    String?  // Friendly name of the location
+  isConnected     Boolean  @default(false)
+  userId          Int      @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model TeamMember {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  password    String
+  name        String?
+  teamRole    String   @default("user") // "admin" or "user"
+  accountId   Int      // The parent account this team member belongs to
+  account     User     @relation("AccountTeamMembers", fields: [accountId], references: [id], onDelete: Cascade)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Agent {
+  id           Int           @id @default(autoincrement())
+  name         String
+  vapiId       String?
+  config       String?
+  userId       Int
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  phoneNumbers PhoneNumber[]
+}
+
+model TwilioCredentials {
+  id           Int           @id @default(autoincrement())
+  accountSid   String        // Encrypted
+  authToken    String        // Encrypted
+  userId       Int           @unique
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumbers PhoneNumber[]
+  isVerified   Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model CallRate {
+  id              Int      @id @default(autoincrement())
+  outboundRate    Float    @default(0.10) // $ per minute for outbound calls
+  inboundRate     Float    @default(0.05) // $ per minute for inbound calls
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CallLog {
+  id              Int      @id @default(autoincrement())
+  vapiCallId      String   @unique // VAPI call ID
+  userId          Int      // User who made/received the call
+  type            String   // "outbound" or "inbound"
+  durationSeconds Float    @default(0)
+  costCharged     Float    @default(0) // Amount deducted from credits
+  billed          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model PhoneNumber {
+  id                  Int               @id @default(autoincrement())
+  phoneNumber         String            // E.164 format
+  friendlyName        String?
+  twilioSid           String            // Twilio phone number SID
+  vapiPhoneNumberId   String?           // After VAPI import
+  status              String            @default("pending") // pending, active, error
+  twilioCredentialsId Int
+  twilioCredentials   TwilioCredentials @relation(fields: [twilioCredentialsId], references: [id], onDelete: Cascade)
+  agentId             Int?
+  agent               Agent?            @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  // Same Twilio number can exist for different credentials (different users)
+  @@unique([twilioSid, twilioCredentialsId])
+}
