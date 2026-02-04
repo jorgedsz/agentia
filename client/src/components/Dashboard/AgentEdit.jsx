@@ -18,43 +18,57 @@ const LANGUAGES = [
   { id: 'zh', label: 'Chinese' },
 ]
 
-const LLM_MODELS = [
-  // OpenAI Models
-  { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o', icon: '🟢' },
-  { provider: 'openai', model: 'gpt-4o-mini', label: 'GPT-4o Mini', icon: '🟢' },
-  { provider: 'openai', model: 'gpt-4-turbo', label: 'GPT-4 Turbo', icon: '🟢' },
-  { provider: 'openai', model: 'gpt-4', label: 'GPT-4', icon: '🟢' },
-  { provider: 'openai', model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', icon: '🟢' },
-  // Anthropic Models
-  { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', icon: '🟠' },
-  { provider: 'anthropic', model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', icon: '🟠' },
-  { provider: 'anthropic', model: 'claude-3-opus-20240229', label: 'Claude 3 Opus', icon: '🟠' },
-  // Google Models
-  { provider: 'google', model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', icon: '🔵' },
-  { provider: 'google', model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', icon: '🔵' },
-  // Groq - Llama Models
-  { provider: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', icon: '🟣' },
-  { provider: 'groq', model: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B Reasoning', icon: '🟣' },
-  { provider: 'groq', model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', icon: '🟣' },
-  { provider: 'groq', model: 'llama3-70b-8192', label: 'Llama 3 70B', icon: '🟣' },
-  { provider: 'groq', model: 'llama3-8b-8192', label: 'Llama 3 8B', icon: '🟣' },
-  { provider: 'groq', model: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B', icon: '🟣' },
-  { provider: 'groq', model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B', icon: '🟣' },
-  // DeepSeek
-  { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek Chat', icon: '🔷' },
-  { provider: 'deepseek', model: 'deepseek-coder', label: 'DeepSeek Coder', icon: '🔷' },
-  { provider: 'groq', model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B (Groq)', icon: '🔷' },
-  // Mistral
-  { provider: 'mistral', model: 'mistral-large-latest', label: 'Mistral Large', icon: '🟡' },
-  { provider: 'mistral', model: 'mistral-medium-latest', label: 'Mistral Medium', icon: '🟡' },
-  { provider: 'mistral', model: 'mistral-small-latest', label: 'Mistral Small', icon: '🟡' },
-  { provider: 'groq', model: 'mistral-saba-24b', label: 'Mistral Saba 24B (Groq)', icon: '🟡' },
-  // Other Groq Models
-  { provider: 'groq', model: 'gemma2-9b-it', label: 'Gemma 2 9B (Groq)', icon: '🔵' },
-  { provider: 'groq', model: 'moonshotai/kimi-k2-instruct-0905', label: 'Moonshot Kimi K2', icon: '⚪' },
-  { provider: 'groq', model: 'compound-beta', label: 'Compound Beta', icon: '⚫' },
-  { provider: 'groq', model: 'compound-beta-mini', label: 'Compound Beta Mini', icon: '⚫' },
+const LLM_PROVIDERS = [
+  { id: 'openai', label: 'OpenAI', icon: '🟢' },
+  { id: 'anthropic', label: 'Anthropic', icon: '🟠' },
+  { id: 'google', label: 'Google', icon: '🔵' },
+  { id: 'groq', label: 'Groq', icon: '🟣' },
+  { id: 'deepseek', label: 'DeepSeek', icon: '🔷' },
+  { id: 'mistral', label: 'Mistral', icon: '🟡' },
 ]
+
+const MODELS_BY_PROVIDER = {
+  'openai': [
+    { model: 'gpt-4o', label: 'GPT-4o' },
+    { model: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { model: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+    { model: 'gpt-4', label: 'GPT-4' },
+    { model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+  ],
+  'anthropic': [
+    { model: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+    { model: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+  ],
+  'google': [
+    { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+    { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  ],
+  'groq': [
+    { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
+    { model: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B Reasoning' },
+    { model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant' },
+    { model: 'llama3-70b-8192', label: 'Llama 3 70B' },
+    { model: 'llama3-8b-8192', label: 'Llama 3 8B' },
+    { model: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B' },
+    { model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B' },
+    { model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B' },
+    { model: 'gemma2-9b-it', label: 'Gemma 2 9B' },
+    { model: 'mistral-saba-24b', label: 'Mistral Saba 24B' },
+    { model: 'moonshotai/kimi-k2-instruct-0905', label: 'Moonshot Kimi K2' },
+    { model: 'compound-beta', label: 'Compound Beta' },
+    { model: 'compound-beta-mini', label: 'Compound Beta Mini' },
+  ],
+  'deepseek': [
+    { model: 'deepseek-chat', label: 'DeepSeek Chat' },
+    { model: 'deepseek-coder', label: 'DeepSeek Coder' },
+  ],
+  'mistral': [
+    { model: 'mistral-large-latest', label: 'Mistral Large' },
+    { model: 'mistral-medium-latest', label: 'Mistral Medium' },
+    { model: 'mistral-small-latest', label: 'Mistral Small' },
+  ],
+}
 
 const VOICE_PROVIDERS = [
   { id: 'vapi', label: 'VAPI Voices (Free)', icon: '◯' },
@@ -859,24 +873,56 @@ Important:
             </div>
           )}
 
-          {/* Language & AI Model Row */}
+          {/* Language Row */}
+          <div>
+            <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
+              Change Language
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </label>
+            <div className="relative">
+              <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">Languages</label>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                {LANGUAGES.map(lang => (
+                  <option key={lang.id} value={lang.id}>{lang.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* AI Provider & Model Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
-                Change Language
+                AI Provider
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
               <div className="relative">
-                <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">Languages</label>
+                <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">Select Provider</label>
                 <select
-                  value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
+                  value={modelProvider}
+                  onChange={(e) => {
+                    const newProvider = e.target.value
+                    setModelProvider(newProvider)
+                    // Set first model of the new provider as default
+                    const providerModels = MODELS_BY_PROVIDER[newProvider] || []
+                    if (providerModels.length > 0) {
+                      setModelName(providerModels[0].model)
+                    }
+                  }}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
-                  {LANGUAGES.map(lang => (
-                    <option key={lang.id} value={lang.id}>{lang.label}</option>
+                  {LLM_PROVIDERS.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.icon} {p.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -890,19 +936,15 @@ Important:
                 </svg>
               </label>
               <div className="relative">
-                <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">Select AI Model</label>
+                <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">Select Model</label>
                 <select
-                  value={`${modelProvider}:${modelName}`}
-                  onChange={(e) => {
-                    const [provider, model] = e.target.value.split(':')
-                    setModelProvider(provider)
-                    setModelName(model)
-                  }}
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
-                  {LLM_MODELS.map(m => (
-                    <option key={`${m.provider}:${m.model}`} value={`${m.provider}:${m.model}`}>
-                      {m.icon} {m.label}
+                  {(MODELS_BY_PROVIDER[modelProvider] || []).map(m => (
+                    <option key={m.model} value={m.model}>
+                      {m.label}
                     </option>
                   ))}
                 </select>
