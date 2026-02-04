@@ -27,57 +27,91 @@ const LLM_PROVIDERS = [
   { id: 'mistral', label: 'Mistral', icon: '🟡' },
 ]
 
-// Base costs: transport $0.05/min, STT (Deepgram) $0.01/min ~800ms, TTS (VAPI) $0.02/min ~500ms
+// VAPI pricing components ($/min)
+const VAPI_PLATFORM_FEE = 0.05
+const TELEPHONY_COST = 0.01
+
+// STT pricing per provider ($/min, latency in ms)
+const STT_PRICING = {
+  deepgram:   { cost: 0.0100,  latency: 800,  label: 'Deepgram' },
+  assemblyai: { cost: 0.00025, latency: 900,  label: 'Assembly AI' },
+  azure:      { cost: 0.0170,  latency: 850,  label: 'Azure' },
+  gladia:     { cost: 0.0126,  latency: 850,  label: 'Gladia' },
+}
+
+// TTS pricing per voice provider ($/min, latency in ms)
+const TTS_PRICING = {
+  vapi:     { cost: 0.0216, latency: 500, label: 'VAPI Voices' },
+  '11labs': { cost: 0.0360, latency: 500, label: 'ElevenLabs' },
+  deepgram: { cost: 0.0108, latency: 400, label: 'Deepgram' },
+  openai:   { cost: 0.0108, latency: 450, label: 'OpenAI' },
+  azure:    { cost: 0.0108, latency: 450, label: 'Azure' },
+  playht:   { cost: 0.0648, latency: 600, label: 'PlayHT' },
+  smallest: { cost: 0.0200, latency: 450, label: 'Smallest AI' },
+}
+
+// Models only store LLM-specific cost ($/min) and latency (ms)
 const MODELS_BY_PROVIDER = {
   'openai': [
-    { model: 'gpt-4o', label: 'GPT-4o', cost: { transport: 0.05, model: 0.04, stt: 0.01, tts: 0.02, total: 0.12 }, latency: { stt: 800, model: 700, tts: 500, total: 2000 } },
-    { model: 'gpt-4o-mini', label: 'GPT-4o Mini', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 400, tts: 500, total: 1700 } },
-    { model: 'gpt-4-turbo', label: 'GPT-4 Turbo', cost: { transport: 0.05, model: 0.06, stt: 0.01, tts: 0.02, total: 0.14 }, latency: { stt: 800, model: 1200, tts: 500, total: 2500 } },
-    { model: 'gpt-4', label: 'GPT-4', cost: { transport: 0.05, model: 0.10, stt: 0.01, tts: 0.02, total: 0.18 }, latency: { stt: 800, model: 2000, tts: 500, total: 3300 } },
-    { model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', cost: { transport: 0.05, model: 0.005, stt: 0.01, tts: 0.02, total: 0.085 }, latency: { stt: 800, model: 300, tts: 500, total: 1600 } },
+    { model: 'gpt-4o', label: 'GPT-4o', llmCost: 0.04, llmLatency: 700 },
+    { model: 'gpt-4o-mini', label: 'GPT-4o Mini', llmCost: 0.01, llmLatency: 400 },
+    { model: 'gpt-4-turbo', label: 'GPT-4 Turbo', llmCost: 0.06, llmLatency: 1200 },
+    { model: 'gpt-4', label: 'GPT-4', llmCost: 0.10, llmLatency: 2000 },
+    { model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', llmCost: 0.005, llmLatency: 300 },
   ],
   'anthropic': [
-    { model: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', cost: { transport: 0.05, model: 0.03, stt: 0.01, tts: 0.02, total: 0.11 }, latency: { stt: 800, model: 1200, tts: 500, total: 2500 } },
-    { model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 500, tts: 500, total: 1800 } },
-    { model: 'claude-3-opus-20240229', label: 'Claude 3 Opus', cost: { transport: 0.05, model: 0.15, stt: 0.01, tts: 0.02, total: 0.23 }, latency: { stt: 800, model: 3000, tts: 500, total: 4300 } },
+    { model: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', llmCost: 0.03, llmLatency: 1200 },
+    { model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', llmCost: 0.01, llmLatency: 500 },
+    { model: 'claude-3-opus-20240229', label: 'Claude 3 Opus', llmCost: 0.15, llmLatency: 3000 },
   ],
   'google': [
-    { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', cost: { transport: 0.05, model: 0.03, stt: 0.01, tts: 0.02, total: 0.11 }, latency: { stt: 800, model: 800, tts: 500, total: 2100 } },
-    { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', cost: { transport: 0.05, model: 0.005, stt: 0.01, tts: 0.02, total: 0.085 }, latency: { stt: 800, model: 300, tts: 500, total: 1600 } },
+    { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', llmCost: 0.03, llmLatency: 800 },
+    { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', llmCost: 0.005, llmLatency: 300 },
   ],
   'groq': [
-    { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B Reasoning', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'llama3-70b-8192', label: 'Llama 3 70B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'llama3-8b-8192', label: 'Llama 3 8B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'gemma2-9b-it', label: 'Gemma 2 9B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'mistral-saba-24b', label: 'Mistral Saba 24B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'moonshotai/kimi-k2-instruct-0905', label: 'Moonshot Kimi K2', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'compound-beta', label: 'Compound Beta', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
-    { model: 'compound-beta-mini', label: 'Compound Beta Mini', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', llmCost: 0.01, llmLatency: 200 },
+    { model: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B Reasoning', llmCost: 0.01, llmLatency: 200 },
+    { model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', llmCost: 0.01, llmLatency: 200 },
+    { model: 'llama3-70b-8192', label: 'Llama 3 70B', llmCost: 0.01, llmLatency: 200 },
+    { model: 'llama3-8b-8192', label: 'Llama 3 8B', llmCost: 0.01, llmLatency: 200 },
+    { model: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B', llmCost: 0.01, llmLatency: 200 },
+    { model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B', llmCost: 0.01, llmLatency: 200 },
+    { model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B', llmCost: 0.01, llmLatency: 200 },
+    { model: 'gemma2-9b-it', label: 'Gemma 2 9B', llmCost: 0.01, llmLatency: 200 },
+    { model: 'mistral-saba-24b', label: 'Mistral Saba 24B', llmCost: 0.01, llmLatency: 200 },
+    { model: 'moonshotai/kimi-k2-instruct-0905', label: 'Moonshot Kimi K2', llmCost: 0.01, llmLatency: 200 },
+    { model: 'compound-beta', label: 'Compound Beta', llmCost: 0.01, llmLatency: 200 },
+    { model: 'compound-beta-mini', label: 'Compound Beta Mini', llmCost: 0.01, llmLatency: 200 },
   ],
   'deepseek': [
-    { model: 'deepseek-chat', label: 'DeepSeek Chat', cost: { transport: 0.05, model: 0.005, stt: 0.01, tts: 0.02, total: 0.085 }, latency: { stt: 800, model: 600, tts: 500, total: 1900 } },
-    { model: 'deepseek-coder', label: 'DeepSeek Coder', cost: { transport: 0.05, model: 0.005, stt: 0.01, tts: 0.02, total: 0.085 }, latency: { stt: 800, model: 600, tts: 500, total: 1900 } },
+    { model: 'deepseek-chat', label: 'DeepSeek Chat', llmCost: 0.005, llmLatency: 600 },
+    { model: 'deepseek-coder', label: 'DeepSeek Coder', llmCost: 0.005, llmLatency: 600 },
   ],
   'mistral': [
-    { model: 'mistral-large-latest', label: 'Mistral Large', cost: { transport: 0.05, model: 0.02, stt: 0.01, tts: 0.02, total: 0.10 }, latency: { stt: 800, model: 800, tts: 500, total: 2100 } },
-    { model: 'mistral-medium-latest', label: 'Mistral Medium', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 500, tts: 500, total: 1800 } },
-    { model: 'mistral-small-latest', label: 'Mistral Small', cost: { transport: 0.05, model: 0.005, stt: 0.01, tts: 0.02, total: 0.085 }, latency: { stt: 800, model: 300, tts: 500, total: 1600 } },
+    { model: 'mistral-large-latest', label: 'Mistral Large', llmCost: 0.02, llmLatency: 800 },
+    { model: 'mistral-medium-latest', label: 'Mistral Medium', llmCost: 0.01, llmLatency: 500 },
+    { model: 'mistral-small-latest', label: 'Mistral Small', llmCost: 0.005, llmLatency: 300 },
   ],
 }
 
 // Max values for scaling the indicator bars
-const MAX_COST = 0.25  // $/min
-const MAX_LATENCY = 5000  // ms
+const MAX_COST = 0.30   // $/min
+const MAX_LATENCY = 5000 // ms
 
-function getModelPricing(provider, model) {
+// Computes full pricing breakdown based on model + voice provider
+// sttProvider defaults to 'deepgram' (no STT selector in UI currently)
+function getModelPricing(provider, model, voiceProv, sttProvider = 'deepgram') {
   const models = MODELS_BY_PROVIDER[provider] || []
-  return models.find(m => m.model === model) || null
+  const m = models.find(entry => entry.model === model)
+  if (!m) return null
+  const stt = STT_PRICING[sttProvider] || STT_PRICING.deepgram
+  const tts = TTS_PRICING[voiceProv] || TTS_PRICING.vapi
+  const totalCost = VAPI_PLATFORM_FEE + TELEPHONY_COST + m.llmCost + stt.cost + tts.cost
+  const totalLatency = stt.latency + m.llmLatency + tts.latency
+  return {
+    cost: { vapi: VAPI_PLATFORM_FEE, telephony: TELEPHONY_COST, model: m.llmCost, stt: stt.cost, tts: tts.cost, total: totalCost },
+    latency: { stt: stt.latency, model: m.llmLatency, tts: tts.latency, total: totalLatency },
+  }
 }
 
 const VOICE_PROVIDERS = [
@@ -955,11 +989,14 @@ Important:
                   onChange={(e) => setModelName(e.target.value)}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
-                  {(MODELS_BY_PROVIDER[modelProvider] || []).map(m => (
-                    <option key={m.model} value={m.model}>
-                      {m.label} — ${m.cost.total.toFixed(2)}/min · {m.latency.total}ms
-                    </option>
-                  ))}
+                  {(MODELS_BY_PROVIDER[modelProvider] || []).map(m => {
+                    const p = getModelPricing(modelProvider, m.model, voiceProvider)
+                    return (
+                      <option key={m.model} value={m.model}>
+                        {m.label} — ${p ? p.cost.total.toFixed(2) : '?'}/min · {p ? p.latency.total : '?'}ms
+                      </option>
+                    )
+                  })}
                 </select>
               </div>
             </div>
@@ -967,7 +1004,7 @@ Important:
 
           {/* Cost & Latency Indicators */}
           {(() => {
-            const pricing = getModelPricing(modelProvider, modelName)
+            const pricing = getModelPricing(modelProvider, modelName, voiceProvider)
             if (!pricing) return null
             const { cost, latency } = pricing
             return (
@@ -979,13 +1016,15 @@ Important:
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">~${cost.total.toFixed(2)}/min</span>
                   </div>
                   <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/50">
-                    <div style={{ width: `${(cost.transport / MAX_COST) * 100}%`, backgroundColor: '#2dd4bf' }} title={`Transport: $${cost.transport.toFixed(3)}/min`} />
+                    <div style={{ width: `${(cost.vapi / MAX_COST) * 100}%`, backgroundColor: '#2dd4bf' }} title={`VAPI Platform: $${cost.vapi.toFixed(3)}/min`} />
+                    <div style={{ width: `${(cost.telephony / MAX_COST) * 100}%`, backgroundColor: '#a78bfa' }} title={`Telephony: $${cost.telephony.toFixed(3)}/min`} />
                     <div style={{ width: `${(cost.model / MAX_COST) * 100}%`, backgroundColor: '#f97316' }} title={`Model: $${cost.model.toFixed(3)}/min`} />
                     <div style={{ width: `${(cost.stt / MAX_COST) * 100}%`, backgroundColor: '#3b82f6' }} title={`STT: $${cost.stt.toFixed(3)}/min`} />
                     <div style={{ width: `${(cost.tts / MAX_COST) * 100}%`, backgroundColor: '#ec4899' }} title={`TTS: $${cost.tts.toFixed(3)}/min`} />
                   </div>
                   <div className="flex gap-3 mt-2 flex-wrap">
-                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#2dd4bf' }} />Transport</span>
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#2dd4bf' }} />VAPI</span>
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#a78bfa' }} />Telephony</span>
                     <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#f97316' }} />Model</span>
                     <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#3b82f6' }} />STT</span>
                     <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#ec4899' }} />TTS</span>
