@@ -27,47 +27,57 @@ const LLM_PROVIDERS = [
   { id: 'mistral', label: 'Mistral', icon: '🟡' },
 ]
 
+// Base costs: transport $0.05/min, STT (Deepgram) $0.01/min ~800ms, TTS (VAPI) $0.02/min ~500ms
 const MODELS_BY_PROVIDER = {
   'openai': [
-    { model: 'gpt-4o', label: 'GPT-4o' },
-    { model: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-    { model: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-    { model: 'gpt-4', label: 'GPT-4' },
-    { model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+    { model: 'gpt-4o', label: 'GPT-4o', cost: { transport: 0.05, model: 0.04, stt: 0.01, tts: 0.02, total: 0.12 }, latency: { stt: 800, model: 700, tts: 500, total: 2000 } },
+    { model: 'gpt-4o-mini', label: 'GPT-4o Mini', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 400, tts: 500, total: 1700 } },
+    { model: 'gpt-4-turbo', label: 'GPT-4 Turbo', cost: { transport: 0.05, model: 0.06, stt: 0.01, tts: 0.02, total: 0.14 }, latency: { stt: 800, model: 1200, tts: 500, total: 2500 } },
+    { model: 'gpt-4', label: 'GPT-4', cost: { transport: 0.05, model: 0.10, stt: 0.01, tts: 0.02, total: 0.18 }, latency: { stt: 800, model: 2000, tts: 500, total: 3300 } },
+    { model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', cost: { transport: 0.05, model: 0.005, stt: 0.01, tts: 0.02, total: 0.085 }, latency: { stt: 800, model: 300, tts: 500, total: 1600 } },
   ],
   'anthropic': [
-    { model: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
-    { model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
-    { model: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+    { model: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', cost: { transport: 0.05, model: 0.03, stt: 0.01, tts: 0.02, total: 0.11 }, latency: { stt: 800, model: 1200, tts: 500, total: 2500 } },
+    { model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 500, tts: 500, total: 1800 } },
+    { model: 'claude-3-opus-20240229', label: 'Claude 3 Opus', cost: { transport: 0.05, model: 0.15, stt: 0.01, tts: 0.02, total: 0.23 }, latency: { stt: 800, model: 3000, tts: 500, total: 4300 } },
   ],
   'google': [
-    { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-    { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+    { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', cost: { transport: 0.05, model: 0.03, stt: 0.01, tts: 0.02, total: 0.11 }, latency: { stt: 800, model: 800, tts: 500, total: 2100 } },
+    { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', cost: { transport: 0.05, model: 0.005, stt: 0.01, tts: 0.02, total: 0.085 }, latency: { stt: 800, model: 300, tts: 500, total: 1600 } },
   ],
   'groq': [
-    { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
-    { model: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B Reasoning' },
-    { model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant' },
-    { model: 'llama3-70b-8192', label: 'Llama 3 70B' },
-    { model: 'llama3-8b-8192', label: 'Llama 3 8B' },
-    { model: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B' },
-    { model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B' },
-    { model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B' },
-    { model: 'gemma2-9b-it', label: 'Gemma 2 9B' },
-    { model: 'mistral-saba-24b', label: 'Mistral Saba 24B' },
-    { model: 'moonshotai/kimi-k2-instruct-0905', label: 'Moonshot Kimi K2' },
-    { model: 'compound-beta', label: 'Compound Beta' },
-    { model: 'compound-beta-mini', label: 'Compound Beta Mini' },
+    { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B Reasoning', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'llama3-70b-8192', label: 'Llama 3 70B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'llama3-8b-8192', label: 'Llama 3 8B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'gemma2-9b-it', label: 'Gemma 2 9B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'mistral-saba-24b', label: 'Mistral Saba 24B', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'moonshotai/kimi-k2-instruct-0905', label: 'Moonshot Kimi K2', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'compound-beta', label: 'Compound Beta', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
+    { model: 'compound-beta-mini', label: 'Compound Beta Mini', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 200, tts: 500, total: 1500 } },
   ],
   'deepseek': [
-    { model: 'deepseek-chat', label: 'DeepSeek Chat' },
-    { model: 'deepseek-coder', label: 'DeepSeek Coder' },
+    { model: 'deepseek-chat', label: 'DeepSeek Chat', cost: { transport: 0.05, model: 0.005, stt: 0.01, tts: 0.02, total: 0.085 }, latency: { stt: 800, model: 600, tts: 500, total: 1900 } },
+    { model: 'deepseek-coder', label: 'DeepSeek Coder', cost: { transport: 0.05, model: 0.005, stt: 0.01, tts: 0.02, total: 0.085 }, latency: { stt: 800, model: 600, tts: 500, total: 1900 } },
   ],
   'mistral': [
-    { model: 'mistral-large-latest', label: 'Mistral Large' },
-    { model: 'mistral-medium-latest', label: 'Mistral Medium' },
-    { model: 'mistral-small-latest', label: 'Mistral Small' },
+    { model: 'mistral-large-latest', label: 'Mistral Large', cost: { transport: 0.05, model: 0.02, stt: 0.01, tts: 0.02, total: 0.10 }, latency: { stt: 800, model: 800, tts: 500, total: 2100 } },
+    { model: 'mistral-medium-latest', label: 'Mistral Medium', cost: { transport: 0.05, model: 0.01, stt: 0.01, tts: 0.02, total: 0.09 }, latency: { stt: 800, model: 500, tts: 500, total: 1800 } },
+    { model: 'mistral-small-latest', label: 'Mistral Small', cost: { transport: 0.05, model: 0.005, stt: 0.01, tts: 0.02, total: 0.085 }, latency: { stt: 800, model: 300, tts: 500, total: 1600 } },
   ],
+}
+
+// Max values for scaling the indicator bars
+const MAX_COST = 0.25  // $/min
+const MAX_LATENCY = 5000  // ms
+
+function getModelPricing(provider, model) {
+  const models = MODELS_BY_PROVIDER[provider] || []
+  return models.find(m => m.model === model) || null
 }
 
 const VOICE_PROVIDERS = [
@@ -954,6 +964,54 @@ Important:
               </div>
             </div>
           </div>
+
+          {/* Cost & Latency Indicators */}
+          {(() => {
+            const pricing = getModelPricing(modelProvider, modelName)
+            if (!pricing) return null
+            const { cost, latency } = pricing
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Cost Bar */}
+                <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Cost</span>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white">~${cost.total.toFixed(2)}/min</span>
+                  </div>
+                  <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/50">
+                    <div style={{ width: `${(cost.transport / MAX_COST) * 100}%`, backgroundColor: '#2dd4bf' }} title={`Transport: $${cost.transport.toFixed(3)}/min`} />
+                    <div style={{ width: `${(cost.model / MAX_COST) * 100}%`, backgroundColor: '#f97316' }} title={`Model: $${cost.model.toFixed(3)}/min`} />
+                    <div style={{ width: `${(cost.stt / MAX_COST) * 100}%`, backgroundColor: '#3b82f6' }} title={`STT: $${cost.stt.toFixed(3)}/min`} />
+                    <div style={{ width: `${(cost.tts / MAX_COST) * 100}%`, backgroundColor: '#ec4899' }} title={`TTS: $${cost.tts.toFixed(3)}/min`} />
+                  </div>
+                  <div className="flex gap-3 mt-2 flex-wrap">
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#2dd4bf' }} />Transport</span>
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#f97316' }} />Model</span>
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#3b82f6' }} />STT</span>
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#ec4899' }} />TTS</span>
+                  </div>
+                </div>
+
+                {/* Latency Bar */}
+                <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Latency</span>
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white">~{latency.total}ms</span>
+                  </div>
+                  <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/50">
+                    <div style={{ width: `${(latency.stt / MAX_LATENCY) * 100}%`, backgroundColor: '#3b82f6' }} title={`STT: ${latency.stt}ms`} />
+                    <div style={{ width: `${(latency.model / MAX_LATENCY) * 100}%`, backgroundColor: '#f97316' }} title={`Model: ${latency.model}ms`} />
+                    <div style={{ width: `${(latency.tts / MAX_LATENCY) * 100}%`, backgroundColor: '#60a5fa' }} title={`TTS: ${latency.tts}ms`} />
+                  </div>
+                  <div className="flex gap-3 mt-2 flex-wrap">
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#3b82f6' }} />STT</span>
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#f97316' }} />Model</span>
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />TTS</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Opening Message */}
           <div>
