@@ -175,6 +175,17 @@ class VapiService {
 
   buildVoiceConfig(config) {
     const provider = config.voiceProvider || '11labs';
+
+    // Handle VAPI default voices
+    if (provider === 'vapi') {
+      const voiceConfig = {
+        provider: 'vapi',
+        voiceId: config.voiceId || 'jennifer-playht'
+      };
+      console.log('Voice config being sent to VAPI:', JSON.stringify(voiceConfig, null, 2));
+      return voiceConfig;
+    }
+
     const voiceConfig = {
       provider: provider,
       voiceId: config.voiceId || '21m00Tcm4TlvDq8ikWAM'

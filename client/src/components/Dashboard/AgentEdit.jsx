@@ -30,9 +30,8 @@ const LLM_MODELS = [
 ]
 
 const VOICE_PROVIDERS = [
-  { id: '11labs', label: '11labs', icon: '||' },
-  { id: 'openai', label: 'OpenAI', icon: '◯' },
-  { id: 'playht', label: 'PlayHT', icon: '▶' },
+  { id: '11labs', label: 'ElevenLabs', icon: '||' },
+  { id: 'vapi', label: 'VAPI Default', icon: '◯' },
 ]
 
 const VOICES_BY_PROVIDER = {
@@ -54,19 +53,11 @@ const VOICES_BY_PROVIDER = {
     { voiceId: 'JBFqnCBsd6RMkjVDRZzb', name: 'George - British male' },
     { voiceId: 'nPczCjzI2devNBz1zQrb', name: 'Brian - deep male' },
   ],
-  'openai': [
-    { voiceId: 'alloy', name: 'Alloy' },
-    { voiceId: 'echo', name: 'Echo' },
-    { voiceId: 'fable', name: 'Fable' },
-    { voiceId: 'onyx', name: 'Onyx' },
-    { voiceId: 'nova', name: 'Nova' },
-    { voiceId: 'shimmer', name: 'Shimmer' },
-  ],
-  'playht': [
-    { voiceId: 'jennifer', name: 'Jennifer' },
-    { voiceId: 'melissa', name: 'Melissa' },
-    { voiceId: 'will', name: 'Will' },
-    { voiceId: 'chris', name: 'Chris' },
+  'vapi': [
+    { voiceId: 'jennifer-playht', name: 'Jennifer (Female)' },
+    { voiceId: 'melissa-playht', name: 'Melissa (Female)' },
+    { voiceId: 'will-playht', name: 'Will (Male)' },
+    { voiceId: 'chris-playht', name: 'Chris (Male)' },
   ],
 }
 
