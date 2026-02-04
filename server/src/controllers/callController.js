@@ -210,10 +210,7 @@ const syncCallBilling = async (prisma, vapiCalls) => {
 
     const durationMinutes = durationSeconds / 60;
 
-    // Calculate cost based on effective minutes (minimum 1 minute if call connected)
-    const effectiveMinutes = durationSeconds > 0 ? Math.max(1, Math.ceil(durationMinutes)) : 0;
-
-    console.log(`Call ${call.id}: calculated durationSeconds=${durationSeconds}, effectiveMinutes=${effectiveMinutes}`);
+    console.log(`Call ${call.id}: calculated durationSeconds=${durationSeconds}, durationMinutes=${durationMinutes}`);
 
     // Find the user who owns this call first (to get their rates)
     let userId = existingLog?.userId;
@@ -242,9 +239,9 @@ const syncCallBilling = async (prisma, vapiCalls) => {
     const outboundRate = user?.outboundRate ?? 0.10;
     const inboundRate = user?.inboundRate ?? 0.05;
     const rate = isOutbound ? outboundRate : inboundRate;
-    const cost = effectiveMinutes * rate;
+    const cost = durationMinutes * rate;
 
-    console.log(`Billing call ${call.id}: duration=${durationSeconds}s, effectiveMin=${effectiveMinutes}, rate=${rate}, cost=${cost}, userId=${userId}`);
+    console.log(`Billing call ${call.id}: duration=${durationSeconds}s, minutes=${durationMinutes}, rate=${rate}, cost=${cost}, userId=${userId}`);
 
     // Create or update call log
     if (existingLog) {

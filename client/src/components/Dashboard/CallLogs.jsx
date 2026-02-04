@@ -182,10 +182,10 @@ export default function CallLogs() {
                   <label className="text-xs text-gray-500 dark:text-gray-400">Phone Number</label>
                   <p className="text-sm text-gray-900 dark:text-white">{selectedCall.phoneNumber?.number || '-'}</p>
                 </div>
-                {selectedCall.cost && (
+                {(selectedCall.costCharged || selectedCall.cost) && (
                   <div>
                     <label className="text-xs text-gray-500 dark:text-gray-400">Cost</label>
-                    <p className="text-sm text-gray-900 dark:text-white">${selectedCall.cost.toFixed(4)}</p>
+                    <p className="text-sm text-gray-900 dark:text-white">${(selectedCall.costCharged || selectedCall.cost).toFixed(4)}</p>
                   </div>
                 )}
                 <div>
@@ -295,7 +295,7 @@ export default function CallLogs() {
                       {getEndReasonLabel(call.endedReason)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {call.cost ? `$${call.cost.toFixed(4)}` : '-'}
+                      {call.costCharged ? `$${call.costCharged.toFixed(4)}` : (call.cost ? `$${call.cost.toFixed(4)}` : '-')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <button
