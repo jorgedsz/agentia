@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(timeout 5 node:*)",
+      "Bash(npm run build:*)",
+      "Bash(curl:*)",
+      "Bash(node test-vapi.js:*)",
+      "Bash(node -e:*)",
+      "Bash(node:*)",
+      "Bash(npm start)",
+      "Bash(timeout:*)",
+      "Bash(npm run dev:*)",
+      "WebFetch(domain:docs.vapi.ai)",
+      "WebSearch",
+      "Bash(npx prisma migrate dev:*)",
+      "Bash(npx prisma db push:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx kill-port 5000)",
+      "Bash(npx kill-port 5173 5174)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git reset:*)",
+      "Bash(git config:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
