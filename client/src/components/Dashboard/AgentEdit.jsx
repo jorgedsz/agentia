@@ -1007,6 +1007,34 @@ Important:
             const pricing = getModelPricing(modelProvider, modelName, voiceProvider)
             if (!pricing) return null
             const { cost, latency } = pricing
+            const costSegments = [
+              { label: 'VAPI Platform', value: cost.vapi, color: '#2dd4bf', max: MAX_COST, unit: '$', suffix: '/min' },
+              { label: 'Telephony', value: cost.telephony, color: '#a78bfa', max: MAX_COST, unit: '$', suffix: '/min' },
+              { label: 'Model (LLM)', value: cost.model, color: '#f97316', max: MAX_COST, unit: '$', suffix: '/min' },
+              { label: 'STT (Deepgram)', value: cost.stt, color: '#3b82f6', max: MAX_COST, unit: '$', suffix: '/min' },
+              { label: `TTS (${voiceProvider === '11labs' ? 'ElevenLabs' : 'VAPI'})`, value: cost.tts, color: '#ec4899', max: MAX_COST, unit: '$', suffix: '/min' },
+            ]
+            const latencySegments = [
+              { label: 'STT (Deepgram)', value: latency.stt, color: '#3b82f6', max: MAX_LATENCY, unit: '', suffix: 'ms' },
+              { label: 'Model (LLM)', value: latency.model, color: '#f97316', max: MAX_LATENCY, unit: '', suffix: 'ms' },
+              { label: `TTS (${voiceProvider === '11labs' ? 'ElevenLabs' : 'VAPI'})`, value: latency.tts, color: '#60a5fa', max: MAX_LATENCY, unit: '', suffix: 'ms' },
+            ]
+            const BarSegment = ({ seg }) => (
+              <div
+                className="relative h-full group/seg cursor-pointer transition-all duration-150 hover:brightness-110 hover:scale-y-150"
+                style={{ width: `${(seg.value / seg.max) * 100}%`, backgroundColor: seg.color }}
+              >
+                <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg text-xs font-medium text-white whitespace-nowrap opacity-0 group-hover/seg:opacity-100 transition-opacity duration-150 z-50"
+                  style={{ backgroundColor: 'rgba(17,24,39,0.95)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
+                    <span>{seg.label}</span>
+                  </div>
+                  <div className="text-sm font-bold mt-0.5">{seg.unit}{seg.value.toFixed(seg.unit === '$' ? 4 : 0)}{seg.suffix}</div>
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent" style={{ borderTopColor: 'rgba(17,24,39,0.95)' }} />
+                </div>
+              </div>
+            )
             return (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Cost Bar */}
@@ -1015,19 +1043,17 @@ Important:
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Cost</span>
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">~${cost.total.toFixed(2)}/min</span>
                   </div>
-                  <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/50">
-                    <div style={{ width: `${(cost.vapi / MAX_COST) * 100}%`, backgroundColor: '#2dd4bf' }} title={`VAPI Platform: $${cost.vapi.toFixed(3)}/min`} />
-                    <div style={{ width: `${(cost.telephony / MAX_COST) * 100}%`, backgroundColor: '#a78bfa' }} title={`Telephony: $${cost.telephony.toFixed(3)}/min`} />
-                    <div style={{ width: `${(cost.model / MAX_COST) * 100}%`, backgroundColor: '#f97316' }} title={`Model: $${cost.model.toFixed(3)}/min`} />
-                    <div style={{ width: `${(cost.stt / MAX_COST) * 100}%`, backgroundColor: '#3b82f6' }} title={`STT: $${cost.stt.toFixed(3)}/min`} />
-                    <div style={{ width: `${(cost.tts / MAX_COST) * 100}%`, backgroundColor: '#ec4899' }} title={`TTS: $${cost.tts.toFixed(3)}/min`} />
+                  <div className="flex h-3 w-full rounded-full overflow-visible bg-gray-100 dark:bg-gray-700/50 relative">
+                    {costSegments.map((seg, i) => (
+                      <BarSegment key={i} seg={seg} />
+                    ))}
                   </div>
-                  <div className="flex gap-3 mt-2 flex-wrap">
-                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#2dd4bf' }} />VAPI</span>
-                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#a78bfa' }} />Telephony</span>
-                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#f97316' }} />Model</span>
-                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#3b82f6' }} />STT</span>
-                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#ec4899' }} />TTS</span>
+                  <div className="flex gap-3 mt-2.5 flex-wrap">
+                    {costSegments.map((seg, i) => (
+                      <span key={i} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
+                        <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: seg.color }} />{seg.label.split(' (')[0]}
+                      </span>
+                    ))}
                   </div>
                 </div>
 
@@ -1037,15 +1063,17 @@ Important:
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Latency</span>
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">~{latency.total}ms</span>
                   </div>
-                  <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/50">
-                    <div style={{ width: `${(latency.stt / MAX_LATENCY) * 100}%`, backgroundColor: '#3b82f6' }} title={`STT: ${latency.stt}ms`} />
-                    <div style={{ width: `${(latency.model / MAX_LATENCY) * 100}%`, backgroundColor: '#f97316' }} title={`Model: ${latency.model}ms`} />
-                    <div style={{ width: `${(latency.tts / MAX_LATENCY) * 100}%`, backgroundColor: '#60a5fa' }} title={`TTS: ${latency.tts}ms`} />
+                  <div className="flex h-3 w-full rounded-full overflow-visible bg-gray-100 dark:bg-gray-700/50 relative">
+                    {latencySegments.map((seg, i) => (
+                      <BarSegment key={i} seg={seg} />
+                    ))}
                   </div>
-                  <div className="flex gap-3 mt-2 flex-wrap">
-                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#3b82f6' }} />STT</span>
-                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#f97316' }} />Model</span>
-                    <span className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400"><span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#60a5fa' }} />TTS</span>
+                  <div className="flex gap-3 mt-2.5 flex-wrap">
+                    {latencySegments.map((seg, i) => (
+                      <span key={i} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
+                        <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: seg.color }} />{seg.label.split(' (')[0]}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>
