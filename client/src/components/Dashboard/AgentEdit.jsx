@@ -19,18 +19,14 @@ const LANGUAGES = [
 ]
 
 const LLM_MODELS = [
-  { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o', icon: '🟢' },
-  { provider: 'openai', model: 'gpt-4o-mini', label: 'GPT-4o Mini', icon: '🟢' },
-  { provider: 'openai', model: 'gpt-4-turbo', label: 'GPT-4 Turbo', icon: '🟢' },
-  { provider: 'openai', model: 'gpt-4', label: 'GPT-4', icon: '🟢' },
-  { provider: 'openai', model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', icon: '🟢' },
-  { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', icon: '🟠' },
-  { provider: 'anthropic', model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', icon: '🟠' },
-  { provider: 'anthropic', model: 'claude-3-opus-20240229', label: 'Claude 3 Opus', icon: '🟠' },
-  { provider: 'google', model: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash', icon: '🔵' },
-  { provider: 'google', model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', icon: '🔵' },
-  { provider: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', icon: '🟣' },
-  { provider: 'groq', model: 'llama-3.1-70b-versatile', label: 'Llama 3.1 70B', icon: '🟣' },
+  { provider: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Recommended)', icon: '🟣' },
+  { provider: 'groq', model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Fast', icon: '🟣' },
+  { provider: 'groq', model: 'llama3-70b-8192', label: 'Llama 3 70B', icon: '🟣' },
+  { provider: 'groq', model: 'llama3-8b-8192', label: 'Llama 3 8B', icon: '🟣' },
+  { provider: 'groq', model: 'gemma2-9b-it', label: 'Gemma 2 9B', icon: '🔵' },
+  { provider: 'groq', model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B', icon: '🟢' },
+  { provider: 'groq', model: 'mistral-saba-24b', label: 'Mistral Saba 24B', icon: '🟠' },
+  { provider: 'groq', model: 'compound-beta', label: 'Compound Beta', icon: '⚫' },
 ]
 
 const VOICE_PROVIDERS = [
@@ -150,8 +146,8 @@ export default function AgentEdit() {
   const [language, setLanguage] = useState('en')
   const [systemPrompt, setSystemPrompt] = useState('')
   const [firstMessage, setFirstMessage] = useState('')
-  const [modelProvider, setModelProvider] = useState('openai')
-  const [modelName, setModelName] = useState('gpt-4o')
+  const [modelProvider, setModelProvider] = useState('groq')
+  const [modelName, setModelName] = useState('llama-3.3-70b-versatile')
   const [voiceProvider, setVoiceProvider] = useState('11labs')
   const [voiceId, setVoiceId] = useState('pFZP5JQG7iQjIQuC4Bku')
   const [addVoiceManually, setAddVoiceManually] = useState(false)
