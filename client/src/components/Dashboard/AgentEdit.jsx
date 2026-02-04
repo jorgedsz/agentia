@@ -19,14 +19,29 @@ const LANGUAGES = [
 ]
 
 const LLM_MODELS = [
-  { provider: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Recommended)', icon: '🟣' },
-  { provider: 'groq', model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Fast', icon: '🟣' },
+  // Llama Models
+  { provider: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', icon: '🟣' },
+  { provider: 'groq', model: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B Reasoning', icon: '🟣' },
+  { provider: 'groq', model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', icon: '🟣' },
   { provider: 'groq', model: 'llama3-70b-8192', label: 'Llama 3 70B', icon: '🟣' },
   { provider: 'groq', model: 'llama3-8b-8192', label: 'Llama 3 8B', icon: '🟣' },
+  // Meta Llama 4
+  { provider: 'groq', model: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B', icon: '🟣' },
+  { provider: 'groq', model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B', icon: '🟣' },
+  // OpenAI Models
+  { provider: 'openai', model: 'openai/gpt-oss-120b', label: 'GPT OSS 120B', icon: '🟢' },
+  { provider: 'openai', model: 'openai/gpt-oss-20b', label: 'GPT OSS 20B', icon: '🟢' },
+  // DeepSeek
+  { provider: 'groq', model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B', icon: '🔵' },
+  // Gemma
   { provider: 'groq', model: 'gemma2-9b-it', label: 'Gemma 2 9B', icon: '🔵' },
-  { provider: 'groq', model: 'deepseek-r1-distill-llama-70b', label: 'DeepSeek R1 70B', icon: '🟢' },
+  // Mistral
   { provider: 'groq', model: 'mistral-saba-24b', label: 'Mistral Saba 24B', icon: '🟠' },
+  // Moonshot
+  { provider: 'groq', model: 'moonshotai/kimi-k2-instruct-0905', label: 'Moonshot Kimi K2', icon: '⚪' },
+  // Compound
   { provider: 'groq', model: 'compound-beta', label: 'Compound Beta', icon: '⚫' },
+  { provider: 'groq', model: 'compound-beta-mini', label: 'Compound Beta Mini', icon: '⚫' },
 ]
 
 const VOICE_PROVIDERS = [
