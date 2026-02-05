@@ -173,10 +173,13 @@ export default function DashboardContent({ tab }) {
   }, [searchParams])
 
   useEffect(() => {
-    fetchData()
-  }, [tab])
+    if (user) {
+      fetchData()
+    }
+  }, [tab, user?.id, user?.role])
 
   const fetchData = async () => {
+    if (!user) return
     setLoading(true)
     try {
       const statsRes = await usersAPI.getStats()
