@@ -102,7 +102,7 @@ const Icons = {
 export default function DashboardLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, logout, isImpersonating, switchBack } = useAuth()
+  const { user, logout, isImpersonating, switchBack, branding } = useAuth()
   const { darkMode, toggleDarkMode } = useTheme()
   const [switchingBack, setSwitchingBack] = useState(false)
   const [balances, setBalances] = useState({ twilio: null, vapi: null })
@@ -236,8 +236,24 @@ export default function DashboardLayout() {
       <div className="w-64 h-screen bg-white dark:bg-dark-sidebar border-r border-gray-200 dark:border-dark-border flex flex-col flex-shrink-0">
         {/* Logo */}
         <div className="p-4 border-b border-gray-200 dark:border-dark-border">
-          <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400">AgentBuilder</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">AI Voice Platform</p>
+          <div className="flex items-center gap-3">
+            {branding?.companyLogo ? (
+              <img
+                src={branding.companyLogo}
+                alt="Company logo"
+                className="w-8 h-8 rounded-lg object-contain bg-white dark:bg-dark-hover"
+                onError={(e) => { e.target.style.display = 'none' }}
+              />
+            ) : null}
+            <div>
+              <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400">
+                {branding?.companyName || 'AgentBuilder'}
+              </h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {branding?.companyTagline || 'AI Voice Platform'}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Account Balances */}

@@ -134,4 +134,10 @@ export const platformSettingsAPI = {
   update: (data) => api.put('/platform-settings', data)
 }
 
+// Branding API
+export const brandingAPI = {
+  get: () => api.get('/branding'),
+  update: (data) => api.put('/branding', data)
+}
+
 export default api

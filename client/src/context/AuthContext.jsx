@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
-import { authAPI, teamMembersAPI } from '../services/api'
+import { authAPI, teamMembersAPI, brandingAPI } from '../services/api'
 
 const AuthContext = createContext(null)
 
@@ -10,10 +10,33 @@ export function AuthProvider({ children }) {
   const [originalUser, setOriginalUser] = useState(null)
   const [isTeamMember, setIsTeamMember] = useState(false)
   const [teamMember, setTeamMember] = useState(null)
+  const [branding, setBranding] = useState({
+    companyName: null,
+    companyLogo: null,
+    companyTagline: null
+  })
 
   useEffect(() => {
     checkAuth()
   }, [])
+
+  const fetchBranding = async () => {
+    try {
+      const { data } = await brandingAPI.get()
+      setBranding({
+        companyName: data.companyName,
+        companyLogo: data.companyLogo,
+        companyTagline: data.companyTagline
+      })
+    } catch (err) {
+      console.error('Failed to fetch branding:', err)
+    }
+  }
+
+  const refreshUser = async () => {
+    await checkAuth()
+    await fetchBranding()
+  }
 
   const checkAuth = async () => {
     const token = localStorage.getItem('token')
@@ -43,6 +66,9 @@ export function AuthProvider({ children }) {
         setIsImpersonating(false)
         setOriginalUser(null)
       }
+
+      // Fetch branding after auth
+      await fetchBranding()
     } catch (error) {
       localStorage.removeItem('token')
     } finally {
@@ -140,7 +166,9 @@ export function AuthProvider({ children }) {
       switchAccount,
       switchBack,
       isTeamMember,
-      teamMember
+      teamMember,
+      branding,
+      refreshUser
     }}>
       {children}
     </AuthContext.Provider>

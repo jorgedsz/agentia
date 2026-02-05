@@ -18,6 +18,9 @@ model User {
   vapiCredits       Float              @default(0) // VAPI call credits balance
   outboundRate      Float              @default(0.10) // $ per minute for outbound calls
   inboundRate       Float              @default(0.05) // $ per minute for inbound calls
+  companyName       String?            // Custom branding: company name
+  companyLogo       String?            // Custom branding: logo URL
+  companyTagline    String?            // Custom branding: tagline
   agencyId          Int?               // If CLIENT, belongs to this agency
   agency            User?              @relation("AgencyClients", fields: [agencyId], references: [id])
   clients           User[]             @relation("AgencyClients") // If AGENCY, these are their clients

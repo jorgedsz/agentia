@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { ghlAPI, teamMembersAPI, platformSettingsAPI } from '../../services/api'
+import { ghlAPI, teamMembersAPI, platformSettingsAPI, brandingAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -56,6 +56,17 @@ const SETTINGS_ITEMS = [
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+      </svg>
+    ),
+    roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
+  },
+  {
+    id: 'branding',
+    label: 'Branding',
+    description: 'Logo and company name',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
       </svg>
     ),
     roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
@@ -178,6 +189,7 @@ export default function Settings() {
         {activeTab === 'ghl' && <GHLIntegrationTab />}
         {activeTab === 'api-keys' && isOwner && <APIKeysTab />}
         {activeTab === 'billing' && <BillingTab />}
+        {activeTab === 'branding' && <BrandingTab />}
         {activeTab === 'account' && <AccountTab />}
       </div>
     </div>
@@ -274,6 +286,209 @@ function AccountTab() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Branding Tab
+function BrandingTab() {
+  const { user, refreshUser } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [branding, setBranding] = useState({
+    companyName: '',
+    companyLogo: '',
+    companyTagline: ''
+  })
+  const [canEdit, setCanEdit] = useState(false)
+  const [inheritedFrom, setInheritedFrom] = useState(null)
+
+  useEffect(() => {
+    fetchBranding()
+  }, [])
+
+  const fetchBranding = async () => {
+    setLoading(true)
+    try {
+      const { data } = await brandingAPI.get()
+      setBranding({
+        companyName: data.companyName || '',
+        companyLogo: data.companyLogo || '',
+        companyTagline: data.companyTagline || ''
+      })
+      setCanEdit(data.canEdit)
+      setInheritedFrom(data.inheritedFrom || null)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load branding')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+    setSaving(true)
+
+    try {
+      const { data } = await brandingAPI.update(branding)
+      setBranding({
+        companyName: data.companyName || '',
+        companyLogo: data.companyLogo || '',
+        companyTagline: data.companyTagline || ''
+      })
+      setSuccess('Branding updated successfully')
+      if (refreshUser) refreshUser()
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to update branding')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
+          {success}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Branding</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Customize your platform appearance with your company logo and name.
+        </p>
+      </div>
+
+      {!canEdit && (
+        <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-yellow-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">View Only</p>
+              <p className="text-sm text-yellow-600 dark:text-yellow-300 mt-1">
+                {inheritedFrom === 'agency'
+                  ? 'This branding is set by your agency. Contact them to make changes.'
+                  : 'Only account owners and agencies can customize branding.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">Preview</h3>
+        <div className="bg-gray-100 dark:bg-dark-hover rounded-lg p-4 max-w-xs">
+          <div className="flex items-center gap-3">
+            {branding.companyLogo ? (
+              <img
+                src={branding.companyLogo}
+                alt="Company logo"
+                className="w-10 h-10 rounded-lg object-contain bg-white"
+                onError={(e) => { e.target.style.display = 'none' }}
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-primary-600 flex items-center justify-center text-white font-bold text-lg">
+                {(branding.companyName || 'A')[0].toUpperCase()}
+              </div>
+            )}
+            <div>
+              <h1 className="text-lg font-bold text-primary-600 dark:text-primary-400">
+                {branding.companyName || 'AgentBuilder'}
+              </h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {branding.companyTagline || 'AI Voice Platform'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={handleSave} className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">Settings</h3>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Company Name
+            </label>
+            <input
+              type="text"
+              value={branding.companyName}
+              onChange={(e) => setBranding({ ...branding, companyName: e.target.value })}
+              disabled={!canEdit}
+              placeholder="AgentBuilder"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Tagline
+            </label>
+            <input
+              type="text"
+              value={branding.companyTagline}
+              onChange={(e) => setBranding({ ...branding, companyTagline: e.target.value })}
+              disabled={!canEdit}
+              placeholder="AI Voice Platform"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Logo URL
+            </label>
+            <input
+              type="url"
+              value={branding.companyLogo}
+              onChange={(e) => setBranding({ ...branding, companyLogo: e.target.value })}
+              disabled={!canEdit}
+              placeholder="https://example.com/logo.png"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Enter a URL to your company logo. Recommended size: 40x40px or larger square image.
+            </p>
+          </div>
+        </div>
+
+        {canEdit && (
+          <div className="mt-6">
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        )}
+      </form>
     </div>
   )
 }

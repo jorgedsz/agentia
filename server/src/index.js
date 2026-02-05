@@ -16,6 +16,7 @@ const ghlRoutes = require('./routes/ghl');
 const ghlController = require('./controllers/ghlController');
 const promptGeneratorRoutes = require('./routes/promptGenerator');
 const platformSettingsRoutes = require('./routes/platformSettings');
+const brandingRoutes = require('./routes/branding');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -49,6 +50,7 @@ app.use('/api/ghl', ghlRoutes);
 app.get('/api/oauth/callback', ghlController.oauthCallback);
 app.use('/api/prompt-generator', promptGeneratorRoutes);
 app.use('/api/platform-settings', platformSettingsRoutes);
+app.use('/api/branding', brandingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
