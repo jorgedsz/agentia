@@ -473,16 +473,33 @@ function TeamAccessTab() {
 
 // GHL Integration Tab
 function GHLIntegrationTab() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
-  const [token, setToken] = useState('')
-  const [locationId, setLocationId] = useState('')
-  const [showLocationInput, setShowLocationInput] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
   useEffect(() => {
+    // Handle OAuth redirect params
+    const ghlConnected = searchParams.get('ghl_connected')
+    const ghlError = searchParams.get('ghl_error')
+
+    if (ghlConnected === 'true') {
+      setSuccess('GoHighLevel connected successfully via OAuth!')
+    }
+    if (ghlError) {
+      setError(decodeURIComponent(ghlError))
+    }
+
+    // Clean up URL params after reading
+    if (ghlConnected || ghlError) {
+      const newParams = new URLSearchParams(searchParams)
+      newParams.delete('ghl_connected')
+      newParams.delete('ghl_error')
+      setSearchParams(newParams, { replace: true })
+    }
+
     fetchStatus()
   }, [])
 
@@ -498,36 +515,15 @@ function GHLIntegrationTab() {
     }
   }
 
-  const handleConnect = async (e) => {
-    e.preventDefault()
+  const handleOAuthConnect = async () => {
     setError('')
-    setSuccess('')
     setConnecting(true)
 
     try {
-      const payload = { privateToken: token }
-      if (showLocationInput && locationId) {
-        payload.locationId = locationId
-      }
-      const response = await ghlAPI.connect(payload)
-      setSuccess(response.data.message)
-      setStatus({
-        isConnected: true,
-        locationId: response.data.integration.locationId,
-        locationName: response.data.integration.locationName
-      })
-      setToken('')
-      setLocationId('')
-      setShowLocationInput(false)
+      const response = await ghlAPI.getAuthUrl()
+      window.location.href = response.data.authorizationUrl
     } catch (err) {
-      // Check if we need to show location ID input
-      if (err.response?.data?.needsLocationId) {
-        setShowLocationInput(true)
-        setError('Could not auto-detect your location. Please enter your Location ID below.')
-      } else {
-        setError(err.response?.data?.error || 'Failed to connect to GoHighLevel')
-      }
-    } finally {
+      setError(err.response?.data?.error || 'Failed to start OAuth flow')
       setConnecting(false)
     }
   }
@@ -540,7 +536,7 @@ function GHLIntegrationTab() {
     try {
       await ghlAPI.disconnect()
       setSuccess('GoHighLevel disconnected successfully')
-      setStatus({ isConnected: false, locationId: null, locationName: null })
+      setStatus({ isConnected: false, connectionType: null, locationId: null, locationName: null })
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to disconnect')
     }
@@ -582,9 +578,16 @@ function GHLIntegrationTab() {
             </p>
           </div>
           {status?.isConnected && (
-            <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
-              Connected
-            </span>
+            <div className="flex items-center gap-2">
+              {status.connectionType === 'legacy' && (
+                <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-xs font-medium rounded-full">
+                  Legacy
+                </span>
+              )}
+              <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
+                Connected
+              </span>
+            </div>
           )}
         </div>
       </div>
@@ -605,6 +608,29 @@ function GHLIntegrationTab() {
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{status.locationId}</p>
               </div>
             </div>
+
+            {status.connectionType === 'legacy' && (
+              <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-yellow-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">Legacy Connection</p>
+                    <p className="text-sm text-yellow-600 dark:text-yellow-300 mt-1">
+                      You're using a Private Integration Token. We recommend upgrading to OAuth for better security and automatic token refresh.
+                    </p>
+                    <button
+                      onClick={handleOAuthConnect}
+                      disabled={connecting}
+                      className="mt-2 px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors"
+                    >
+                      {connecting ? 'Redirecting...' : 'Upgrade to OAuth'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-lg p-4">
               <div className="flex items-start gap-3">
@@ -629,87 +655,35 @@ function GHLIntegrationTab() {
           </div>
         </div>
       ) : (
-        /* Not Connected State */
+        /* Not Connected State - OAuth */
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">Connect Your Account</h3>
 
           <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4 mb-6">
-            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">How to get your Private Integration Token:</h4>
-            <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-decimal list-inside">
-              <li>Go to your GoHighLevel sub-account</li>
-              <li>Navigate to <strong>Settings &gt; Integrations &gt; Private Integrations</strong></li>
-              <li>Click <strong>"Create App"</strong> or use an existing one</li>
-              <li>Enable these scopes: <strong>calendars.readonly, calendars.write, contacts.readonly, contacts.write</strong></li>
-              <li>Copy the <strong>Private Integration Token</strong> (starts with "pit_")</li>
-              <li>Also copy your <strong>Location ID</strong> from Settings &gt; Business Info</li>
-            </ol>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Click the button below to securely connect your GoHighLevel account via OAuth. You'll be redirected to GoHighLevel to authorize access to your calendars and contacts.
+            </p>
           </div>
 
-          <form onSubmit={handleConnect} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Private Integration Token *
-              </label>
-              <input
-                type="text"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="pit-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
-                required
-              />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Your token is encrypted and stored securely.
-              </p>
-            </div>
-
-            {/* Location ID input - shown when auto-detect fails or user toggles it */}
-            <div>
-              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer mb-2">
-                <input
-                  type="checkbox"
-                  checked={showLocationInput}
-                  onChange={(e) => setShowLocationInput(e.target.checked)}
-                  className="w-4 h-4 text-primary-600 rounded"
-                />
-                Enter Location ID manually
-              </label>
-              {showLocationInput && (
-                <div>
-                  <input
-                    type="text"
-                    value={locationId}
-                    onChange={(e) => setLocationId(e.target.value)}
-                    placeholder="Location ID (e.g., abc123XYZ...)"
-                    className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Find your Location ID in GHL: Settings &gt; Business Info &gt; Location ID
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={connecting || !token}
-              className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              {connecting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Connecting...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                  Link Account
-                </>
-              )}
-            </button>
-          </form>
+          <button
+            onClick={handleOAuthConnect}
+            disabled={connecting}
+            className="w-full px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-base font-medium"
+          >
+            {connecting ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                Redirecting to GoHighLevel...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                Connect with GoHighLevel
+              </>
+            )}
+          </button>
         </div>
       )}
     </div>

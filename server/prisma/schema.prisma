@@ -30,15 +30,19 @@ model User {
 }
 
 model GHLIntegration {
-  id              Int      @id @default(autoincrement())
-  privateToken    String   // Encrypted Private Integration Token
-  locationId      String?  // GHL Location ID
-  locationName    String?  // Friendly name of the location
-  isConnected     Boolean  @default(false)
-  userId          Int      @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id              Int       @id @default(autoincrement())
+  privateToken    String?   // Encrypted Private Integration Token (legacy)
+  accessToken     String?   // Encrypted OAuth access token
+  refreshToken    String?   // Encrypted OAuth refresh token
+  tokenExpiresAt  DateTime? // OAuth token expiry timestamp
+  companyId       String?   // From OAuth response
+  locationId      String?   // GHL Location ID
+  locationName    String?   // Friendly name of the location
+  isConnected     Boolean   @default(false)
+  userId          Int       @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model TeamMember {

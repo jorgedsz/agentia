@@ -119,7 +119,8 @@ export const ghlAPI = {
   connect: (data) => api.post('/ghl/connect', data),
   getStatus: () => api.get('/ghl/status'),
   disconnect: () => api.delete('/ghl/disconnect'),
-  getCalendars: () => api.get('/ghl/calendars')
+  getCalendars: () => api.get('/ghl/calendars'),
+  getAuthUrl: () => api.get('/ghl/oauth/authorize')
 }
 
 // Prompt Generator API

@@ -1,6 +1,86 @@
+const jwt = require('jsonwebtoken');
 const { encrypt, decrypt, mask } = require('../utils/encryption');
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
+const GHL_AUTH_BASE = 'https://marketplace.gohighlevel.com';
+
+/**
+ * Get a valid token for GHL API requests.
+ * - If OAuth token exists and is valid, return it
+ * - If OAuth token is expiring soon, auto-refresh it
+ * - If only legacy PIT exists, return that
+ */
+const getValidToken = async (integration, prisma) => {
+  // OAuth token path
+  if (integration.accessToken) {
+    const decryptedAccess = decrypt(integration.accessToken);
+
+    // Check if token expires within 5 minutes
+    if (integration.tokenExpiresAt) {
+      const expiresAt = new Date(integration.tokenExpiresAt);
+      const fiveMinFromNow = new Date(Date.now() + 5 * 60 * 1000);
+
+      if (expiresAt <= fiveMinFromNow) {
+        // Token is expiring soon - refresh it
+        if (!integration.refreshToken) {
+          throw new Error('Token expired and no refresh token available');
+        }
+
+        try {
+          const decryptedRefresh = decrypt(integration.refreshToken);
+          const response = await fetch(`${GHL_API_BASE}/oauth/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              client_id: process.env.GHL_CLIENT_ID,
+              client_secret: process.env.GHL_CLIENT_SECRET,
+              grant_type: 'refresh_token',
+              refresh_token: decryptedRefresh
+            })
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Token refresh failed:', errorText);
+            // Mark as disconnected
+            await prisma.gHLIntegration.update({
+              where: { id: integration.id },
+              data: { isConnected: false }
+            });
+            throw new Error('Token refresh failed - please reconnect GoHighLevel');
+          }
+
+          const tokenData = await response.json();
+
+          // GHL issues new refresh token on every refresh - must store it
+          await prisma.gHLIntegration.update({
+            where: { id: integration.id },
+            data: {
+              accessToken: encrypt(tokenData.access_token),
+              refreshToken: encrypt(tokenData.refresh_token),
+              tokenExpiresAt: new Date(Date.now() + tokenData.expires_in * 1000)
+            }
+          });
+
+          return tokenData.access_token;
+        } catch (refreshError) {
+          if (refreshError.message.includes('reconnect')) throw refreshError;
+          console.error('Token refresh error:', refreshError);
+          throw new Error('Failed to refresh token - please reconnect GoHighLevel');
+        }
+      }
+    }
+
+    return decryptedAccess;
+  }
+
+  // Legacy PIT fallback
+  if (integration.privateToken) {
+    return decrypt(integration.privateToken);
+  }
+
+  throw new Error('No valid token found - please connect GoHighLevel');
+};
 
 /**
  * Helper function to make GHL API requests
@@ -219,13 +299,17 @@ const getStatus = async (req, res) => {
     if (!integration) {
       return res.json({
         isConnected: false,
+        connectionType: null,
         locationId: null,
         locationName: null
       });
     }
 
+    const connectionType = integration.accessToken ? 'oauth' : integration.privateToken ? 'legacy' : null;
+
     res.json({
       isConnected: integration.isConnected,
+      connectionType,
       locationId: integration.locationId,
       locationName: integration.locationName,
       updatedAt: integration.updatedAt
@@ -279,8 +363,7 @@ const getCalendars = async (req, res) => {
       return res.status(400).json({ error: 'GoHighLevel is not connected. Please connect first in Settings.' });
     }
 
-    // Decrypt token
-    const token = decrypt(integration.privateToken);
+    const token = await getValidToken(integration, req.prisma);
 
     try {
       // Get calendars from GHL
@@ -352,7 +435,7 @@ const checkAvailability = async (req, res) => {
       });
     }
 
-    const token = decrypt(integration.privateToken);
+    const token = await getValidToken(integration, req.prisma);
 
     // Calculate start and end of the requested date
     const startDate = new Date(date);
@@ -455,7 +538,7 @@ const bookAppointment = async (req, res) => {
       });
     }
 
-    const token = decrypt(integration.privateToken);
+    const token = await getValidToken(integration, req.prisma);
     const locationId = integration.locationId;
 
     try {
@@ -543,11 +626,148 @@ const bookAppointment = async (req, res) => {
   }
 };
 
+/**
+ * Start OAuth authorization flow
+ * GET /api/ghl/oauth/authorize
+ */
+const oauthAuthorize = async (req, res) => {
+  try {
+    const clientId = process.env.GHL_CLIENT_ID;
+    const redirectUri = process.env.GHL_REDIRECT_URI;
+
+    if (!clientId || !redirectUri) {
+      return res.status(500).json({ error: 'GHL OAuth is not configured on the server' });
+    }
+
+    // Create JWT state param with userId, 10min TTL
+    const state = jwt.sign(
+      { userId: req.user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m' }
+    );
+
+    const scopes = [
+      'calendars.readonly',
+      'calendars.write',
+      'calendars/events.readonly',
+      'calendars/events.write',
+      'contacts.readonly',
+      'contacts.write'
+    ];
+
+    const authorizationUrl = `${GHL_AUTH_BASE}/oauth/chooselocation?response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&client_id=${clientId}&scope=${encodeURIComponent(scopes.join(' '))}&state=${state}`;
+
+    res.json({ authorizationUrl });
+  } catch (error) {
+    console.error('Error creating OAuth authorization URL:', error);
+    res.status(500).json({ error: 'Failed to start OAuth flow' });
+  }
+};
+
+/**
+ * OAuth callback - receives code from GHL redirect
+ * GET /api/ghl/oauth/callback
+ */
+const oauthCallback = async (req, res) => {
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+
+  try {
+    const { code, state } = req.query;
+
+    if (!code || !state) {
+      return res.redirect(`${clientUrl}/dashboard/settings?tab=ghl&ghl_error=${encodeURIComponent('Missing authorization code or state')}`);
+    }
+
+    // Verify JWT state to get userId
+    let decoded;
+    try {
+      decoded = jwt.verify(state, process.env.JWT_SECRET);
+    } catch (jwtError) {
+      return res.redirect(`${clientUrl}/dashboard/settings?tab=ghl&ghl_error=${encodeURIComponent('Authorization expired - please try again')}`);
+    }
+
+    const userId = decoded.userId;
+
+    // Exchange code for tokens
+    const tokenResponse = await fetch(`${GHL_API_BASE}/oauth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.GHL_CLIENT_ID,
+        client_secret: process.env.GHL_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: process.env.GHL_REDIRECT_URI
+      })
+    });
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('Token exchange failed:', errorText);
+      return res.redirect(`${clientUrl}/dashboard/settings?tab=ghl&ghl_error=${encodeURIComponent('Failed to exchange authorization code')}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+
+    // Store encrypted tokens
+    const encryptedAccess = encrypt(tokenData.access_token);
+    const encryptedRefresh = encrypt(tokenData.refresh_token);
+    const tokenExpiresAt = new Date(Date.now() + tokenData.expires_in * 1000);
+    const locationId = tokenData.locationId || null;
+    const companyId = tokenData.companyId || null;
+
+    // Try to get location name
+    let locationName = 'GoHighLevel Location';
+    if (locationId) {
+      try {
+        const locData = await ghlRequest(`/locations/${locationId}`, tokenData.access_token);
+        locationName = locData.location?.name || locData.name || locationName;
+      } catch (e) {
+        console.log('Could not fetch location name:', e.message);
+      }
+    }
+
+    // Check if user already has an integration
+    const existing = await req.prisma.gHLIntegration.findUnique({
+      where: { userId }
+    });
+
+    const data = {
+      accessToken: encryptedAccess,
+      refreshToken: encryptedRefresh,
+      tokenExpiresAt,
+      locationId,
+      companyId,
+      locationName,
+      privateToken: null, // Clear legacy PIT when upgrading to OAuth
+      isConnected: true
+    };
+
+    if (existing) {
+      await req.prisma.gHLIntegration.update({
+        where: { userId },
+        data
+      });
+    } else {
+      await req.prisma.gHLIntegration.create({
+        data: { ...data, userId }
+      });
+    }
+
+    res.redirect(`${clientUrl}/dashboard/settings?tab=ghl&ghl_connected=true`);
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    res.redirect(`${clientUrl}/dashboard/settings?tab=ghl&ghl_error=${encodeURIComponent('An unexpected error occurred')}`);
+  }
+};
+
 module.exports = {
   connect,
   getStatus,
   disconnect,
   getCalendars,
   checkAvailability,
-  bookAppointment
+  bookAppointment,
+  oauthAuthorize,
+  oauthCallback
 };
