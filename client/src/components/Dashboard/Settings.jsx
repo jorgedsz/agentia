@@ -78,6 +78,7 @@ export default function Settings() {
   const { user } = useAuth()
   const tabParam = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState(tabParam || 'team')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const isOwner = user?.role === ROLES.OWNER
 
@@ -121,34 +122,50 @@ export default function Settings() {
       </div>
 
       {/* Desktop: Settings Sidebar */}
-      <div className="hidden lg:block w-72 flex-shrink-0">
+      <div className={`hidden lg:block flex-shrink-0 transition-all duration-300 ${sidebarCollapsed ? 'w-16' : 'w-72'}`}>
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden sticky top-6">
-          <div className="p-4 border-b border-gray-200 dark:border-dark-border">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Settings</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your account</p>
+          <div className={`flex items-center justify-between border-b border-gray-200 dark:border-dark-border ${sidebarCollapsed ? 'p-2' : 'p-4'}`}>
+            {!sidebarCollapsed && (
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Settings</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your account</p>
+              </div>
+            )}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className={`p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors ${sidebarCollapsed ? 'mx-auto' : ''}`}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <svg className={`w-5 h-5 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              </svg>
+            </button>
           </div>
           <nav className="p-2">
             {visibleItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
+                title={sidebarCollapsed ? item.label : undefined}
                 className={`w-full flex items-start gap-3 p-3 rounded-lg text-left transition-colors ${
                   activeTab === item.id
                     ? 'bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover'
-                }`}
+                } ${sidebarCollapsed ? 'justify-center' : ''}`}
               >
-                <div className={`mt-0.5 ${activeTab === item.id ? 'text-primary-500' : 'text-gray-400'}`}>
+                <div className={`${sidebarCollapsed ? '' : 'mt-0.5'} ${activeTab === item.id ? 'text-primary-500' : 'text-gray-400'}`}>
                   {item.icon}
                 </div>
-                <div>
-                  <div className={`font-medium text-sm ${activeTab === item.id ? 'text-primary-600 dark:text-primary-400' : ''}`}>
-                    {item.label}
+                {!sidebarCollapsed && (
+                  <div>
+                    <div className={`font-medium text-sm ${activeTab === item.id ? 'text-primary-600 dark:text-primary-400' : ''}`}>
+                      {item.label}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {item.description}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {item.description}
-                  </div>
-                </div>
+                )}
               </button>
             ))}
           </nav>
