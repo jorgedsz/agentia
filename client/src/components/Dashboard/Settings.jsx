@@ -86,11 +86,43 @@ export default function Settings() {
     item.roles.includes(user?.role)
   )
 
+  const activeItem = visibleItems.find(item => item.id === activeTab)
+
   return (
-    <div className="flex gap-6 min-h-[calc(100vh-200px)]">
-      {/* Settings Sidebar */}
-      <div className="w-72 flex-shrink-0">
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
+    <div className="flex flex-col lg:flex-row gap-6 min-h-[calc(100vh-200px)]">
+      {/* Mobile: Dropdown selector */}
+      <div className="lg:hidden">
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Settings
+          </label>
+          <div className="relative">
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+            >
+              {visibleItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+          {activeItem && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{activeItem.description}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop: Settings Sidebar */}
+      <div className="hidden lg:block w-72 flex-shrink-0">
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden sticky top-6">
           <div className="p-4 border-b border-gray-200 dark:border-dark-border">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Settings</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your account</p>
@@ -371,8 +403,8 @@ function TeamAccessTab() {
       )}
 
       {/* Header */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="flex items-start justify-between">
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Team Access</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -386,7 +418,7 @@ function TeamAccessTab() {
               setError('')
               setShowModal(true)
             }}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+            className="w-full sm:w-auto px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -413,38 +445,48 @@ function TeamAccessTab() {
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-dark-border">
             {members.map((member) => (
-              <div key={member.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-dark-hover">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium">
-                    {(member.name || member.email)[0].toUpperCase()}
+              <div key={member.id} className="p-4 hover:bg-gray-50 dark:hover:bg-dark-hover">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  {/* Member Info */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium flex-shrink-0">
+                      {(member.name || member.email)[0].toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-900 dark:text-white truncate">{member.name || 'Unnamed'}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 truncate">{member.email}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-medium text-gray-900 dark:text-white">{member.name || 'Unnamed'}</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">{member.email}</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getRoleBadgeColor(member.teamRole)}`}>
-                    {member.teamRole}
-                  </span>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    member.isActive ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
-                  }`}>
-                    {member.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => handleEdit(member)} className="text-primary-500 hover:text-primary-600 text-sm">
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleToggleActive(member)}
-                      className={`text-sm ${member.isActive ? 'text-yellow-500 hover:text-yellow-600' : 'text-green-500 hover:text-green-600'}`}
-                    >
-                      {member.isActive ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button onClick={() => handleDelete(member)} className="text-red-500 hover:text-red-600 text-sm">
-                      Delete
-                    </button>
+
+                  {/* Badges and Actions */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 ml-13 sm:ml-0">
+                    {/* Badges */}
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getRoleBadgeColor(member.teamRole)}`}>
+                        {member.teamRole}
+                      </span>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        member.isActive ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                      }`}>
+                        {member.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-3 sm:gap-2">
+                      <button onClick={() => handleEdit(member)} className="text-primary-500 hover:text-primary-600 text-sm">
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleToggleActive(member)}
+                        className={`text-sm ${member.isActive ? 'text-yellow-500 hover:text-yellow-600' : 'text-green-500 hover:text-green-600'}`}
+                      >
+                        {member.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button onClick={() => handleDelete(member)} className="text-red-500 hover:text-red-600 text-sm">
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
