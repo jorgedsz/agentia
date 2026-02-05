@@ -3,20 +3,322 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, promptGeneratorAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
-const LANGUAGES = [
-  { id: 'en', label: 'English' },
-  { id: 'es', label: 'Spanish' },
-  { id: 'fr', label: 'French' },
-  { id: 'de', label: 'German' },
-  { id: 'it', label: 'Italian' },
-  { id: 'pt', label: 'Portuguese' },
-  { id: 'nl', label: 'Dutch' },
-  { id: 'pl', label: 'Polish' },
-  { id: 'ru', label: 'Russian' },
-  { id: 'ja', label: 'Japanese' },
-  { id: 'ko', label: 'Korean' },
-  { id: 'zh', label: 'Chinese' },
+const TRANSCRIBER_PROVIDERS = [
+  { id: 'deepgram', label: 'Deepgram' },
+  { id: 'assembly-ai', label: 'Assembly AI' },
+  { id: 'azure', label: 'Azure' },
+  { id: '11labs', label: 'ElevenLabs' },
+  { id: 'gladia', label: 'Gladia' },
+  { id: 'google', label: 'Google' },
+  { id: 'openai', label: 'OpenAI' },
+  { id: 'speechmatics', label: 'Speechmatics' },
+  { id: 'talkscriber', label: 'Talkscriber' },
+  { id: 'cartesia', label: 'Cartesia' },
 ]
+
+const TRANSCRIBER_LANGUAGES = {
+  'deepgram': [
+    { id: 'multi', label: 'Multi (Auto-detect)' },
+    { id: 'en', label: 'English' },
+    { id: 'en-US', label: 'English (US)' },
+    { id: 'en-GB', label: 'English (UK)' },
+    { id: 'en-AU', label: 'English (AU)' },
+    { id: 'es', label: 'Spanish' },
+    { id: 'es-419', label: 'Spanish (LATAM)' },
+    { id: 'fr', label: 'French' },
+    { id: 'fr-CA', label: 'French (Canada)' },
+    { id: 'de', label: 'German' },
+    { id: 'it', label: 'Italian' },
+    { id: 'pt', label: 'Portuguese' },
+    { id: 'pt-BR', label: 'Portuguese (Brazil)' },
+    { id: 'nl', label: 'Dutch' },
+    { id: 'pl', label: 'Polish' },
+    { id: 'ru', label: 'Russian' },
+    { id: 'ja', label: 'Japanese' },
+    { id: 'ko', label: 'Korean' },
+    { id: 'zh', label: 'Chinese' },
+    { id: 'zh-TW', label: 'Chinese (Traditional)' },
+    { id: 'hi', label: 'Hindi' },
+    { id: 'tr', label: 'Turkish' },
+    { id: 'uk', label: 'Ukrainian' },
+    { id: 'sv', label: 'Swedish' },
+    { id: 'da', label: 'Danish' },
+    { id: 'fi', label: 'Finnish' },
+    { id: 'no', label: 'Norwegian' },
+    { id: 'id', label: 'Indonesian' },
+    { id: 'th', label: 'Thai' },
+    { id: 'vi', label: 'Vietnamese' },
+    { id: 'cs', label: 'Czech' },
+    { id: 'el', label: 'Greek' },
+    { id: 'ro', label: 'Romanian' },
+    { id: 'bg', label: 'Bulgarian' },
+    { id: 'ms', label: 'Malay' },
+    { id: 'hu', label: 'Hungarian' },
+    { id: 'ca', label: 'Catalan' },
+    { id: 'ta', label: 'Tamil' },
+  ],
+  'assembly-ai': [
+    { id: 'en', label: 'English' },
+  ],
+  'azure': [
+    { id: 'en-US', label: 'English (US)' },
+    { id: 'en-GB', label: 'English (UK)' },
+    { id: 'en-AU', label: 'English (AU)' },
+    { id: 'en-CA', label: 'English (Canada)' },
+    { id: 'en-IN', label: 'English (India)' },
+    { id: 'es-ES', label: 'Spanish (Spain)' },
+    { id: 'es-MX', label: 'Spanish (Mexico)' },
+    { id: 'es-US', label: 'Spanish (US)' },
+    { id: 'fr-FR', label: 'French (France)' },
+    { id: 'fr-CA', label: 'French (Canada)' },
+    { id: 'de-DE', label: 'German' },
+    { id: 'it-IT', label: 'Italian' },
+    { id: 'pt-BR', label: 'Portuguese (Brazil)' },
+    { id: 'pt-PT', label: 'Portuguese (Portugal)' },
+    { id: 'nl-NL', label: 'Dutch' },
+    { id: 'pl-PL', label: 'Polish' },
+    { id: 'ru-RU', label: 'Russian' },
+    { id: 'ja-JP', label: 'Japanese' },
+    { id: 'ko-KR', label: 'Korean' },
+    { id: 'zh-CN', label: 'Chinese (Simplified)' },
+    { id: 'zh-TW', label: 'Chinese (Traditional)' },
+    { id: 'hi-IN', label: 'Hindi' },
+    { id: 'ar-SA', label: 'Arabic (Saudi)' },
+    { id: 'ar-EG', label: 'Arabic (Egypt)' },
+    { id: 'tr-TR', label: 'Turkish' },
+    { id: 'uk-UA', label: 'Ukrainian' },
+    { id: 'sv-SE', label: 'Swedish' },
+    { id: 'da-DK', label: 'Danish' },
+    { id: 'fi-FI', label: 'Finnish' },
+    { id: 'nb-NO', label: 'Norwegian' },
+    { id: 'th-TH', label: 'Thai' },
+    { id: 'vi-VN', label: 'Vietnamese' },
+    { id: 'he-IL', label: 'Hebrew' },
+    { id: 'el-GR', label: 'Greek' },
+    { id: 'ro-RO', label: 'Romanian' },
+    { id: 'hu-HU', label: 'Hungarian' },
+    { id: 'id-ID', label: 'Indonesian' },
+    { id: 'cs-CZ', label: 'Czech' },
+    { id: 'bg-BG', label: 'Bulgarian' },
+    { id: 'ms-MY', label: 'Malay' },
+    { id: 'ca-ES', label: 'Catalan' },
+  ],
+  'gladia': [
+    { id: 'en', label: 'English' },
+    { id: 'es', label: 'Spanish' },
+    { id: 'fr', label: 'French' },
+    { id: 'de', label: 'German' },
+    { id: 'it', label: 'Italian' },
+    { id: 'pt', label: 'Portuguese' },
+    { id: 'nl', label: 'Dutch' },
+    { id: 'pl', label: 'Polish' },
+    { id: 'ru', label: 'Russian' },
+    { id: 'ja', label: 'Japanese' },
+    { id: 'ko', label: 'Korean' },
+    { id: 'zh', label: 'Chinese' },
+    { id: 'hi', label: 'Hindi' },
+    { id: 'ar', label: 'Arabic' },
+    { id: 'tr', label: 'Turkish' },
+    { id: 'uk', label: 'Ukrainian' },
+    { id: 'sv', label: 'Swedish' },
+    { id: 'da', label: 'Danish' },
+    { id: 'fi', label: 'Finnish' },
+    { id: 'no', label: 'Norwegian' },
+    { id: 'th', label: 'Thai' },
+    { id: 'vi', label: 'Vietnamese' },
+    { id: 'he', label: 'Hebrew' },
+    { id: 'el', label: 'Greek' },
+    { id: 'ro', label: 'Romanian' },
+    { id: 'hu', label: 'Hungarian' },
+    { id: 'id', label: 'Indonesian' },
+    { id: 'cs', label: 'Czech' },
+    { id: 'bg', label: 'Bulgarian' },
+    { id: 'ms', label: 'Malay' },
+    { id: 'ca', label: 'Catalan' },
+    { id: 'ta', label: 'Tamil' },
+  ],
+  'google': [
+    { id: 'Multilingual', label: 'Multilingual (Auto)' },
+    { id: 'English', label: 'English' },
+    { id: 'Spanish', label: 'Spanish' },
+    { id: 'French', label: 'French' },
+    { id: 'German', label: 'German' },
+    { id: 'Italian', label: 'Italian' },
+    { id: 'Portuguese', label: 'Portuguese' },
+    { id: 'Dutch', label: 'Dutch' },
+    { id: 'Polish', label: 'Polish' },
+    { id: 'Russian', label: 'Russian' },
+    { id: 'Japanese', label: 'Japanese' },
+    { id: 'Korean', label: 'Korean' },
+    { id: 'Chinese', label: 'Chinese' },
+    { id: 'Hindi', label: 'Hindi' },
+    { id: 'Arabic', label: 'Arabic' },
+    { id: 'Turkish', label: 'Turkish' },
+    { id: 'Ukrainian', label: 'Ukrainian' },
+    { id: 'Swedish', label: 'Swedish' },
+    { id: 'Danish', label: 'Danish' },
+    { id: 'Finnish', label: 'Finnish' },
+    { id: 'Norwegian', label: 'Norwegian' },
+    { id: 'Thai', label: 'Thai' },
+    { id: 'Vietnamese', label: 'Vietnamese' },
+    { id: 'Hebrew', label: 'Hebrew' },
+    { id: 'Greek', label: 'Greek' },
+    { id: 'Romanian', label: 'Romanian' },
+    { id: 'Hungarian', label: 'Hungarian' },
+    { id: 'Indonesian', label: 'Indonesian' },
+    { id: 'Czech', label: 'Czech' },
+    { id: 'Bulgarian', label: 'Bulgarian' },
+    { id: 'Croatian', label: 'Croatian' },
+    { id: 'Bengali', label: 'Bengali' },
+    { id: 'Slovak', label: 'Slovak' },
+    { id: 'Slovenian', label: 'Slovenian' },
+    { id: 'Serbian', label: 'Serbian' },
+    { id: 'Swahili', label: 'Swahili' },
+  ],
+  'speechmatics': [
+    { id: 'auto', label: 'Auto-detect' },
+    { id: 'en', label: 'English' },
+    { id: 'es', label: 'Spanish' },
+    { id: 'fr', label: 'French' },
+    { id: 'de', label: 'German' },
+    { id: 'it', label: 'Italian' },
+    { id: 'pt', label: 'Portuguese' },
+    { id: 'nl', label: 'Dutch' },
+    { id: 'pl', label: 'Polish' },
+    { id: 'ru', label: 'Russian' },
+    { id: 'ja', label: 'Japanese' },
+    { id: 'ko', label: 'Korean' },
+    { id: 'cmn', label: 'Chinese (Mandarin)' },
+    { id: 'yue', label: 'Chinese (Cantonese)' },
+    { id: 'hi', label: 'Hindi' },
+    { id: 'ar', label: 'Arabic' },
+    { id: 'tr', label: 'Turkish' },
+    { id: 'uk', label: 'Ukrainian' },
+    { id: 'sv', label: 'Swedish' },
+    { id: 'da', label: 'Danish' },
+    { id: 'fi', label: 'Finnish' },
+    { id: 'no', label: 'Norwegian' },
+    { id: 'th', label: 'Thai' },
+    { id: 'vi', label: 'Vietnamese' },
+    { id: 'he', label: 'Hebrew' },
+    { id: 'el', label: 'Greek' },
+    { id: 'ro', label: 'Romanian' },
+    { id: 'hu', label: 'Hungarian' },
+    { id: 'id', label: 'Indonesian' },
+    { id: 'cs', label: 'Czech' },
+    { id: 'bg', label: 'Bulgarian' },
+    { id: 'ms', label: 'Malay' },
+    { id: 'ca', label: 'Catalan' },
+    { id: 'ta', label: 'Tamil' },
+  ],
+  'talkscriber': [
+    { id: 'en', label: 'English' },
+    { id: 'es', label: 'Spanish' },
+    { id: 'fr', label: 'French' },
+    { id: 'de', label: 'German' },
+    { id: 'it', label: 'Italian' },
+    { id: 'pt', label: 'Portuguese' },
+    { id: 'nl', label: 'Dutch' },
+    { id: 'pl', label: 'Polish' },
+    { id: 'ru', label: 'Russian' },
+    { id: 'ja', label: 'Japanese' },
+    { id: 'ko', label: 'Korean' },
+    { id: 'zh', label: 'Chinese' },
+    { id: 'hi', label: 'Hindi' },
+    { id: 'ar', label: 'Arabic' },
+    { id: 'tr', label: 'Turkish' },
+    { id: 'uk', label: 'Ukrainian' },
+    { id: 'sv', label: 'Swedish' },
+    { id: 'da', label: 'Danish' },
+    { id: 'fi', label: 'Finnish' },
+    { id: 'no', label: 'Norwegian' },
+    { id: 'th', label: 'Thai' },
+    { id: 'vi', label: 'Vietnamese' },
+  ],
+  'openai': [
+    { id: 'en', label: 'English' },
+    { id: 'es', label: 'Spanish' },
+    { id: 'fr', label: 'French' },
+    { id: 'de', label: 'German' },
+    { id: 'it', label: 'Italian' },
+    { id: 'pt', label: 'Portuguese' },
+    { id: 'nl', label: 'Dutch' },
+    { id: 'pl', label: 'Polish' },
+    { id: 'ru', label: 'Russian' },
+    { id: 'ja', label: 'Japanese' },
+    { id: 'ko', label: 'Korean' },
+    { id: 'zh', label: 'Chinese' },
+    { id: 'hi', label: 'Hindi' },
+    { id: 'ar', label: 'Arabic' },
+    { id: 'tr', label: 'Turkish' },
+    { id: 'uk', label: 'Ukrainian' },
+    { id: 'sv', label: 'Swedish' },
+    { id: 'da', label: 'Danish' },
+    { id: 'fi', label: 'Finnish' },
+    { id: 'th', label: 'Thai' },
+    { id: 'vi', label: 'Vietnamese' },
+    { id: 'he', label: 'Hebrew' },
+    { id: 'el', label: 'Greek' },
+    { id: 'ro', label: 'Romanian' },
+    { id: 'hu', label: 'Hungarian' },
+    { id: 'id', label: 'Indonesian' },
+    { id: 'cs', label: 'Czech' },
+  ],
+  '11labs': [
+    { id: 'en', label: 'English' },
+    { id: 'es', label: 'Spanish' },
+    { id: 'fr', label: 'French' },
+    { id: 'de', label: 'German' },
+    { id: 'it', label: 'Italian' },
+    { id: 'pt', label: 'Portuguese' },
+    { id: 'nl', label: 'Dutch' },
+    { id: 'pl', label: 'Polish' },
+    { id: 'ru', label: 'Russian' },
+    { id: 'ja', label: 'Japanese' },
+    { id: 'ko', label: 'Korean' },
+    { id: 'zh', label: 'Chinese' },
+    { id: 'hi', label: 'Hindi' },
+    { id: 'ar', label: 'Arabic' },
+    { id: 'tr', label: 'Turkish' },
+    { id: 'uk', label: 'Ukrainian' },
+    { id: 'sv', label: 'Swedish' },
+    { id: 'da', label: 'Danish' },
+    { id: 'fi', label: 'Finnish' },
+    { id: 'th', label: 'Thai' },
+    { id: 'vi', label: 'Vietnamese' },
+    { id: 'he', label: 'Hebrew' },
+    { id: 'el', label: 'Greek' },
+    { id: 'ro', label: 'Romanian' },
+    { id: 'hu', label: 'Hungarian' },
+    { id: 'id', label: 'Indonesian' },
+    { id: 'cs', label: 'Czech' },
+    { id: 'bg', label: 'Bulgarian' },
+    { id: 'ms', label: 'Malay' },
+    { id: 'ta', label: 'Tamil' },
+  ],
+  'cartesia': [
+    { id: 'en', label: 'English' },
+    { id: 'es', label: 'Spanish' },
+    { id: 'fr', label: 'French' },
+    { id: 'de', label: 'German' },
+    { id: 'it', label: 'Italian' },
+    { id: 'pt', label: 'Portuguese' },
+    { id: 'nl', label: 'Dutch' },
+    { id: 'pl', label: 'Polish' },
+    { id: 'ru', label: 'Russian' },
+    { id: 'ja', label: 'Japanese' },
+    { id: 'ko', label: 'Korean' },
+    { id: 'zh', label: 'Chinese' },
+    { id: 'hi', label: 'Hindi' },
+    { id: 'ar', label: 'Arabic' },
+    { id: 'tr', label: 'Turkish' },
+    { id: 'sv', label: 'Swedish' },
+    { id: 'da', label: 'Danish' },
+    { id: 'fi', label: 'Finnish' },
+    { id: 'th', label: 'Thai' },
+    { id: 'vi', label: 'Vietnamese' },
+  ],
+}
 
 const LLM_PROVIDERS = [
   { id: 'openai', label: 'OpenAI', icon: '🟢' },
@@ -216,6 +518,10 @@ export default function AgentEdit() {
   const [addVoiceManually, setAddVoiceManually] = useState(false)
   const [customVoiceId, setCustomVoiceId] = useState('')
 
+  // Transcriber settings
+  const [transcriberProvider, setTranscriberProvider] = useState('deepgram')
+  const [transcriberLanguage, setTranscriberLanguage] = useState('multi')
+
   // Prompt generator
   const [showPromptGenerator, setShowPromptGenerator] = useState(false)
   const [promptDescription, setPromptDescription] = useState('')
@@ -378,6 +684,14 @@ export default function AgentEdit() {
       if (!isKnownVoice && savedVoiceId) {
         setAddVoiceManually(true)
         setCustomVoiceId(savedVoiceId)
+      }
+
+      // Load transcriber config
+      if (agentData.config?.transcriberProvider) {
+        setTranscriberProvider(agentData.config.transcriberProvider)
+      }
+      if (agentData.config?.transcriberLanguage) {
+        setTranscriberLanguage(agentData.config.transcriberLanguage)
       }
 
       // Load calendar config
@@ -597,6 +911,8 @@ Important:
           modelName,
           voiceProvider,
           voiceId: finalVoiceId,
+          transcriberProvider,
+          transcriberLanguage,
           calendarConfig,
           // Voice settings
           elevenLabsModel: voiceSettings.model,
@@ -1152,6 +1468,63 @@ Important:
             <label htmlFor="addVoiceManually" className="text-sm text-gray-600 dark:text-gray-400">
               Add Voice ID Manually
             </label>
+          </div>
+
+          {/* Transcriber Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Transcriber Provider */}
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">Transcriber</label>
+              <div className="relative">
+                <select
+                  value={transcriberProvider}
+                  onChange={(e) => {
+                    const newProvider = e.target.value
+                    setTranscriberProvider(newProvider)
+                    // Reset language to first available for new provider
+                    const languages = TRANSCRIBER_LANGUAGES[newProvider] || []
+                    if (languages.length > 0) {
+                      setTranscriberLanguage(languages[0].id)
+                    }
+                  }}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer"
+                >
+                  {TRANSCRIBER_PROVIDERS.map(provider => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Transcriber Language */}
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">Transcriber Language</label>
+              <div className="relative">
+                <select
+                  value={transcriberLanguage}
+                  onChange={(e) => setTranscriberLanguage(e.target.value)}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer"
+                >
+                  {(TRANSCRIBER_LANGUAGES[transcriberProvider] || []).map(lang => (
+                    <option key={lang.id} value={lang.id}>
+                      {lang.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Feature Cards */}

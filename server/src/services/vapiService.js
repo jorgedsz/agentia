@@ -81,7 +81,8 @@ class VapiService {
       name: config.name,
       firstMessage: config.firstMessage || `Hello! I'm ${config.name}. How can I help you today?`,
       model: modelConfig,
-      voice: this.buildVoiceConfig(config)
+      voice: this.buildVoiceConfig(config),
+      transcriber: this.buildTranscriberConfig(config)
     };
 
     // Add background sound at assistant level if specified
@@ -177,6 +178,24 @@ class VapiService {
     };
   }
 
+  buildTranscriberConfig(config) {
+    const provider = config.transcriberProvider || 'deepgram';
+    const language = config.transcriberLanguage || 'multi';
+
+    const transcriberConfig = {
+      provider,
+      language
+    };
+
+    // Add provider-specific settings
+    if (provider === 'deepgram') {
+      transcriberConfig.model = 'nova-2'; // Default model for Deepgram
+    }
+
+    console.log('Transcriber config being sent to VAPI:', JSON.stringify(transcriberConfig, null, 2));
+    return transcriberConfig;
+  }
+
   buildVoiceConfig(config) {
     const provider = config.voiceProvider || 'vapi';
 
@@ -248,6 +267,9 @@ class VapiService {
     }
     // Always update voice config
     updateData.voice = this.buildVoiceConfig(config);
+
+    // Always update transcriber config
+    updateData.transcriber = this.buildTranscriberConfig(config);
 
     // Add background sound at assistant level if specified
     // VAPI only accepts: 'off', 'office', or a valid URL
