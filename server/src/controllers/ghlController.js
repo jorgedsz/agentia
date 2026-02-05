@@ -671,10 +671,15 @@ const oauthAuthorize = async (req, res) => {
 const oauthCallback = async (req, res) => {
   const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
+  console.log('=== GHL OAuth Callback Hit ===');
+  console.log('Query params:', req.query);
+  console.log('Full URL:', req.originalUrl);
+
   try {
     const { code, state } = req.query;
 
     if (!code || !state) {
+      console.log('Missing code or state, redirecting with error');
       return res.redirect(`${clientUrl}/dashboard/settings?tab=ghl&ghl_error=${encodeURIComponent('Missing authorization code or state')}`);
     }
 
