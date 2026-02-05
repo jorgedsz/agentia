@@ -3,6 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, promptGeneratorAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
+const LANGUAGES = [
+  { id: 'en', label: 'English' },
+  { id: 'es', label: 'Spanish' },
+  { id: 'fr', label: 'French' },
+  { id: 'de', label: 'German' },
+  { id: 'it', label: 'Italian' },
+  { id: 'pt', label: 'Portuguese' },
+  { id: 'nl', label: 'Dutch' },
+  { id: 'pl', label: 'Polish' },
+  { id: 'ru', label: 'Russian' },
+  { id: 'ja', label: 'Japanese' },
+  { id: 'ko', label: 'Korean' },
+  { id: 'zh', label: 'Chinese' },
+]
+
 const TRANSCRIBER_PROVIDERS = [
   { id: 'deepgram', label: 'Deepgram' },
   { id: 'assembly-ai', label: 'Assembly AI' },
