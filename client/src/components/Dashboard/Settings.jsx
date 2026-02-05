@@ -9,74 +9,227 @@ const ROLES = {
   CLIENT: 'CLIENT'
 }
 
-const TABS = {
-  USERS: 'users',
-  GHL: 'ghl',
-  API_KEYS: 'api-keys'
-}
-
 const TEAM_ROLES = {
   ADMIN: 'admin',
   USER: 'user'
 }
 
+// Settings menu items
+const SETTINGS_ITEMS = [
+  {
+    id: 'team',
+    label: 'Team Access',
+    description: 'Manage team members and permissions',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+      </svg>
+    ),
+    roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
+  },
+  {
+    id: 'ghl',
+    label: 'GoHighLevel',
+    description: 'Calendar integration settings',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    ),
+    roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
+  },
+  {
+    id: 'api-keys',
+    label: 'API Keys',
+    description: 'Platform API configuration',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+      </svg>
+    ),
+    roles: [ROLES.OWNER]
+  },
+  {
+    id: 'billing',
+    label: 'Billing & Rates',
+    description: 'View your billing rates',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+      </svg>
+    ),
+    roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
+  },
+  {
+    id: 'account',
+    label: 'Account',
+    description: 'Profile and security settings',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    ),
+    roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
+  }
+]
+
 export default function Settings() {
   const [searchParams] = useSearchParams()
   const { user } = useAuth()
   const tabParam = searchParams.get('tab')
-  const [activeTab, setActiveTab] = useState(
-    tabParam === 'ghl' ? TABS.GHL : tabParam === 'api-keys' ? TABS.API_KEYS : TABS.USERS
-  )
+  const [activeTab, setActiveTab] = useState(tabParam || 'team')
 
   const isOwner = user?.role === ROLES.OWNER
 
+  // Filter menu items based on user role
+  const visibleItems = SETTINGS_ITEMS.filter(item =>
+    item.roles.includes(user?.role)
+  )
+
   return (
-    <div className="space-y-6">
-      {/* Tab Navigation */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-1 inline-flex gap-1">
-        <button
-          onClick={() => setActiveTab(TABS.USERS)}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeTab === TABS.USERS
-              ? 'bg-primary-600 text-white'
-              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover'
-          }`}
-        >
-          Team Access
-        </button>
-        <button
-          onClick={() => setActiveTab(TABS.GHL)}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            activeTab === TABS.GHL
-              ? 'bg-primary-600 text-white'
-              : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover'
-          }`}
-        >
-          GoHighLevel Integration
-        </button>
-        {isOwner && (
-          <button
-            onClick={() => setActiveTab(TABS.API_KEYS)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === TABS.API_KEYS
-                ? 'bg-primary-600 text-white'
-                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover'
-            }`}
-          >
-            API Keys
-          </button>
-        )}
+    <div className="flex gap-6 min-h-[calc(100vh-200px)]">
+      {/* Settings Sidebar */}
+      <div className="w-72 flex-shrink-0">
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-dark-border">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Settings</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your account</p>
+          </div>
+          <nav className="p-2">
+            {visibleItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-start gap-3 p-3 rounded-lg text-left transition-colors ${
+                  activeTab === item.id
+                    ? 'bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover'
+                }`}
+              >
+                <div className={`mt-0.5 ${activeTab === item.id ? 'text-primary-500' : 'text-gray-400'}`}>
+                  {item.icon}
+                </div>
+                <div>
+                  <div className={`font-medium text-sm ${activeTab === item.id ? 'text-primary-600 dark:text-primary-400' : ''}`}>
+                    {item.label}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {item.description}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
 
-      {/* Tab Content */}
-      {activeTab === TABS.USERS && <TeamAccessTab />}
-      {activeTab === TABS.GHL && <GHLIntegrationTab />}
-      {activeTab === TABS.API_KEYS && isOwner && <APIKeysTab />}
+      {/* Settings Content */}
+      <div className="flex-1 min-w-0">
+        {activeTab === 'team' && <TeamAccessTab />}
+        {activeTab === 'ghl' && <GHLIntegrationTab />}
+        {activeTab === 'api-keys' && isOwner && <APIKeysTab />}
+        {activeTab === 'billing' && <BillingTab />}
+        {activeTab === 'account' && <AccountTab />}
+      </div>
     </div>
   )
 }
 
-// Team Access Tab (existing TeamAccess functionality)
+// Billing Tab
+function BillingTab() {
+  const { user } = useAuth()
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Billing & Rates</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          Your current call rates and billing information.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4">
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Outbound Rate</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+              ${(user?.outboundRate ?? 0.10).toFixed(2)}<span className="text-sm font-normal text-gray-500">/min</span>
+            </div>
+          </div>
+          <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4">
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Inbound Rate</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">
+              ${(user?.inboundRate ?? 0.05).toFixed(2)}<span className="text-sm font-normal text-gray-500">/min</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-400">Billing Information</p>
+              <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
+                Calls are billed per minute based on your account rates. Contact your administrator to adjust rates.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Account Tab
+function AccountTab() {
+  const { user } = useAuth()
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account Information</h2>
+
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-16 h-16 rounded-full bg-primary-600 flex items-center justify-center text-white text-2xl font-medium">
+            {(user?.name || user?.email)?.[0]?.toUpperCase() || 'U'}
+          </div>
+          <div>
+            <div className="text-lg font-semibold text-gray-900 dark:text-white">{user?.name || 'Unnamed User'}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{user?.email}</div>
+            <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
+              user?.role === ROLES.OWNER
+                ? 'bg-purple-500/20 text-purple-400'
+                : user?.role === ROLES.AGENCY
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'bg-green-500/20 text-green-400'
+            }`}>
+              {user?.role}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex justify-between py-3 border-b border-gray-200 dark:border-dark-border">
+            <span className="text-sm text-gray-500 dark:text-gray-400">Account ID</span>
+            <span className="text-sm font-mono text-gray-900 dark:text-white">{user?.id}</span>
+          </div>
+          <div className="flex justify-between py-3 border-b border-gray-200 dark:border-dark-border">
+            <span className="text-sm text-gray-500 dark:text-gray-400">Member Since</span>
+            <span className="text-sm text-gray-900 dark:text-white">
+              {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+            </span>
+          </div>
+          <div className="flex justify-between py-3">
+            <span className="text-sm text-gray-500 dark:text-gray-400">Credits Balance</span>
+            <span className="text-sm font-medium text-green-500">${(user?.vapiCredits ?? 0).toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Team Access Tab
 function TeamAccessTab() {
   const { isTeamMember, teamMember } = useAuth()
   const [members, setMembers] = useState([])
@@ -220,18 +373,11 @@ function TeamAccessTab() {
       {/* Header */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-start justify-between">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-primary-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-              <svg className="w-6 h-6 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Team Access</h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Create team members who can access your account with different permission levels.
-              </p>
-            </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Team Access</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Create team members who can access your account with different permission levels.
+            </p>
           </div>
           <button
             onClick={() => {
@@ -245,32 +391,8 @@ function TeamAccessTab() {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Add Team Member
+            Add Member
           </button>
-        </div>
-      </div>
-
-      {/* Role Descriptions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getRoleBadgeColor(TEAM_ROLES.ADMIN)}`}>
-              Admin
-            </span>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Full access to all features including managing agents, clients, and settings.
-          </p>
-        </div>
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getRoleBadgeColor(TEAM_ROLES.USER)}`}>
-              User
-            </span>
-          </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Can view and use agents but cannot modify settings or manage team members.
-          </p>
         </div>
       </div>
 
@@ -287,65 +409,31 @@ function TeamAccessTab() {
             <p className="text-gray-500 dark:text-gray-400 mb-4">
               Add team members to give others access to your account.
             </p>
-            <button
-              onClick={() => {
-                setEditingMember(null)
-                setFormData({ email: '', password: '', name: '', teamRole: TEAM_ROLES.USER })
-                setError('')
-                setShowModal(true)
-              }}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-            >
-              Add Your First Team Member
-            </button>
           </div>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-dark-hover">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Member</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Created</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
-              {members.map((member) => (
-                <tr key={member.id} className="hover:bg-gray-50 dark:hover:bg-dark-hover">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white text-sm font-medium">
-                        {(member.name || member.email)[0].toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">{member.name || 'Unnamed'}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">{member.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getRoleBadgeColor(member.teamRole)}`}>
-                      {member.teamRole}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      member.isActive
-                        ? 'bg-green-500/20 text-green-400'
-                        : 'bg-gray-500/20 text-gray-400'
-                    }`}>
-                      {member.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {new Date(member.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-right space-x-2">
-                    <button
-                      onClick={() => handleEdit(member)}
-                      className="text-primary-500 hover:text-primary-600 text-sm"
-                    >
+          <div className="divide-y divide-gray-200 dark:divide-dark-border">
+            {members.map((member) => (
+              <div key={member.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-dark-hover">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium">
+                    {(member.name || member.email)[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">{member.name || 'Unnamed'}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">{member.email}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getRoleBadgeColor(member.teamRole)}`}>
+                    {member.teamRole}
+                  </span>
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                    member.isActive ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                  }`}>
+                    {member.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleEdit(member)} className="text-primary-500 hover:text-primary-600 text-sm">
                       Edit
                     </button>
                     <button
@@ -354,17 +442,14 @@ function TeamAccessTab() {
                     >
                       {member.isActive ? 'Deactivate' : 'Activate'}
                     </button>
-                    <button
-                      onClick={() => handleDelete(member)}
-                      className="text-red-500 hover:text-red-600 text-sm"
-                    >
+                    <button onClick={() => handleDelete(member)} className="text-red-500 hover:text-red-600 text-sm">
                       Delete
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
@@ -376,10 +461,7 @@ function TeamAccessTab() {
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                 {editingMember ? 'Edit Team Member' : 'Add Team Member'}
               </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-              >
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -394,9 +476,7 @@ function TeamAccessTab() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Email *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
                 <input
                   type="email"
                   value={formData.email}
@@ -422,9 +502,7 @@ function TeamAccessTab() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Name
-                </label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
                 <input
                   type="text"
                   value={formData.name}
@@ -434,9 +512,7 @@ function TeamAccessTab() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Role *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role *</label>
                 <select
                   value={formData.teamRole}
                   onChange={(e) => setFormData({ ...formData, teamRole: e.target.value })}
@@ -481,7 +557,6 @@ function GHLIntegrationTab() {
   const [success, setSuccess] = useState('')
 
   useEffect(() => {
-    // Handle OAuth redirect params
     const ghlConnected = searchParams.get('ghl_connected')
     const ghlError = searchParams.get('ghl_error')
 
@@ -492,7 +567,6 @@ function GHLIntegrationTab() {
       setError(decodeURIComponent(ghlError))
     }
 
-    // Clean up URL params after reading
     if (ghlConnected || ghlError) {
       const newParams = new URLSearchParams(searchParams)
       newParams.delete('ghl_connected')
@@ -565,35 +639,22 @@ function GHLIntegrationTab() {
 
       {/* Header */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <div className="flex-1">
+        <div className="flex items-start justify-between">
+          <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">GoHighLevel Integration</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Connect your GoHighLevel account to enable calendar booking features in your AI agents.
             </p>
           </div>
           {status?.isConnected && (
-            <div className="flex items-center gap-2">
-              {status.connectionType === 'legacy' && (
-                <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-xs font-medium rounded-full">
-                  Legacy
-                </span>
-              )}
-              <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
-                Connected
-              </span>
-            </div>
+            <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm font-medium rounded-full">
+              Connected
+            </span>
           )}
         </div>
       </div>
 
       {status?.isConnected ? (
-        /* Connected State */
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">Connection Details</h3>
 
@@ -618,12 +679,12 @@ function GHLIntegrationTab() {
                   <div>
                     <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">Legacy Connection</p>
                     <p className="text-sm text-yellow-600 dark:text-yellow-300 mt-1">
-                      You're using a Private Integration Token. We recommend upgrading to OAuth for better security and automatic token refresh.
+                      You're using a Private Integration Token. We recommend upgrading to OAuth for better security.
                     </p>
                     <button
                       onClick={handleOAuthConnect}
                       disabled={connecting}
-                      className="mt-2 px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors"
+                      className="mt-2 px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 disabled:opacity-50"
                     >
                       {connecting ? 'Redirecting...' : 'Upgrade to OAuth'}
                     </button>
@@ -631,20 +692,6 @@ function GHLIntegrationTab() {
                 </div>
               </div>
             )}
-
-            <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-green-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <p className="text-sm font-medium text-green-700 dark:text-green-400">Integration Active</p>
-                  <p className="text-sm text-green-600 dark:text-green-300 mt-1">
-                    Your agents can now use GoHighLevel calendar features. Go to an agent's settings and enable Calendar Options.
-                  </p>
-                </div>
-              </div>
-            </div>
 
             <button
               onClick={handleDisconnect}
@@ -655,25 +702,24 @@ function GHLIntegrationTab() {
           </div>
         </div>
       ) : (
-        /* Not Connected State - OAuth */
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">Connect Your Account</h3>
 
           <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4 mb-6">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Click the button below to securely connect your GoHighLevel account via OAuth. You'll be redirected to GoHighLevel to authorize access to your calendars and contacts.
+              Click the button below to securely connect your GoHighLevel account via OAuth.
             </p>
           </div>
 
           <button
             onClick={handleOAuthConnect}
             disabled={connecting}
-            className="w-full px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-base font-medium"
+            className="w-full px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {connecting ? (
               <>
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                Redirecting to GoHighLevel...
+                Redirecting...
               </>
             ) : (
               <>
@@ -690,7 +736,7 @@ function GHLIntegrationTab() {
   )
 }
 
-// API Keys Tab (OWNER only)
+// API Keys Tab
 function APIKeysTab() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -796,19 +842,10 @@ function APIKeysTab() {
 
       {/* Header */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-            </svg>
-          </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">API Keys</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Configure your platform API keys for VAPI and OpenAI. These keys are encrypted and stored securely.
-            </p>
-          </div>
-        </div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">API Keys</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Configure your platform API keys for VAPI and OpenAI. These keys are encrypted and stored securely.
+        </p>
       </div>
 
       {/* VAPI API Key */}
@@ -822,17 +859,13 @@ function APIKeysTab() {
           )}
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Used for creating and managing voice AI agents. Get your key from the VAPI dashboard.
+          Used for creating and managing voice AI agents.
         </p>
 
         {hasVapi && (
           <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
             <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedVapi}</span>
-            <button
-              onClick={() => handleRemove('vapi')}
-              disabled={saving}
-              className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
-            >
+            <button onClick={() => handleRemove('vapi')} disabled={saving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
               Remove
             </button>
           </div>
@@ -849,7 +882,7 @@ function APIKeysTab() {
           <button
             onClick={() => handleSave('vapi')}
             disabled={saving || !vapiApiKey.trim()}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
             {saving ? 'Saving...' : hasVapi ? 'Update' : 'Save'}
           </button>
@@ -867,17 +900,13 @@ function APIKeysTab() {
           )}
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Used for the AI prompt generator feature. Get your key from the OpenAI platform.
+          Used for the AI prompt generator feature.
         </p>
 
         {hasOpenai && (
           <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
             <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedOpenai}</span>
-            <button
-              onClick={() => handleRemove('openai')}
-              disabled={saving}
-              className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
-            >
+            <button onClick={() => handleRemove('openai')} disabled={saving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
               Remove
             </button>
           </div>
@@ -894,7 +923,7 @@ function APIKeysTab() {
           <button
             onClick={() => handleSave('openai')}
             disabled={saving || !openaiApiKey.trim()}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
             {saving ? 'Saving...' : hasOpenai ? 'Update' : 'Save'}
           </button>
