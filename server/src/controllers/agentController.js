@@ -1,4 +1,5 @@
 const vapiService = require('../services/vapiService');
+const { getApiKeys } = require('../utils/getApiKeys');
 
 const parseConfig = (config) => {
   if (!config) return null;
@@ -53,8 +54,8 @@ const getAgent = async (req, res) => {
 
 const createAgent = async (req, res) => {
   try {
-    const { name, config } = req.body;
-    console.log('Create agent request - name:', name, 'config:', JSON.stringify(config, null, 2));
+    const { name, config, agentType } = req.body;
+    console.log('Create agent request - name:', name, 'agentType:', agentType, 'config:', JSON.stringify(config, null, 2));
 
     if (!name) {
       return res.status(400).json({ error: 'Agent name is required' });
@@ -63,8 +64,10 @@ const createAgent = async (req, res) => {
     let vapiId = null;
 
     // Try to create VAPI agent if service is configured
-    if (process.env.VAPI_API_KEY) {
+    const { vapiApiKey } = await getApiKeys(req.prisma);
+    if (vapiApiKey) {
       try {
+        vapiService.setApiKey(vapiApiKey);
         const vapiAgent = await vapiService.createAgent({
           name,
           ...config
@@ -79,6 +82,7 @@ const createAgent = async (req, res) => {
     const agent = await req.prisma.agent.create({
       data: {
         name,
+        agentType: agentType || 'outbound',
         vapiId,
         config: config ? JSON.stringify(config) : null,
         userId: req.user.id
@@ -98,10 +102,11 @@ const createAgent = async (req, res) => {
 const updateAgent = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, config } = req.body;
+    const { name, config, agentType } = req.body;
     console.log('=== UPDATE AGENT REQUEST ===');
     console.log('Agent ID:', id);
     console.log('Name:', name);
+    console.log('agentType:', agentType);
     console.log('Full req.body:', JSON.stringify(req.body, null, 2));
     console.log('Config received:', JSON.stringify(config, null, 2));
 
@@ -118,8 +123,10 @@ const updateAgent = async (req, res) => {
     }
 
     // Update VAPI agent if exists
-    if (existingAgent.vapiId && process.env.VAPI_API_KEY) {
+    const { vapiApiKey: vapiKey } = await getApiKeys(req.prisma);
+    if (existingAgent.vapiId && vapiKey) {
       try {
+        vapiService.setApiKey(vapiKey);
         const vapiPayload = { name, ...config };
         console.log('=== CALLING VAPI ===');
         console.log('VAPI ID:', existingAgent.vapiId);
@@ -136,12 +143,15 @@ const updateAgent = async (req, res) => {
     } else {
       console.log('=== VAPI SKIPPED ===');
       console.log('vapiId:', existingAgent.vapiId);
-      console.log('apiKey exists:', !!process.env.VAPI_API_KEY);
+      console.log('apiKey exists:', !!vapiKey);
     }
+
+    const updateData = { name, config: config ? JSON.stringify(config) : null };
+    if (agentType) updateData.agentType = agentType;
 
     const agent = await req.prisma.agent.update({
       where: { id: parseInt(id) },
-      data: { name, config: config ? JSON.stringify(config) : null }
+      data: updateData
     });
 
     res.json({
@@ -171,8 +181,10 @@ const deleteAgent = async (req, res) => {
     }
 
     // Delete VAPI agent if exists
-    if (existingAgent.vapiId && process.env.VAPI_API_KEY) {
+    const { vapiApiKey: vapiDelKey } = await getApiKeys(req.prisma);
+    if (existingAgent.vapiId && vapiDelKey) {
       try {
+        vapiService.setApiKey(vapiDelKey);
         await vapiService.deleteAgent(existingAgent.vapiId);
       } catch (vapiError) {
         console.error('VAPI agent deletion failed:', vapiError);

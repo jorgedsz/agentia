@@ -12,8 +12,12 @@ class VapiService {
     this.baseUrl = 'https://api.vapi.ai';
   }
 
+  setApiKey(key) {
+    this._apiKeyOverride = key;
+  }
+
   getApiKey() {
-    return process.env.VAPI_API_KEY;
+    return this._apiKeyOverride || process.env.VAPI_API_KEY;
   }
 
   isConfigured() {

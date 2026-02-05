@@ -13,6 +13,8 @@ const callRoutes = require('./routes/calls');
 const creditsRoutes = require('./routes/credits');
 const ratesRoutes = require('./routes/rates');
 const ghlRoutes = require('./routes/ghl');
+const promptGeneratorRoutes = require('./routes/promptGenerator');
+const platformSettingsRoutes = require('./routes/platformSettings');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -42,6 +44,8 @@ app.use('/api/calls', callRoutes);
 app.use('/api/credits', creditsRoutes);
 app.use('/api/rates', ratesRoutes);
 app.use('/api/ghl', ghlRoutes);
+app.use('/api/prompt-generator', promptGeneratorRoutes);
+app.use('/api/platform-settings', platformSettingsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI } from '../../services/api'
+import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, promptGeneratorAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const LANGUAGES = [
@@ -198,6 +198,7 @@ export default function AgentEdit() {
   const { user } = useAuth()
 
   const [agent, setAgent] = useState(null)
+  const [agentType, setAgentType] = useState('outbound')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -214,6 +215,12 @@ export default function AgentEdit() {
   const [voiceId, setVoiceId] = useState('Lily')
   const [addVoiceManually, setAddVoiceManually] = useState(false)
   const [customVoiceId, setCustomVoiceId] = useState('')
+
+  // Prompt generator
+  const [showPromptGenerator, setShowPromptGenerator] = useState(false)
+  const [promptDescription, setPromptDescription] = useState('')
+  const [generatingPrompt, setGeneratingPrompt] = useState(false)
+  const [generatedPrompt, setGeneratedPrompt] = useState('')
 
   // Feature toggles
   const [showCalendarModal, setShowCalendarModal] = useState(false)
@@ -353,6 +360,7 @@ export default function AgentEdit() {
       const agentData = response.data.agent
       setAgent(agentData)
       setName(agentData.name || '')
+      setAgentType(agentData.agentType || agentData.config?.agentType || 'outbound')
       // Use base prompt if available (without auto-generated calendar instructions)
       setSystemPrompt(agentData.config?.systemPromptBase || agentData.config?.systemPrompt || '')
       setFirstMessage(agentData.config?.firstMessage || '')
@@ -578,7 +586,9 @@ Important:
 
       await agentsAPI.update(id, {
         name,
+        agentType,
         config: {
+          agentType,
           systemPrompt: finalSystemPrompt,
           systemPromptBase: systemPrompt, // Store original prompt without calendar instructions
           firstMessage,
@@ -676,6 +686,31 @@ Important:
     navigator.clipboard.writeText(systemPrompt)
     setSuccess('Prompt copied to clipboard')
     setTimeout(() => setSuccess(''), 2000)
+  }
+
+  const handleGeneratePrompt = async () => {
+    if (!promptDescription.trim()) return
+    setGeneratingPrompt(true)
+    setGeneratedPrompt('')
+    try {
+      const { data } = await promptGeneratorAPI.generate({
+        description: promptDescription,
+        agentType
+      })
+      setGeneratedPrompt(data.prompt)
+    } catch (err) {
+      setError('Failed to generate prompt')
+      setTimeout(() => setError(''), 3000)
+    } finally {
+      setGeneratingPrompt(false)
+    }
+  }
+
+  const handleUseGeneratedPrompt = () => {
+    setSystemPrompt(generatedPrompt)
+    setShowPromptGenerator(false)
+    setPromptDescription('')
+    setGeneratedPrompt('')
   }
 
   // Tool management functions
@@ -864,6 +899,9 @@ Important:
             <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
               Edit - {name || 'AI Conversation Assistant'}
             </h1>
+            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${agentType === 'inbound' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
+              {agentType === 'inbound' ? 'Inbound' : 'Outbound'}
+            </span>
             <span className={`px-2 py-0.5 text-xs rounded-full ${agent.vapiId ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
               {agent.vapiId ? 'Connected' : 'Local'}
             </span>
@@ -1164,7 +1202,19 @@ Important:
 
           {/* Prompt */}
           <div>
-            <label className="text-sm text-gray-600 dark:text-gray-400 mb-2 block">Prompt</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm text-gray-600 dark:text-gray-400">Prompt</label>
+              <button
+                type="button"
+                onClick={() => setShowPromptGenerator(true)}
+                className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-purple-600 bg-purple-50 dark:bg-purple-900/20 dark:text-purple-400 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                Generate with AI
+              </button>
+            </div>
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
@@ -1897,6 +1947,106 @@ Important:
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Prompt Generator Modal */}
+      {showPromptGenerator && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">AI Prompt Generator</h3>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${agentType === 'inbound' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
+                  {agentType === 'inbound' ? 'Inbound' : 'Outbound'}
+                </span>
+              </div>
+              <button
+                onClick={() => { setShowPromptGenerator(false); setPromptDescription(''); setGeneratedPrompt('') }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
+                  Describe what your agent should do:
+                </label>
+                <textarea
+                  value={promptDescription}
+                  onChange={(e) => setPromptDescription(e.target.value)}
+                  rows={3}
+                  placeholder='E.g. "A friendly dental receptionist that books appointments and answers questions about services and pricing..."'
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !generatingPrompt) { e.preventDefault(); handleGeneratePrompt() } }}
+                />
+              </div>
+
+              {!generatedPrompt && (
+                <button
+                  onClick={handleGeneratePrompt}
+                  disabled={generatingPrompt || !promptDescription.trim()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {generatingPrompt ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Generating...
+                    </>
+                  ) : (
+                    'Generate Prompt'
+                  )}
+                </button>
+              )}
+
+              {generatedPrompt && (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">Generated Prompt:</label>
+                  <div className="p-4 rounded-lg bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border max-h-60 overflow-y-auto">
+                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{generatedPrompt}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {generatedPrompt && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+                <button
+                  onClick={handleGeneratePrompt}
+                  disabled={generatingPrompt}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-50 transition-colors"
+                >
+                  {generatingPrompt ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Regenerating...
+                    </>
+                  ) : (
+                    'Regenerate'
+                  )}
+                </button>
+                <button
+                  onClick={handleUseGeneratedPrompt}
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Use This Prompt
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

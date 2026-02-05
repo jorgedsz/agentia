@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { agentsAPI, usersAPI } from '../../services/api'
 
@@ -147,6 +147,7 @@ const LLM_MODELS = [
 export default function DashboardContent({ tab }) {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [stats, setStats] = useState({})
   const [agents, setAgents] = useState([])
   const [clients, setClients] = useState([])
@@ -157,6 +158,19 @@ export default function DashboardContent({ tab }) {
   const [formData, setFormData] = useState({})
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
+
+  // Auto-open creation modal from URL params (?create=outbound or ?create=inbound)
+  useEffect(() => {
+    const createType = searchParams.get('create')
+    if (createType && (createType === 'outbound' || createType === 'inbound')) {
+      setFormData({ agentType: createType })
+      setShowModal('agent')
+      setError('')
+      // Clean up the URL param
+      searchParams.delete('create')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams])
 
   useEffect(() => {
     fetchData()
@@ -202,7 +216,9 @@ export default function DashboardContent({ tab }) {
         const voiceSettings = formData.voiceSettings || {}
         const response = await agentsAPI.create({
           name: formData.name,
+          agentType: formData.agentType || 'outbound',
           config: {
+            agentType: formData.agentType || 'outbound',
             systemPrompt: formData.systemPrompt || undefined,
             modelProvider: provider,
             modelName: model,
@@ -460,7 +476,7 @@ export default function DashboardContent({ tab }) {
       </main>
 
       {showModal === 'agent' && (
-        <Modal title="Create New Agent" onClose={() => setShowModal(null)}>
+        <Modal title={<span className="flex items-center gap-2">Create New Agent{formData.agentType && (<span className={`px-2 py-0.5 text-xs font-medium rounded-full ${formData.agentType === 'inbound' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>{formData.agentType === 'inbound' ? 'Inbound' : 'Outbound'}</span>)}</span>} onClose={() => setShowModal(null)}>
           <form onSubmit={(e) => { e.preventDefault(); handleCreate('agent'); }}>
             {error && <ErrorAlert message={error} />}
             <Input label="Agent Name *" value={formData.name || ''} onChange={(v) => setFormData({...formData, name: v})} required />
@@ -531,10 +547,16 @@ function StatCard({ title, value, icon }) {
 }
 
 function AgentCard({ agent, onDelete, onEdit }) {
+  const type = agent.agentType || agent.config?.agentType || 'outbound'
   return (
     <div className="bg-gray-50 dark:bg-transparent rounded-lg p-4 border border-gray-200 dark:border-primary-500">
       <div className="flex justify-between items-start mb-3">
-        <h3 className="font-semibold text-gray-900 dark:text-white">{agent.name}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-gray-900 dark:text-white">{agent.name}</h3>
+          <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${type === 'inbound' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'}`}>
+            {type === 'inbound' ? 'In' : 'Out'}
+          </span>
+        </div>
         <span className={`px-2 py-0.5 text-xs rounded-full ${agent.vapiId ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
           {agent.vapiId ? 'Connected' : 'Local'}
         </span>

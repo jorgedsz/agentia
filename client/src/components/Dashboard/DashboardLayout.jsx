@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
@@ -92,6 +92,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
     </svg>
   ),
+  CreateAgent: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    </svg>
+  ),
 }
 
 export default function DashboardLayout() {
@@ -102,11 +107,26 @@ export default function DashboardLayout() {
   const [switchingBack, setSwitchingBack] = useState(false)
   const [balances, setBalances] = useState({ twilio: null, vapi: null })
   const [userCredits, setUserCredits] = useState(null)
+  const [showCreateMenu, setShowCreateMenu] = useState(false)
+  const createMenuRef = useRef(null)
 
   useEffect(() => {
     fetchBalances()
     fetchCredits()
   }, [location.pathname])
+
+  // Close create menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (createMenuRef.current && !createMenuRef.current.contains(e.target)) {
+        setShowCreateMenu(false)
+      }
+    }
+    if (showCreateMenu) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showCreateMenu])
 
   // Listen for credits update event
   useEffect(() => {
@@ -182,7 +202,7 @@ export default function DashboardLayout() {
       title: 'Agents',
       items: [
         { id: 'agents', path: '/dashboard/agents', label: 'My Agents', icon: Icons.Agents, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'voice-agent', path: '/dashboard/voice-agent', label: 'Voice Agent', icon: Icons.Voice, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'create-agent', label: 'Create Agent', icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT], isAction: true },
       ]
     },
     {
@@ -284,6 +304,55 @@ export default function DashboardLayout() {
                   {visibleItems.map((item) => {
                     const Icon = item.icon
                     const isActive = activeTab === item.id
+
+                    if (item.isAction) {
+                      return (
+                        <li key={item.id} className="relative" ref={createMenuRef}>
+                          <button
+                            onClick={() => setShowCreateMenu(!showCreateMenu)}
+                            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover"
+                          >
+                            <Icon />
+                            {item.label}
+                          </button>
+                          {showCreateMenu && (
+                            <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg z-50 overflow-hidden">
+                              <button
+                                onClick={() => {
+                                  setShowCreateMenu(false)
+                                  navigate('/dashboard/agents?create=outbound')
+                                }}
+                                className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors border-b border-gray-100 dark:border-dark-border"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                                  </svg>
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">Outbound Agent</span>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 ml-6">For making calls</p>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowCreateMenu(false)
+                                  navigate('/dashboard/agents?create=inbound')
+                                }}
+                                className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6" />
+                                  </svg>
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">Inbound Agent</span>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 ml-6">For receiving calls</p>
+                              </button>
+                            </div>
+                          )}
+                        </li>
+                      )
+                    }
+
                     return (
                       <li key={item.id}>
                         <button

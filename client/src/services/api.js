@@ -122,4 +122,15 @@ export const ghlAPI = {
   getCalendars: () => api.get('/ghl/calendars')
 }
 
+// Prompt Generator API
+export const promptGeneratorAPI = {
+  generate: (data) => api.post('/prompt-generator/generate', data)
+}
+
+// Platform Settings API (OWNER only)
+export const platformSettingsAPI = {
+  get: () => api.get('/platform-settings'),
+  update: (data) => api.put('/platform-settings', data)
+}
+
 export default api

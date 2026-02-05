@@ -104,7 +104,6 @@ function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="credits" element={<Credits />} />
           <Route path="analytics" element={<ComingSoon title="Analytics" />} />
-          <Route path="voice-agent" element={<ComingSoon title="Voice Agent" />} />
           <Route path="call-logs" element={<CallLogs />} />
           <Route path="rates" element={<RatesSettings />} />
         </Route>

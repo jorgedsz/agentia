@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { ghlAPI, teamMembersAPI } from '../../services/api'
+import { ghlAPI, teamMembersAPI, platformSettingsAPI } from '../../services/api'
+
+const ROLES = {
+  OWNER: 'OWNER',
+  AGENCY: 'AGENCY',
+  CLIENT: 'CLIENT'
+}
 
 const TABS = {
   USERS: 'users',
-  GHL: 'ghl'
+  GHL: 'ghl',
+  API_KEYS: 'api-keys'
 }
 
 const TEAM_ROLES = {
@@ -15,8 +22,13 @@ const TEAM_ROLES = {
 
 export default function Settings() {
   const [searchParams] = useSearchParams()
+  const { user } = useAuth()
   const tabParam = searchParams.get('tab')
-  const [activeTab, setActiveTab] = useState(tabParam === 'ghl' ? TABS.GHL : TABS.USERS)
+  const [activeTab, setActiveTab] = useState(
+    tabParam === 'ghl' ? TABS.GHL : tabParam === 'api-keys' ? TABS.API_KEYS : TABS.USERS
+  )
+
+  const isOwner = user?.role === ROLES.OWNER
 
   return (
     <div className="space-y-6">
@@ -42,11 +54,24 @@ export default function Settings() {
         >
           GoHighLevel Integration
         </button>
+        {isOwner && (
+          <button
+            onClick={() => setActiveTab(TABS.API_KEYS)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === TABS.API_KEYS
+                ? 'bg-primary-600 text-white'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover'
+            }`}
+          >
+            API Keys
+          </button>
+        )}
       </div>
 
       {/* Tab Content */}
       {activeTab === TABS.USERS && <TeamAccessTab />}
       {activeTab === TABS.GHL && <GHLIntegrationTab />}
+      {activeTab === TABS.API_KEYS && isOwner && <APIKeysTab />}
     </div>
   )
 }
@@ -687,6 +712,220 @@ function GHLIntegrationTab() {
           </form>
         </div>
       )}
+    </div>
+  )
+}
+
+// API Keys Tab (OWNER only)
+function APIKeysTab() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [vapiApiKey, setVapiApiKey] = useState('')
+  const [openaiApiKey, setOpenaiApiKey] = useState('')
+  const [hasVapi, setHasVapi] = useState(false)
+  const [hasOpenai, setHasOpenai] = useState(false)
+  const [maskedVapi, setMaskedVapi] = useState('')
+  const [maskedOpenai, setMaskedOpenai] = useState('')
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  const fetchSettings = async () => {
+    setLoading(true)
+    try {
+      const { data } = await platformSettingsAPI.get()
+      setHasVapi(data.hasVapi)
+      setHasOpenai(data.hasOpenai)
+      setMaskedVapi(data.vapiApiKey || '')
+      setMaskedOpenai(data.openaiApiKey || '')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load settings')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSave = async (field) => {
+    setError('')
+    setSuccess('')
+    setSaving(true)
+
+    try {
+      const payload = {}
+      if (field === 'vapi') payload.vapiApiKey = vapiApiKey
+      if (field === 'openai') payload.openaiApiKey = openaiApiKey
+
+      const { data } = await platformSettingsAPI.update(payload)
+      setHasVapi(data.hasVapi)
+      setHasOpenai(data.hasOpenai)
+      setMaskedVapi(data.vapiApiKey || '')
+      setMaskedOpenai(data.openaiApiKey || '')
+      setVapiApiKey('')
+      setOpenaiApiKey('')
+      setSuccess(`${field === 'vapi' ? 'VAPI' : 'OpenAI'} API key updated successfully`)
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to update settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemove = async (field) => {
+    if (!confirm(`Are you sure you want to remove the ${field === 'vapi' ? 'VAPI' : 'OpenAI'} API key?`)) return
+    setError('')
+    setSuccess('')
+    setSaving(true)
+
+    try {
+      const payload = {}
+      if (field === 'vapi') payload.vapiApiKey = ''
+      if (field === 'openai') payload.openaiApiKey = ''
+
+      const { data } = await platformSettingsAPI.update(payload)
+      setHasVapi(data.hasVapi)
+      setHasOpenai(data.hasOpenai)
+      setMaskedVapi(data.vapiApiKey || '')
+      setMaskedOpenai(data.openaiApiKey || '')
+      setSuccess(`${field === 'vapi' ? 'VAPI' : 'OpenAI'} API key removed`)
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to remove key')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
+          {success}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">API Keys</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Configure your platform API keys for VAPI and OpenAI. These keys are encrypted and stored securely.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* VAPI API Key */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white">VAPI API Key</h3>
+          {hasVapi && (
+            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
+              Connected
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Used for creating and managing voice AI agents. Get your key from the VAPI dashboard.
+        </p>
+
+        {hasVapi && (
+          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedVapi}</span>
+            <button
+              onClick={() => handleRemove('vapi')}
+              disabled={saving}
+              className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
+            >
+              Remove
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <input
+            type="password"
+            value={vapiApiKey}
+            onChange={(e) => setVapiApiKey(e.target.value)}
+            placeholder={hasVapi ? 'Enter new key to replace...' : 'Enter your VAPI API key...'}
+            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+          />
+          <button
+            onClick={() => handleSave('vapi')}
+            disabled={saving || !vapiApiKey.trim()}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+          >
+            {saving ? 'Saving...' : hasVapi ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {/* OpenAI API Key */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white">OpenAI API Key</h3>
+          {hasOpenai && (
+            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
+              Connected
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Used for the AI prompt generator feature. Get your key from the OpenAI platform.
+        </p>
+
+        {hasOpenai && (
+          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedOpenai}</span>
+            <button
+              onClick={() => handleRemove('openai')}
+              disabled={saving}
+              className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
+            >
+              Remove
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <input
+            type="password"
+            value={openaiApiKey}
+            onChange={(e) => setOpenaiApiKey(e.target.value)}
+            placeholder={hasOpenai ? 'Enter new key to replace...' : 'Enter your OpenAI API key...'}
+            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+          />
+          <button
+            onClick={() => handleSave('openai')}
+            disabled={saving || !openaiApiKey.trim()}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+          >
+            {saving ? 'Saving...' : hasOpenai ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
