@@ -208,6 +208,8 @@ export default function DashboardLayout() {
     {
       title: 'Management',
       items: [
+        { id: 'clients', path: '/dashboard/clients', label: 'Clients', icon: Icons.Users, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'agencies', path: '/dashboard/agencies', label: 'Agencies', icon: Icons.SubAccounts, roles: [ROLES.OWNER] },
         { id: 'all-users', path: '/dashboard/all-users', label: 'All Users', icon: Icons.Users, roles: [ROLES.OWNER] },
         { id: 'sub-accounts', path: '/dashboard/sub-accounts', label: 'Sub Accounts', icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.AGENCY] },
       ]
