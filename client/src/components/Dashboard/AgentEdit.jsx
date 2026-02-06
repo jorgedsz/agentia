@@ -557,6 +557,7 @@ export default function AgentEdit() {
   // Feature toggles
   const [showCalendarModal, setShowCalendarModal] = useState(false)
   const [showAdvancedModal, setShowAdvancedModal] = useState(false)
+  const [advancedSubPanel, setAdvancedSubPanel] = useState(null) // null = grid view, or 'voiceModel', 'voiceTuning', 'bgSound', 'tools', 'webhook', 'recording', 'transcript', 'summary'
   const [showProviderDropdown, setShowProviderDropdown] = useState(false)
   const providerDropdownRef = useRef(null)
 
@@ -1242,6 +1243,7 @@ Important:
     }
 
     setShowToolModal(false)
+    setAdvancedSubPanel(null)
     setShowAdvancedModal(true)
     resetToolForm()
     setError('')
@@ -1623,7 +1625,7 @@ Important:
                 </svg>
               </label>
               <button
-                onClick={() => setShowAdvancedModal(true)}
+                onClick={() => { setAdvancedSubPanel(null); setShowAdvancedModal(true) }}
                 className="p-4 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
               >
                 <svg className="w-8 h-8 mx-auto text-gray-400 hover:text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1779,7 +1781,7 @@ Important:
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingTool ? 'Edit Tool' : 'Add Tool'}
               </h3>
-              <button onClick={() => { setShowToolModal(false); resetToolForm(); setShowAdvancedModal(true); }} className="text-gray-500 hover:text-gray-700">
+              <button onClick={() => { setShowToolModal(false); resetToolForm(); setAdvancedSubPanel(null); setShowAdvancedModal(true); }} className="text-gray-500 hover:text-gray-700">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -1887,7 +1889,7 @@ Important:
             </div>
             <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
               <button
-                onClick={() => { setShowToolModal(false); resetToolForm(); setShowAdvancedModal(true); }}
+                onClick={() => { setShowToolModal(false); resetToolForm(); setAdvancedSubPanel(null); setShowAdvancedModal(true); }}
                 className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
               >
                 Cancel
@@ -2315,140 +2317,185 @@ Important:
       {/* Advanced Options Modal */}
       {showAdvancedModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Advanced Options</h3>
-              <button onClick={() => setShowAdvancedModal(false)} className="text-gray-500 hover:text-gray-700">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
 
-            <div className="p-6 space-y-6">
-              {/* Voice Settings Section */}
-              <div>
-                <h4 className="font-medium text-gray-900 dark:text-white mb-4">Voice Settings (ElevenLabs)</h4>
+            {/* Grid View (default) */}
+            {!advancedSubPanel && (
+              <>
+                <div className="p-6 pb-2">
+                  <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">Advanced Options</h3>
+                </div>
+                <div className="p-6 pt-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* Voice Model */}
+                    <button onClick={() => setAdvancedSubPanel('voiceModel')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Voice Model</span>
+                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
+                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                        </svg>
+                      </div>
+                    </button>
 
-                <div className="grid grid-cols-2 gap-4">
-                  {/* ElevenLabs Model */}
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Model</label>
-                    <select
-                      value={voiceSettings.model}
-                      onChange={(e) => setVoiceSettings({ ...voiceSettings, model: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                    {/* Voice Tuning */}
+                    <button onClick={() => setAdvancedSubPanel('voiceTuning')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Voice Tuning</span>
+                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
+                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {/* Background Sound */}
+                    <button onClick={() => setAdvancedSubPanel('bgSound')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Background Sound</span>
+                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
+                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {/* Agent Tools */}
+                    <button onClick={() => setAdvancedSubPanel('tools')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Agent Tools</span>
+                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
+                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {/* Webhook */}
+                    <button onClick={() => setAdvancedSubPanel('webhook')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Webhook</span>
+                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
+                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {/* Recording */}
+                    <button
+                      onClick={() => setServerConfig({ ...serverConfig, recordingEnabled: !serverConfig.recordingEnabled })}
+                      className="flex flex-col items-center gap-2 group"
                     >
-                      <option value="eleven_multilingual_v2">Multilingual v2</option>
-                      <option value="eleven_flash_v2_5">Flash v2.5</option>
-                      <option value="eleven_flash_v2">Flash v2</option>
-                      <option value="eleven_turbo_v2_5">Turbo v2.5</option>
-                      <option value="eleven_turbo_v2">Turbo v2</option>
-                    </select>
-                  </div>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Recording</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.recordingEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${serverConfig.recordingEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        </svg>
+                      </div>
+                      {serverConfig.recordingEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
 
-                  {/* Background Sound */}
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Background Sound</label>
-                    <select
-                      value={voiceSettings.backgroundSound}
-                      onChange={(e) => setVoiceSettings({ ...voiceSettings, backgroundSound: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                    {/* Transcript */}
+                    <button
+                      onClick={() => setServerConfig({ ...serverConfig, transcriptEnabled: !serverConfig.transcriptEnabled })}
+                      className="flex flex-col items-center gap-2 group"
                     >
-                      <option value="off">Off</option>
-                      <option value="office">Office</option>
-                    </select>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Transcript</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.transcriptEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${serverConfig.transcriptEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      {serverConfig.transcriptEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
+
+                    {/* Call Summary */}
+                    <button
+                      onClick={() => setServerConfig({ ...serverConfig, summaryEnabled: !serverConfig.summaryEnabled })}
+                      className="flex flex-col items-center gap-2 group"
+                    >
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Call Summary</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.summaryEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${serverConfig.summaryEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                      </div>
+                      {serverConfig.summaryEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
                   </div>
                 </div>
+                <div className="p-4 pt-2">
+                  <button
+                    onClick={() => { setAdvancedSubPanel(null); setShowAdvancedModal(false) }}
+                    className="w-full py-2.5 text-primary-600 border border-primary-600 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </>
+            )}
 
-                {/* Sliders */}
-                <div className="space-y-4 mt-4">
-                  {/* Stability */}
-                  <div>
-                    <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      <span>Stability</span>
-                      <span>{voiceSettings.stability.toFixed(2)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={voiceSettings.stability}
-                      onChange={(e) => setVoiceSettings({ ...voiceSettings, stability: parseFloat(e.target.value) })}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
-                    />
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>Variable</span>
-                      <span>Stable</span>
-                    </div>
-                  </div>
+            {/* Sub-panel: Voice Model */}
+            {advancedSubPanel === 'voiceModel' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Voice Model</h3>
+                </div>
+                <div className="p-4 space-y-3">
+                  {[
+                    { value: 'eleven_multilingual_v2', label: 'Multilingual v2', desc: 'Best quality, supports 29 languages' },
+                    { value: 'eleven_flash_v2_5', label: 'Flash v2.5', desc: 'Low latency, good quality' },
+                    { value: 'eleven_flash_v2', label: 'Flash v2', desc: 'Fastest response time' },
+                    { value: 'eleven_turbo_v2_5', label: 'Turbo v2.5', desc: 'Balance of speed and quality' },
+                    { value: 'eleven_turbo_v2', label: 'Turbo v2', desc: 'Fast with decent quality' }
+                  ].map(model => (
+                    <button
+                      key={model.value}
+                      onClick={() => setVoiceSettings({ ...voiceSettings, model: model.value })}
+                      className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${voiceSettings.model === model.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                    >
+                      <div>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{model.label}</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{model.desc}</p>
+                      </div>
+                      {voiceSettings.model === model.value && (
+                        <svg className="w-5 h-5 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
-                  {/* Similarity Boost */}
-                  <div>
-                    <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      <span>Clarity + Similarity</span>
-                      <span>{voiceSettings.similarityBoost.toFixed(2)}</span>
+            {/* Sub-panel: Voice Tuning */}
+            {advancedSubPanel === 'voiceTuning' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Voice Tuning</h3>
+                </div>
+                <div className="p-4 space-y-5">
+                  {[
+                    { key: 'stability', label: 'Stability', min: 0, max: 1, step: 0.05, left: 'Variable', right: 'Stable', fmt: v => v.toFixed(2) },
+                    { key: 'similarityBoost', label: 'Clarity + Similarity', min: 0, max: 1, step: 0.05, left: 'Low', right: 'High', fmt: v => v.toFixed(2) },
+                    { key: 'speed', label: 'Speed', min: 0.5, max: 1.2, step: 0.1, left: 'Slower', right: 'Faster', fmt: v => v.toFixed(1) },
+                    { key: 'style', label: 'Style Exaggeration', min: 0, max: 1, step: 0.05, left: 'None', right: 'Exaggerated', fmt: v => v.toFixed(2) }
+                  ].map(s => (
+                    <div key={s.key}>
+                      <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        <span>{s.label}</span>
+                        <span className="text-primary-600 font-medium">{s.fmt(voiceSettings[s.key])}</span>
+                      </div>
+                      <input type="range" min={s.min} max={s.max} step={s.step} value={voiceSettings[s.key]}
+                        onChange={(e) => setVoiceSettings({ ...voiceSettings, [s.key]: parseFloat(e.target.value) })}
+                        className="w-full h-2 bg-gray-200 dark:bg-dark-hover rounded-lg appearance-none cursor-pointer accent-primary-600"
+                      />
+                      <div className="flex justify-between text-[10px] text-gray-400 mt-0.5"><span>{s.left}</span><span>{s.right}</span></div>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={voiceSettings.similarityBoost}
-                      onChange={(e) => setVoiceSettings({ ...voiceSettings, similarityBoost: parseFloat(e.target.value) })}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
-                    />
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>Low</span>
-                      <span>High</span>
-                    </div>
-                  </div>
-
-                  {/* Speed */}
-                  <div>
-                    <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      <span>Speed</span>
-                      <span>{voiceSettings.speed.toFixed(1)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="1.2"
-                      step="0.1"
-                      value={voiceSettings.speed}
-                      onChange={(e) => setVoiceSettings({ ...voiceSettings, speed: parseFloat(e.target.value) })}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
-                    />
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>Slower</span>
-                      <span>Faster</span>
-                    </div>
-                  </div>
-
-                  {/* Style */}
-                  <div>
-                    <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                      <span>Style Exaggeration</span>
-                      <span>{voiceSettings.style.toFixed(2)}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={voiceSettings.style}
-                      onChange={(e) => setVoiceSettings({ ...voiceSettings, style: parseFloat(e.target.value) })}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
-                    />
-                    <div className="flex justify-between text-xs text-gray-400">
-                      <span>None</span>
-                      <span>Exaggerated</span>
-                    </div>
-                  </div>
-
-                  {/* Speaker Boost Toggle */}
-                  <div className="flex items-center justify-between py-2">
+                  ))}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-dark-border">
                     <div>
                       <span className="text-sm text-gray-700 dark:text-gray-300">Speaker Boost</span>
                       <p className="text-xs text-gray-400">Enhance voice similarity</p>
@@ -2461,75 +2508,108 @@ Important:
                     </button>
                   </div>
                 </div>
-              </div>
+              </>
+            )}
 
-              {/* Tools Section */}
-              <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-gray-900 dark:text-white">Agent Tools</h4>
-                  <button
-                    onClick={openAddToolModal}
-                    className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-                  >
-                    + Add Tool
+            {/* Sub-panel: Background Sound */}
+            {advancedSubPanel === 'bgSound' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Background Sound</h3>
                 </div>
-
-                {tools.length === 0 ? (
-                  <div className="text-center py-6 bg-gray-50 dark:bg-dark-hover rounded-lg border border-dashed border-gray-300 dark:border-dark-border">
-                    <p className="text-sm text-gray-500">No tools configured</p>
-                    <p className="text-xs text-gray-400 mt-1">Add functions, call transfers, or other tools</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {tools.map((tool, index) => {
-                      const getToolLabel = (t) => {
-                        if (t.type === 'function') return t.function?.name || 'Function'
-                        if (t.type === 'ghl.contact.get') return 'Get Contact'
-                        if (t.type === 'ghl.contact.create') return 'Create Contact'
-                        if (t.type === 'ghl.calendar.availability.check') return 'Check Availability'
-                        if (t.type === 'ghl.calendar.event.create') return 'Create Event'
-                        return t.type
-                      }
-                      const getToolBadge = (t) => {
-                        if (t.type.startsWith('ghl.')) return 'GoHighLevel'
-                        return t.type
-                      }
-                      return (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg border border-gray-200 dark:border-dark-border">
-                        <div>
-                          <span className="font-medium text-sm text-gray-900 dark:text-white">
-                            {getToolLabel(tool)}
-                          </span>
-                          <span className={`ml-2 px-2 py-0.5 text-xs rounded ${
-                            tool.type.startsWith('ghl.') ? 'bg-green-100 text-green-700' :
-                            'bg-primary-100 text-primary-700'
-                          }`}>{getToolBadge(tool)}</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => openEditToolModal(tool, index)} className="p-1 text-gray-500 hover:text-primary-600">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button onClick={() => handleDeleteTool(index)} className="p-1 text-gray-500 hover:text-red-600">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
+                <div className="p-4 space-y-3">
+                  {[
+                    { value: 'off', label: 'Off', desc: 'No background noise' },
+                    { value: 'office', label: 'Office', desc: 'Subtle office ambience' }
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setVoiceSettings({ ...voiceSettings, backgroundSound: opt.value })}
+                      className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${voiceSettings.backgroundSound === opt.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                    >
+                      <div>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{opt.label}</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{opt.desc}</p>
                       </div>
-                      )
-                    })}
+                      {voiceSettings.backgroundSound === opt.value && (
+                        <svg className="w-5 h-5 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Agent Tools */}
+            {advancedSubPanel === 'tools' && (
+              <>
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent Tools</h3>
                   </div>
-                )}
-              </div>
+                  <button onClick={openAddToolModal} className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">+ Add</button>
+                </div>
+                <div className="p-4">
+                  {tools.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 dark:bg-dark-hover rounded-lg border border-dashed border-gray-300 dark:border-dark-border">
+                      <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      <p className="text-sm text-gray-500">No tools configured</p>
+                      <p className="text-xs text-gray-400 mt-1">Add functions, call transfers, or other tools</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {tools.map((tool, index) => {
+                        const getToolLabel = (t) => {
+                          if (t.type === 'function') return t.function?.name || 'Function'
+                          if (t.type === 'ghl.contact.get') return 'Get Contact'
+                          if (t.type === 'ghl.contact.create') return 'Create Contact'
+                          if (t.type === 'ghl.calendar.availability.check') return 'Check Availability'
+                          if (t.type === 'ghl.calendar.event.create') return 'Create Event'
+                          return t.type
+                        }
+                        const getToolBadge = (t) => {
+                          if (t.type.startsWith('ghl.')) return 'GHL'
+                          return t.type
+                        }
+                        return (
+                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg border border-gray-200 dark:border-dark-border">
+                            <div>
+                              <span className="font-medium text-sm text-gray-900 dark:text-white">{getToolLabel(tool)}</span>
+                              <span className={`ml-2 px-2 py-0.5 text-xs rounded ${tool.type.startsWith('ghl.') ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'}`}>{getToolBadge(tool)}</span>
+                            </div>
+                            <div className="flex gap-1">
+                              <button onClick={() => openEditToolModal(tool, index)} className="p-1.5 text-gray-400 hover:text-primary-600 rounded">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                              </button>
+                              <button onClick={() => handleDeleteTool(index)} className="p-1.5 text-gray-400 hover:text-red-600 rounded">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
-              {/* Webhook Section */}
-              <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Post-Call Webhook</h4>
-
-                <div className="space-y-3">
+            {/* Sub-panel: Webhook */}
+            {advancedSubPanel === 'webhook' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Post-Call Webhook</h3>
+                </div>
+                <div className="p-4 space-y-4">
                   <div>
                     <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Webhook URL</label>
                     <input
@@ -2541,7 +2621,6 @@ Important:
                     />
                     <p className="text-xs text-gray-400 mt-1">Receives call data after each call ends</p>
                   </div>
-
                   <div>
                     <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Webhook Secret (Optional)</label>
                     <input
@@ -2552,55 +2631,10 @@ Important:
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                     />
                   </div>
-
-                  {/* Recording & Transcript toggles */}
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Recording</span>
-                      <button
-                        onClick={() => setServerConfig({ ...serverConfig, recordingEnabled: !serverConfig.recordingEnabled })}
-                        className={`w-10 h-5 rounded-full transition-colors ${serverConfig.recordingEnabled ? 'bg-primary-600' : 'bg-gray-300'}`}
-                      >
-                        <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${serverConfig.recordingEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Transcript</span>
-                      <button
-                        onClick={() => setServerConfig({ ...serverConfig, transcriptEnabled: !serverConfig.transcriptEnabled })}
-                        className={`w-10 h-5 rounded-full transition-colors ${serverConfig.transcriptEnabled ? 'bg-primary-600' : 'bg-gray-300'}`}
-                      >
-                        <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${serverConfig.transcriptEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Summary toggle */}
-                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-                    <div>
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Call Summary</span>
-                      <p className="text-xs text-gray-400">AI-generated summary</p>
-                    </div>
-                    <button
-                      onClick={() => setServerConfig({ ...serverConfig, summaryEnabled: !serverConfig.summaryEnabled })}
-                      className={`w-10 h-5 rounded-full transition-colors ${serverConfig.summaryEnabled ? 'bg-primary-600' : 'bg-gray-300'}`}
-                    >
-                      <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${serverConfig.summaryEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </button>
-                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
 
-            {/* Close Button */}
-            <div className="sticky bottom-0 bg-white dark:bg-dark-card p-4 border-t border-gray-200 dark:border-dark-border">
-              <button
-                onClick={() => setShowAdvancedModal(false)}
-                className="w-full py-2.5 text-orange-500 border border-orange-500 rounded-lg hover:bg-orange-50 transition-colors"
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
       )}
