@@ -345,7 +345,18 @@ const LLM_PROVIDERS = [
 ]
 
 // Latency estimates per component (ms)
-const STT_LATENCY = { deepgram: 800 }
+const STT_LATENCY = {
+  deepgram: 800,
+  'assembly-ai': 1000,
+  azure: 900,
+  '11labs': 700,
+  gladia: 900,
+  google: 850,
+  openai: 700,
+  speechmatics: 850,
+  talkscriber: 1000,
+  cartesia: 750,
+}
 const TTS_LATENCY = { vapi: 500, '11labs': 500 }
 
 const MODELS_BY_PROVIDER = {
@@ -393,13 +404,13 @@ const MODELS_BY_PROVIDER = {
 
 const MAX_LATENCY = 5000 // ms
 
-function getModelLatency(provider, model, voiceProv) {
+function getModelLatency(provider, model, voiceProv, sttProv) {
   const models = MODELS_BY_PROVIDER[provider] || []
   const m = models.find(entry => entry.model === model)
   if (!m) return null
-  const stt = STT_LATENCY.deepgram
+  const stt = STT_LATENCY[sttProv] || STT_LATENCY.deepgram
   const tts = TTS_LATENCY[voiceProv] || TTS_LATENCY.vapi
-  return { stt, model: m.llmLatency, tts, total: stt + m.llmLatency + tts }
+  return { stt, sttProvider: sttProv || 'deepgram', model: m.llmLatency, tts, total: stt + m.llmLatency + tts }
 }
 
 const VOICE_PROVIDERS = [
@@ -1330,7 +1341,7 @@ Important:
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   {(MODELS_BY_PROVIDER[modelProvider] || []).map(m => {
-                    const lat = getModelLatency(modelProvider, m.model, voiceProvider)
+                    const lat = getModelLatency(modelProvider, m.model, voiceProvider, transcriberProvider)
                     return (
                       <option key={m.model} value={m.model}>
                         {m.label} · {lat ? `~${lat.total}ms` : ''}
@@ -1344,10 +1355,10 @@ Important:
 
           {/* Latency Indicator */}
           {(() => {
-            const latency = getModelLatency(modelProvider, modelName, voiceProvider)
+            const latency = getModelLatency(modelProvider, modelName, voiceProvider, transcriberProvider)
             if (!latency) return null
             const segments = [
-              { label: 'STT (Deepgram)', value: latency.stt, color: '#3b82f6', max: MAX_LATENCY, suffix: 'ms' },
+              { label: `STT (${(TRANSCRIBER_PROVIDERS.find(t => t.id === latency.sttProvider) || {}).label || 'Deepgram'})`, value: latency.stt, color: '#3b82f6', max: MAX_LATENCY, suffix: 'ms' },
               { label: 'Model (LLM)', value: latency.model, color: '#f97316', max: MAX_LATENCY, suffix: 'ms' },
               { label: `TTS (${voiceProvider === '11labs' ? 'ElevenLabs' : 'VAPI'})`, value: latency.tts, color: '#60a5fa', max: MAX_LATENCY, suffix: 'ms' },
             ]
