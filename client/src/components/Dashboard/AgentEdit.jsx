@@ -1353,53 +1353,6 @@ Important:
             </div>
           </div>
 
-          {/* Latency Indicator */}
-          {(() => {
-            const latency = getModelLatency(modelProvider, modelName, voiceProvider, transcriberProvider)
-            if (!latency) return null
-            const segments = [
-              { label: `STT (${(TRANSCRIBER_PROVIDERS.find(t => t.id === latency.sttProvider) || {}).label || 'Deepgram'})`, value: latency.stt, color: '#3b82f6', max: MAX_LATENCY, suffix: 'ms' },
-              { label: 'Model (LLM)', value: latency.model, color: '#f97316', max: MAX_LATENCY, suffix: 'ms' },
-              { label: `TTS (${voiceProvider === '11labs' ? 'ElevenLabs' : 'VAPI'})`, value: latency.tts, color: '#60a5fa', max: MAX_LATENCY, suffix: 'ms' },
-            ]
-            const BarSegment = ({ seg }) => (
-              <div
-                className="relative h-full group/seg cursor-pointer transition-all duration-150 hover:brightness-110 hover:scale-y-150"
-                style={{ width: `${(seg.value / seg.max) * 100}%`, backgroundColor: seg.color }}
-              >
-                <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded-lg text-xs font-medium text-white whitespace-nowrap opacity-0 group-hover/seg:opacity-100 transition-opacity duration-150 z-50"
-                  style={{ backgroundColor: 'rgba(17,24,39,0.95)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: seg.color }} />
-                    <span>{seg.label}</span>
-                  </div>
-                  <div className="text-sm font-bold mt-0.5">{seg.value}{seg.suffix}</div>
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent" style={{ borderTopColor: 'rgba(17,24,39,0.95)' }} />
-                </div>
-              </div>
-            )
-            return (
-              <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card px-4 py-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Latency</span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-white">~{latency.total}ms</span>
-                </div>
-                <div className="flex h-3 w-full rounded-full overflow-visible bg-gray-100 dark:bg-gray-700/50 relative">
-                  {segments.map((seg, i) => (
-                    <BarSegment key={i} seg={seg} />
-                  ))}
-                </div>
-                <div className="flex gap-3 mt-2.5 flex-wrap">
-                  {segments.map((seg, i) => (
-                    <span key={i} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
-                      <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: seg.color }} />{seg.label.split(' (')[0]}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )
-          })()}
-
           {/* Opening Message */}
           <div>
             <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
@@ -1552,6 +1505,45 @@ Important:
               </div>
             </div>
           </div>
+
+          {/* Latency Indicator */}
+          {(() => {
+            const latency = getModelLatency(modelProvider, modelName, voiceProvider, transcriberProvider)
+            if (!latency) return null
+            const sttLabel = (TRANSCRIBER_PROVIDERS.find(t => t.id === latency.sttProvider) || {}).label || 'Deepgram'
+            const ttsLabel = voiceProvider === '11labs' ? 'ElevenLabs' : 'VAPI'
+            const segments = [
+              { label: `STT (${sttLabel})`, value: latency.stt, color: '#3b82f6', max: MAX_LATENCY, suffix: 'ms' },
+              { label: 'Model (LLM)', value: latency.model, color: '#f97316', max: MAX_LATENCY, suffix: 'ms' },
+              { label: `TTS (${ttsLabel})`, value: latency.tts, color: '#60a5fa', max: MAX_LATENCY, suffix: 'ms' },
+            ]
+            return (
+              <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Latency</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">~{latency.total}ms</span>
+                </div>
+                <div className="flex h-3 w-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/50 relative">
+                  {segments.map((seg, i) => (
+                    <div
+                      key={seg.label}
+                      className="relative h-full cursor-pointer transition-all duration-300"
+                      style={{ width: `${(seg.value / seg.max) * 100}%`, backgroundColor: seg.color }}
+                      title={`${seg.label}: ${seg.value}${seg.suffix}`}
+                    />
+                  ))}
+                </div>
+                <div className="flex gap-3 mt-2.5 flex-wrap">
+                  {segments.map((seg, i) => (
+                    <span key={seg.label} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: seg.color }} />
+                      {seg.label} · {seg.value}ms
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Feature Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
