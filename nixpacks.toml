@@ -2,10 +2,10 @@
 nixPkgs = ["nodejs_20", "openssl"]
 
 [phases.install]
-cmds = ["cd server && npm install"]
+cmds = ["cd server && npm install", "cd client && npm install"]
 
 [phases.build]
-cmds = ["cd server && npx prisma generate"]
+cmds = ["cd server && npx prisma generate", "cd client && npx vite build"]
 
 [start]
 cmd = "cd server && npx prisma db push && npm start"
