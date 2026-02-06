@@ -172,7 +172,7 @@ export default function Dashboard() {
                 {activeTab.replace('-', ' ')}
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Manage your AI agents and clients
+                Manage your AI agents and clients - v2 test
               </p>
             </div>
             <div className="flex items-center gap-3">
