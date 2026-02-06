@@ -170,11 +170,55 @@ const _connectGHLBearer = async (req, res, userId) => {
     return r.json();
   };
 
+  // Helper: fetch location name from GHL
+  const fetchLocationName = async (locId) => {
+    // Method 1: GET /locations/{id}
+    try {
+      const locData = await ghlFetch(`/locations/${locId}`);
+      const name = locData.location?.name || locData.name || locData.location?.businessName || locData.businessName;
+      if (name) { console.log('GHL location name from /locations/:id:', name); return name; }
+    } catch (e) {
+      console.log('GHL /locations/:id failed:', e.message);
+    }
+
+    // Method 2: GET /locations/ (list all) and find matching
+    try {
+      const locData = await ghlFetch('/locations/');
+      const locations = locData.locations || locData.location || (Array.isArray(locData) ? locData : []);
+      const match = locations.find(l => (l.id || l._id || l.locationId) === locId);
+      if (match) {
+        const name = match.name || match.businessName;
+        if (name) { console.log('GHL location name from /locations/ list:', name); return name; }
+      }
+      // Even if no match, first location might be the one (PIT is scoped to one location)
+      if (locations.length === 1) {
+        const name = locations[0].name || locations[0].businessName;
+        if (name) { console.log('GHL location name from single location:', name); return name; }
+      }
+    } catch (e) {
+      console.log('GHL /locations/ list failed:', e.message);
+    }
+
+    // Method 3: GET /locations/search
+    try {
+      const locData = await ghlFetch('/locations/search');
+      const locations = locData.locations || (Array.isArray(locData) ? locData : []);
+      const match = locations.find(l => (l.id || l._id || l.locationId) === locId);
+      if (match) {
+        const name = match.name || match.businessName;
+        if (name) { console.log('GHL location name from /locations/search:', name); return name; }
+      }
+    } catch (e) {
+      console.log('GHL /locations/search failed:', e.message);
+    }
+
+    return null;
+  };
+
   // Validate token / detect location
   if (locationId) {
     try {
       await ghlFetch(`/calendars/?locationId=${locationId}`);
-      locationName = 'GoHighLevel Location';
     } catch (e) {
       const msg = e.message || '';
       if (msg.includes('Invalid JWT') || msg.includes('401')) {
@@ -182,7 +226,10 @@ const _connectGHLBearer = async (req, res, userId) => {
       }
       return res.status(400).json({ error: `Unable to validate token: ${msg}` });
     }
+    // Fetch location name
+    locationName = await fetchLocationName(locationId) || `GHL - ${locationId}`;
   } else {
+    // Auto-detect location
     try {
       let locData;
       try { locData = await ghlFetch('/locations/'); } catch {
@@ -194,24 +241,21 @@ const _connectGHLBearer = async (req, res, userId) => {
       if (locations && locations.length > 0) {
         const loc = locations[0];
         locationId = loc.id || loc._id || loc.locationId;
-        locationName = loc.name || loc.businessName || 'GoHighLevel Location';
+        locationName = loc.name || loc.businessName || null;
       } else if (locData.id) {
         locationId = locData.id;
-        locationName = locData.name || locData.businessName || 'GoHighLevel Location';
+        locationName = locData.name || locData.businessName || null;
       } else {
         return res.status(400).json({ error: 'Could not find location. Please provide Location ID.', needsLocationId: true });
       }
     } catch {
       return res.status(400).json({ error: 'Could not auto-detect location. Please provide Location ID.', needsLocationId: true });
     }
-  }
 
-  // Try to get a better location name
-  if (locationId && locationName === 'GoHighLevel Location') {
-    try {
-      const locData = await ghlFetch(`/locations/${locationId}`);
-      locationName = locData.location?.name || locData.name || locationName;
-    } catch {}
+    // If auto-detect didn't return a name, try fetching it
+    if (!locationName && locationId) {
+      locationName = await fetchLocationName(locationId) || `GHL - ${locationId}`;
+    }
   }
 
   const encryptedToken = encrypt(cleanToken);
@@ -481,26 +525,48 @@ const oauthCallback = async (req, res) => {
       const locationId = tokenData.locationId || null;
       externalAccountId = locationId || `ghl-${Date.now()}`;
 
-      // Try to get location name
-      let locationName = 'GoHighLevel Location';
+      // Fetch location/sub-account name
+      let locationName = null;
       if (locationId) {
+        const ghlHeaders = {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Version': '2021-07-28',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        };
+
+        // Try GET /locations/{id}
         try {
-          const locRes = await fetch(`${GHL_API_BASE}/locations/${locationId}`, {
-            headers: {
-              'Authorization': `Bearer ${tokenData.access_token}`,
-              'Version': '2021-07-28',
-              'Content-Type': 'application/json'
-            }
-          });
+          const locRes = await fetch(`${GHL_API_BASE}/locations/${locationId}`, { headers: ghlHeaders });
           if (locRes.ok) {
             const locData = await locRes.json();
-            locationName = locData.location?.name || locData.name || locationName;
+            locationName = locData.location?.name || locData.name || locData.location?.businessName || locData.businessName;
+            console.log('GHL OAuth location name from /locations/:id:', locationName);
           }
         } catch (e) {
-          console.log('Could not fetch GHL location name:', e.message);
+          console.log('Could not fetch GHL location by id:', e.message);
+        }
+
+        // Fallback: GET /locations/ (list)
+        if (!locationName) {
+          try {
+            const locRes = await fetch(`${GHL_API_BASE}/locations/`, { headers: ghlHeaders });
+            if (locRes.ok) {
+              const locData = await locRes.json();
+              const locations = locData.locations || [];
+              const match = locations.find(l => l.id === locationId) || locations[0];
+              if (match) {
+                locationName = match.name || match.businessName;
+                console.log('GHL OAuth location name from /locations/ list:', locationName);
+              }
+            }
+          } catch (e) {
+            console.log('Could not fetch GHL locations list:', e.message);
+          }
         }
       }
-      accountLabel = locationName;
+
+      accountLabel = locationName || `GHL - ${locationId || 'Unknown'}`;
       var metadata = JSON.stringify({ locationId, companyId: tokenData.companyId || null, connectionType: 'oauth' });
     }
 
