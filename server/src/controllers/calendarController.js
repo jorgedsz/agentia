@@ -2,6 +2,9 @@ const jwt = require('jsonwebtoken');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { createCalendarProvider, getSupportedProviders } = require('../services/calendar/calendarFactory');
 
+const GHL_API_BASE = 'https://services.leadconnectorhq.com';
+const GHL_AUTH_BASE = 'https://marketplace.gohighlevel.com';
+
 // OAuth config per provider
 const OAUTH_CONFIG = {
   google: {
@@ -13,6 +16,16 @@ const OAUTH_CONFIG = {
     getClientSecret: () => process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CALENDAR_CLIENT_SECRET,
     getRedirectUri: () => process.env.GOOGLE_REDIRECT_URI || process.env.GOOGLE_CALENDAR_REDIRECT_URI,
     extraAuthParams: { access_type: 'offline', prompt: 'consent' }
+  },
+  ghl: {
+    authUrl: `${GHL_AUTH_BASE}/oauth/chooselocation`,
+    tokenUrl: `${GHL_API_BASE}/oauth/token`,
+    userInfoUrl: null,
+    scopes: 'calendars.readonly calendars.write calendars/events.readonly calendars/events.write contacts.readonly contacts.write',
+    getClientId: () => process.env.GHL_CLIENT_ID,
+    getClientSecret: () => process.env.GHL_CLIENT_SECRET,
+    getRedirectUri: () => process.env.GHL_CALENDAR_REDIRECT_URI || process.env.GHL_REDIRECT_URI,
+    extraAuthParams: {}
   },
   calendly: {
     authUrl: 'https://auth.calendly.com/oauth/authorize',
@@ -50,6 +63,7 @@ const listIntegrations = async (req, res) => {
         externalAccountId: true,
         accountLabel: true,
         isConnected: true,
+        metadata: true,
         createdAt: true,
         updatedAt: true
       },
@@ -93,74 +107,190 @@ const getCalendars = async (req, res) => {
 };
 
 /**
- * Connect a provider using API key (Cal.com).
+ * Connect a provider using API key / bearer token.
  * POST /api/calendar/integrations/:provider/connect
+ * Supports: Cal.com (API key), GHL (Private Integration Token / bearer token)
  */
 const connectProvider = async (req, res) => {
   try {
     const { provider } = req.params;
     const userId = req.user.id;
 
-    if (provider !== 'calcom') {
-      return res.status(400).json({ error: 'Only Cal.com supports API key connection. Use OAuth for other providers.' });
+    if (provider === 'ghl') {
+      return await _connectGHLBearer(req, res, userId);
     }
 
-    const { apiKey } = req.body;
-    if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required' });
+    if (provider === 'calcom') {
+      return await _connectCalcom(req, res, userId);
     }
 
-    // Validate the API key by making a test request
-    try {
-      const testResponse = await fetch(`https://api.cal.com/v1/event-types?apiKey=${apiKey.trim()}`);
-      if (!testResponse.ok) {
-        return res.status(400).json({ error: 'Invalid Cal.com API key' });
-      }
-    } catch {
-      return res.status(400).json({ error: 'Could not validate Cal.com API key' });
-    }
-
-    const encryptedKey = encrypt(apiKey.trim());
-    const externalAccountId = 'calcom-default';
-    const accountLabel = 'Cal.com';
-
-    // Upsert integration
-    const existing = await req.prisma.calendarIntegration.findFirst({
-      where: { userId, provider: 'calcom', externalAccountId }
-    });
-
-    let integration;
-    if (existing) {
-      integration = await req.prisma.calendarIntegration.update({
-        where: { id: existing.id },
-        data: { apiKey: encryptedKey, isConnected: true }
-      });
-    } else {
-      integration = await req.prisma.calendarIntegration.create({
-        data: {
-          provider: 'calcom',
-          apiKey: encryptedKey,
-          externalAccountId,
-          accountLabel,
-          isConnected: true,
-          userId
-        }
-      });
-    }
-
-    res.json({
-      message: 'Cal.com connected successfully',
-      integration: {
-        id: integration.id,
-        provider: 'calcom',
-        accountLabel,
-        isConnected: true
-      }
-    });
+    return res.status(400).json({ error: `Direct token connection not supported for ${provider}. Use OAuth.` });
   } catch (error) {
     console.error('Error connecting provider:', error);
     res.status(500).json({ error: 'Failed to connect provider' });
   }
+};
+
+/**
+ * Connect GHL via Private Integration Token (bearer token).
+ */
+const _connectGHLBearer = async (req, res, userId) => {
+  const { privateToken, locationId: providedLocationId } = req.body;
+
+  if (!privateToken) {
+    return res.status(400).json({ error: 'Private Integration Token is required' });
+  }
+
+  const cleanToken = privateToken.trim();
+
+  if (!cleanToken.startsWith('pit-') && !cleanToken.startsWith('pit_')) {
+    return res.status(400).json({
+      error: 'Invalid token format. Private Integration Token should start with "pit-".'
+    });
+  }
+
+  let locationId = providedLocationId?.trim() || null;
+  let locationName = null;
+
+  const ghlFetch = async (endpoint) => {
+    const r = await fetch(`${GHL_API_BASE}${endpoint}`, {
+      headers: {
+        'Authorization': `Bearer ${cleanToken}`,
+        'Version': '2021-07-28',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    if (!r.ok) {
+      const errorText = await r.text();
+      let err;
+      try { err = JSON.parse(errorText); } catch { err = { message: errorText }; }
+      throw new Error(err.message || err.error || `GHL API error: ${r.status}`);
+    }
+    return r.json();
+  };
+
+  // Validate token / detect location
+  if (locationId) {
+    try {
+      await ghlFetch(`/calendars/?locationId=${locationId}`);
+      locationName = 'GoHighLevel Location';
+    } catch (e) {
+      const msg = e.message || '';
+      if (msg.includes('Invalid JWT') || msg.includes('401')) {
+        return res.status(400).json({ error: 'Invalid token. Check your PIT and ensure it has calendar scopes.' });
+      }
+      return res.status(400).json({ error: `Unable to validate token: ${msg}` });
+    }
+  } else {
+    try {
+      let locData;
+      try { locData = await ghlFetch('/locations/'); } catch {
+        try { locData = await ghlFetch('/locations/search'); } catch {
+          return res.status(400).json({ error: 'Could not auto-detect location. Please provide Location ID.', needsLocationId: true });
+        }
+      }
+      const locations = locData.locations || locData.location || (Array.isArray(locData) ? locData : [locData]);
+      if (locations && locations.length > 0) {
+        const loc = locations[0];
+        locationId = loc.id || loc._id || loc.locationId;
+        locationName = loc.name || loc.businessName || 'GoHighLevel Location';
+      } else if (locData.id) {
+        locationId = locData.id;
+        locationName = locData.name || locData.businessName || 'GoHighLevel Location';
+      } else {
+        return res.status(400).json({ error: 'Could not find location. Please provide Location ID.', needsLocationId: true });
+      }
+    } catch {
+      return res.status(400).json({ error: 'Could not auto-detect location. Please provide Location ID.', needsLocationId: true });
+    }
+  }
+
+  // Try to get a better location name
+  if (locationId && locationName === 'GoHighLevel Location') {
+    try {
+      const locData = await ghlFetch(`/locations/${locationId}`);
+      locationName = locData.location?.name || locData.name || locationName;
+    } catch {}
+  }
+
+  const encryptedToken = encrypt(cleanToken);
+  const externalAccountId = locationId;
+  const accountLabel = locationName || `GHL - ${locationId}`;
+
+  // Check if this location is already connected
+  const existing = await req.prisma.calendarIntegration.findFirst({
+    where: { userId, provider: 'ghl', externalAccountId }
+  });
+
+  let integration;
+  if (existing) {
+    integration = await req.prisma.calendarIntegration.update({
+      where: { id: existing.id },
+      data: { apiKey: encryptedToken, isConnected: true, accountLabel, metadata: JSON.stringify({ locationId, connectionType: 'bearer' }) }
+    });
+  } else {
+    integration = await req.prisma.calendarIntegration.create({
+      data: {
+        provider: 'ghl',
+        apiKey: encryptedToken,
+        externalAccountId,
+        accountLabel,
+        isConnected: true,
+        userId,
+        metadata: JSON.stringify({ locationId, connectionType: 'bearer' })
+      }
+    });
+  }
+
+  res.json({
+    message: 'GoHighLevel connected successfully',
+    integration: { id: integration.id, provider: 'ghl', accountLabel, isConnected: true }
+  });
+};
+
+/**
+ * Connect Cal.com via API key.
+ */
+const _connectCalcom = async (req, res, userId) => {
+  const { apiKey } = req.body;
+  if (!apiKey) {
+    return res.status(400).json({ error: 'API key is required' });
+  }
+
+  try {
+    const testResponse = await fetch(`https://api.cal.com/v1/event-types?apiKey=${apiKey.trim()}`);
+    if (!testResponse.ok) {
+      return res.status(400).json({ error: 'Invalid Cal.com API key' });
+    }
+  } catch {
+    return res.status(400).json({ error: 'Could not validate Cal.com API key' });
+  }
+
+  const encryptedKey = encrypt(apiKey.trim());
+  const externalAccountId = 'calcom-default';
+  const accountLabel = 'Cal.com';
+
+  const existing = await req.prisma.calendarIntegration.findFirst({
+    where: { userId, provider: 'calcom', externalAccountId }
+  });
+
+  let integration;
+  if (existing) {
+    integration = await req.prisma.calendarIntegration.update({
+      where: { id: existing.id },
+      data: { apiKey: encryptedKey, isConnected: true }
+    });
+  } else {
+    integration = await req.prisma.calendarIntegration.create({
+      data: { provider: 'calcom', apiKey: encryptedKey, externalAccountId, accountLabel, isConnected: true, userId }
+    });
+  }
+
+  res.json({
+    message: 'Cal.com connected successfully',
+    integration: { id: integration.id, provider: 'calcom', accountLabel, isConnected: true }
+  });
 };
 
 /**
@@ -345,6 +475,33 @@ const oauthCallback = async (req, res) => {
     if (provider === 'hubspot') {
       externalAccountId = tokenData.hub_id?.toString() || `hubspot-${userId}`;
       accountLabel = `HubSpot (${tokenData.hub_id || 'Portal'})`;
+    }
+
+    if (provider === 'ghl') {
+      const locationId = tokenData.locationId || null;
+      externalAccountId = locationId || `ghl-${Date.now()}`;
+
+      // Try to get location name
+      let locationName = 'GoHighLevel Location';
+      if (locationId) {
+        try {
+          const locRes = await fetch(`${GHL_API_BASE}/locations/${locationId}`, {
+            headers: {
+              'Authorization': `Bearer ${tokenData.access_token}`,
+              'Version': '2021-07-28',
+              'Content-Type': 'application/json'
+            }
+          });
+          if (locRes.ok) {
+            const locData = await locRes.json();
+            locationName = locData.location?.name || locData.name || locationName;
+          }
+        } catch (e) {
+          console.log('Could not fetch GHL location name:', e.message);
+        }
+      }
+      accountLabel = locationName;
+      var metadata = JSON.stringify({ locationId, companyId: tokenData.companyId || null, connectionType: 'oauth' });
     }
 
     // Default fallbacks
