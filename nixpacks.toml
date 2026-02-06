@@ -1,11 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "openssl"]
+nixPkgs = ["nodejs_22", "openssl"]
 
 [phases.install]
 cmds = ["cd server && npm install", "cd client && npm install"]
 
 [phases.build]
-cmds = ["cd server && npx prisma generate", "cd client && npx vite build"]
+cmds = ["cd server && npx prisma generate", "cd client && npm run build"]
 
 [start]
 cmd = "cd server && npx prisma db push && npm start"
