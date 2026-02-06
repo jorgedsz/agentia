@@ -45,8 +45,17 @@ class VapiService {
     const response = await fetch(`${this.baseUrl}${endpoint}`, options);
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || `VAPI API error: ${response.status}`);
+      const errorBody = await response.text().catch(() => '');
+      let errorMessage;
+      try {
+        const error = JSON.parse(errorBody);
+        // VAPI returns { message: [...] } or { message: "string" }
+        errorMessage = Array.isArray(error.message) ? error.message.join('; ') : (error.message || error.error || errorBody);
+      } catch {
+        errorMessage = errorBody || `VAPI API error: ${response.status}`;
+      }
+      console.error(`VAPI API error ${response.status}: ${errorMessage}`);
+      throw new Error(errorMessage);
     }
 
     return response.json();

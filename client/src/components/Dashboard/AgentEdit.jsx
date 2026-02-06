@@ -987,7 +987,7 @@ Important:
         finalSystemPrompt = systemPrompt + calendarInstructions
       }
 
-      await agentsAPI.update(id, {
+      const response = await agentsAPI.update(id, {
         name,
         agentType,
         config: {
@@ -1015,25 +1015,32 @@ Important:
           backgroundSound: voiceSettings.backgroundSound,
           backgroundSoundVolume: voiceSettings.backgroundSoundVolume,
           tools: allTools,
+          summaryEnabled: serverConfig.summaryEnabled,
+          summaryPrompt: serverConfig.summaryPrompt,
+          successEvaluationEnabled: serverConfig.successEvaluationEnabled,
+          successEvaluationRubric: serverConfig.successEvaluationRubric,
+          successEvaluationPrompt: serverConfig.successEvaluationPrompt,
+          structuredDataEnabled: serverConfig.structuredDataEnabled,
+          structuredDataSchema: serverConfig.structuredDataSchema,
+          structuredDataPrompt: serverConfig.structuredDataPrompt,
+          recordingEnabled: serverConfig.recordingEnabled,
+          transcriptEnabled: serverConfig.transcriptEnabled,
           ...(serverConfig.serverUrl && {
             serverUrl: serverConfig.serverUrl,
             serverUrlSecret: serverConfig.serverUrlSecret,
             serverMessages: serverConfig.serverMessages,
-            summaryEnabled: serverConfig.summaryEnabled,
-            summaryPrompt: serverConfig.summaryPrompt,
-            successEvaluationEnabled: serverConfig.successEvaluationEnabled,
-            successEvaluationRubric: serverConfig.successEvaluationRubric,
-            successEvaluationPrompt: serverConfig.successEvaluationPrompt,
-            structuredDataEnabled: serverConfig.structuredDataEnabled,
-            structuredDataSchema: serverConfig.structuredDataSchema,
-            structuredDataPrompt: serverConfig.structuredDataPrompt,
-            recordingEnabled: serverConfig.recordingEnabled,
-            transcriptEnabled: serverConfig.transcriptEnabled
           })
         }
       })
-      setSuccess('Agent saved successfully')
-      setTimeout(() => setSuccess(''), 3000)
+
+      // Show VAPI warning if any
+      if (response.data?.vapiWarning) {
+        setError(response.data.vapiWarning)
+        setTimeout(() => setError(''), 8000)
+      } else {
+        setSuccess('Agent saved successfully')
+        setTimeout(() => setSuccess(''), 3000)
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save agent')
     } finally {
