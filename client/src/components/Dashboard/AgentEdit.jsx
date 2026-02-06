@@ -1271,28 +1271,6 @@ Important:
             </div>
           )}
 
-          {/* Language Row */}
-          <div>
-            <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
-              Change Language
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </label>
-            <div className="relative">
-              <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">Languages</label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                {LANGUAGES.map(lang => (
-                  <option key={lang.id} value={lang.id}>{lang.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
           {/* AI Provider & Model Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
