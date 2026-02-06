@@ -294,18 +294,34 @@ const oauthCallback = async (req, res) => {
     let externalAccountId = null;
     let accountLabel = null;
 
-    if (provider === 'google' && config.userInfoUrl) {
+    if (provider === 'google') {
+      // Try userinfo endpoint first
       try {
-        const userInfoRes = await fetch(config.userInfoUrl, {
+        const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
           headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
         });
+        console.log('Google userinfo response status:', userInfoRes.status);
+        const userInfoText = await userInfoRes.text();
+        console.log('Google userinfo response:', userInfoText);
         if (userInfoRes.ok) {
-          const userInfo = await userInfoRes.json();
+          const userInfo = JSON.parse(userInfoText);
           externalAccountId = userInfo.email || userInfo.id;
           accountLabel = userInfo.email || userInfo.name || 'Google Calendar';
         }
       } catch (e) {
-        console.log('Could not fetch user info:', e.message);
+        console.log('Could not fetch Google user info:', e.message);
+      }
+
+      // Fallback: try to decode id_token if present
+      if (!externalAccountId && tokenData.id_token) {
+        try {
+          const payload = JSON.parse(Buffer.from(tokenData.id_token.split('.')[1], 'base64').toString());
+          externalAccountId = payload.email || payload.sub;
+          accountLabel = payload.email || 'Google Calendar';
+          console.log('Got email from id_token:', accountLabel);
+        } catch (e) {
+          console.log('Could not decode id_token:', e.message);
+        }
       }
     }
 
