@@ -1055,7 +1055,13 @@ function CalendarsTab() {
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
               <h3 className="text-md font-semibold text-gray-900 dark:text-white">Google Calendar</h3>
               {getProviderIntegrations('google').length > 0 && (
                 <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
@@ -1063,7 +1069,7 @@ function CalendarsTab() {
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-9">
               Connect your Google Calendar to check availability and book appointments.
             </p>
           </div>
@@ -1075,8 +1081,11 @@ function CalendarsTab() {
             {getProviderIntegrations('google').map(integration => (
               <div key={integration.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                 <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
                   <span className="text-sm text-green-700 dark:text-green-300">{integration.accountLabel || integration.externalAccountId}</span>
                 </div>
@@ -1106,7 +1115,11 @@ function CalendarsTab() {
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="11" fill="#006BFF"/>
+                <path d="M15.9 9.2c-.4-.7-1-1.2-1.7-1.5-.7-.3-1.5-.4-2.3-.2-.8.1-1.5.5-2 1.1-.6.6-.9 1.3-1 2.1-.1.8.1 1.6.4 2.3.4.7 1 1.2 1.7 1.5.7.3 1.5.4 2.3.2.5-.1 1-.3 1.4-.6l1.3 1.3c-.7.5-1.4.9-2.3 1.1-1.1.2-2.2.1-3.2-.4s-1.8-1.2-2.3-2.2c-.5-1-.7-2.1-.5-3.2.2-1.1.7-2 1.5-2.8.8-.8 1.7-1.3 2.8-1.5 1.1-.2 2.2 0 3.2.5s1.7 1.3 2.2 2.3l-1.5.7z" fill="white"/>
+              </svg>
               <h3 className="text-md font-semibold text-gray-900 dark:text-white">Calendly</h3>
               {getProviderIntegrations('calendly').length > 0 && (
                 <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Connected</span>
@@ -1154,7 +1167,10 @@ function CalendarsTab() {
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                <path d="M17.5 8.2V5.8c.6-.3 1-.9 1-1.6 0-1-.8-1.8-1.8-1.8s-1.8.8-1.8 1.8c0 .7.4 1.3 1 1.6v2.4c-.9.2-1.7.6-2.3 1.2L7.5 5.3c0-.1.1-.3.1-.4 0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2c.4 0 .7-.1 1-.3l5.9 4c-.4.7-.6 1.5-.6 2.4 0 1.1.4 2.2 1.1 3l-1.3 1.3c-.2-.1-.4-.1-.6-.1-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5 1.5-.7 1.5-1.5c0-.2 0-.4-.1-.6l1.3-1.3c.8.7 1.9 1.1 3 1.1 2.6 0 4.7-2.1 4.7-4.7 0-2.3-1.7-4.2-3.9-4.6zm-.7 7.5c-1.6 0-2.9-1.3-2.9-2.9s1.3-2.9 2.9-2.9 2.9 1.3 2.9 2.9-1.3 2.9-2.9 2.9z" fill="#FF7A59"/>
+              </svg>
               <h3 className="text-md font-semibold text-gray-900 dark:text-white">HubSpot</h3>
               {getProviderIntegrations('hubspot').length > 0 && (
                 <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Connected</span>
@@ -1202,7 +1218,11 @@ function CalendarsTab() {
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                <rect width="24" height="24" rx="4" fill="#111827"/>
+                <path d="M6 9.5C6 7.01 8.01 5 10.5 5h3C15.99 5 18 7.01 18 9.5v5c0 2.49-2.01 4.5-4.5 4.5h-3C8.01 19 6 16.99 6 14.5v-5z" stroke="white" strokeWidth="2"/>
+              </svg>
               <h3 className="text-md font-semibold text-gray-900 dark:text-white">Cal.com</h3>
               {getProviderIntegrations('calcom').length > 0 && (
                 <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Connected</span>
