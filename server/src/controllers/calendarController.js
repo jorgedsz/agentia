@@ -9,9 +9,9 @@ const OAUTH_CONFIG = {
     tokenUrl: 'https://oauth2.googleapis.com/token',
     userInfoUrl: 'https://www.googleapis.com/oauth2/v2/userinfo',
     scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-    getClientId: () => process.env.GOOGLE_CALENDAR_CLIENT_ID,
-    getClientSecret: () => process.env.GOOGLE_CALENDAR_CLIENT_SECRET,
-    getRedirectUri: () => process.env.GOOGLE_CALENDAR_REDIRECT_URI,
+    getClientId: () => process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_CALENDAR_CLIENT_ID,
+    getClientSecret: () => process.env.GOOGLE_CLIENT_SECRET || process.env.GOOGLE_CALENDAR_CLIENT_SECRET,
+    getRedirectUri: () => process.env.GOOGLE_REDIRECT_URI || process.env.GOOGLE_CALENDAR_REDIRECT_URI,
     extraAuthParams: { access_type: 'offline', prompt: 'consent' }
   },
   calendly: {
