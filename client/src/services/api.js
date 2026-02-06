@@ -123,6 +123,15 @@ export const ghlAPI = {
   getAuthUrl: () => api.get('/ghl/oauth/authorize')
 }
 
+// Calendar Integration API (multi-provider)
+export const calendarAPI = {
+  listIntegrations: () => api.get('/calendar/integrations'),
+  getCalendars: (integrationId) => api.get(`/calendar/integrations/${integrationId}/calendars`),
+  connectProvider: (provider, data) => api.post(`/calendar/integrations/${provider}/connect`, data),
+  disconnectIntegration: (id) => api.delete(`/calendar/integrations/${id}/disconnect`),
+  getOAuthUrl: (provider) => api.get(`/calendar/oauth/${provider}/authorize`)
+}
+
 // Prompt Generator API
 export const promptGeneratorAPI = {
   generate: (data) => api.post('/prompt-generator/generate', data)

@@ -30,6 +30,7 @@ model User {
   twilioCredentials TwilioCredentials?
   teamMembers       TeamMember[]       @relation("AccountTeamMembers")
   ghlIntegration    GHLIntegration?
+  calendarIntegrations CalendarIntegration[]
 }
 
 model GHLIntegration {
@@ -46,6 +47,24 @@ model GHLIntegration {
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+model CalendarIntegration {
+  id                Int       @id @default(autoincrement())
+  provider          String    // "google", "ghl", "calendly", "hubspot", "calcom"
+  accessToken       String?   // Encrypted OAuth token
+  refreshToken      String?   // Encrypted refresh token
+  apiKey            String?   // Encrypted API key (Cal.com)
+  tokenExpiresAt    DateTime?
+  externalAccountId String?   // Provider account ID (Google email, GHL locationId)
+  accountLabel      String?   // e.g. "john@gmail.com", "GHL - My Location"
+  isConnected       Boolean   @default(false)
+  metadata          String?   // JSON for provider-specific data
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  @@unique([userId, provider, externalAccountId])
 }
 
 model TeamMember {

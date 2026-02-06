@@ -15,6 +15,7 @@ const creditsRoutes = require('./routes/credits');
 const ratesRoutes = require('./routes/rates');
 const ghlRoutes = require('./routes/ghl');
 const ghlController = require('./controllers/ghlController');
+const calendarRoutes = require('./routes/calendar');
 const promptGeneratorRoutes = require('./routes/promptGenerator');
 const platformSettingsRoutes = require('./routes/platformSettings');
 const brandingRoutes = require('./routes/branding');
@@ -49,6 +50,7 @@ app.use('/api/rates', ratesRoutes);
 app.use('/api/ghl', ghlRoutes);
 // GHL OAuth callback at /api/oauth/callback (matches redirect URI configured in GHL marketplace)
 app.get('/api/oauth/callback', ghlController.oauthCallback);
+app.use('/api/calendar', calendarRoutes);
 app.use('/api/prompt-generator', promptGeneratorRoutes);
 app.use('/api/platform-settings', platformSettingsRoutes);
 app.use('/api/branding', brandingRoutes);

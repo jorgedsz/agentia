@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { ghlAPI, teamMembersAPI, platformSettingsAPI, brandingAPI } from '../../services/api'
+import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, brandingAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -28,9 +28,9 @@ const SETTINGS_ITEMS = [
     roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
   },
   {
-    id: 'ghl',
-    label: 'GoHighLevel',
-    description: 'Calendar integration settings',
+    id: 'calendars',
+    label: 'Calendars',
+    description: 'Calendar provider integrations',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -88,7 +88,7 @@ export default function Settings() {
   const [searchParams] = useSearchParams()
   const { user } = useAuth()
   const tabParam = searchParams.get('tab')
-  const [activeTab, setActiveTab] = useState(tabParam || 'team')
+  const [activeTab, setActiveTab] = useState(tabParam === 'ghl' ? 'calendars' : (tabParam || 'team'))
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const isOwner = user?.role === ROLES.OWNER
@@ -186,7 +186,8 @@ export default function Settings() {
       {/* Settings Content */}
       <div className="flex-1 min-w-0">
         {activeTab === 'team' && <TeamAccessTab />}
-        {activeTab === 'ghl' && <GHLIntegrationTab />}
+        {activeTab === 'calendars' && <CalendarsTab />}
+        {activeTab === 'ghl' && <CalendarsTab />}
         {activeTab === 'api-keys' && isOwner && <APIKeysTab />}
         {activeTab === 'billing' && <BillingTab />}
         {activeTab === 'branding' && <BrandingTab />}
@@ -821,7 +822,441 @@ function TeamAccessTab() {
   )
 }
 
-// GHL Integration Tab
+// Calendars Tab (Multi-Provider)
+function CalendarsTab() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [integrations, setIntegrations] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [connecting, setConnecting] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [calcomApiKey, setCalcomApiKey] = useState('')
+  const [savingCalcom, setSavingCalcom] = useState(false)
+
+  // Also fetch legacy GHL status for display
+  const [ghlStatus, setGhlStatus] = useState(null)
+
+  const PROVIDERS = [
+    { id: 'google', name: 'Google Calendar', type: 'oauth', multiAccount: true, color: 'blue',
+      description: 'Connect your Google Calendar to check availability and book appointments.' },
+    { id: 'ghl', name: 'GoHighLevel', type: 'legacy', multiAccount: true, color: 'green',
+      description: 'Connect your GoHighLevel account for calendar booking features.' },
+    { id: 'calendly', name: 'Calendly', type: 'oauth', multiAccount: false, color: 'blue',
+      description: 'Connect Calendly to use your event types for scheduling.' },
+    { id: 'hubspot', name: 'HubSpot', type: 'oauth', multiAccount: false, color: 'orange',
+      description: 'Connect HubSpot meetings for scheduling and booking.' },
+    { id: 'calcom', name: 'Cal.com', type: 'apikey', multiAccount: false, color: 'purple',
+      description: 'Connect Cal.com with your API key for scheduling.' }
+  ]
+
+  useEffect(() => {
+    const calendarConnected = searchParams.get('calendar_connected')
+    const calendarError = searchParams.get('calendar_error')
+    const ghlConnected = searchParams.get('ghl_connected')
+    const ghlError = searchParams.get('ghl_error')
+
+    if (calendarConnected) setSuccess(`${calendarConnected} connected successfully!`)
+    if (calendarError) setError(decodeURIComponent(calendarError))
+    if (ghlConnected === 'true') setSuccess('GoHighLevel connected successfully!')
+    if (ghlError) setError(decodeURIComponent(ghlError))
+
+    if (calendarConnected || calendarError || ghlConnected || ghlError) {
+      const newParams = new URLSearchParams(searchParams)
+      newParams.delete('calendar_connected')
+      newParams.delete('calendar_error')
+      newParams.delete('ghl_connected')
+      newParams.delete('ghl_error')
+      setSearchParams(newParams, { replace: true })
+    }
+
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const [integrationsRes, ghlRes] = await Promise.all([
+        calendarAPI.listIntegrations().catch(() => ({ data: { integrations: [] } })),
+        ghlAPI.getStatus().catch(() => ({ data: null }))
+      ])
+      setIntegrations(integrationsRes.data.integrations || [])
+      setGhlStatus(ghlRes.data)
+    } catch (err) {
+      setError('Failed to load integrations')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleOAuthConnect = async (providerId) => {
+    setError('')
+    setConnecting(providerId)
+    try {
+      const response = await calendarAPI.getOAuthUrl(providerId)
+      window.location.href = response.data.authorizationUrl
+    } catch (err) {
+      setError(err.response?.data?.error || `Failed to start ${providerId} OAuth flow`)
+      setConnecting('')
+    }
+  }
+
+  const handleGHLConnect = async () => {
+    setError('')
+    setConnecting('ghl')
+    try {
+      const response = await ghlAPI.getAuthUrl()
+      window.location.href = response.data.authorizationUrl
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to start GHL OAuth flow')
+      setConnecting('')
+    }
+  }
+
+  const handleCalcomConnect = async () => {
+    if (!calcomApiKey.trim()) return
+    setError('')
+    setSavingCalcom(true)
+    try {
+      await calendarAPI.connectProvider('calcom', { apiKey: calcomApiKey.trim() })
+      setSuccess('Cal.com connected successfully!')
+      setCalcomApiKey('')
+      await fetchData()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to connect Cal.com')
+    } finally {
+      setSavingCalcom(false)
+    }
+  }
+
+  const handleDisconnect = async (integration) => {
+    if (!confirm(`Are you sure you want to disconnect ${integration.accountLabel || integration.provider}?`)) return
+    setError('')
+    try {
+      await calendarAPI.disconnectIntegration(integration.id)
+      setSuccess(`${integration.accountLabel || integration.provider} disconnected`)
+      await fetchData()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to disconnect')
+    }
+  }
+
+  const handleGHLDisconnect = async () => {
+    if (!confirm('Disconnect GoHighLevel? Calendar features will stop working for agents using GHL.')) return
+    try {
+      await ghlAPI.disconnect()
+      setSuccess('GoHighLevel disconnected')
+      await fetchData()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to disconnect GHL')
+    }
+  }
+
+  const getProviderIntegrations = (providerId) => {
+    return integrations.filter(i => i.provider === providerId && i.isConnected)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
+          {success}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Calendar Integrations</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Connect your calendar providers to enable booking features in your AI agents.
+        </p>
+      </div>
+
+      {/* GoHighLevel (Legacy integration) */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-md font-semibold text-gray-900 dark:text-white">GoHighLevel</h3>
+              {ghlStatus?.isConnected && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Connected</span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Connect your GoHighLevel account for calendar booking features.
+            </p>
+          </div>
+        </div>
+
+        {ghlStatus?.isConnected ? (
+          <div className="space-y-3">
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  Connected: <strong>{ghlStatus.locationName || 'GoHighLevel'}</strong>
+                  {ghlStatus.connectionType === 'legacy' && <span className="text-yellow-600 ml-2">(Legacy Token)</span>}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleGHLDisconnect}
+              className="text-sm text-red-500 hover:text-red-600"
+            >
+              Disconnect
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleGHLConnect}
+            disabled={connecting === 'ghl'}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm flex items-center gap-2"
+          >
+            {connecting === 'ghl' ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Redirecting...
+              </>
+            ) : (
+              'Connect with GoHighLevel'
+            )}
+          </button>
+        )}
+
+        {/* Show new CalendarIntegration GHL accounts too */}
+        {getProviderIntegrations('ghl').length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs text-gray-500 font-medium uppercase">Additional GHL Accounts</p>
+            {getProviderIntegrations('ghl').map(integration => (
+              <div key={integration.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                <span className="text-sm text-gray-700 dark:text-gray-300">{integration.accountLabel || integration.externalAccountId}</span>
+                <button onClick={() => handleDisconnect(integration)} className="text-xs text-red-500 hover:text-red-600">Disconnect</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Google Calendar */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-md font-semibold text-gray-900 dark:text-white">Google Calendar</h3>
+              {getProviderIntegrations('google').length > 0 && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
+                  {getProviderIntegrations('google').length} Connected
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Connect your Google Calendar to check availability and book appointments.
+            </p>
+          </div>
+        </div>
+
+        {/* Connected accounts */}
+        {getProviderIntegrations('google').length > 0 && (
+          <div className="space-y-2 mb-4">
+            {getProviderIntegrations('google').map(integration => (
+              <div key={integration.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm text-green-700 dark:text-green-300">{integration.accountLabel || integration.externalAccountId}</span>
+                </div>
+                <button onClick={() => handleDisconnect(integration)} className="text-xs text-red-500 hover:text-red-600">Disconnect</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button
+          onClick={() => handleOAuthConnect('google')}
+          disabled={connecting === 'google'}
+          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm flex items-center gap-2"
+        >
+          {connecting === 'google' ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              Redirecting...
+            </>
+          ) : (
+            getProviderIntegrations('google').length > 0 ? 'Add Another Google Account' : 'Connect Google Calendar'
+          )}
+        </button>
+      </div>
+
+      {/* Calendly */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-md font-semibold text-gray-900 dark:text-white">Calendly</h3>
+              {getProviderIntegrations('calendly').length > 0 && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Connected</span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Connect Calendly to use your event types for scheduling.
+            </p>
+          </div>
+        </div>
+
+        {getProviderIntegrations('calendly').length > 0 ? (
+          <div className="space-y-3">
+            {getProviderIntegrations('calendly').map(integration => (
+              <div key={integration.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm text-green-700 dark:text-green-300">{integration.accountLabel}</span>
+                </div>
+                <button onClick={() => handleDisconnect(integration)} className="text-xs text-red-500 hover:text-red-600">Disconnect</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <button
+            onClick={() => handleOAuthConnect('calendly')}
+            disabled={connecting === 'calendly'}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm flex items-center gap-2"
+          >
+            {connecting === 'calendly' ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Redirecting...
+              </>
+            ) : (
+              'Connect Calendly'
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* HubSpot */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-md font-semibold text-gray-900 dark:text-white">HubSpot</h3>
+              {getProviderIntegrations('hubspot').length > 0 && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Connected</span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Connect HubSpot meetings for scheduling and booking.
+            </p>
+          </div>
+        </div>
+
+        {getProviderIntegrations('hubspot').length > 0 ? (
+          <div className="space-y-3">
+            {getProviderIntegrations('hubspot').map(integration => (
+              <div key={integration.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm text-green-700 dark:text-green-300">{integration.accountLabel}</span>
+                </div>
+                <button onClick={() => handleDisconnect(integration)} className="text-xs text-red-500 hover:text-red-600">Disconnect</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <button
+            onClick={() => handleOAuthConnect('hubspot')}
+            disabled={connecting === 'hubspot'}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm flex items-center gap-2"
+          >
+            {connecting === 'hubspot' ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Redirecting...
+              </>
+            ) : (
+              'Connect HubSpot'
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Cal.com */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-md font-semibold text-gray-900 dark:text-white">Cal.com</h3>
+              {getProviderIntegrations('calcom').length > 0 && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Connected</span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Connect Cal.com with your API key for scheduling.
+            </p>
+          </div>
+        </div>
+
+        {getProviderIntegrations('calcom').length > 0 ? (
+          <div className="space-y-3">
+            {getProviderIntegrations('calcom').map(integration => (
+              <div key={integration.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm text-green-700 dark:text-green-300">{integration.accountLabel}</span>
+                </div>
+                <button onClick={() => handleDisconnect(integration)} className="text-xs text-red-500 hover:text-red-600">Disconnect</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              <input
+                type="password"
+                value={calcomApiKey}
+                onChange={(e) => setCalcomApiKey(e.target.value)}
+                placeholder="Enter your Cal.com API key..."
+                className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+              />
+              <button
+                onClick={handleCalcomConnect}
+                disabled={savingCalcom || !calcomApiKey.trim()}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm"
+              >
+                {savingCalcom ? 'Connecting...' : 'Connect'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Find your API key at cal.com/settings/developer/api-keys
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// GHL Integration Tab (kept for backward compatibility)
 function GHLIntegrationTab() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [status, setStatus] = useState(null)

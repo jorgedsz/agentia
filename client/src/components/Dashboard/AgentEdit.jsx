@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, promptGeneratorAPI } from '../../services/api'
+import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const LANGUAGES = [
@@ -558,9 +558,11 @@ export default function AgentEdit() {
   const [showCalendarModal, setShowCalendarModal] = useState(false)
   const [showAdvancedModal, setShowAdvancedModal] = useState(false)
 
-  // Calendar settings (GoHighLevel)
+  // Calendar settings (multi-provider)
   const [calendarConfig, setCalendarConfig] = useState({
     enabled: false,
+    provider: '',        // 'ghl', 'google', 'calendly', 'hubspot', 'calcom'
+    integrationId: '',   // CalendarIntegration.id (or empty for legacy GHL)
     calendarId: '',
     timezone: 'America/New_York',
     enableGetContact: true,
@@ -569,11 +571,17 @@ export default function AgentEdit() {
     enableCreateEvent: true
   })
 
-  // GHL Integration state
+  // GHL Integration state (legacy)
   const [ghlStatus, setGhlStatus] = useState({ isConnected: false, locationId: null, locationName: null })
   const [ghlCalendars, setGhlCalendars] = useState([])
   const [ghlCalendarsLoading, setGhlCalendarsLoading] = useState(false)
   const [ghlError, setGhlError] = useState('')
+
+  // Multi-provider calendar state
+  const [calendarIntegrations, setCalendarIntegrations] = useState([])
+  const [providerCalendars, setProviderCalendars] = useState([])
+  const [providerCalendarsLoading, setProviderCalendarsLoading] = useState(false)
+  const [providerError, setProviderError] = useState('')
 
   // Voice settings (ElevenLabs)
   const [voiceSettings, setVoiceSettings] = useState({
@@ -639,6 +647,7 @@ export default function AgentEdit() {
     fetchPhoneNumbers()
     fetchCredits()
     fetchGhlStatus()
+    fetchCalendarIntegrations()
   }, [id])
 
   const fetchGhlStatus = async () => {
@@ -647,6 +656,15 @@ export default function AgentEdit() {
       setGhlStatus(response.data)
     } catch (err) {
       console.error('Failed to fetch GHL status:', err)
+    }
+  }
+
+  const fetchCalendarIntegrations = async () => {
+    try {
+      const response = await calendarAPI.listIntegrations()
+      setCalendarIntegrations(response.data.integrations || [])
+    } catch (err) {
+      console.error('Failed to fetch calendar integrations:', err)
     }
   }
 
@@ -664,9 +682,28 @@ export default function AgentEdit() {
     }
   }
 
+  const fetchProviderCalendars = async (integrationId) => {
+    setProviderCalendarsLoading(true)
+    setProviderError('')
+    try {
+      const response = await calendarAPI.getCalendars(integrationId)
+      setProviderCalendars(response.data.calendars || [])
+    } catch (err) {
+      setProviderError(err.response?.data?.error || 'Failed to fetch calendars')
+      setProviderCalendars([])
+    } finally {
+      setProviderCalendarsLoading(false)
+    }
+  }
+
   const handleOpenCalendarModal = () => {
     setShowCalendarModal(true)
-    if (ghlStatus.isConnected) {
+    // Load calendars based on current provider selection
+    if (calendarConfig.provider === 'ghl' && !calendarConfig.integrationId && ghlStatus.isConnected) {
+      fetchGhlCalendars()
+    } else if (calendarConfig.integrationId) {
+      fetchProviderCalendars(calendarConfig.integrationId)
+    } else if (ghlStatus.isConnected) {
       fetchGhlCalendars()
     }
   }
@@ -720,9 +757,14 @@ export default function AgentEdit() {
         setTranscriberLanguage(agentData.config.transcriberLanguage)
       }
 
-      // Load calendar config
+      // Load calendar config (backward compat: legacy agents have no provider/integrationId)
       if (agentData.config?.calendarConfig) {
-        setCalendarConfig(agentData.config.calendarConfig)
+        const saved = agentData.config.calendarConfig
+        setCalendarConfig({
+          ...saved,
+          provider: saved.provider || (saved.enabled ? 'ghl' : ''),
+          integrationId: saved.integrationId || ''
+        })
       }
 
       // Load voice settings
@@ -797,17 +839,31 @@ export default function AgentEdit() {
     try {
       const finalVoiceId = addVoiceManually ? customVoiceId : voiceId
 
-      // Build GoHighLevel calendar tools using our custom API endpoints
+      // Build calendar tools using unified API endpoints (supports all providers)
       const calendarTools = []
       const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
       if (calendarConfig.enabled && calendarConfig.calendarId) {
-        // Build query params for the webhook URLs (VAPI doesn't support server.body)
-        const queryParams = new URLSearchParams({
+        // Determine the base URL: use legacy GHL path for legacy GHL agents, unified path for everything else
+        const useLegacyGhl = calendarConfig.provider === 'ghl' && !calendarConfig.integrationId
+
+        const queryParamsObj = {
           calendarId: calendarConfig.calendarId,
           timezone: calendarConfig.timezone || 'America/New_York',
           userId: user?.id?.toString() || ''
-        }).toString()
+        }
+
+        // Add provider/integrationId for unified calendar API
+        if (!useLegacyGhl) {
+          queryParamsObj.provider = calendarConfig.provider
+          if (calendarConfig.integrationId) {
+            queryParamsObj.integrationId = calendarConfig.integrationId
+          }
+        }
+
+        const queryParams = new URLSearchParams(queryParamsObj).toString()
+        const checkUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}`
+        const bookUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}`
 
         // Check Availability Tool
         if (calendarConfig.enableCheckAvailability) {
@@ -828,7 +884,7 @@ export default function AgentEdit() {
               }
             },
             server: {
-              url: `${apiBaseUrl}/ghl/check-availability?${queryParams}`,
+              url: checkUrl,
               timeoutSeconds: 30
             },
             async: false,
@@ -876,7 +932,7 @@ export default function AgentEdit() {
               }
             },
             server: {
-              url: `${apiBaseUrl}/ghl/book-appointment?${queryParams}`,
+              url: bookUrl,
               timeoutSeconds: 30
             },
             async: false,
@@ -1546,7 +1602,13 @@ Important:
                 </svg>
               </button>
               {calendarConfig.enabled && (
-                <p className="text-xs mt-1 text-green-600">GoHighLevel Connected</p>
+                <p className="text-xs mt-1 text-green-600">
+                  {calendarConfig.provider === 'google' ? 'Google Calendar' :
+                   calendarConfig.provider === 'calendly' ? 'Calendly' :
+                   calendarConfig.provider === 'hubspot' ? 'HubSpot' :
+                   calendarConfig.provider === 'calcom' ? 'Cal.com' :
+                   'GoHighLevel'} Connected
+                </p>
               )}
             </div>
 
@@ -1839,12 +1901,12 @@ Important:
         </div>
       )}
 
-      {/* Calendar Options Modal (GoHighLevel) */}
+      {/* Calendar Options Modal (Multi-Provider) */}
       {showCalendarModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Calendar Options (GoHighLevel)</h3>
+          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Calendar Options</h3>
               <button onClick={() => setShowCalendarModal(false)} className="text-gray-500 hover:text-gray-700">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1852,97 +1914,201 @@ Important:
               </button>
             </div>
             <div className="p-4 space-y-4">
-              {!ghlStatus.isConnected ? (
-                /* Not Connected State */
-                <div className="text-center py-6">
-                  <div className="w-16 h-16 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                  </div>
-                  <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">GoHighLevel Not Connected</h4>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    Connect your GoHighLevel account in Settings to enable calendar features.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setShowCalendarModal(false)
-                      navigate('/dashboard/settings?tab=ghl')
-                    }}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-                  >
-                    Go to Settings
-                  </button>
-                </div>
-              ) : (
+              {/* Enable Calendar Integration toggle */}
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Calendar Integration</label>
+                <button
+                  onClick={() => setCalendarConfig({ ...calendarConfig, enabled: !calendarConfig.enabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    calendarConfig.enabled ? 'bg-green-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    calendarConfig.enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+
+              {calendarConfig.enabled && (
                 <>
-                  {/* Enable Calendar Integration */}
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable GoHighLevel Integration</label>
-                    <button
-                      onClick={() => setCalendarConfig({ ...calendarConfig, enabled: !calendarConfig.enabled })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        calendarConfig.enabled ? 'bg-green-600' : 'bg-gray-300'
-                      }`}
+                  {/* Provider Selection */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar Provider *</label>
+                    <select
+                      value={calendarConfig.integrationId ? `${calendarConfig.provider}:${calendarConfig.integrationId}` : calendarConfig.provider || ''}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        let newProvider, newIntegrationId
+                        if (val.includes(':')) {
+                          [newProvider, newIntegrationId] = val.split(':')
+                        } else {
+                          newProvider = val
+                          newIntegrationId = ''
+                        }
+                        setCalendarConfig({
+                          ...calendarConfig,
+                          provider: newProvider,
+                          integrationId: newIntegrationId,
+                          calendarId: ''
+                        })
+                        setProviderCalendars([])
+                        setProviderError('')
+                        if (newProvider === 'ghl' && !newIntegrationId && ghlStatus.isConnected) {
+                          fetchGhlCalendars()
+                        } else if (newIntegrationId) {
+                          fetchProviderCalendars(newIntegrationId)
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        calendarConfig.enabled ? 'translate-x-6' : 'translate-x-1'
-                      }`} />
-                    </button>
-                  </div>
-
-                  {/* Connected location info */}
-                  <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p className="text-sm text-green-700 dark:text-green-300">
-                        Connected to: <strong>{ghlStatus.locationName || 'GoHighLevel'}</strong>
-                      </p>
-                    </div>
-                  </div>
-
-                  {calendarConfig.enabled && (
-                    <>
-                      {ghlError && (
-                        <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                          <p className="text-sm text-red-600 dark:text-red-400">{ghlError}</p>
-                        </div>
+                      <option value="">Select a provider</option>
+                      {ghlStatus.isConnected && (
+                        <option value="ghl">GoHighLevel{ghlStatus.locationName ? ` (${ghlStatus.locationName})` : ''}</option>
                       )}
+                      {calendarIntegrations.filter(i => i.isConnected).map(integration => (
+                        <option key={integration.id} value={`${integration.provider}:${integration.id}`}>
+                          {integration.provider === 'google' ? 'Google Calendar' :
+                           integration.provider === 'calendly' ? 'Calendly' :
+                           integration.provider === 'hubspot' ? 'HubSpot' :
+                           integration.provider === 'calcom' ? 'Cal.com' :
+                           integration.provider === 'ghl' ? 'GoHighLevel' :
+                           integration.provider}
+                          {integration.accountLabel ? ` - ${integration.accountLabel}` : ''}
+                        </option>
+                      ))}
+                      {!ghlStatus.isConnected && calendarIntegrations.filter(i => i.isConnected).length === 0 && (
+                        <option value="" disabled>No providers connected - go to Settings</option>
+                      )}
+                    </select>
+                  </div>
 
-                      <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar *</label>
-                        {ghlCalendarsLoading ? (
-                          <div className="flex items-center gap-2 py-2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
-                            <span className="text-sm text-gray-500">Loading calendars...</span>
+                  {/* No providers connected warning */}
+                  {!ghlStatus.isConnected && calendarIntegrations.filter(i => i.isConnected).length === 0 && (
+                    <div className="text-center py-4">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                        No calendar providers connected. Connect one in Settings first.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setShowCalendarModal(false)
+                          navigate('/dashboard/settings?tab=calendars')
+                        }}
+                        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
+                      >
+                        Go to Settings
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Provider selected - show calendar list */}
+                  {(() => {
+                    const isLegacyGhl = calendarConfig.provider === 'ghl' && !calendarConfig.integrationId
+
+                    if (!calendarConfig.provider) return null
+
+                    // For legacy GHL
+                    if (isLegacyGhl) {
+                      return (
+                        <>
+                          <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <p className="text-sm text-green-700 dark:text-green-300">
+                                Connected to: <strong>{ghlStatus.locationName || 'GoHighLevel'}</strong>
+                              </p>
+                            </div>
                           </div>
-                        ) : ghlCalendars.length > 0 ? (
-                          <select
-                            value={calendarConfig.calendarId}
-                            onChange={(e) => {
-                              const selectedCal = ghlCalendars.find(c => c.id === e.target.value)
-                              setCalendarConfig({
-                                ...calendarConfig,
-                                calendarId: e.target.value,
-                                timezone: selectedCal?.timezone || calendarConfig.timezone
-                              })
-                            }}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
-                          >
-                            <option value="">Select a calendar</option>
-                            {ghlCalendars.map(cal => (
-                              <option key={cal.id} value={cal.id}>{cal.name}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <div className="text-sm text-gray-500 py-2">
-                            No calendars found. Create a calendar in GoHighLevel first.
+
+                          {ghlError && (
+                            <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                              <p className="text-sm text-red-600 dark:text-red-400">{ghlError}</p>
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar *</label>
+                            {ghlCalendarsLoading ? (
+                              <div className="flex items-center gap-2 py-2">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                                <span className="text-sm text-gray-500">Loading calendars...</span>
+                              </div>
+                            ) : ghlCalendars.length > 0 ? (
+                              <select
+                                value={calendarConfig.calendarId}
+                                onChange={(e) => {
+                                  const selectedCal = ghlCalendars.find(c => c.id === e.target.value)
+                                  setCalendarConfig({
+                                    ...calendarConfig,
+                                    calendarId: e.target.value,
+                                    timezone: selectedCal?.timezone || calendarConfig.timezone
+                                  })
+                                }}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                              >
+                                <option value="">Select a calendar</option>
+                                {ghlCalendars.map(cal => (
+                                  <option key={cal.id} value={cal.id}>{cal.name}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="text-sm text-gray-500 py-2">
+                                No calendars found. Create a calendar in GoHighLevel first.
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )
+                    }
+
+                    // For new CalendarIntegration providers
+                    return (
+                      <>
+                        {providerError && (
+                          <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                            <p className="text-sm text-red-600 dark:text-red-400">{providerError}</p>
                           </div>
                         )}
-                      </div>
 
+                        <div>
+                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar / Event Type *</label>
+                          {providerCalendarsLoading ? (
+                            <div className="flex items-center gap-2 py-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                              <span className="text-sm text-gray-500">Loading calendars...</span>
+                            </div>
+                          ) : providerCalendars.length > 0 ? (
+                            <select
+                              value={calendarConfig.calendarId}
+                              onChange={(e) => {
+                                const selectedCal = providerCalendars.find(c => c.id === e.target.value)
+                                setCalendarConfig({
+                                  ...calendarConfig,
+                                  calendarId: e.target.value,
+                                  timezone: selectedCal?.timezone || calendarConfig.timezone
+                                })
+                              }}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                            >
+                              <option value="">Select a calendar</option>
+                              {providerCalendars.map(cal => (
+                                <option key={cal.id} value={cal.id}>{cal.name}</option>
+                              ))}
+                            </select>
+                          ) : calendarConfig.integrationId ? (
+                            <div className="text-sm text-gray-500 py-2">
+                              No calendars found for this account.
+                            </div>
+                          ) : null}
+                        </div>
+                      </>
+                    )
+                  })()}
+
+                  {/* Timezone selector (always shown when provider is selected) */}
+                  {calendarConfig.provider && (
+                    <>
                       <div>
                         <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
                         <select
@@ -1963,30 +2129,6 @@ Important:
                           <label className="flex items-center gap-3">
                             <input
                               type="checkbox"
-                              checked={calendarConfig.enableGetContact}
-                              onChange={(e) => setCalendarConfig({ ...calendarConfig, enableGetContact: e.target.checked })}
-                              className="w-4 h-4 text-green-600 rounded"
-                            />
-                            <div>
-                              <span className="text-sm text-gray-900 dark:text-white">Get Contact</span>
-                              <p className="text-xs text-gray-500">Retrieve existing contacts by email/phone</p>
-                            </div>
-                          </label>
-                          <label className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={calendarConfig.enableCreateContact}
-                              onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCreateContact: e.target.checked })}
-                              className="w-4 h-4 text-green-600 rounded"
-                            />
-                            <div>
-                              <span className="text-sm text-gray-900 dark:text-white">Create Contact</span>
-                              <p className="text-xs text-gray-500">Create new contacts in GoHighLevel</p>
-                            </div>
-                          </label>
-                          <label className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
                               checked={calendarConfig.enableCheckAvailability}
                               onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCheckAvailability: e.target.checked })}
                               className="w-4 h-4 text-green-600 rounded"
@@ -2004,10 +2146,39 @@ Important:
                               className="w-4 h-4 text-green-600 rounded"
                             />
                             <div>
-                              <span className="text-sm text-gray-900 dark:text-white">Create Event</span>
+                              <span className="text-sm text-gray-900 dark:text-white">Create Event / Book Appointment</span>
                               <p className="text-xs text-gray-500">Book appointments on the calendar</p>
                             </div>
                           </label>
+                          {/* GHL-specific contact tools */}
+                          {(calendarConfig.provider === 'ghl') && (
+                            <>
+                              <label className="flex items-center gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={calendarConfig.enableGetContact}
+                                  onChange={(e) => setCalendarConfig({ ...calendarConfig, enableGetContact: e.target.checked })}
+                                  className="w-4 h-4 text-green-600 rounded"
+                                />
+                                <div>
+                                  <span className="text-sm text-gray-900 dark:text-white">Get Contact</span>
+                                  <p className="text-xs text-gray-500">Retrieve existing contacts by email/phone</p>
+                                </div>
+                              </label>
+                              <label className="flex items-center gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={calendarConfig.enableCreateContact}
+                                  onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCreateContact: e.target.checked })}
+                                  className="w-4 h-4 text-green-600 rounded"
+                                />
+                                <div>
+                                  <span className="text-sm text-gray-900 dark:text-white">Create Contact</span>
+                                  <p className="text-xs text-gray-500">Create new contacts in the CRM</p>
+                                </div>
+                              </label>
+                            </>
+                          )}
                         </div>
                       </div>
                     </>
