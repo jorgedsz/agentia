@@ -2419,6 +2419,17 @@ Important:
                       </div>
                       {serverConfig.summaryEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
                     </button>
+
+                    {/* Structured Data */}
+                    <button onClick={() => setAdvancedSubPanel('structuredData')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Structured Data</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.structuredDataEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${serverConfig.structuredDataEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                        </svg>
+                      </div>
+                      {serverConfig.structuredDataEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
                   </div>
                 </div>
                 <div className="p-4 pt-2">
@@ -2631,6 +2642,63 @@ Important:
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                     />
                   </div>
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Structured Data */}
+            {advancedSubPanel === 'structuredData' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Structured Data</h3>
+                </div>
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Extract structured information from calls using a JSON schema. VAPI will populate the schema fields based on conversation data.</p>
+
+                  {/* Enable toggle */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Enable Structured Data</span>
+                    <button
+                      onClick={() => setServerConfig({ ...serverConfig, structuredDataEnabled: !serverConfig.structuredDataEnabled })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${serverConfig.structuredDataEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${serverConfig.structuredDataEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {serverConfig.structuredDataEnabled && (
+                    <>
+                      {/* JSON Schema */}
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">JSON Schema</label>
+                        <textarea
+                          value={serverConfig.structuredDataSchema}
+                          onChange={(e) => setServerConfig({ ...serverConfig, structuredDataSchema: e.target.value })}
+                          rows={8}
+                          placeholder={'{\n  "type": "object",\n  "properties": {\n    "customerName": { "type": "string" },\n    "appointmentDate": { "type": "string" },\n    "issue": { "type": "string" }\n  }\n}'}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm font-mono"
+                          spellCheck={false}
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Define the JSON schema for data to extract from the call</p>
+                      </div>
+
+                      {/* Extraction Prompt */}
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Extraction Instructions</label>
+                        <textarea
+                          value={serverConfig.structuredDataPrompt}
+                          onChange={(e) => setServerConfig({ ...serverConfig, structuredDataPrompt: e.target.value })}
+                          rows={3}
+                          placeholder="Extract the customer's name, appointment date they requested, and the issue they described..."
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Instructions for how to extract data from the conversation</p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </>
             )}
