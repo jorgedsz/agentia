@@ -787,8 +787,10 @@ export default function AgentEdit() {
       }
 
 
-      // Load tools
-      setTools(agentData.config?.tools || [])
+      // Load tools (filter out calendar tools — they're rebuilt from calendarConfig on save)
+      const CALENDAR_TOOL_NAMES = ['check_calendar_availability', 'book_appointment']
+      const savedTools = (agentData.config?.tools || []).filter(t => !CALENDAR_TOOL_NAMES.includes(t.function?.name))
+      setTools(savedTools)
 
       // Load server config
       if (agentData.config?.serverUrl || agentData.config?.serverConfig) {
@@ -949,8 +951,10 @@ export default function AgentEdit() {
         }
       }
 
-      // Merge regular tools with calendar tools
-      const allTools = [...tools, ...calendarTools]
+      // Merge regular tools with calendar tools (filter duplicates in case tools still contain old calendar tools)
+      const CALENDAR_TOOL_NAMES = ['check_calendar_availability', 'book_appointment']
+      const regularTools = tools.filter(t => !CALENDAR_TOOL_NAMES.includes(t.function?.name))
+      const allTools = [...regularTools, ...calendarTools]
 
       // Generate calendar booking instructions if calendar is enabled
       let finalSystemPrompt = systemPrompt
