@@ -375,8 +375,11 @@ const oauthCallback = async (req, res) => {
 
     res.redirect(`${clientUrl}/dashboard/settings?tab=calendars&calendar_connected=${provider}`);
   } catch (error) {
-    console.error('OAuth callback error:', error);
-    res.redirect(`${clientUrl}/dashboard/settings?tab=calendars&calendar_error=${encodeURIComponent('An unexpected error occurred')}`);
+    console.error('OAuth callback error:', error.message, error.stack);
+    const errorMsg = error.message?.includes('calendarIntegration')
+      ? 'Database table not found - please redeploy to run migrations'
+      : `OAuth error: ${error.message || 'An unexpected error occurred'}`;
+    res.redirect(`${clientUrl}/dashboard/settings?tab=calendars&calendar_error=${encodeURIComponent(errorMsg)}`);
   }
 };
 
