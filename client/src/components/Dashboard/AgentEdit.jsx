@@ -1434,7 +1434,7 @@ Important:
                 >
                   {VOICE_PROVIDERS.map(provider => (
                     <option key={provider.id} value={provider.id}>
-                      {provider.icon} {provider.label}
+                      {provider.icon} {provider.label} · {TTS_LATENCY[provider.id] || TTS_LATENCY.vapi}ms
                     </option>
                   ))}
                 </select>
@@ -1517,7 +1517,7 @@ Important:
                 >
                   {TRANSCRIBER_PROVIDERS.map(provider => (
                     <option key={provider.id} value={provider.id}>
-                      {provider.label}
+                      {provider.label} · {STT_LATENCY[provider.id] || 800}ms
                     </option>
                   ))}
                 </select>
