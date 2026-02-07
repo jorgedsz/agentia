@@ -361,6 +361,11 @@ const TTS_LATENCY = { '11labs': 500 }
 
 const MODELS_BY_PROVIDER = {
   'openai': [
+    { model: 'gpt-5.2', label: 'GPT 5.2', llmLatency: 1350 },
+    { model: 'gpt-5.2-instant', label: 'GPT 5.2 Instant', llmLatency: 700 },
+    { model: 'gpt-5.1', label: 'GPT 5.1', llmLatency: 1350 },
+    { model: 'gpt-5.1-instant', label: 'GPT 5.1 Instant', llmLatency: 700 },
+    { model: 'gpt-5', label: 'GPT 5', llmLatency: 1550 },
     { model: 'gpt-4o', label: 'GPT-4o', llmLatency: 700 },
     { model: 'gpt-4o-mini', label: 'GPT-4o Mini', llmLatency: 400 },
     { model: 'gpt-4-turbo', label: 'GPT-4 Turbo', llmLatency: 1200 },
