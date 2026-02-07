@@ -1,6 +1,22 @@
 const vapiService = require('../services/vapiService');
 const { getApiKeys } = require('../utils/getApiKeys');
 
+// Rewrite localhost URLs in tools to use the production APP_URL
+// VAPI servers call these URLs directly, so they must be publicly reachable
+const rewriteToolUrls = (config) => {
+  const appUrl = process.env.APP_URL;
+  if (!appUrl || !config?.tools) return config;
+  return {
+    ...config,
+    tools: config.tools.map(tool => {
+      if (tool.url && /^https?:\/\/localhost(:\d+)?/.test(tool.url)) {
+        return { ...tool, url: tool.url.replace(/^https?:\/\/localhost(:\d+)?/, appUrl) };
+      }
+      return tool;
+    })
+  };
+};
+
 const parseConfig = (config) => {
   if (!config) return null;
   try {
@@ -69,9 +85,10 @@ const createAgent = async (req, res) => {
     if (vapiApiKey) {
       try {
         vapiService.setApiKey(vapiApiKey);
+        const fixedConfig = rewriteToolUrls(config) || config;
         const vapiAgent = await vapiService.createAgent({
           name,
-          ...config
+          ...fixedConfig
         });
         vapiId = vapiAgent.id;
         console.log('VAPI agent created:', vapiId);
@@ -83,12 +100,13 @@ const createAgent = async (req, res) => {
       vapiWarning = 'VAPI API key not configured. Agent saved locally only.';
     }
 
+    const savedConfig = rewriteToolUrls(config) || config;
     const agent = await req.prisma.agent.create({
       data: {
         name,
         agentType: agentType || 'outbound',
         vapiId,
-        config: config ? JSON.stringify(config) : null,
+        config: savedConfig ? JSON.stringify(savedConfig) : null,
         userId: req.user.id
       }
     });
@@ -133,7 +151,8 @@ const updateAgent = async (req, res) => {
     if (existingAgent.vapiId && vapiKey) {
       try {
         vapiService.setApiKey(vapiKey);
-        const vapiPayload = { name, ...config };
+        const fixedConfig = rewriteToolUrls(config) || config;
+        const vapiPayload = { name, ...fixedConfig };
         const sentToolCount = vapiPayload.tools?.length || 0;
         const sentToolNames = (vapiPayload.tools || []).map(t => t.function?.name || t.type).join(', ');
         console.log('=== CALLING VAPI UPDATE ===');
@@ -171,7 +190,8 @@ const updateAgent = async (req, res) => {
       // Agent was created without VAPI — try to create it now
       try {
         vapiService.setApiKey(vapiKey);
-        const vapiAgent = await vapiService.createAgent({ name, ...config });
+        const fixedConfig = rewriteToolUrls(config) || config;
+        const vapiAgent = await vapiService.createAgent({ name, ...fixedConfig });
         // Store the new vapiId
         await req.prisma.agent.update({
           where: { id: parseInt(id) },
@@ -190,7 +210,8 @@ const updateAgent = async (req, res) => {
       vapiWarning = !vapiKey ? 'VAPI API key not configured. Agent saved locally only.' : 'Agent has no VAPI ID.';
     }
 
-    const updateData = { name, config: config ? JSON.stringify(config) : null };
+    const savedConfig = rewriteToolUrls(config) || config;
+    const updateData = { name, config: savedConfig ? JSON.stringify(savedConfig) : null };
     if (agentType) updateData.agentType = agentType;
 
     const agent = await req.prisma.agent.update({
