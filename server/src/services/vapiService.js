@@ -24,7 +24,7 @@ class VapiService {
     return !!this.getApiKey();
   }
 
-  async makeRequest(endpoint, method = 'GET', body = null) {
+  async makeRequest(endpoint, method = 'GET', body = null, retries = 3) {
     const apiKey = this.getApiKey();
     if (!apiKey) {
       throw new Error('VAPI API key not configured');
@@ -42,23 +42,32 @@ class VapiService {
       options.body = JSON.stringify(body);
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, options);
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, options);
 
-    if (!response.ok) {
-      const errorBody = await response.text().catch(() => '');
-      let errorMessage;
-      try {
-        const error = JSON.parse(errorBody);
-        // VAPI returns { message: [...] } or { message: "string" }
-        errorMessage = Array.isArray(error.message) ? error.message.join('; ') : (error.message || error.error || errorBody);
-      } catch {
-        errorMessage = errorBody || `VAPI API error: ${response.status}`;
+      // Retry on rate limit (429) with exponential backoff
+      if (response.status === 429 && attempt < retries) {
+        const delay = Math.pow(2, attempt + 1) * 1000; // 2s, 4s, 8s
+        console.log(`VAPI rate limited on ${method} ${endpoint}, retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
       }
-      console.error(`VAPI API error ${response.status}: ${errorMessage}`);
-      throw new Error(errorMessage);
-    }
 
-    return response.json();
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        let errorMessage;
+        try {
+          const error = JSON.parse(errorBody);
+          errorMessage = Array.isArray(error.message) ? error.message.join('; ') : (error.message || error.error || errorBody);
+        } catch {
+          errorMessage = errorBody || `VAPI API error: ${response.status}`;
+        }
+        console.error(`VAPI API error ${response.status}: ${errorMessage}`);
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    }
   }
 
   /**
@@ -80,14 +89,16 @@ class VapiService {
     if (!tools || !Array.isArray(tools) || tools.length === 0) return [];
 
     const toolIds = [];
-    for (const tool of tools) {
+    for (let i = 0; i < tools.length; i++) {
+      const tool = tools[i];
       try {
-        // Create tool via VAPI /tool endpoint
+        // Small delay between calls to avoid rate limiting
+        if (i > 0) await new Promise(resolve => setTimeout(resolve, 500));
         const created = await this.makeRequest('/tool', 'POST', tool);
-        console.log('Created VAPI tool:', created.id, '-', tool.function?.name || tool.type);
+        console.log('Created VAPI tool:', created.id, '-', tool.name || tool.function?.name || tool.type);
         toolIds.push(created.id);
       } catch (err) {
-        console.error('Failed to create VAPI tool:', tool.function?.name || tool.type, err.message);
+        console.error('Failed to create VAPI tool:', tool.name || tool.function?.name || tool.type, err.message);
       }
     }
     return toolIds;
@@ -97,9 +108,10 @@ class VapiService {
    * Delete old VAPI tools by IDs
    */
   async deleteTools(toolIds) {
-    for (const id of toolIds) {
+    for (let i = 0; i < toolIds.length; i++) {
       try {
-        await this.makeRequest(`/tool/${id}`, 'DELETE');
+        if (i > 0) await new Promise(resolve => setTimeout(resolve, 500));
+        await this.makeRequest(`/tool/${toolIds[i]}`, 'DELETE');
       } catch (err) {
         // Ignore delete errors (tool may already be gone)
       }
@@ -301,6 +313,9 @@ class VapiService {
       console.log('Could not fetch existing assistant:', err.message);
     }
 
+    // Small delay before creating tools to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     // Create new tools via /tool endpoint
     const newToolIds = await this.syncTools(config.tools);
     console.log('Old tool IDs:', oldToolIds);
@@ -351,6 +366,8 @@ class VapiService {
     console.log('Keys:', Object.keys(updateData).join(', '));
     console.log('Model toolIds:', newToolIds);
 
+    // Small delay before PATCH to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 500));
     const result = await this.makeRequest(`/assistant/${agentId}`, 'PATCH', updateData);
 
     // Clean up old tools that are no longer referenced
