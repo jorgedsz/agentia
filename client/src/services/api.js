@@ -155,6 +155,7 @@ export const voicesAPI = {
   list: () => api.get('/voices'),
   listCustom: () => api.get('/voices/custom'),
   addCustom: (data) => api.post('/voices/custom', data),
+  refreshCustom: (id) => api.patch(`/voices/custom/${id}/refresh`),
   deleteCustom: (id) => api.delete(`/voices/custom/${id}`)
 }
 

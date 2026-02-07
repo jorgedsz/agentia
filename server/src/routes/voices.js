@@ -14,6 +14,9 @@ router.get('/custom', voiceController.listCustomVoices);
 // POST /api/voices/custom - Add custom voice (OWNER only)
 router.post('/custom', voiceController.addCustomVoice);
 
+// PATCH /api/voices/custom/:id/refresh - Refresh metadata from ElevenLabs (OWNER only)
+router.patch('/custom/:id/refresh', voiceController.refreshCustomVoice);
+
 // DELETE /api/voices/custom/:id - Delete custom voice (OWNER only)
 router.delete('/custom/:id', voiceController.deleteCustomVoice);
 

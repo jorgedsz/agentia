@@ -105,6 +105,7 @@ export default function VoiceLibrary() {
   const [customError, setCustomError] = useState(null)
   const [customSuccess, setCustomSuccess] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [refreshingId, setRefreshingId] = useState(null)
 
   useEffect(() => {
     fetchVoices()
@@ -165,6 +166,21 @@ export default function VoiceLibrary() {
       setCustomError(err.response?.data?.error || 'Failed to delete custom voice')
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const handleRefreshCustomVoice = async (customId) => {
+    setRefreshingId(customId)
+    setCustomError(null)
+    try {
+      await voicesAPI.refreshCustom(customId)
+      const voicesRes = await voicesAPI.list()
+      setVoices(voicesRes.data)
+      setCustomSuccess('Voice metadata refreshed')
+    } catch (err) {
+      setCustomError(err.response?.data?.error || 'Failed to refresh voice metadata')
+    } finally {
+      setRefreshingId(null)
     }
   }
 
@@ -305,7 +321,7 @@ export default function VoiceLibrary() {
                       <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 capitalize">{voice.gender}</span>
                     )}
                   </div>
-                  {voice.previewUrl && (
+                  {voice.previewUrl ? (
                     <button
                       onClick={() => handlePlay(voice)}
                       className="p-1.5 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
@@ -322,7 +338,23 @@ export default function VoiceLibrary() {
                         </svg>
                       )}
                     </button>
+                  ) : (
+                    <span className="text-xs text-gray-400">No preview</span>
                   )}
+                  <button
+                    onClick={() => handleRefreshCustomVoice(voice.customId)}
+                    disabled={refreshingId === voice.customId}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50"
+                    title="Refresh metadata from ElevenLabs"
+                  >
+                    {refreshingId === voice.customId ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-400 border-t-transparent" />
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0115.36-5.36M20 15a9 9 0 01-15.36 5.36" />
+                      </svg>
+                    )}
+                  </button>
                   <button
                     onClick={() => handleDeleteCustomVoice(voice.customId)}
                     disabled={deletingId === voice.customId}

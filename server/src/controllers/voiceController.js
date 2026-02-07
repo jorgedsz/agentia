@@ -229,6 +229,80 @@ exports.listCustomVoices = async (req, res) => {
   }
 };
 
+exports.refreshCustomVoice = async (req, res) => {
+  try {
+    if (req.user.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only the owner can manage custom voices' });
+    }
+
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid voice ID' });
+    }
+
+    const voice = await req.prisma.customVoice.findUnique({ where: { id } });
+    if (!voice) {
+      return res.status(404).json({ error: 'Custom voice not found' });
+    }
+
+    let elevenLabsApiKey = '';
+    try {
+      const keys = await getApiKeys(req.prisma);
+      elevenLabsApiKey = keys.elevenLabsApiKey || '';
+    } catch (_) {}
+
+    if (!elevenLabsApiKey) {
+      return res.status(400).json({ error: 'ElevenLabs API key not configured. Add it in Settings > API Keys.' });
+    }
+
+    const response = await axios.get(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(voice.voiceId)}`, {
+      timeout: 10000,
+      headers: { 'xi-api-key': elevenLabsApiKey },
+    });
+    const voiceData = response.data;
+
+    const updateData = {
+      name: voiceData.name || voice.name,
+      gender: (voiceData.labels?.gender || '').toLowerCase() || null,
+      description: voiceData.labels?.description || voiceData.labels?.accent || null,
+      previewUrl: voiceData.preview_url || null,
+    };
+    const verified = voiceData.verified_languages || [];
+    if (verified.length > 0) {
+      const langs = verified.map(vl => vl.language).filter(Boolean);
+      updateData.languages = JSON.stringify(langs.length > 0 ? langs : ['en']);
+    }
+
+    const updated = await req.prisma.customVoice.update({ where: { id }, data: updateData });
+
+    cachedVoices = null;
+    cacheTimestamp = 0;
+
+    res.json({
+      id: updated.id,
+      provider: updated.provider,
+      voiceId: updated.voiceId,
+      name: updated.name,
+      gender: updated.gender,
+      description: updated.description,
+      languages: JSON.parse(updated.languages || '[]'),
+      previewUrl: updated.previewUrl,
+      isCustom: true,
+      customId: updated.id,
+    });
+  } catch (error) {
+    const status = error.response?.status;
+    if (status === 401) {
+      return res.status(422).json({ error: 'Invalid ElevenLabs API key' });
+    }
+    if (status === 404) {
+      return res.status(404).json({ error: 'Voice ID not found on ElevenLabs' });
+    }
+    console.error('Error refreshing custom voice:', error.message);
+    res.status(500).json({ error: 'Failed to refresh voice metadata' });
+  }
+};
+
 exports.deleteCustomVoice = async (req, res) => {
   try {
     if (req.user.role !== 'OWNER') {
