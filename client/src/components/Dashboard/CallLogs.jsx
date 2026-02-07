@@ -1,11 +1,31 @@
 import { useState, useEffect } from 'react'
 import { callsAPI } from '../../services/api'
 
+const OUTCOME_CONFIG = {
+  booked: { label: 'Booked', bg: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
+  answered: { label: 'Answered', bg: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
+  transferred: { label: 'Transferred', bg: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400' },
+  not_interested: { label: 'Not Interested', bg: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' },
+  failed: { label: 'Failed', bg: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
+  voicemail: { label: 'Voicemail', bg: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' },
+  unknown: { label: 'Unknown', bg: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' }
+}
+
+function OutcomeBadge({ outcome }) {
+  const config = OUTCOME_CONFIG[outcome] || OUTCOME_CONFIG.unknown
+  return (
+    <span className={`px-2 py-1 text-xs font-medium rounded-full ${config.bg}`}>
+      {config.label}
+    </span>
+  )
+}
+
 export default function CallLogs() {
   const [calls, setCalls] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedCall, setSelectedCall] = useState(null)
+  const [updatingOutcome, setUpdatingOutcome] = useState(false)
 
   useEffect(() => {
     fetchCalls()
@@ -25,6 +45,25 @@ export default function CallLogs() {
       setError(err.response?.data?.error || 'Failed to load call logs')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleOutcomeChange = async (callLogId, newOutcome) => {
+    if (!callLogId) return
+    try {
+      setUpdatingOutcome(true)
+      await callsAPI.updateOutcome(callLogId, newOutcome)
+      // Update local state
+      setCalls(prev => prev.map(c =>
+        c.callLogId === callLogId ? { ...c, outcome: newOutcome } : c
+      ))
+      if (selectedCall?.callLogId === callLogId) {
+        setSelectedCall(prev => ({ ...prev, outcome: newOutcome }))
+      }
+    } catch (err) {
+      console.error('Failed to update outcome:', err)
+    } finally {
+      setUpdatingOutcome(false)
     }
   }
 
@@ -192,6 +231,24 @@ export default function CallLogs() {
                   <label className="text-xs text-gray-500 dark:text-gray-400">Agent</label>
                   <p className="text-sm text-gray-900 dark:text-white">{selectedCall.agentName || selectedCall.assistant?.name || '-'}</p>
                 </div>
+                {/* Outcome with manual override */}
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Outcome</label>
+                  {selectedCall.callLogId ? (
+                    <select
+                      value={selectedCall.outcome || 'unknown'}
+                      onChange={(e) => handleOutcomeChange(selectedCall.callLogId, e.target.value)}
+                      disabled={updatingOutcome}
+                      className="px-3 py-1.5 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50"
+                    >
+                      {Object.entries(OUTCOME_CONFIG).map(([key, config]) => (
+                        <option key={key} value={key}>{config.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <OutcomeBadge outcome={selectedCall.outcome || 'unknown'} />
+                  )}
+                </div>
               </div>
 
               {selectedCall.transcript && (
@@ -258,6 +315,9 @@ export default function CallLogs() {
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Outcome
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Duration
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -287,6 +347,9 @@ export default function CallLogs() {
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(call.status)}`}>
                         {call.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <OutcomeBadge outcome={call.outcome || 'unknown'} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {formatDuration(call.duration)}

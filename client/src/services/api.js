@@ -97,7 +97,9 @@ export const teamMembersAPI = {
 export const callsAPI = {
   create: (data) => api.post('/calls', data),
   get: (id) => api.get(`/calls/${id}`),
-  list: () => api.get('/calls')
+  list: () => api.get('/calls'),
+  getAnalytics: (params) => api.get('/calls/analytics', { params }),
+  updateOutcome: (id, outcome) => api.patch(`/calls/${id}/outcome`, { outcome })
 }
 
 // Credits API
