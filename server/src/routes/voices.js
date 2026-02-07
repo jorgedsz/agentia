@@ -3,6 +3,9 @@ const router = express.Router();
 const voiceController = require('../controllers/voiceController');
 const authMiddleware = require('../middleware/authMiddleware');
 
+// Public route - no auth needed (domain-whitelisted proxy)
+router.get('/audio-proxy', voiceController.proxyAudio);
+
 router.use(authMiddleware);
 
 // GET /api/voices - List all available voices

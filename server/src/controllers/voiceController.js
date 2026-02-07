@@ -331,3 +331,51 @@ exports.deleteCustomVoice = async (req, res) => {
     res.status(500).json({ error: 'Failed to delete custom voice' });
   }
 };
+
+// Proxy audio files to bypass CORS (Google Drive, etc.)
+const ALLOWED_AUDIO_DOMAINS = [
+  'drive.google.com',
+  'drive.usercontent.google.com',
+  'docs.google.com',
+  'storage.googleapis.com',
+  'files.buildwithfern.com',
+  'api.elevenlabs.io',
+];
+
+exports.proxyAudio = async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url) {
+      return res.status(400).json({ error: 'url parameter required' });
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL' });
+    }
+
+    if (!ALLOWED_AUDIO_DOMAINS.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))) {
+      return res.status(403).json({ error: 'Domain not allowed' });
+    }
+
+    const response = await axios.get(url, {
+      responseType: 'stream',
+      timeout: 15000,
+      maxRedirects: 5,
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+
+    const contentType = response.headers['content-type'] || 'audio/mpeg';
+    res.setHeader('Content-Type', contentType);
+    if (response.headers['content-length']) {
+      res.setHeader('Content-Length', response.headers['content-length']);
+    }
+
+    response.data.pipe(res);
+  } catch (error) {
+    console.error('Audio proxy error:', error.message);
+    res.status(500).json({ error: 'Failed to proxy audio' });
+  }
+};

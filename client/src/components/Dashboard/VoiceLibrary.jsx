@@ -236,7 +236,13 @@ export default function VoiceLibrary() {
       return
     }
 
-    const audio = new Audio(convertDriveUrl(voice.previewUrl))
+    // Use server proxy for Drive links (CORS blocked), direct for others
+    const rawUrl = convertDriveUrl(voice.previewUrl)
+    const needsProxy = rawUrl.includes('drive.google.com') || rawUrl.includes('drive.usercontent.google.com') || rawUrl.includes('docs.google.com')
+    const playUrl = needsProxy
+      ? `${import.meta.env.VITE_API_URL || '/api'}/voices/audio-proxy?url=${encodeURIComponent(rawUrl)}`
+      : rawUrl
+    const audio = new Audio(playUrl)
     audioRef.current = audio
     setPlayingId(voice.voiceId)
 
