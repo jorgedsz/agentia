@@ -21,6 +21,26 @@ const ACCENTS = [
   { value: 'australian', label: 'Australian' },
   { value: 'swedish', label: 'Swedish' },
   { value: 'transatlantic', label: 'Transatlantic' },
+  { value: 'mexican', label: 'Mexican' },
+  { value: 'colombian', label: 'Colombian' },
+  { value: 'argentinian', label: 'Argentinian' },
+  { value: 'chilean', label: 'Chilean' },
+  { value: 'peruvian', label: 'Peruvian' },
+  { value: 'venezuelan', label: 'Venezuelan' },
+  { value: 'cuban', label: 'Cuban' },
+  { value: 'dominican', label: 'Dominican' },
+  { value: 'puerto rican', label: 'Puerto Rican' },
+  { value: 'ecuadorian', label: 'Ecuadorian' },
+  { value: 'uruguayan', label: 'Uruguayan' },
+  { value: 'paraguayan', label: 'Paraguayan' },
+  { value: 'bolivian', label: 'Bolivian' },
+  { value: 'costarrican', label: 'Costa Rican' },
+  { value: 'panamanian', label: 'Panamanian' },
+  { value: 'guatemalan', label: 'Guatemalan' },
+  { value: 'honduran', label: 'Honduran' },
+  { value: 'salvadoran', label: 'Salvadoran' },
+  { value: 'nicaraguan', label: 'Nicaraguan' },
+  { value: 'spanish', label: 'Spanish (Spain)' },
 ]
 
 const LANGUAGES = [
@@ -70,6 +90,16 @@ const ACCENT_COLORS = {
   australian: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   swedish: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
   transatlantic: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+  mexican: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  colombian: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  argentinian: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+  chilean: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+  peruvian: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  venezuelan: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  cuban: 'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-400',
+  dominican: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-400',
+  'puerto rican': 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+  spanish: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 }
 
 function EqualizerIcon() {

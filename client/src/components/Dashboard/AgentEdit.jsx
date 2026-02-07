@@ -3244,6 +3244,26 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 <option value="australian">Australian</option>
                 <option value="swedish">Swedish</option>
                 <option value="transatlantic">Transatlantic</option>
+                <option value="mexican">Mexican</option>
+                <option value="colombian">Colombian</option>
+                <option value="argentinian">Argentinian</option>
+                <option value="chilean">Chilean</option>
+                <option value="peruvian">Peruvian</option>
+                <option value="venezuelan">Venezuelan</option>
+                <option value="cuban">Cuban</option>
+                <option value="dominican">Dominican</option>
+                <option value="puerto rican">Puerto Rican</option>
+                <option value="ecuadorian">Ecuadorian</option>
+                <option value="uruguayan">Uruguayan</option>
+                <option value="paraguayan">Paraguayan</option>
+                <option value="bolivian">Bolivian</option>
+                <option value="costarrican">Costa Rican</option>
+                <option value="panamanian">Panamanian</option>
+                <option value="guatemalan">Guatemalan</option>
+                <option value="honduran">Honduran</option>
+                <option value="salvadoran">Salvadoran</option>
+                <option value="nicaraguan">Nicaraguan</option>
+                <option value="spanish">Spanish (Spain)</option>
               </select>
               <select
                 value={voiceLanguageFilter}
