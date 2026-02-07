@@ -912,6 +912,10 @@ export default function AgentEdit() {
                   type: 'string',
                   description: 'The appointment start time in ISO 8601 format (e.g., 2026-02-08T10:00:00)'
                 },
+                endTime: {
+                  type: 'string',
+                  description: 'The appointment end time in ISO 8601 format (e.g., 2026-02-08T10:30:00). Defaults to 30 minutes after startTime if not provided.'
+                },
                 contactName: {
                   type: 'string',
                   description: 'The customer\'s full name'
