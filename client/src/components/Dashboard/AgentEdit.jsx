@@ -374,8 +374,6 @@ const MODELS_BY_PROVIDER = {
     { model: 'o4-mini', label: 'o4-mini', llmLatency: 1000 },
     { model: 'o3', label: 'o3', llmLatency: 2000 },
     { model: 'o3-mini', label: 'o3-mini', llmLatency: 1000 },
-    { model: 'gpt-4-turbo', label: 'GPT-4 Turbo', llmLatency: 1200 },
-    { model: 'gpt-4', label: 'GPT-4', llmLatency: 2000 },
     { model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', llmLatency: 300 },
   ],
   'anthropic': [
