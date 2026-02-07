@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { voicesAPI } from '../../services/api'
+import { voicesAPI, platformSettingsAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const PROVIDERS = [
@@ -104,9 +104,15 @@ export default function VoiceLibrary() {
   const [customError, setCustomError] = useState(null)
   const [customSuccess, setCustomSuccess] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+  const [hasElevenLabsKey, setHasElevenLabsKey] = useState(false)
 
   useEffect(() => {
     fetchVoices()
+    if (isOwner) {
+      platformSettingsAPI.get().then(({ data }) => {
+        setHasElevenLabsKey(data.hasElevenLabs)
+      }).catch(() => {})
+    }
     return () => {
       if (audioRef.current) {
         audioRef.current.pause()
@@ -233,20 +239,27 @@ export default function VoiceLibrary() {
         <div className="mb-6 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Manage Custom Voices</h2>
 
+          {/* ElevenLabs API key warning */}
+          {!hasElevenLabsKey && (
+            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-lg text-sm">
+              ElevenLabs API key required to add custom voices. Go to <strong>Settings &gt; API Keys</strong> to add it.
+            </div>
+          )}
+
           {/* Add form */}
           <div className="flex items-center gap-3 mb-4">
             <input
               type="text"
               value={customVoiceId}
               onChange={(e) => setCustomVoiceId(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !addingCustom && handleAddCustomVoice()}
+              onKeyDown={(e) => e.key === 'Enter' && !addingCustom && hasElevenLabsKey && handleAddCustomVoice()}
               placeholder="Paste ElevenLabs Voice ID..."
               className="flex-1 max-w-md px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              disabled={addingCustom}
+              disabled={addingCustom || !hasElevenLabsKey}
             />
             <button
               onClick={handleAddCustomVoice}
-              disabled={addingCustom || !customVoiceId.trim()}
+              disabled={addingCustom || !customVoiceId.trim() || !hasElevenLabsKey}
               className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {addingCustom && (
