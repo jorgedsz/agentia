@@ -1589,12 +1589,15 @@ function APIKeysTab() {
   const [vapiApiKey, setVapiApiKey] = useState('')
   const [vapiPublicKey, setVapiPublicKey] = useState('')
   const [openaiApiKey, setOpenaiApiKey] = useState('')
+  const [elevenLabsApiKey, setElevenLabsApiKey] = useState('')
   const [hasVapi, setHasVapi] = useState(false)
   const [hasVapiPublicKey, setHasVapiPublicKey] = useState(false)
   const [hasOpenai, setHasOpenai] = useState(false)
+  const [hasElevenLabs, setHasElevenLabs] = useState(false)
   const [maskedVapi, setMaskedVapi] = useState('')
   const [maskedVapiPublic, setMaskedVapiPublic] = useState('')
   const [maskedOpenai, setMaskedOpenai] = useState('')
+  const [maskedElevenLabs, setMaskedElevenLabs] = useState('')
 
   useEffect(() => {
     fetchSettings()
@@ -1607,9 +1610,11 @@ function APIKeysTab() {
       setHasVapi(data.hasVapi)
       setHasVapiPublicKey(data.hasVapiPublicKey)
       setHasOpenai(data.hasOpenai)
+      setHasElevenLabs(data.hasElevenLabs)
       setMaskedVapi(data.vapiApiKey || '')
       setMaskedVapiPublic(data.vapiPublicKey || '')
       setMaskedOpenai(data.openaiApiKey || '')
+      setMaskedElevenLabs(data.elevenLabsApiKey || '')
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load settings')
     } finally {
@@ -1627,18 +1632,22 @@ function APIKeysTab() {
       if (field === 'vapi') payload.vapiApiKey = vapiApiKey
       if (field === 'vapiPublic') payload.vapiPublicKey = vapiPublicKey
       if (field === 'openai') payload.openaiApiKey = openaiApiKey
+      if (field === 'elevenLabs') payload.elevenLabsApiKey = elevenLabsApiKey
 
       const { data } = await platformSettingsAPI.update(payload)
       setHasVapi(data.hasVapi)
       setHasVapiPublicKey(data.hasVapiPublicKey)
       setHasOpenai(data.hasOpenai)
+      setHasElevenLabs(data.hasElevenLabs)
       setMaskedVapi(data.vapiApiKey || '')
       setMaskedVapiPublic(data.vapiPublicKey || '')
       setMaskedOpenai(data.openaiApiKey || '')
+      setMaskedElevenLabs(data.elevenLabsApiKey || '')
       setVapiApiKey('')
       setVapiPublicKey('')
       setOpenaiApiKey('')
-      const fieldLabel = field === 'vapi' ? 'VAPI API' : field === 'vapiPublic' ? 'VAPI Public' : 'OpenAI'
+      setElevenLabsApiKey('')
+      const fieldLabel = field === 'vapi' ? 'VAPI API' : field === 'vapiPublic' ? 'VAPI Public' : field === 'elevenLabs' ? 'ElevenLabs' : 'OpenAI'
       setSuccess(`${fieldLabel} key updated successfully`)
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
@@ -1649,7 +1658,7 @@ function APIKeysTab() {
   }
 
   const handleRemove = async (field) => {
-    const fieldLabel = field === 'vapi' ? 'VAPI API' : field === 'vapiPublic' ? 'VAPI Public' : 'OpenAI'
+    const fieldLabel = field === 'vapi' ? 'VAPI API' : field === 'vapiPublic' ? 'VAPI Public' : field === 'elevenLabs' ? 'ElevenLabs' : 'OpenAI'
     if (!confirm(`Are you sure you want to remove the ${fieldLabel} key?`)) return
     setError('')
     setSuccess('')
@@ -1660,14 +1669,17 @@ function APIKeysTab() {
       if (field === 'vapi') payload.vapiApiKey = ''
       if (field === 'vapiPublic') payload.vapiPublicKey = ''
       if (field === 'openai') payload.openaiApiKey = ''
+      if (field === 'elevenLabs') payload.elevenLabsApiKey = ''
 
       const { data } = await platformSettingsAPI.update(payload)
       setHasVapi(data.hasVapi)
       setHasVapiPublicKey(data.hasVapiPublicKey)
       setHasOpenai(data.hasOpenai)
+      setHasElevenLabs(data.hasElevenLabs)
       setMaskedVapi(data.vapiApiKey || '')
       setMaskedVapiPublic(data.vapiPublicKey || '')
       setMaskedOpenai(data.openaiApiKey || '')
+      setMaskedElevenLabs(data.elevenLabsApiKey || '')
       setSuccess(`${fieldLabel} key removed`)
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
@@ -1825,6 +1837,47 @@ function APIKeysTab() {
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
             {saving ? 'Saving...' : hasOpenai ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {/* ElevenLabs API Key */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white">ElevenLabs API Key</h3>
+          {hasElevenLabs && (
+            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
+              Connected
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Required for adding custom voices from the ElevenLabs Voice Library. Get your key at elevenlabs.io &gt; Profile + API Key.
+        </p>
+
+        {hasElevenLabs && (
+          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedElevenLabs}</span>
+            <button onClick={() => handleRemove('elevenLabs')} disabled={saving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
+              Remove
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <input
+            type="password"
+            value={elevenLabsApiKey}
+            onChange={(e) => setElevenLabsApiKey(e.target.value)}
+            placeholder={hasElevenLabs ? 'Enter new key to replace...' : 'Enter your ElevenLabs API key...'}
+            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+          />
+          <button
+            onClick={() => handleSave('elevenLabs')}
+            disabled={saving || !elevenLabsApiKey.trim()}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {saving ? 'Saving...' : hasElevenLabs ? 'Update' : 'Save'}
           </button>
         </div>
       </div>

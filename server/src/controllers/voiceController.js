@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { getApiKeys } = require('../utils/getApiKeys');
 
 // In-memory cache
 let cachedVoices = null;
@@ -136,14 +137,24 @@ exports.addCustomVoice = async (req, res) => {
       return res.status(409).json({ error: 'This voice ID has already been added' });
     }
 
+    // Get ElevenLabs API key from platform settings
+    const { elevenLabsApiKey } = await getApiKeys(req.prisma);
+    if (!elevenLabsApiKey) {
+      return res.status(400).json({ error: 'ElevenLabs API key not configured. Add it in Settings > API Keys.' });
+    }
+
     // Fetch voice details from ElevenLabs
     let voiceData;
     try {
       const response = await axios.get(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(trimmedId)}`, {
         timeout: 10000,
+        headers: { 'xi-api-key': elevenLabsApiKey },
       });
       voiceData = response.data;
     } catch (err) {
+      if (err.response?.status === 401) {
+        return res.status(401).json({ error: 'Invalid ElevenLabs API key. Check your key in Settings > API Keys.' });
+      }
       if (err.response?.status === 404) {
         return res.status(404).json({ error: 'Voice ID not found on ElevenLabs' });
       }

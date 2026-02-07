@@ -9,20 +9,23 @@ const getSettings = async (req, res) => {
     const settings = await req.prisma.platformSettings.findFirst();
 
     if (!settings) {
-      return res.json({ vapiApiKey: '', openaiApiKey: '', vapiPublicKey: '', hasVapi: false, hasOpenai: false, hasVapiPublicKey: false });
+      return res.json({ vapiApiKey: '', openaiApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', hasVapi: false, hasOpenai: false, hasVapiPublicKey: false, hasElevenLabs: false });
     }
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
     const decryptedOpenai = settings.openaiApiKey ? decrypt(settings.openaiApiKey) : '';
     const decryptedVapiPublic = settings.vapiPublicKey ? decrypt(settings.vapiPublicKey) : '';
+    const decryptedElevenLabs = settings.elevenLabsApiKey ? decrypt(settings.elevenLabsApiKey) : '';
 
     res.json({
       vapiApiKey: decryptedVapi ? mask(decryptedVapi, 4) : '',
       openaiApiKey: decryptedOpenai ? mask(decryptedOpenai, 4) : '',
       vapiPublicKey: decryptedVapiPublic ? mask(decryptedVapiPublic, 4) : '',
+      elevenLabsApiKey: decryptedElevenLabs ? mask(decryptedElevenLabs, 4) : '',
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
-      hasVapiPublicKey: !!decryptedVapiPublic
+      hasVapiPublicKey: !!decryptedVapiPublic,
+      hasElevenLabs: !!decryptedElevenLabs
     });
   } catch (error) {
     console.error('Get platform settings error:', error);
@@ -36,7 +39,7 @@ const updateSettings = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can update platform settings' });
     }
 
-    const { vapiApiKey, openaiApiKey, vapiPublicKey } = req.body;
+    const { vapiApiKey, openaiApiKey, vapiPublicKey, elevenLabsApiKey } = req.body;
 
     const existing = await req.prisma.platformSettings.findFirst();
 
@@ -49,6 +52,9 @@ const updateSettings = async (req, res) => {
     }
     if (vapiPublicKey !== undefined) {
       data.vapiPublicKey = vapiPublicKey ? encrypt(vapiPublicKey) : null;
+    }
+    if (elevenLabsApiKey !== undefined) {
+      data.elevenLabsApiKey = elevenLabsApiKey ? encrypt(elevenLabsApiKey) : null;
     }
 
     let settings;
@@ -64,15 +70,18 @@ const updateSettings = async (req, res) => {
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
     const decryptedOpenai = settings.openaiApiKey ? decrypt(settings.openaiApiKey) : '';
     const decryptedVapiPublic = settings.vapiPublicKey ? decrypt(settings.vapiPublicKey) : '';
+    const decryptedElevenLabs = settings.elevenLabsApiKey ? decrypt(settings.elevenLabsApiKey) : '';
 
     res.json({
       message: 'Platform settings updated',
       vapiApiKey: decryptedVapi ? mask(decryptedVapi, 4) : '',
       openaiApiKey: decryptedOpenai ? mask(decryptedOpenai, 4) : '',
       vapiPublicKey: decryptedVapiPublic ? mask(decryptedVapiPublic, 4) : '',
+      elevenLabsApiKey: decryptedElevenLabs ? mask(decryptedElevenLabs, 4) : '',
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
-      hasVapiPublicKey: !!decryptedVapiPublic
+      hasVapiPublicKey: !!decryptedVapiPublic,
+      hasElevenLabs: !!decryptedElevenLabs
     });
   } catch (error) {
     console.error('Update platform settings error:', error);
