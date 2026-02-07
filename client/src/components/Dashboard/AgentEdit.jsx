@@ -788,8 +788,8 @@ export default function AgentEdit() {
 
 
       // Load tools (filter out calendar tools — they're rebuilt from calendarConfig on save)
-      const CALENDAR_TOOL_NAMES = ['check_calendar_availability', 'book_appointment']
-      const savedTools = (agentData.config?.tools || []).filter(t => !CALENDAR_TOOL_NAMES.includes(t.function?.name || t.name))
+      const isCalendarTool = (toolName) => toolName && (toolName.startsWith('check_calendar_availability') || toolName.startsWith('book_appointment'))
+      const savedTools = (agentData.config?.tools || []).filter(t => !isCalendarTool(t.function?.name || t.name))
       setTools(savedTools)
 
       // Load server config
@@ -847,6 +847,8 @@ export default function AgentEdit() {
       // Build calendar tools using unified API endpoints (supports all providers)
       const calendarTools = []
       const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+      // Sanitize agent name for use in tool names (lowercase, underscores, no special chars)
+      const safeName = name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
 
       if (calendarConfig.enabled && calendarConfig.calendarId) {
         // Determine the base URL: use legacy GHL path for legacy GHL agents, unified path for everything else
@@ -876,7 +878,7 @@ export default function AgentEdit() {
             type: 'apiRequest',
             method: 'POST',
             url: checkUrl,
-            name: 'check_calendar_availability',
+            name: `check_calendar_availability_${safeName}`,
             description: 'Check available appointment slots on a specific date. Use this when the customer wants to know what times are available for booking.',
             body: {
               type: 'object',
@@ -904,7 +906,7 @@ export default function AgentEdit() {
             type: 'apiRequest',
             method: 'POST',
             url: bookUrl,
-            name: 'book_appointment',
+            name: `book_appointment_${safeName}`,
             description: 'Book an appointment for the customer. Use this after confirming the date, time, and collecting customer contact information.',
             body: {
               type: 'object',
@@ -944,8 +946,8 @@ export default function AgentEdit() {
       }
 
       // Merge regular tools with calendar tools (filter duplicates in case tools still contain old calendar tools)
-      const CALENDAR_TOOL_NAMES = ['check_calendar_availability', 'book_appointment']
-      const regularTools = tools.filter(t => !CALENDAR_TOOL_NAMES.includes(t.function?.name || t.name))
+      const isCalTool = (toolName) => toolName && (toolName.startsWith('check_calendar_availability') || toolName.startsWith('book_appointment'))
+      const regularTools = tools.filter(t => !isCalTool(t.function?.name || t.name))
       const allTools = [...regularTools, ...calendarTools]
       console.log('Saving agent - tools:', allTools.length, 'calendar:', calendarTools.length, 'regular:', regularTools.length, allTools.map(t => t.function?.name || t.name || t.type))
 
@@ -958,7 +960,7 @@ export default function AgentEdit() {
 
 You have access to calendar booking tools. Follow these steps when a customer wants to book an appointment:
 
-1. **Check Availability First**: When the customer mentions wanting to book or schedule an appointment, ask them for their preferred date. Then use the "check_calendar_availability" function to see available time slots.
+1. **Check Availability First**: When the customer mentions wanting to book or schedule an appointment, ask them for their preferred date. Then use the "check_calendar_availability_${safeName}" function to see available time slots.
 
 2. **Present Options**: After checking availability, present the available times to the customer in a friendly way. For example: "I have these times available on [date]: 9:00 AM, 10:30 AM, 2:00 PM. Which works best for you?"
 
@@ -967,7 +969,7 @@ You have access to calendar booking tools. Follow these steps when a customer wa
    - Email address
    - Phone number (optional but recommended)
 
-4. **Book the Appointment**: Use the "book_appointment" function with all the collected information to complete the booking.
+4. **Book the Appointment**: Use the "book_appointment_${safeName}" function with all the collected information to complete the booking.
 
 5. **Confirm**: After booking, confirm the appointment details with the customer including the date, time, and that they'll receive a confirmation email.
 

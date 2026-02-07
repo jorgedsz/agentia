@@ -1,16 +1,33 @@
 const vapiService = require('../services/vapiService');
 const { getApiKeys } = require('../utils/getApiKeys');
 
-// Rewrite localhost URLs in tools to use the production APP_URL
+// Get the public base URL for this server (VAPI needs publicly reachable URLs)
+const getPublicBaseUrl = () => {
+  if (process.env.APP_URL) return process.env.APP_URL;
+  // Derive from GHL_REDIRECT_URI (already set on Railway)
+  if (process.env.GHL_REDIRECT_URI) {
+    try {
+      const url = new URL(process.env.GHL_REDIRECT_URI);
+      return url.origin;
+    } catch {}
+  }
+  // Railway auto-sets this
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  }
+  return null;
+};
+
+// Rewrite localhost URLs in tools to use the production URL
 // VAPI servers call these URLs directly, so they must be publicly reachable
 const rewriteToolUrls = (config) => {
-  const appUrl = process.env.APP_URL;
-  if (!appUrl || !config?.tools) return config;
+  const publicUrl = getPublicBaseUrl();
+  if (!publicUrl || !config?.tools) return config;
   return {
     ...config,
     tools: config.tools.map(tool => {
       if (tool.url && /^https?:\/\/localhost(:\d+)?/.test(tool.url)) {
-        return { ...tool, url: tool.url.replace(/^https?:\/\/localhost(:\d+)?/, appUrl) };
+        return { ...tool, url: tool.url.replace(/^https?:\/\/localhost(:\d+)?/, publicUrl) };
       }
       return tool;
     })
