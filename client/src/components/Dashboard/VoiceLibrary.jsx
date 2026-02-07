@@ -143,14 +143,17 @@ export default function VoiceLibrary() {
     return trimmed
   }
 
-  // Convert Google Drive share links to direct download URLs
+  // Convert Google Drive share links to direct streamable URLs
   const convertDriveUrl = (url) => {
-    // Match: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+    // Match: https://drive.google.com/file/d/FILE_ID/view?...
     const fileMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/)
-    if (fileMatch) return `https://drive.google.com/uc?export=download&id=${fileMatch[1]}`
+    if (fileMatch) return `https://drive.usercontent.google.com/download?id=${fileMatch[1]}&export=download&confirm=t`
     // Match: https://drive.google.com/open?id=FILE_ID
     const openMatch = url.match(/drive\.google\.com\/open\?id=([^&]+)/)
-    if (openMatch) return `https://drive.google.com/uc?export=download&id=${openMatch[1]}`
+    if (openMatch) return `https://drive.usercontent.google.com/download?id=${openMatch[1]}&export=download&confirm=t`
+    // Match: https://drive.google.com/uc?...id=FILE_ID (old direct links)
+    const ucMatch = url.match(/drive\.google\.com\/uc\?.*id=([^&]+)/)
+    if (ucMatch) return `https://drive.usercontent.google.com/download?id=${ucMatch[1]}&export=download&confirm=t`
     // Already a direct link or other URL — return as-is
     return url
   }
@@ -233,7 +236,7 @@ export default function VoiceLibrary() {
       return
     }
 
-    const audio = new Audio(voice.previewUrl)
+    const audio = new Audio(convertDriveUrl(voice.previewUrl))
     audioRef.current = audio
     setPlayingId(voice.voiceId)
 
