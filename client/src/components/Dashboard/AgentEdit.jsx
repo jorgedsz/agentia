@@ -549,6 +549,7 @@ export default function AgentEdit() {
   const [voiceSearch, setVoiceSearch] = useState('')
   const [voiceProviderFilter, setVoiceProviderFilter] = useState('all')
   const [voiceGenderFilter, setVoiceGenderFilter] = useState('all')
+  const [voiceLanguageFilter, setVoiceLanguageFilter] = useState('all')
   const [previewPlayingId, setPreviewPlayingId] = useState(null)
   const voiceAudioRef = useRef(null)
 
@@ -1289,6 +1290,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
     setVoiceSearch('')
     setVoiceProviderFilter('all')
     setVoiceGenderFilter('all')
+    setVoiceLanguageFilter('all')
     if (voicesList.length === 0) {
       setVoicesLoading(true)
       try {
@@ -1345,6 +1347,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
     return voicesList.filter(v => {
       if (voiceProviderFilter !== 'all' && v.provider !== voiceProviderFilter) return false
       if (voiceGenderFilter !== 'all' && v.gender !== voiceGenderFilter) return false
+      if (voiceLanguageFilter !== 'all' && !(v.languages || []).includes(voiceLanguageFilter)) return false
       if (voiceSearch && !v.name.toLowerCase().includes(voiceSearch.toLowerCase())) return false
       return true
     })
@@ -3273,6 +3276,15 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 <option value="male">Male</option>
                 <option value="female">Female</option>
               </select>
+              <select
+                value={voiceLanguageFilter}
+                onChange={(e) => setVoiceLanguageFilter(e.target.value)}
+                className="pl-2 pr-7 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+              >
+                <option value="all">All Languages</option>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+              </select>
               <div className="relative flex-1 min-w-[150px]">
                 <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -3339,6 +3351,15 @@ After the function returns success, confirm: "Your appointment is booked for [da
                                 {voice.gender === 'female' ? 'F' : 'M'}
                               </span>
                             )}
+                            {(voice.languages || []).map(lang => (
+                              <span key={lang} className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                lang === 'es'
+                                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400'
+                              }`}>
+                                {lang.toUpperCase()}
+                              </span>
+                            ))}
                           </div>
                           {voice.previewUrl && (
                             <button

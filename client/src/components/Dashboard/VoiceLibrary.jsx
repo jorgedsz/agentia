@@ -13,6 +13,14 @@ const GENDERS = [
   { value: 'female', label: 'Female' },
 ]
 
+const LANGUAGES = [
+  { value: 'all', label: 'All Languages' },
+  { value: 'en', label: 'English' },
+  { value: 'es', label: 'Spanish' },
+]
+
+const LANG_LABELS = { en: 'EN', es: 'ES', fr: 'FR', de: 'DE', it: 'IT', pt: 'PT', pl: 'PL', nl: 'NL', ru: 'RU', ja: 'JA', zh: 'ZH', ko: 'KO', hi: 'HI', ar: 'AR' }
+
 function EqualizerIcon() {
   return (
     <div className="flex items-end gap-0.5 h-4">
@@ -30,6 +38,7 @@ export default function VoiceLibrary() {
   const [error, setError] = useState(null)
   const [providerFilter, setProviderFilter] = useState('all')
   const [genderFilter, setGenderFilter] = useState('all')
+  const [languageFilter, setLanguageFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [playingId, setPlayingId] = useState(null)
   const audioRef = useRef(null)
@@ -96,6 +105,7 @@ export default function VoiceLibrary() {
   const filtered = voices.filter(v => {
     if (providerFilter !== 'all' && v.provider !== providerFilter) return false
     if (genderFilter !== 'all' && v.gender !== genderFilter) return false
+    if (languageFilter !== 'all' && !(v.languages || []).includes(languageFilter)) return false
     if (search && !v.name.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
@@ -145,6 +155,23 @@ export default function VoiceLibrary() {
           >
             {GENDERS.map(g => (
               <option key={g.value} value={g.value}>{g.label}</option>
+            ))}
+          </select>
+          <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+
+        <div className="relative">
+          <select
+            value={languageFilter}
+            onChange={(e) => setLanguageFilter(e.target.value)}
+            className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+          >
+            {LANGUAGES.map(l => (
+              <option key={l.value} value={l.value}>{l.label}</option>
             ))}
           </select>
           <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
@@ -219,6 +246,15 @@ export default function VoiceLibrary() {
                       {voice.gender.charAt(0).toUpperCase() + voice.gender.slice(1)}
                     </span>
                   )}
+                  {(voice.languages || []).map(lang => (
+                    <span key={lang} className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      lang === 'es'
+                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400'
+                    }`}>
+                      {LANG_LABELS[lang] || lang.toUpperCase()}
+                    </span>
+                  ))}
                 </div>
 
                 <button
