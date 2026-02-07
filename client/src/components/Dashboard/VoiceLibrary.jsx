@@ -14,13 +14,63 @@ const GENDERS = [
   { value: 'female', label: 'Female' },
 ]
 
+const ACCENTS = [
+  { value: 'all', label: 'All Accents' },
+  { value: 'american', label: 'American' },
+  { value: 'british', label: 'British' },
+  { value: 'australian', label: 'Australian' },
+  { value: 'swedish', label: 'Swedish' },
+  { value: 'transatlantic', label: 'Transatlantic' },
+]
+
 const LANGUAGES = [
   { value: 'all', label: 'All Languages' },
   { value: 'en', label: 'English' },
   { value: 'es', label: 'Spanish' },
+  { value: 'fr', label: 'French' },
+  { value: 'de', label: 'German' },
+  { value: 'it', label: 'Italian' },
+  { value: 'pt', label: 'Portuguese' },
+  { value: 'pl', label: 'Polish' },
+  { value: 'nl', label: 'Dutch' },
+  { value: 'ru', label: 'Russian' },
+  { value: 'ja', label: 'Japanese' },
+  { value: 'zh', label: 'Chinese' },
+  { value: 'ko', label: 'Korean' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'ar', label: 'Arabic' },
+  { value: 'sv', label: 'Swedish' },
+  { value: 'da', label: 'Danish' },
+  { value: 'fi', label: 'Finnish' },
+  { value: 'no', label: 'Norwegian' },
+  { value: 'tr', label: 'Turkish' },
+  { value: 'el', label: 'Greek' },
+  { value: 'cs', label: 'Czech' },
+  { value: 'ro', label: 'Romanian' },
+  { value: 'hu', label: 'Hungarian' },
+  { value: 'sk', label: 'Slovak' },
+  { value: 'uk', label: 'Ukrainian' },
+  { value: 'vi', label: 'Vietnamese' },
+  { value: 'id', label: 'Indonesian' },
+  { value: 'ms', label: 'Malay' },
+  { value: 'he', label: 'Hebrew' },
 ]
 
-const LANG_LABELS = { en: 'EN', es: 'ES', fr: 'FR', de: 'DE', it: 'IT', pt: 'PT', pl: 'PL', nl: 'NL', ru: 'RU', ja: 'JA', zh: 'ZH', ko: 'KO', hi: 'HI', ar: 'AR' }
+const LANG_LABELS = {
+  en: 'EN', es: 'ES', fr: 'FR', de: 'DE', it: 'IT', pt: 'PT',
+  pl: 'PL', nl: 'NL', ru: 'RU', ja: 'JA', zh: 'ZH', ko: 'KO',
+  hi: 'HI', ar: 'AR', sv: 'SV', da: 'DA', fi: 'FI', no: 'NO',
+  tr: 'TR', el: 'EL', cs: 'CS', ro: 'RO', hu: 'HU', sk: 'SK',
+  uk: 'UK', vi: 'VI', id: 'ID', ms: 'MS', he: 'HE',
+}
+
+const ACCENT_COLORS = {
+  american: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  british: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  australian: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  swedish: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+  transatlantic: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+}
 
 function EqualizerIcon() {
   return (
@@ -42,6 +92,7 @@ export default function VoiceLibrary() {
   const [error, setError] = useState(null)
   const [providerFilter, setProviderFilter] = useState('all')
   const [genderFilter, setGenderFilter] = useState('all')
+  const [accentFilter, setAccentFilter] = useState('all')
   const [languageFilter, setLanguageFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [playingId, setPlayingId] = useState(null)
@@ -151,8 +202,11 @@ export default function VoiceLibrary() {
   const filtered = voices.filter(v => {
     if (providerFilter !== 'all' && v.provider !== providerFilter) return false
     if (genderFilter !== 'all' && v.gender !== genderFilter) return false
+    if (accentFilter !== 'all' && (v.accent || '').toLowerCase() !== accentFilter) return false
     if (languageFilter !== 'all' && !(v.languages || []).includes(languageFilter)) return false
-    if (search && !v.name.toLowerCase().includes(search.toLowerCase())) return false
+    if (search && !v.name.toLowerCase().includes(search.toLowerCase()) &&
+        !(v.accent || '').toLowerCase().includes(search.toLowerCase()) &&
+        !(v.description || '').toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
@@ -309,6 +363,23 @@ export default function VoiceLibrary() {
 
         <div className="relative">
           <select
+            value={accentFilter}
+            onChange={(e) => setAccentFilter(e.target.value)}
+            className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+          >
+            {ACCENTS.map(a => (
+              <option key={a.value} value={a.value}>{a.label}</option>
+            ))}
+          </select>
+          <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+
+        <div className="relative">
+          <select
             value={languageFilter}
             onChange={(e) => setLanguageFilter(e.target.value)}
             className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
@@ -372,7 +443,7 @@ export default function VoiceLibrary() {
                   {isPlaying && <EqualizerIcon />}
                 </div>
 
-                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                     voice.provider === 'vapi'
                       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
@@ -394,16 +465,34 @@ export default function VoiceLibrary() {
                       {voice.gender.charAt(0).toUpperCase() + voice.gender.slice(1)}
                     </span>
                   )}
-                  {(voice.languages || []).map(lang => (
-                    <span key={lang} className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      lang === 'es'
-                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400'
+                  {voice.accent && (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      ACCENT_COLORS[voice.accent.toLowerCase()] || 'bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400'
                     }`}>
-                      {LANG_LABELS[lang] || lang.toUpperCase()}
+                      {voice.accent.charAt(0).toUpperCase() + voice.accent.slice(1)}
                     </span>
-                  ))}
+                  )}
+                  {voice.age && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400">
+                      {voice.age}
+                    </span>
+                  )}
                 </div>
+                {/* Language count indicator for multilingual voices */}
+                {(voice.languages || []).length > 3 && (
+                  <div className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                    Supports {voice.languages.length} languages
+                  </div>
+                )}
+                {(voice.languages || []).length <= 3 && (voice.languages || []).length > 0 && (
+                  <div className="flex items-center gap-1 mb-3 flex-wrap">
+                    {voice.languages.map(lang => (
+                      <span key={lang} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400">
+                        {LANG_LABELS[lang] || lang.toUpperCase()}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 <button
                   onClick={() => handlePlay(voice)}

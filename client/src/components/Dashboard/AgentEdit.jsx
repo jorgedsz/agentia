@@ -549,6 +549,7 @@ export default function AgentEdit() {
   const [voiceSearch, setVoiceSearch] = useState('')
   const [voiceProviderFilter, setVoiceProviderFilter] = useState('all')
   const [voiceGenderFilter, setVoiceGenderFilter] = useState('all')
+  const [voiceAccentFilter, setVoiceAccentFilter] = useState('all')
   const [voiceLanguageFilter, setVoiceLanguageFilter] = useState('all')
   const [previewPlayingId, setPreviewPlayingId] = useState(null)
   const voiceAudioRef = useRef(null)
@@ -1290,6 +1291,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
     setVoiceSearch('')
     setVoiceProviderFilter('all')
     setVoiceGenderFilter('all')
+    setVoiceAccentFilter('all')
     setVoiceLanguageFilter('all')
     if (voicesList.length === 0) {
       setVoicesLoading(true)
@@ -1347,8 +1349,11 @@ After the function returns success, confirm: "Your appointment is booked for [da
     return voicesList.filter(v => {
       if (voiceProviderFilter !== 'all' && v.provider !== voiceProviderFilter) return false
       if (voiceGenderFilter !== 'all' && v.gender !== voiceGenderFilter) return false
+      if (voiceAccentFilter !== 'all' && (v.accent || '').toLowerCase() !== voiceAccentFilter) return false
       if (voiceLanguageFilter !== 'all' && !(v.languages || []).includes(voiceLanguageFilter)) return false
-      if (voiceSearch && !v.name.toLowerCase().includes(voiceSearch.toLowerCase())) return false
+      if (voiceSearch && !v.name.toLowerCase().includes(voiceSearch.toLowerCase()) &&
+          !(v.accent || '').toLowerCase().includes(voiceSearch.toLowerCase()) &&
+          !(v.description || '').toLowerCase().includes(voiceSearch.toLowerCase())) return false
       return true
     })
   }
@@ -3277,6 +3282,18 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 <option value="female">Female</option>
               </select>
               <select
+                value={voiceAccentFilter}
+                onChange={(e) => setVoiceAccentFilter(e.target.value)}
+                className="pl-2 pr-7 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+              >
+                <option value="all">All Accents</option>
+                <option value="american">American</option>
+                <option value="british">British</option>
+                <option value="australian">Australian</option>
+                <option value="swedish">Swedish</option>
+                <option value="transatlantic">Transatlantic</option>
+              </select>
+              <select
                 value={voiceLanguageFilter}
                 onChange={(e) => setVoiceLanguageFilter(e.target.value)}
                 className="pl-2 pr-7 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
@@ -3284,6 +3301,33 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 <option value="all">All Languages</option>
                 <option value="en">English</option>
                 <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="it">Italian</option>
+                <option value="pt">Portuguese</option>
+                <option value="pl">Polish</option>
+                <option value="nl">Dutch</option>
+                <option value="ru">Russian</option>
+                <option value="ja">Japanese</option>
+                <option value="zh">Chinese</option>
+                <option value="ko">Korean</option>
+                <option value="hi">Hindi</option>
+                <option value="ar">Arabic</option>
+                <option value="sv">Swedish</option>
+                <option value="da">Danish</option>
+                <option value="fi">Finnish</option>
+                <option value="no">Norwegian</option>
+                <option value="tr">Turkish</option>
+                <option value="el">Greek</option>
+                <option value="cs">Czech</option>
+                <option value="ro">Romanian</option>
+                <option value="hu">Hungarian</option>
+                <option value="sk">Slovak</option>
+                <option value="uk">Ukrainian</option>
+                <option value="vi">Vietnamese</option>
+                <option value="id">Indonesian</option>
+                <option value="ms">Malay</option>
+                <option value="he">Hebrew</option>
               </select>
               <div className="relative flex-1 min-w-[150px]">
                 <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3334,7 +3378,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
                           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 truncate">{voice.description}</p>
                         )}
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1 flex-wrap">
                             <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
                               voice.provider === 'vapi'
                                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
@@ -3351,12 +3395,17 @@ After the function returns success, confirm: "Your appointment is booked for [da
                                 {voice.gender === 'female' ? 'F' : 'M'}
                               </span>
                             )}
-                            {(voice.languages || []).map(lang => (
-                              <span key={lang} className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                lang === 'es'
-                                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400'
-                              }`}>
+                            {voice.accent && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                {voice.accent.charAt(0).toUpperCase() + voice.accent.slice(1)}
+                              </span>
+                            )}
+                            {(voice.languages || []).length > 3 ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400">
+                                {voice.languages.length} langs
+                              </span>
+                            ) : (voice.languages || []).map(lang => (
+                              <span key={lang} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400">
                                 {lang.toUpperCase()}
                               </span>
                             ))}

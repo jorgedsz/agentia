@@ -28,6 +28,13 @@ const VAPI_VOICES = [
   { voiceId: 'Zac', name: 'Zac', gender: 'male', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/zac.mp3' },
 ];
 
+// All ElevenLabs multilingual_v2 premade voices support these languages
+const ELEVENLABS_SUPPORTED_LANGUAGES = [
+  'en', 'es', 'fr', 'de', 'it', 'pt', 'pl', 'nl', 'ru', 'ja',
+  'zh', 'ko', 'hi', 'ar', 'cs', 'da', 'fi', 'el', 'he', 'hu',
+  'id', 'ms', 'no', 'ro', 'sk', 'sv', 'tr', 'uk', 'vi'
+];
+
 async function fetchElevenLabsVoices() {
   try {
     const response = await axios.get('https://api.elevenlabs.io/v1/voices', {
@@ -37,21 +44,19 @@ async function fetchElevenLabsVoices() {
     return voices
       .filter(v => v.category === 'premade')
       .map(v => {
-        // Extract languages: primary language from labels + verified languages
-        const languages = ['en']; // All ElevenLabs premade voices support English
-        const verified = v.verified_languages || [];
-        for (const vl of verified) {
-          if (vl.language && !languages.includes(vl.language)) {
-            languages.push(vl.language);
-          }
-        }
+        const accent = (v.labels?.accent || '').toLowerCase() || null;
+        const age = v.labels?.age || null;
+        const useCase = v.labels?.use_case || v.labels?.['use case'] || null;
         return {
           provider: '11labs',
           voiceId: v.voice_id,
           name: v.name,
           gender: (v.labels?.gender || '').toLowerCase() || null,
-          description: v.labels?.description || v.labels?.accent || null,
-          languages,
+          accent,
+          age,
+          useCase,
+          description: v.labels?.description || null,
+          languages: ELEVENLABS_SUPPORTED_LANGUAGES,
           previewUrl: v.preview_url || null,
         };
       });
