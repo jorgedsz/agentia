@@ -955,6 +955,7 @@ export default function AgentEdit() {
       const CALENDAR_TOOL_NAMES = ['check_calendar_availability', 'book_appointment']
       const regularTools = tools.filter(t => !CALENDAR_TOOL_NAMES.includes(t.function?.name))
       const allTools = [...regularTools, ...calendarTools]
+      console.log('Saving agent - tools:', allTools.length, 'calendar:', calendarTools.length, 'regular:', regularTools.length, allTools.map(t => t.function?.name || t.type))
 
       // Generate calendar booking instructions if calendar is enabled
       let finalSystemPrompt = systemPrompt

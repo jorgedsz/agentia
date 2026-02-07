@@ -73,7 +73,7 @@ class VapiService {
    * @param {string} config.voiceId - Voice ID
    */
   async createAgent(config) {
-    console.log('Creating agent with config:', JSON.stringify(config, null, 2));
+    console.log('Creating VAPI agent:', config.name, '| Tools:', config.tools?.length || 0);
 
     const modelConfig = {
       provider: config.modelProvider || 'openai',
@@ -94,8 +94,7 @@ class VapiService {
       transcriber: this.buildTranscriberConfig(config)
     };
 
-    // Add background sound at assistant level if specified
-    // VAPI only accepts: 'off', 'office', or a valid URL
+    // Background sound
     const validBackgroundSounds = ['off', 'office'];
     if (config.backgroundSoundUrl) {
       agentConfig.backgroundDenoiserEnabled = false;
@@ -104,7 +103,7 @@ class VapiService {
       agentConfig.backgroundSound = config.backgroundSound;
     }
 
-    // Add server/webhook configuration
+    // Server/webhook configuration — only include if set
     if (config.serverUrl) {
       agentConfig.serverUrl = config.serverUrl;
       if (config.serverUrlSecret) {
@@ -251,37 +250,26 @@ class VapiService {
    */
   async updateAgent(agentId, config) {
     console.log('=== vapiService.updateAgent ===');
-    console.log('Received config:', JSON.stringify(config, null, 2));
+    console.log('Agent VAPI ID:', agentId);
+    console.log('Tools:', config.tools?.length || 0, 'Prompt length:', config.systemPrompt?.length || 0);
 
-    const updateData = {};
-
-    if (config.name) updateData.name = config.name;
-    if (config.firstMessage) updateData.firstMessage = config.firstMessage;
-    if (config.systemPrompt || config.modelProvider || config.modelName || config.tools) {
-      updateData.model = {
+    // Always build full model config
+    const updateData = {
+      name: config.name || undefined,
+      firstMessage: config.firstMessage || undefined,
+      model: {
         provider: config.modelProvider || 'openai',
         model: config.modelName || 'gpt-4',
-        systemPrompt: config.systemPrompt || ''
-      };
+        systemPrompt: config.systemPrompt || '',
+        tools: (config.tools && Array.isArray(config.tools) && config.tools.length > 0) ? config.tools : []
+      },
+      voice: this.buildVoiceConfig(config),
+      transcriber: this.buildTranscriberConfig(config),
+      analysisPlan: this.buildAnalysisPlan(config),
+      artifactPlan: this.buildArtifactPlan(config)
+    };
 
-      // Add tools if provided (only if non-empty array)
-      if (config.tools && Array.isArray(config.tools) && config.tools.length > 0) {
-        updateData.model.tools = config.tools;
-        console.log('=== TOOLS BEING SENT ===');
-        console.log(JSON.stringify(config.tools, null, 2));
-      } else {
-        // Explicitly remove tools if empty or not provided
-        updateData.model.tools = [];
-      }
-    }
-    // Always update voice config
-    updateData.voice = this.buildVoiceConfig(config);
-
-    // Always update transcriber config
-    updateData.transcriber = this.buildTranscriberConfig(config);
-
-    // Add background sound at assistant level if specified
-    // VAPI only accepts: 'off', 'office', or a valid URL
+    // Background sound
     const validBackgroundSounds = ['off', 'office'];
     if (config.backgroundSoundUrl) {
       updateData.backgroundDenoiserEnabled = false;
@@ -290,7 +278,7 @@ class VapiService {
       updateData.backgroundSound = config.backgroundSound;
     }
 
-    // Add server/webhook configuration
+    // Server/webhook configuration — only include if set (don't send null)
     if (config.serverUrl) {
       updateData.serverUrl = config.serverUrl;
       if (config.serverUrlSecret) {
@@ -299,19 +287,18 @@ class VapiService {
       if (config.serverMessages && Array.isArray(config.serverMessages)) {
         updateData.serverMessages = config.serverMessages;
       }
-    } else {
-      // Clear server URL if not provided
-      updateData.serverUrl = null;
     }
 
-    // Add analysis plan
-    updateData.analysisPlan = this.buildAnalysisPlan(config);
+    // Remove undefined values
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) delete updateData[key];
+    });
 
-    // Add artifact plan
-    updateData.artifactPlan = this.buildArtifactPlan(config);
+    console.log('=== VAPI PATCH payload ===');
+    console.log('Keys:', Object.keys(updateData).join(', '));
+    console.log('Model tools count:', updateData.model?.tools?.length || 0);
+    console.log('Model provider:', updateData.model?.provider);
 
-    console.log('=== FINAL VAPI PAYLOAD ===');
-    console.log(JSON.stringify(updateData, null, 2));
     return this.makeRequest(`/assistant/${agentId}`, 'PATCH', updateData);
   }
 
