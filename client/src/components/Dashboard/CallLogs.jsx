@@ -281,7 +281,7 @@ export default function CallLogs() {
                       {call.agentName || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {call.customer?.number || '-'}
+                      {call.type === 'webCall' ? 'Test Call' : (call.customer?.number || '-')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(call.status)}`}>
