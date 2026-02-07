@@ -688,8 +688,9 @@ const checkAvailability = async (req, res) => {
       return res.json({ results: [{ error: `Calendar provider is not connected. Please connect in Settings.` }] });
     }
 
+    const duration = parseInt(req.query.duration) || 30;
     const calendarProvider = createCalendarProvider(integration, req.prisma);
-    const result = await calendarProvider.checkAvailability(calendarId, date, timezone);
+    const result = await calendarProvider.checkAvailability(calendarId, date, timezone, duration);
 
     res.json({
       results: [{
@@ -760,9 +761,10 @@ const bookAppointment = async (req, res) => {
       return res.json({ results: [{ error: 'Calendar provider is not connected. Please connect in Settings.' }] });
     }
 
+    const duration = parseInt(req.query.duration) || 30;
     const calendarProvider = createCalendarProvider(integration, req.prisma);
     const result = await calendarProvider.bookAppointment(calendarId, {
-      startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone
+      startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration
     });
 
     res.json({ results: [result] });

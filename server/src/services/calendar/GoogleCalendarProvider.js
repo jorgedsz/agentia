@@ -74,19 +74,17 @@ class GoogleCalendarProvider extends CalendarProvider {
     }));
   }
 
-  async checkAvailability(calendarId, date, timezone) {
+  async checkAvailability(calendarId, date, timezone, duration) {
     const token = await this.getValidToken();
     const tz = timezone || 'America/New_York';
+    const slotDuration = duration || 30;
 
-    const startDate = new Date(date + 'T00:00:00');
-    const endDate = new Date(date + 'T23:59:59');
-
-    // Use freeBusy API
+    // Send freeBusy request using naive datetimes + timeZone so Google interprets in user's timezone
     const freeBusyData = await this._googleRequest(`${GOOGLE_API_BASE}/freeBusy`, token, {
       method: 'POST',
       body: JSON.stringify({
-        timeMin: startDate.toISOString(),
-        timeMax: endDate.toISOString(),
+        timeMin: `${date}T00:00:00`,
+        timeMax: `${date}T23:59:59`,
         timeZone: tz,
         items: [{ id: calendarId }]
       })
@@ -94,39 +92,83 @@ class GoogleCalendarProvider extends CalendarProvider {
 
     const busySlots = freeBusyData.calendars?.[calendarId]?.busy || [];
 
-    // Generate available slots: business hours 9AM-5PM, 30-min intervals, excluding busy
+    // Generate available slots using naive time strings (no Date objects that convert to UTC)
+    // Business hours: 9AM-5PM in the user's timezone, using configured duration intervals
     const slots = [];
-    const dayStart = new Date(date + 'T09:00:00');
-    const dayEnd = new Date(date + 'T17:00:00');
+    const startHour = 9;
+    const endHour = 17;
 
-    for (let time = new Date(dayStart); time < dayEnd; time.setMinutes(time.getMinutes() + 30)) {
-      const slotStart = new Date(time);
-      const slotEnd = new Date(time);
-      slotEnd.setMinutes(slotEnd.getMinutes() + 30);
+    // Get current time in user's timezone to filter past slots for "today"
+    const nowInTz = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
+    const todayInTz = `${nowInTz.getFullYear()}-${String(nowInTz.getMonth() + 1).padStart(2, '0')}-${String(nowInTz.getDate()).padStart(2, '0')}`;
+    const isToday = date === todayInTz;
 
+    for (let totalMinutes = startHour * 60; totalMinutes + slotDuration <= endHour * 60; totalMinutes += slotDuration) {
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      const slotStartStr = `${date}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+
+      const endTotalMin = totalMinutes + slotDuration;
+      const endH = Math.floor(endTotalMin / 60);
+      const endM = endTotalMin % 60;
+      const slotEndStr = `${date}T${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`;
+
+      // Skip past slots if checking today
+      if (isToday) {
+        const slotHour = h;
+        const slotMin = m;
+        const nowHour = nowInTz.getHours();
+        const nowMin = nowInTz.getMinutes();
+        if (slotHour < nowHour || (slotHour === nowHour && slotMin <= nowMin)) {
+          continue;
+        }
+      }
+
+      // Check against busy slots (busy times from Google are in ISO/UTC format)
       const isBusy = busySlots.some(busy => {
+        // Convert busy times to the naive format in user timezone for comparison
         const busyStart = new Date(busy.start);
         const busyEnd = new Date(busy.end);
-        return slotStart < busyEnd && slotEnd > busyStart;
+        const bsInTz = new Date(busyStart.toLocaleString('en-US', { timeZone: tz }));
+        const beInTz = new Date(busyEnd.toLocaleString('en-US', { timeZone: tz }));
+
+        // Compare as minutes-of-day
+        const busyStartMin = bsInTz.getHours() * 60 + bsInTz.getMinutes();
+        const busyEndMin = beInTz.getHours() * 60 + beInTz.getMinutes();
+        const slotStartMin = totalMinutes;
+        const slotEndMin = endTotalMin;
+
+        return slotStartMin < busyEndMin && slotEndMin > busyStartMin;
       });
 
       if (!isBusy) {
-        slots.push(slotStart.toISOString());
+        // Return naive datetime string so VAPI/AI can use it directly for booking
+        slots.push(slotStartStr);
       }
     }
+
+    // Format times for human-readable message
+    const formatTime = (naiveStr) => {
+      const [, timePart] = naiveStr.split('T');
+      const [hh, mm] = timePart.split(':').map(Number);
+      const period = hh >= 12 ? 'PM' : 'AM';
+      const h12 = hh % 12 || 12;
+      return `${h12}:${String(mm).padStart(2, '0')} ${period}`;
+    };
 
     return {
       availableSlots: slots,
       message: slots.length > 0
-        ? `Available times on ${date}: ${slots.map(s => new Date(s).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })).join(', ')}`
+        ? `Available times on ${date}: ${slots.map(formatTime).join(', ')}`
         : `No available slots on ${date}`
     };
   }
 
   async bookAppointment(calendarId, params) {
     const token = await this.getValidToken();
-    const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone } = params;
+    const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration } = params;
     const tz = timezone || 'America/New_York';
+    const appointmentDuration = duration || 30;
 
     // Normalize startTime: strip trailing Z/offset so Google uses the timeZone field
     let normalizedStart = startTime.replace(/Z$/, '').replace(/[+-]\d{2}:\d{2}$/, '');
@@ -137,10 +179,10 @@ class GoogleCalendarProvider extends CalendarProvider {
 
     let normalizedEnd = endTime;
     if (!normalizedEnd) {
-      // Parse the naive datetime and add 30 minutes
+      // Parse the naive datetime and add configured duration
       const [datePart, timePart] = normalizedStart.split('T');
       const [h, m, s] = timePart.split(':').map(Number);
-      const totalMin = h * 60 + m + 30;
+      const totalMin = h * 60 + m + appointmentDuration;
       const endH = String(Math.floor(totalMin / 60)).padStart(2, '0');
       const endM = String(totalMin % 60).padStart(2, '0');
       normalizedEnd = `${datePart}T${endH}:${endM}:${s || '00'}`;

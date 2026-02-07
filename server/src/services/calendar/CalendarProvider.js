@@ -78,16 +78,17 @@ class CalendarProvider {
    * @param {string} calendarId
    * @param {string} date - YYYY-MM-DD
    * @param {string} timezone
+   * @param {number} duration - appointment duration in minutes (default 30)
    * @returns {Object} - { availableSlots: string[], message: string }
    */
-  async checkAvailability(calendarId, date, timezone) {
+  async checkAvailability(calendarId, date, timezone, duration) {
     throw new Error('checkAvailability() not implemented');
   }
 
   /**
    * Book an appointment on a calendar.
    * @param {string} calendarId
-   * @param {Object} params - { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone }
+   * @param {Object} params - { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration }
    * @returns {Object} - { success: boolean, message: string, appointment?: Object }
    */
   async bookAppointment(calendarId, params) {

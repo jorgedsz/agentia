@@ -568,6 +568,7 @@ export default function AgentEdit() {
     integrationId: '',   // CalendarIntegration.id (or empty for legacy GHL)
     calendarId: '',
     timezone: 'America/New_York',
+    appointmentDuration: 30, // minutes: 10, 15, 30, 45, 60, 90
     enableGetContact: true,
     enableCreateContact: true,
     enableCheckAvailability: true,
@@ -857,7 +858,8 @@ export default function AgentEdit() {
         const queryParamsObj = {
           calendarId: calendarConfig.calendarId,
           timezone: calendarConfig.timezone || 'America/New_York',
-          userId: user?.id?.toString() || ''
+          userId: user?.id?.toString() || '',
+          duration: (calendarConfig.appointmentDuration || 30).toString()
         }
 
         // Add provider/integrationId for unified calendar API
@@ -2265,6 +2267,23 @@ After the function returns success, confirm: "Your appointment is booked for [da
                           {TIMEZONES.map(tz => (
                             <option key={tz} value={tz}>{tz}</option>
                           ))}
+                        </select>
+                      </div>
+
+                      {/* Appointment Duration */}
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Appointment Duration</label>
+                        <select
+                          value={calendarConfig.appointmentDuration || 30}
+                          onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                        >
+                          <option value={10}>10 minutes</option>
+                          <option value={15}>15 minutes</option>
+                          <option value={30}>30 minutes</option>
+                          <option value={45}>45 minutes</option>
+                          <option value={60}>60 minutes</option>
+                          <option value={90}>90 minutes</option>
                         </select>
                       </div>
 

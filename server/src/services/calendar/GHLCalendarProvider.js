@@ -115,7 +115,7 @@ class GHLCalendarProvider extends CalendarProvider {
     }));
   }
 
-  async checkAvailability(calendarId, date, timezone) {
+  async checkAvailability(calendarId, date, timezone, duration) {
     const token = await this.getValidToken();
 
     const startDate = new Date(date);
@@ -143,7 +143,8 @@ class GHLCalendarProvider extends CalendarProvider {
 
   async bookAppointment(calendarId, params) {
     const token = await this.getValidToken();
-    const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone } = params;
+    const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration } = params;
+    const appointmentDuration = duration || 30;
 
     // Find or create contact
     let contactId;
@@ -171,11 +172,11 @@ class GHLCalendarProvider extends CalendarProvider {
       throw new Error('Failed to find or create contact');
     }
 
-    // Calculate end time if not provided (default 30 min)
+    // Calculate end time if not provided (use configured duration)
     let appointmentEndTime = endTime;
     if (!appointmentEndTime) {
       const start = new Date(startTime);
-      start.setMinutes(start.getMinutes() + 30);
+      start.setMinutes(start.getMinutes() + appointmentDuration);
       appointmentEndTime = start.toISOString();
     }
 
