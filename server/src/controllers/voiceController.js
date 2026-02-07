@@ -139,15 +139,28 @@ exports.addCustomVoice = async (req, res) => {
     const trimmedId = voiceId.trim();
 
     // Check if already exists
-    const existing = await req.prisma.customVoice.findUnique({
-      where: { voiceId_provider: { voiceId: trimmedId, provider: '11labs' } }
-    });
+    let existing;
+    try {
+      existing = await req.prisma.customVoice.findUnique({
+        where: { voiceId_provider: { voiceId: trimmedId, provider: '11labs' } }
+      });
+    } catch (dbErr) {
+      console.error('DB findUnique error:', dbErr.message);
+      return res.status(500).json({ error: 'Database error checking voice: ' + dbErr.message });
+    }
     if (existing) {
       return res.status(409).json({ error: 'This voice ID has already been added' });
     }
 
     // Get ElevenLabs API key from platform settings
-    const { elevenLabsApiKey } = await getApiKeys(req.prisma);
+    let elevenLabsApiKey = '';
+    try {
+      const keys = await getApiKeys(req.prisma);
+      elevenLabsApiKey = keys.elevenLabsApiKey || '';
+    } catch (keyErr) {
+      console.error('getApiKeys error:', keyErr.message);
+      return res.status(500).json({ error: 'Failed to read API keys: ' + keyErr.message });
+    }
     if (!elevenLabsApiKey) {
       return res.status(400).json({ error: 'ElevenLabs API key not configured. Add it in Settings > API Keys.' });
     }
@@ -156,18 +169,19 @@ exports.addCustomVoice = async (req, res) => {
     let voiceData;
     try {
       const response = await axios.get(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(trimmedId)}`, {
-        timeout: 10000,
+        timeout: 15000,
         headers: { 'xi-api-key': elevenLabsApiKey },
       });
       voiceData = response.data;
     } catch (err) {
+      console.error('ElevenLabs API error:', err.response?.status, err.message);
       if (err.response?.status === 401) {
-        return res.status(401).json({ error: 'Invalid ElevenLabs API key. Check your key in Settings > API Keys.' });
+        return res.status(422).json({ error: 'Invalid ElevenLabs API key. Check your key in Settings > API Keys.' });
       }
       if (err.response?.status === 404) {
         return res.status(404).json({ error: 'Voice ID not found on ElevenLabs' });
       }
-      return res.status(502).json({ error: 'Failed to fetch voice details from ElevenLabs' });
+      return res.status(422).json({ error: 'ElevenLabs API error: ' + (err.response?.status || err.message) });
     }
 
     // Extract voice info
@@ -185,17 +199,23 @@ exports.addCustomVoice = async (req, res) => {
     }
     if (languages.length === 0) languages.push('en');
 
-    const saved = await req.prisma.customVoice.create({
-      data: {
-        voiceId: trimmedId,
-        name,
-        gender,
-        languages: JSON.stringify(languages),
-        description,
-        previewUrl,
-        provider: '11labs',
-      }
-    });
+    let saved;
+    try {
+      saved = await req.prisma.customVoice.create({
+        data: {
+          voiceId: trimmedId,
+          name,
+          gender,
+          languages: JSON.stringify(languages),
+          description,
+          previewUrl,
+          provider: '11labs',
+        }
+      });
+    } catch (dbErr) {
+      console.error('DB create error:', dbErr.message);
+      return res.status(500).json({ error: 'Database error saving voice: ' + dbErr.message });
+    }
 
     // Invalidate cache so listVoices picks up new custom voice
     cachedVoices = null;
@@ -214,8 +234,8 @@ exports.addCustomVoice = async (req, res) => {
       customId: saved.id,
     });
   } catch (error) {
-    console.error('Error adding custom voice:', error.message, error.stack);
-    res.status(500).json({ error: 'Failed to add custom voice: ' + error.message });
+    console.error('Unexpected error adding custom voice:', error.message, error.stack);
+    res.status(500).json({ error: 'Unexpected error: ' + error.message });
   }
 };
 
