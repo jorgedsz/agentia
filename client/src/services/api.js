@@ -137,10 +137,11 @@ export const promptGeneratorAPI = {
   generate: (data) => api.post('/prompt-generator/generate', data)
 }
 
-// Platform Settings API (OWNER only)
+// Platform Settings API (OWNER only, except getVapiPublicKey)
 export const platformSettingsAPI = {
   get: () => api.get('/platform-settings'),
-  update: (data) => api.put('/platform-settings', data)
+  update: (data) => api.put('/platform-settings', data),
+  getVapiPublicKey: () => api.get('/platform-settings/vapi-public-key')
 }
 
 // Branding API

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI } from '../../services/api'
+import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, platformSettingsAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const LANGUAGES = [
@@ -646,6 +646,17 @@ export default function AgentEdit() {
   const [userCredits, setUserCredits] = useState(null)
   const [showCallModal, setShowCallModal] = useState(false)
 
+  // Test Call state
+  const [showTestCallModal, setShowTestCallModal] = useState(false)
+  const [testCallStatus, setTestCallStatus] = useState('idle') // idle, connecting, active, ended
+  const [testCallTranscript, setTestCallTranscript] = useState([])
+  const [testCallMuted, setTestCallMuted] = useState(false)
+  const [testCallVolume, setTestCallVolume] = useState(0)
+  const [testCallElapsed, setTestCallElapsed] = useState(0)
+  const vapiInstanceRef = useRef(null)
+  const testCallTimerRef = useRef(null)
+  const transcriptEndRef = useRef(null)
+
   useEffect(() => {
     fetchAgent()
     fetchPhoneNumbers()
@@ -1104,6 +1115,156 @@ After the function returns success, confirm: "Your appointment is booked for [da
     } finally {
       setCalling(false)
     }
+  }
+
+  // Test Call functions
+  const startTestCall = async () => {
+    try {
+      setTestCallStatus('connecting')
+      setTestCallTranscript([])
+      setTestCallElapsed(0)
+      setTestCallMuted(false)
+      setTestCallVolume(0)
+
+      // Fetch VAPI public key
+      const { data } = await platformSettingsAPI.getVapiPublicKey()
+      const publicKey = data.vapiPublicKey
+
+      // Dynamically import Vapi SDK
+      const { default: Vapi } = await import('@vapi-ai/web')
+      const vapi = new Vapi(publicKey)
+      vapiInstanceRef.current = vapi
+
+      // Set up event listeners
+      vapi.on('call-start', () => {
+        setTestCallStatus('active')
+        testCallTimerRef.current = setInterval(() => {
+          setTestCallElapsed(prev => prev + 1)
+        }, 1000)
+      })
+
+      vapi.on('call-end', () => {
+        setTestCallStatus('ended')
+        if (testCallTimerRef.current) {
+          clearInterval(testCallTimerRef.current)
+          testCallTimerRef.current = null
+        }
+      })
+
+      vapi.on('message', (msg) => {
+        if (msg.type === 'transcript') {
+          if (msg.transcriptType === 'final') {
+            setTestCallTranscript(prev => [...prev, {
+              role: msg.role === 'assistant' ? 'Agent' : 'You',
+              text: msg.transcript
+            }])
+          }
+        } else if (msg.type === 'conversation-update' && msg.conversation) {
+          // Use conversation-update as fallback for transcript
+          const messages = msg.conversation
+          setTestCallTranscript(
+            messages
+              .filter(m => m.role === 'assistant' || m.role === 'user')
+              .map(m => ({
+                role: m.role === 'assistant' ? 'Agent' : 'You',
+                text: m.content
+              }))
+          )
+        }
+      })
+
+      vapi.on('volume-level', (level) => {
+        setTestCallVolume(level)
+      })
+
+      vapi.on('error', (err) => {
+        console.error('VAPI test call error:', err)
+        setTestCallStatus('ended')
+        setTestCallTranscript(prev => [...prev, {
+          role: 'System',
+          text: `Error: ${err.message || 'Call failed'}`
+        }])
+        if (testCallTimerRef.current) {
+          clearInterval(testCallTimerRef.current)
+          testCallTimerRef.current = null
+        }
+      })
+
+      // Start the call with the agent's vapiId
+      await vapi.start(agent.vapiId)
+    } catch (err) {
+      console.error('Failed to start test call:', err)
+      setTestCallStatus('ended')
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to start call'
+      setTestCallTranscript(prev => [...prev, {
+        role: 'System',
+        text: `Error: ${errorMsg}`
+      }])
+    }
+  }
+
+  const stopTestCall = () => {
+    if (vapiInstanceRef.current) {
+      vapiInstanceRef.current.stop()
+      vapiInstanceRef.current = null
+    }
+    if (testCallTimerRef.current) {
+      clearInterval(testCallTimerRef.current)
+      testCallTimerRef.current = null
+    }
+    setTestCallStatus('ended')
+  }
+
+  const toggleTestCallMute = () => {
+    if (vapiInstanceRef.current) {
+      const newMuted = !testCallMuted
+      vapiInstanceRef.current.setMuted(newMuted)
+      setTestCallMuted(newMuted)
+    }
+  }
+
+  const closeTestCallModal = () => {
+    if (vapiInstanceRef.current) {
+      vapiInstanceRef.current.stop()
+      vapiInstanceRef.current = null
+    }
+    if (testCallTimerRef.current) {
+      clearInterval(testCallTimerRef.current)
+      testCallTimerRef.current = null
+    }
+    setShowTestCallModal(false)
+    setTestCallStatus('idle')
+    setTestCallTranscript([])
+    setTestCallElapsed(0)
+    setTestCallMuted(false)
+    setTestCallVolume(0)
+  }
+
+  // Auto-scroll transcript
+  useEffect(() => {
+    if (transcriptEndRef.current) {
+      transcriptEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [testCallTranscript])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (vapiInstanceRef.current) {
+        vapiInstanceRef.current.stop()
+        vapiInstanceRef.current = null
+      }
+      if (testCallTimerRef.current) {
+        clearInterval(testCallTimerRef.current)
+        testCallTimerRef.current = null
+      }
+    }
+  }, [])
+
+  const formatElapsed = (seconds) => {
+    const mins = Math.floor(seconds / 60).toString().padStart(2, '0')
+    const secs = (seconds % 60).toString().padStart(2, '0')
+    return `${mins}:${secs}`
   }
 
   const handleProviderChange = (newProvider) => {
@@ -1712,6 +1873,16 @@ After the function returns success, confirm: "Your appointment is booked for [da
             Launch A Call
           </button>
           <button
+            onClick={() => setShowTestCallModal(true)}
+            disabled={!agent.vapiId}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+            Test Agent
+          </button>
+          <button
             onClick={handleSave}
             disabled={saving}
             className="flex items-center gap-2 px-6 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
@@ -1800,6 +1971,155 @@ After the function returns success, confirm: "Your appointment is booked for [da
               >
                 {calling ? 'Calling...' : 'Start Call'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test Call Modal */}
+      {showTestCallModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Test Agent</h3>
+              <button onClick={closeTestCallModal} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Call Status & Volume Indicator */}
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative">
+                  <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
+                    testCallStatus === 'active'
+                      ? 'bg-green-100 dark:bg-green-900/30'
+                      : testCallStatus === 'connecting'
+                      ? 'bg-yellow-100 dark:bg-yellow-900/30'
+                      : 'bg-gray-100 dark:bg-gray-800'
+                  }`}>
+                    {testCallStatus === 'active' && (
+                      <div
+                        className="absolute inset-0 rounded-full border-2 border-green-400 animate-ping"
+                        style={{ opacity: Math.min(testCallVolume * 2, 0.6) }}
+                      />
+                    )}
+                    <svg className={`w-8 h-8 ${
+                      testCallStatus === 'active' ? 'text-green-600 dark:text-green-400'
+                        : testCallStatus === 'connecting' ? 'text-yellow-600 dark:text-yellow-400'
+                        : 'text-gray-400'
+                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                  </div>
+                </div>
+                <span className={`text-sm font-medium ${
+                  testCallStatus === 'active' ? 'text-green-600 dark:text-green-400'
+                    : testCallStatus === 'connecting' ? 'text-yellow-600 dark:text-yellow-400'
+                    : testCallStatus === 'ended' ? 'text-gray-500'
+                    : 'text-gray-500 dark:text-gray-400'
+                }`}>
+                  {testCallStatus === 'idle' && 'Ready to call'}
+                  {testCallStatus === 'connecting' && 'Connecting...'}
+                  {testCallStatus === 'active' && 'Call Active'}
+                  {testCallStatus === 'ended' && 'Call Ended'}
+                </span>
+              </div>
+
+              {/* Controls */}
+              <div className="flex items-center justify-center gap-4">
+                {testCallStatus === 'active' && (
+                  <button
+                    onClick={toggleTestCallMute}
+                    className={`p-3 rounded-full transition-colors ${
+                      testCallMuted
+                        ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                    }`}
+                    title={testCallMuted ? 'Unmute' : 'Mute'}
+                  >
+                    {testCallMuted ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+
+                {(testCallStatus === 'idle' || testCallStatus === 'ended') ? (
+                  <button
+                    onClick={startTestCall}
+                    className="p-4 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors shadow-lg"
+                    title="Start Call"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </button>
+                ) : testCallStatus === 'connecting' ? (
+                  <button
+                    disabled
+                    className="p-4 rounded-full bg-yellow-500 text-white cursor-not-allowed shadow-lg"
+                  >
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopTestCall}
+                    className="p-4 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-lg"
+                    title="End Call"
+                  >
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M3.68 16.07l3.92-3.11V9.59c2.85-.93 5.94-.93 8.8 0v3.38l3.91 3.1c.46.36.66.96.5 1.52-.5 1.58-1.33 3.04-2.43 4.28-.37.42-.92.63-1.48.55-1.98-.29-3.86-.97-5.53-1.96a18.8 18.8 0 01-5.53 1.96c-.56.08-1.11-.13-1.48-.55-1.1-1.24-1.93-2.7-2.43-4.28a1.47 1.47 0 01.5-1.52h.25z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Transcript */}
+              <div className="bg-gray-50 dark:bg-dark-hover rounded-lg border border-gray-200 dark:border-dark-border">
+                <div className="px-3 py-2 border-b border-gray-200 dark:border-dark-border">
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Transcript</span>
+                </div>
+                <div className="h-48 overflow-y-auto p-3 space-y-2">
+                  {testCallTranscript.length === 0 ? (
+                    <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
+                      {testCallStatus === 'idle' || testCallStatus === 'ended'
+                        ? 'Start a call to see the transcript'
+                        : 'Waiting for conversation...'}
+                    </p>
+                  ) : (
+                    testCallTranscript.map((entry, i) => (
+                      <div key={i} className={`text-sm ${
+                        entry.role === 'Agent'
+                          ? 'text-blue-700 dark:text-blue-400'
+                          : entry.role === 'System'
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-700 dark:text-gray-300'
+                      }`}>
+                        <span className="font-medium">{entry.role}:</span> {entry.text}
+                      </div>
+                    ))
+                  )}
+                  <div ref={transcriptEndRef} />
+                </div>
+              </div>
+
+              {/* Timer */}
+              {(testCallStatus === 'active' || testCallStatus === 'ended') && testCallElapsed > 0 && (
+                <div className="text-center">
+                  <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
+                    {formatElapsed(testCallElapsed)} elapsed
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

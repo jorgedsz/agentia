@@ -1587,10 +1587,13 @@ function APIKeysTab() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [vapiApiKey, setVapiApiKey] = useState('')
+  const [vapiPublicKey, setVapiPublicKey] = useState('')
   const [openaiApiKey, setOpenaiApiKey] = useState('')
   const [hasVapi, setHasVapi] = useState(false)
+  const [hasVapiPublicKey, setHasVapiPublicKey] = useState(false)
   const [hasOpenai, setHasOpenai] = useState(false)
   const [maskedVapi, setMaskedVapi] = useState('')
+  const [maskedVapiPublic, setMaskedVapiPublic] = useState('')
   const [maskedOpenai, setMaskedOpenai] = useState('')
 
   useEffect(() => {
@@ -1602,8 +1605,10 @@ function APIKeysTab() {
     try {
       const { data } = await platformSettingsAPI.get()
       setHasVapi(data.hasVapi)
+      setHasVapiPublicKey(data.hasVapiPublicKey)
       setHasOpenai(data.hasOpenai)
       setMaskedVapi(data.vapiApiKey || '')
+      setMaskedVapiPublic(data.vapiPublicKey || '')
       setMaskedOpenai(data.openaiApiKey || '')
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load settings')
@@ -1620,16 +1625,21 @@ function APIKeysTab() {
     try {
       const payload = {}
       if (field === 'vapi') payload.vapiApiKey = vapiApiKey
+      if (field === 'vapiPublic') payload.vapiPublicKey = vapiPublicKey
       if (field === 'openai') payload.openaiApiKey = openaiApiKey
 
       const { data } = await platformSettingsAPI.update(payload)
       setHasVapi(data.hasVapi)
+      setHasVapiPublicKey(data.hasVapiPublicKey)
       setHasOpenai(data.hasOpenai)
       setMaskedVapi(data.vapiApiKey || '')
+      setMaskedVapiPublic(data.vapiPublicKey || '')
       setMaskedOpenai(data.openaiApiKey || '')
       setVapiApiKey('')
+      setVapiPublicKey('')
       setOpenaiApiKey('')
-      setSuccess(`${field === 'vapi' ? 'VAPI' : 'OpenAI'} API key updated successfully`)
+      const fieldLabel = field === 'vapi' ? 'VAPI API' : field === 'vapiPublic' ? 'VAPI Public' : 'OpenAI'
+      setSuccess(`${fieldLabel} key updated successfully`)
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update settings')
@@ -1639,7 +1649,8 @@ function APIKeysTab() {
   }
 
   const handleRemove = async (field) => {
-    if (!confirm(`Are you sure you want to remove the ${field === 'vapi' ? 'VAPI' : 'OpenAI'} API key?`)) return
+    const fieldLabel = field === 'vapi' ? 'VAPI API' : field === 'vapiPublic' ? 'VAPI Public' : 'OpenAI'
+    if (!confirm(`Are you sure you want to remove the ${fieldLabel} key?`)) return
     setError('')
     setSuccess('')
     setSaving(true)
@@ -1647,14 +1658,17 @@ function APIKeysTab() {
     try {
       const payload = {}
       if (field === 'vapi') payload.vapiApiKey = ''
+      if (field === 'vapiPublic') payload.vapiPublicKey = ''
       if (field === 'openai') payload.openaiApiKey = ''
 
       const { data } = await platformSettingsAPI.update(payload)
       setHasVapi(data.hasVapi)
+      setHasVapiPublicKey(data.hasVapiPublicKey)
       setHasOpenai(data.hasOpenai)
       setMaskedVapi(data.vapiApiKey || '')
+      setMaskedVapiPublic(data.vapiPublicKey || '')
       setMaskedOpenai(data.openaiApiKey || '')
-      setSuccess(`${field === 'vapi' ? 'VAPI' : 'OpenAI'} API key removed`)
+      setSuccess(`${fieldLabel} key removed`)
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to remove key')
@@ -1729,6 +1743,47 @@ function APIKeysTab() {
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
             {saving ? 'Saving...' : hasVapi ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {/* VAPI Public Key */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white">VAPI Public Key</h3>
+          {hasVapiPublicKey && (
+            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
+              Connected
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Used for browser-based agent test calls. Find it in your VAPI dashboard under Account &gt; Public Key.
+        </p>
+
+        {hasVapiPublicKey && (
+          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedVapiPublic}</span>
+            <button onClick={() => handleRemove('vapiPublic')} disabled={saving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
+              Remove
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <input
+            type="password"
+            value={vapiPublicKey}
+            onChange={(e) => setVapiPublicKey(e.target.value)}
+            placeholder={hasVapiPublicKey ? 'Enter new key to replace...' : 'Enter your VAPI Public key...'}
+            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+          />
+          <button
+            onClick={() => handleSave('vapiPublic')}
+            disabled={saving || !vapiPublicKey.trim()}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {saving ? 'Saving...' : hasVapiPublicKey ? 'Update' : 'Save'}
           </button>
         </div>
       </div>

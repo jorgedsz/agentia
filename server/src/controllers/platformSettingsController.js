@@ -9,17 +9,20 @@ const getSettings = async (req, res) => {
     const settings = await req.prisma.platformSettings.findFirst();
 
     if (!settings) {
-      return res.json({ vapiApiKey: '', openaiApiKey: '', hasVapi: false, hasOpenai: false });
+      return res.json({ vapiApiKey: '', openaiApiKey: '', vapiPublicKey: '', hasVapi: false, hasOpenai: false, hasVapiPublicKey: false });
     }
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
     const decryptedOpenai = settings.openaiApiKey ? decrypt(settings.openaiApiKey) : '';
+    const decryptedVapiPublic = settings.vapiPublicKey ? decrypt(settings.vapiPublicKey) : '';
 
     res.json({
       vapiApiKey: decryptedVapi ? mask(decryptedVapi, 4) : '',
       openaiApiKey: decryptedOpenai ? mask(decryptedOpenai, 4) : '',
+      vapiPublicKey: decryptedVapiPublic ? mask(decryptedVapiPublic, 4) : '',
       hasVapi: !!decryptedVapi,
-      hasOpenai: !!decryptedOpenai
+      hasOpenai: !!decryptedOpenai,
+      hasVapiPublicKey: !!decryptedVapiPublic
     });
   } catch (error) {
     console.error('Get platform settings error:', error);
@@ -33,7 +36,7 @@ const updateSettings = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can update platform settings' });
     }
 
-    const { vapiApiKey, openaiApiKey } = req.body;
+    const { vapiApiKey, openaiApiKey, vapiPublicKey } = req.body;
 
     const existing = await req.prisma.platformSettings.findFirst();
 
@@ -43,6 +46,9 @@ const updateSettings = async (req, res) => {
     }
     if (openaiApiKey !== undefined) {
       data.openaiApiKey = openaiApiKey ? encrypt(openaiApiKey) : null;
+    }
+    if (vapiPublicKey !== undefined) {
+      data.vapiPublicKey = vapiPublicKey ? encrypt(vapiPublicKey) : null;
     }
 
     let settings;
@@ -57,13 +63,16 @@ const updateSettings = async (req, res) => {
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
     const decryptedOpenai = settings.openaiApiKey ? decrypt(settings.openaiApiKey) : '';
+    const decryptedVapiPublic = settings.vapiPublicKey ? decrypt(settings.vapiPublicKey) : '';
 
     res.json({
       message: 'Platform settings updated',
       vapiApiKey: decryptedVapi ? mask(decryptedVapi, 4) : '',
       openaiApiKey: decryptedOpenai ? mask(decryptedOpenai, 4) : '',
+      vapiPublicKey: decryptedVapiPublic ? mask(decryptedVapiPublic, 4) : '',
       hasVapi: !!decryptedVapi,
-      hasOpenai: !!decryptedOpenai
+      hasOpenai: !!decryptedOpenai,
+      hasVapiPublicKey: !!decryptedVapiPublic
     });
   } catch (error) {
     console.error('Update platform settings error:', error);
@@ -71,4 +80,24 @@ const updateSettings = async (req, res) => {
   }
 };
 
-module.exports = { getSettings, updateSettings };
+const getVapiPublicKey = async (req, res) => {
+  try {
+    const settings = await req.prisma.platformSettings.findFirst();
+
+    if (!settings || !settings.vapiPublicKey) {
+      return res.status(404).json({ error: 'VAPI Public Key not configured' });
+    }
+
+    const decrypted = decrypt(settings.vapiPublicKey);
+    if (!decrypted) {
+      return res.status(404).json({ error: 'VAPI Public Key not configured' });
+    }
+
+    res.json({ vapiPublicKey: decrypted });
+  } catch (error) {
+    console.error('Get VAPI public key error:', error);
+    res.status(500).json({ error: 'Failed to fetch VAPI public key' });
+  }
+};
+
+module.exports = { getSettings, updateSettings, getVapiPublicKey };
