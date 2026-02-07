@@ -789,7 +789,7 @@ export default function AgentEdit() {
 
       // Load tools (filter out calendar tools — they're rebuilt from calendarConfig on save)
       const CALENDAR_TOOL_NAMES = ['check_calendar_availability', 'book_appointment']
-      const savedTools = (agentData.config?.tools || []).filter(t => !CALENDAR_TOOL_NAMES.includes(t.function?.name))
+      const savedTools = (agentData.config?.tools || []).filter(t => !CALENDAR_TOOL_NAMES.includes(t.function?.name || t.name))
       setTools(savedTools)
 
       // Load server config
@@ -870,29 +870,25 @@ export default function AgentEdit() {
         const checkUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}`
         const bookUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}`
 
-        // Check Availability Tool
+        // Check Availability Tool (apiRequest — direct HTTP call)
         if (calendarConfig.enableCheckAvailability) {
           calendarTools.push({
-            type: 'function',
-            function: {
-              name: 'check_calendar_availability',
-              description: 'Check available appointment slots on a specific date. Use this when the customer wants to know what times are available for booking.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  date: {
-                    type: 'string',
-                    description: 'The date to check availability for in YYYY-MM-DD format (e.g., 2024-01-15)'
-                  }
-                },
-                required: ['date']
-              }
+            type: 'apiRequest',
+            method: 'POST',
+            url: checkUrl,
+            name: 'check_calendar_availability',
+            description: 'Check available appointment slots on a specific date. Use this when the customer wants to know what times are available for booking.',
+            body: {
+              type: 'object',
+              properties: {
+                date: {
+                  type: 'string',
+                  description: 'The date to check availability for in YYYY-MM-DD format (e.g., 2024-01-15)'
+                }
+              },
+              required: ['date']
             },
-            server: {
-              url: checkUrl,
-              timeoutSeconds: 30
-            },
-            async: false,
+            timeoutSeconds: 30,
             messages: [
               {
                 type: 'request-start',
@@ -902,45 +898,41 @@ export default function AgentEdit() {
           })
         }
 
-        // Book Appointment Tool
+        // Book Appointment Tool (apiRequest — direct HTTP call)
         if (calendarConfig.enableCreateEvent) {
           calendarTools.push({
-            type: 'function',
-            function: {
-              name: 'book_appointment',
-              description: 'Book an appointment for the customer. Use this after confirming the date, time, and collecting customer contact information.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  startTime: {
-                    type: 'string',
-                    description: 'The appointment start time in ISO 8601 format (e.g., 2024-01-15T10:00:00)'
-                  },
-                  contactName: {
-                    type: 'string',
-                    description: 'The customer\'s full name'
-                  },
-                  contactEmail: {
-                    type: 'string',
-                    description: 'The customer\'s email address'
-                  },
-                  contactPhone: {
-                    type: 'string',
-                    description: 'The customer\'s phone number (optional)'
-                  },
-                  notes: {
-                    type: 'string',
-                    description: 'Any additional notes for the appointment (optional)'
-                  }
+            type: 'apiRequest',
+            method: 'POST',
+            url: bookUrl,
+            name: 'book_appointment',
+            description: 'Book an appointment for the customer. Use this after confirming the date, time, and collecting customer contact information.',
+            body: {
+              type: 'object',
+              properties: {
+                startTime: {
+                  type: 'string',
+                  description: 'The appointment start time in ISO 8601 format (e.g., 2024-01-15T10:00:00)'
                 },
-                required: ['startTime', 'contactName', 'contactEmail']
-              }
+                contactName: {
+                  type: 'string',
+                  description: 'The customer\'s full name'
+                },
+                contactEmail: {
+                  type: 'string',
+                  description: 'The customer\'s email address'
+                },
+                contactPhone: {
+                  type: 'string',
+                  description: 'The customer\'s phone number (optional)'
+                },
+                notes: {
+                  type: 'string',
+                  description: 'Any additional notes for the appointment (optional)'
+                }
+              },
+              required: ['startTime', 'contactName', 'contactEmail']
             },
-            server: {
-              url: bookUrl,
-              timeoutSeconds: 30
-            },
-            async: false,
+            timeoutSeconds: 30,
             messages: [
               {
                 type: 'request-start',
@@ -953,9 +945,9 @@ export default function AgentEdit() {
 
       // Merge regular tools with calendar tools (filter duplicates in case tools still contain old calendar tools)
       const CALENDAR_TOOL_NAMES = ['check_calendar_availability', 'book_appointment']
-      const regularTools = tools.filter(t => !CALENDAR_TOOL_NAMES.includes(t.function?.name))
+      const regularTools = tools.filter(t => !CALENDAR_TOOL_NAMES.includes(t.function?.name || t.name))
       const allTools = [...regularTools, ...calendarTools]
-      console.log('Saving agent - tools:', allTools.length, 'calendar:', calendarTools.length, 'regular:', regularTools.length, allTools.map(t => t.function?.name || t.type))
+      console.log('Saving agent - tools:', allTools.length, 'calendar:', calendarTools.length, 'regular:', regularTools.length, allTools.map(t => t.function?.name || t.name || t.type))
 
       // Generate calendar booking instructions if calendar is enabled
       let finalSystemPrompt = systemPrompt
