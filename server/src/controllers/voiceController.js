@@ -214,8 +214,8 @@ exports.addCustomVoice = async (req, res) => {
       customId: saved.id,
     });
   } catch (error) {
-    console.error('Error adding custom voice:', error);
-    res.status(500).json({ error: 'Failed to add custom voice' });
+    console.error('Error adding custom voice:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to add custom voice: ' + error.message });
   }
 };
 

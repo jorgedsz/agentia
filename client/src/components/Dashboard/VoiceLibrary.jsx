@@ -147,7 +147,10 @@ export default function VoiceLibrary() {
       const voicesRes = await voicesAPI.list()
       setVoices(voicesRes.data)
     } catch (err) {
-      setCustomError(err.response?.data?.error || 'Failed to add custom voice')
+      const serverMsg = err.response?.data?.error
+      const status = err.response?.status
+      console.error('Add custom voice error:', status, err.response?.data, err.message)
+      setCustomError(serverMsg || (status ? `Error ${status}: Failed to add custom voice` : `Network error: ${err.message}`))
     } finally {
       setAddingCustom(false)
     }
