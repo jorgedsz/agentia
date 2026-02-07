@@ -143,6 +143,18 @@ export default function VoiceLibrary() {
     return trimmed
   }
 
+  // Convert Google Drive share links to direct download URLs
+  const convertDriveUrl = (url) => {
+    // Match: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+    const fileMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/)
+    if (fileMatch) return `https://drive.google.com/uc?export=download&id=${fileMatch[1]}`
+    // Match: https://drive.google.com/open?id=FILE_ID
+    const openMatch = url.match(/drive\.google\.com\/open\?id=([^&]+)/)
+    if (openMatch) return `https://drive.google.com/uc?export=download&id=${openMatch[1]}`
+    // Already a direct link or other URL — return as-is
+    return url
+  }
+
   const handleAddCustomVoice = async () => {
     if (!customVoiceId.trim()) return
     setAddingCustom(true)
@@ -152,7 +164,7 @@ export default function VoiceLibrary() {
       const voiceId = parseVoiceInput(customVoiceId)
       const payload = { voiceId }
       if (customVoiceName.trim()) payload.name = customVoiceName.trim()
-      if (customPreviewUrl.trim()) payload.previewUrl = customPreviewUrl.trim()
+      if (customPreviewUrl.trim()) payload.previewUrl = convertDriveUrl(customPreviewUrl.trim())
       const res = await voicesAPI.addCustom(payload)
       setCustomSuccess(`Added "${res.data.name}" successfully`)
       setCustomVoiceId('')
