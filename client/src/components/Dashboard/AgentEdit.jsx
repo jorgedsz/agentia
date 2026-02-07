@@ -872,37 +872,34 @@ export default function AgentEdit() {
         const checkUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}`
         const bookUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}`
 
-        // Check Availability Tool (apiRequest — direct HTTP call)
-        if (calendarConfig.enableCheckAvailability) {
-          calendarTools.push({
-            type: 'apiRequest',
-            method: 'POST',
-            url: checkUrl,
-            name: `check_calendar_availability_${safeName}`,
-            description: 'Check available appointment slots on a specific date. Use this when the customer wants to know what times are available for booking.',
-            body: {
-              type: 'object',
-              properties: {
-                date: {
-                  type: 'string',
-                  description: 'The date to check availability for in YYYY-MM-DD format (e.g., 2024-01-15)'
-                }
-              },
-              required: ['date']
-            },
-            timeoutSeconds: 30,
-            messages: [
-              {
-                type: 'request-start',
-                content: 'Let me check what times are available on that date...'
+        // Check Availability Tool (always created — booking requires checking availability first)
+        calendarTools.push({
+          type: 'apiRequest',
+          method: 'POST',
+          url: checkUrl,
+          name: `check_calendar_availability_${safeName}`,
+          description: 'Check available appointment slots on a specific date. You MUST call this BEFORE booking to see what times are open.',
+          body: {
+            type: 'object',
+            properties: {
+              date: {
+                type: 'string',
+                description: 'The date to check availability for in YYYY-MM-DD format (e.g., 2026-02-08)'
               }
-            ]
-          })
-        }
+            },
+            required: ['date']
+          },
+          timeoutSeconds: 30,
+          messages: [
+            {
+              type: 'request-start',
+              content: 'Un momento, déjame verificar los horarios disponibles...'
+            }
+          ]
+        })
 
-        // Book Appointment Tool (apiRequest — direct HTTP call)
-        if (calendarConfig.enableCreateEvent) {
-          calendarTools.push({
+        // Book Appointment Tool (always created alongside check availability)
+        calendarTools.push({
             type: 'apiRequest',
             method: 'POST',
             url: bookUrl,
@@ -913,7 +910,7 @@ export default function AgentEdit() {
               properties: {
                 startTime: {
                   type: 'string',
-                  description: 'The appointment start time in ISO 8601 format (e.g., 2024-01-15T10:00:00)'
+                  description: 'The appointment start time in ISO 8601 format (e.g., 2026-02-08T10:00:00)'
                 },
                 contactName: {
                   type: 'string',
@@ -938,11 +935,10 @@ export default function AgentEdit() {
             messages: [
               {
                 type: 'request-start',
-                content: 'Perfect, let me book that appointment for you...'
+                content: 'Un momento, déjame reservar tu cita...'
               }
             ]
           })
-        }
       }
 
       // Merge regular tools with calendar tools (filter duplicates in case tools still contain old calendar tools)
