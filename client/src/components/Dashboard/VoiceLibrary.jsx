@@ -3,9 +3,9 @@ import { voicesAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const PROVIDERS = [
-  { value: 'all', label: 'All Providers' },
-  { value: 'vapi', label: 'VAPI' },
+  { value: 'all', label: 'All Voices' },
   { value: '11labs', label: 'ElevenLabs' },
+  { value: 'custom', label: 'Custom' },
 ]
 
 const GENDERS = [
@@ -266,10 +266,9 @@ export default function VoiceLibrary() {
     })
   }, [playingId])
 
-  const customVoices = voices.filter(v => v.isCustom)
-
   const filtered = voices.filter(v => {
-    if (providerFilter !== 'all' && v.provider !== providerFilter) return false
+    if (providerFilter === 'custom' && !v.isCustom) return false
+    if (providerFilter === '11labs' && (v.isCustom || v.provider !== '11labs')) return false
     if (genderFilter !== 'all' && v.gender !== genderFilter) return false
     if (accentFilter !== 'all' && (v.accent || '').toLowerCase() !== accentFilter) return false
     if (languageFilter !== 'all' && !(v.languages || []).includes(languageFilter)) return false
@@ -425,76 +424,6 @@ export default function VoiceLibrary() {
             </div>
           )}
 
-          {/* Existing custom voices list */}
-          {customVoices.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">
-                Custom Voices ({customVoices.length})
-              </p>
-              {customVoices.map((voice) => (
-                <div
-                  key={voice.customId}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-dark-hover border border-gray-100 dark:border-dark-border"
-                >
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">{voice.name}</span>
-                    <span className="ml-2 text-xs text-gray-400">{voice.voiceId}</span>
-                    {voice.gender && (
-                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 capitalize">{voice.gender}</span>
-                    )}
-                  </div>
-                  {voice.previewUrl ? (
-                    <button
-                      onClick={() => handlePlay(voice)}
-                      className="p-1.5 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
-                      title="Preview"
-                    >
-                      {playingId === voice.voiceId ? (
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                          <rect x="6" y="4" width="4" height="16" rx="1" />
-                          <rect x="14" y="4" width="4" height="16" rx="1" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
-                      )}
-                    </button>
-                  ) : (
-                    <span className="text-xs text-gray-400">No preview</span>
-                  )}
-                  <button
-                    onClick={() => handleRefreshCustomVoice(voice.customId)}
-                    disabled={refreshingId === voice.customId}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50"
-                    title="Refresh metadata from ElevenLabs"
-                  >
-                    {refreshingId === voice.customId ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-400 border-t-transparent" />
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0115.36-5.36M20 15a9 9 0 01-15.36 5.36" />
-                      </svg>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleDeleteCustomVoice(voice.customId)}
-                    disabled={deletingId === voice.customId}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
-                    title="Delete"
-                  >
-                    {deletingId === voice.customId ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-400 border-t-transparent" />
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
@@ -613,22 +542,51 @@ export default function VoiceLibrary() {
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{voice.description}</p>
                     )}
                   </div>
-                  {isPlaying && <EqualizerIcon />}
+                  <div className="flex items-center gap-1 ml-2 shrink-0">
+                    {isPlaying && <EqualizerIcon />}
+                    {voice.isCustom && isOwner && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRefreshCustomVoice(voice.customId) }}
+                          disabled={refreshingId === voice.customId}
+                          className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-50"
+                          title="Refresh metadata"
+                        >
+                          {refreshingId === voice.customId ? (
+                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-blue-400 border-t-transparent" />
+                          ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0115.36-5.36M20 15a9 9 0 01-15.36 5.36" />
+                            </svg>
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteCustomVoice(voice.customId) }}
+                          disabled={deletingId === voice.customId}
+                          className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                          title="Delete"
+                        >
+                          {deletingId === voice.customId ? (
+                            <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-red-400 border-t-transparent" />
+                          ) : (
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    voice.provider === 'vapi'
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                    voice.isCustom
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                       : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
                   }`}>
-                    {voice.provider === 'vapi' ? 'VAPI' : 'ElevenLabs'}
+                    {voice.isCustom ? 'Custom' : 'ElevenLabs'}
                   </span>
-                  {voice.isCustom && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                      Custom
-                    </span>
-                  )}
                   {voice.gender && (
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                       voice.gender === 'female'
@@ -651,7 +609,7 @@ export default function VoiceLibrary() {
                     </span>
                   )}
                 </div>
-                {/* Language count indicator for multilingual voices */}
+                {/* Language display */}
                 {(voice.languages || []).length > 3 && (
                   <div className="mb-3 text-xs text-gray-500 dark:text-gray-400">
                     Supports {voice.languages.length} languages

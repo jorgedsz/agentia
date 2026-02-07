@@ -6,29 +6,6 @@ let cachedVoices = null;
 let cacheTimestamp = 0;
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
-// Hardcoded VAPI voices with preview URLs
-const VAPI_VOICES = [
-  { voiceId: 'Lily', name: 'Lily', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/lily.mp3' },
-  { voiceId: 'Kylie', name: 'Kylie', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/kylie.mp3' },
-  { voiceId: 'Savannah', name: 'Savannah', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/savannah.mp3' },
-  { voiceId: 'Hana', name: 'Hana', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/hana.mp3' },
-  { voiceId: 'Neha', name: 'Neha', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/neha.mp3' },
-  { voiceId: 'Paige', name: 'Paige', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/paige.mp3' },
-  { voiceId: 'Leah', name: 'Leah', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/leah.mp3' },
-  { voiceId: 'Tara', name: 'Tara', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/tara.mp3' },
-  { voiceId: 'Jess', name: 'Jess', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/jess.mp3' },
-  { voiceId: 'Mia', name: 'Mia', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/mia.mp3' },
-  { voiceId: 'Zoe', name: 'Zoe', gender: 'female', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/zoe.mp3' },
-  { voiceId: 'Elliot', name: 'Elliot', gender: 'male', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/elliot.mp3' },
-  { voiceId: 'Rohan', name: 'Rohan', gender: 'male', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/rohan.mp3' },
-  { voiceId: 'Cole', name: 'Cole', gender: 'male', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/cole.mp3' },
-  { voiceId: 'Harry', name: 'Harry', gender: 'male', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/harry.mp3' },
-  { voiceId: 'Spencer', name: 'Spencer', gender: 'male', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/spencer.mp3' },
-  { voiceId: 'Leo', name: 'Leo', gender: 'male', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/leo.mp3' },
-  { voiceId: 'Dan', name: 'Dan', gender: 'male', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/dan.mp3' },
-  { voiceId: 'Zac', name: 'Zac', gender: 'male', languages: ['en'], previewUrl: 'https://files.buildwithfern.com/vapi/voices/zac.mp3' },
-];
-
 // All ElevenLabs multilingual_v2 premade voices support these languages
 const ELEVENLABS_SUPPORTED_LANGUAGES = [
   'en', 'es', 'fr', 'de', 'it', 'pt', 'pl', 'nl', 'ru', 'ja',
@@ -97,16 +74,6 @@ exports.listVoices = async (req, res) => {
       return res.json([...cachedVoices, ...customVoices]);
     }
 
-    const vapiNormalized = VAPI_VOICES.map(v => ({
-      provider: 'vapi',
-      voiceId: v.voiceId,
-      name: v.name,
-      gender: v.gender,
-      description: null,
-      languages: v.languages,
-      previewUrl: v.previewUrl,
-    }));
-
     // Use ElevenLabs API key if available for authenticated access
     let elevenLabsKey = '';
     try {
@@ -115,11 +82,10 @@ exports.listVoices = async (req, res) => {
     } catch (_) {}
     const elevenLabsVoices = await fetchElevenLabsVoices(elevenLabsKey);
 
-    const premadeVoices = [...vapiNormalized, ...elevenLabsVoices];
-    cachedVoices = premadeVoices;
+    cachedVoices = elevenLabsVoices;
     cacheTimestamp = now;
 
-    res.json([...premadeVoices, ...customVoices]);
+    res.json([...elevenLabsVoices, ...customVoices]);
   } catch (error) {
     console.error('Error listing voices:', error);
     res.status(500).json({ error: 'Failed to fetch voices' });

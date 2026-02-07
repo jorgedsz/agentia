@@ -357,7 +357,7 @@ const STT_LATENCY = {
   talkscriber: 1000,
   cartesia: 750,
 }
-const TTS_LATENCY = { vapi: 500, '11labs': 500 }
+const TTS_LATENCY = { '11labs': 500 }
 
 const MODELS_BY_PROVIDER = {
   'openai': [
@@ -409,56 +409,13 @@ function getModelLatency(provider, model, voiceProv, sttProv) {
   const m = models.find(entry => entry.model === model)
   if (!m) return null
   const stt = STT_LATENCY[sttProv] || STT_LATENCY.deepgram
-  const tts = TTS_LATENCY[voiceProv] || TTS_LATENCY.vapi
+  const tts = TTS_LATENCY[voiceProv] || 500
   return { stt, sttProvider: sttProv || 'deepgram', model: m.llmLatency, tts, total: stt + m.llmLatency + tts }
 }
 
 const VOICE_PROVIDERS = [
-  { id: 'vapi', label: 'VAPI Voices (Free)', icon: '◯' },
   { id: '11labs', label: 'ElevenLabs', icon: '||' },
 ]
-
-const VOICES_BY_PROVIDER = {
-  'vapi': [
-    { voiceId: 'Lily', name: 'Lily (Female)' },
-    { voiceId: 'Kylie', name: 'Kylie (Female)' },
-    { voiceId: 'Savannah', name: 'Savannah (Female)' },
-    { voiceId: 'Hana', name: 'Hana (Female)' },
-    { voiceId: 'Neha', name: 'Neha (Female)' },
-    { voiceId: 'Paige', name: 'Paige (Female)' },
-    { voiceId: 'Leah', name: 'Leah (Female)' },
-    { voiceId: 'Tara', name: 'Tara (Female)' },
-    { voiceId: 'Jess', name: 'Jess (Female)' },
-    { voiceId: 'Mia', name: 'Mia (Female)' },
-    { voiceId: 'Zoe', name: 'Zoe (Female)' },
-    { voiceId: 'Elliot', name: 'Elliot (Male)' },
-    { voiceId: 'Rohan', name: 'Rohan (Male)' },
-    { voiceId: 'Cole', name: 'Cole (Male)' },
-    { voiceId: 'Harry', name: 'Harry (Male)' },
-    { voiceId: 'Spencer', name: 'Spencer (Male)' },
-    { voiceId: 'Leo', name: 'Leo (Male)' },
-    { voiceId: 'Dan', name: 'Dan (Male)' },
-    { voiceId: 'Zac', name: 'Zac (Male)' },
-  ],
-  '11labs': [
-    { voiceId: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily - velvety actress' },
-    { voiceId: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel - calm female' },
-    { voiceId: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella - soft female' },
-    { voiceId: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli - emotional female' },
-    { voiceId: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda - friendly female' },
-    { voiceId: 'FGY2WhTYpPnrIDTdsKH5', name: 'Laura - upbeat female' },
-    { voiceId: 'jsCqWAovK2LkecY7zXl4', name: 'Freya - expressive female' },
-    { voiceId: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica - expressive female' },
-    { voiceId: 'iP95p4xoKVk53GoZ742B', name: 'Chris - casual male' },
-    { voiceId: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel - authoritative male' },
-    { voiceId: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh - deep male' },
-    { voiceId: 'ErXwobaYiN019PkySvjV', name: 'Antoni - well-rounded male' },
-    { voiceId: 'pNInz6obpgDQGcFmaJgB', name: 'Adam - deep male' },
-    { voiceId: 'flq6f7yk4E4fJM5XTYuZ', name: 'Michael - narrator male' },
-    { voiceId: 'JBFqnCBsd6RMkjVDRZzb', name: 'George - British male' },
-    { voiceId: 'nPczCjzI2devNBz1zQrb', name: 'Brian - deep male' },
-  ],
-}
 
 
 const TOOL_TYPES = [
@@ -539,8 +496,8 @@ export default function AgentEdit() {
   const [firstMessage, setFirstMessage] = useState('')
   const [modelProvider, setModelProvider] = useState('openai')
   const [modelName, setModelName] = useState('gpt-4o')
-  const [voiceProvider, setVoiceProvider] = useState('vapi')
-  const [voiceId, setVoiceId] = useState('Lily')
+  const [voiceProvider, setVoiceProvider] = useState('11labs')
+  const [voiceId, setVoiceId] = useState('')
   const [addVoiceManually, setAddVoiceManually] = useState(false)
   const [customVoiceId, setCustomVoiceId] = useState('')
   const [showVoicePicker, setShowVoicePicker] = useState(false)
@@ -1337,8 +1294,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
   }
 
   const selectVoiceFromPicker = (voice) => {
-    const provider = voice.provider === '11labs' ? '11labs' : 'vapi'
-    setVoiceProvider(provider)
+    setVoiceProvider('11labs')
     setVoiceId(voice.voiceId)
     setAddVoiceManually(false)
     setCustomVoiceId('')
@@ -1347,7 +1303,8 @@ After the function returns success, confirm: "Your appointment is booked for [da
 
   const getFilteredPickerVoices = () => {
     return voicesList.filter(v => {
-      if (voiceProviderFilter !== 'all' && v.provider !== voiceProviderFilter) return false
+      if (voiceProviderFilter === 'custom' && !v.isCustom) return false
+      if (voiceProviderFilter === '11labs' && (v.isCustom || v.provider !== '11labs')) return false
       if (voiceGenderFilter !== 'all' && v.gender !== voiceGenderFilter) return false
       if (voiceAccentFilter !== 'all' && (v.accent || '').toLowerCase() !== voiceAccentFilter) return false
       if (voiceLanguageFilter !== 'all' && !(v.languages || []).includes(voiceLanguageFilter)) return false
@@ -1360,9 +1317,8 @@ After the function returns success, confirm: "Your appointment is booked for [da
 
   const getCurrentVoiceName = () => {
     if (addVoiceManually) return customVoiceId || 'Custom Voice ID'
-    const providerVoices = VOICES_BY_PROVIDER[voiceProvider] || []
-    const found = providerVoices.find(v => v.voiceId === voiceId)
-    return found ? found.name : voiceId
+    const found = voicesList.find(v => v.voiceId === voiceId)
+    return found ? found.name : voiceId || 'Select a voice'
   }
 
   const copyPrompt = () => {
@@ -1702,16 +1658,12 @@ After the function returns success, confirm: "Your appointment is booked for [da
                   <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
                     {getCurrentVoiceName()}
                   </span>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    voiceProvider === 'vapi'
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                      : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                  }`}>
-                    {voiceProvider === 'vapi' ? 'VAPI' : 'ElevenLabs'}
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                    ElevenLabs
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {voiceProvider === 'vapi' ? 'Free' : 'Premium'} · {TTS_LATENCY[voiceProvider] || TTS_LATENCY.vapi}ms latency
+                  {TTS_LATENCY['11labs']}ms latency
                 </p>
               </div>
               <button
@@ -1813,7 +1765,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
             const latency = getModelLatency(modelProvider, modelName, voiceProvider, transcriberProvider)
             if (!latency) return null
             const sttLabel = (TRANSCRIBER_PROVIDERS.find(t => t.id === latency.sttProvider) || {}).label || 'Deepgram'
-            const ttsLabel = voiceProvider === '11labs' ? 'ElevenLabs' : 'VAPI'
+            const ttsLabel = 'ElevenLabs'
             const segments = [
               { label: `STT (${sttLabel})`, value: latency.stt, color: '#3b82f6', max: MAX_LATENCY, suffix: 'ms' },
               { label: 'Model (LLM)', value: latency.model, color: '#f97316', max: MAX_LATENCY, suffix: 'ms' },
@@ -3268,9 +3220,9 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 onChange={(e) => setVoiceProviderFilter(e.target.value)}
                 className="pl-2 pr-7 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
               >
-                <option value="all">All Providers</option>
-                <option value="vapi">VAPI</option>
+                <option value="all">All Voices</option>
                 <option value="11labs">ElevenLabs</option>
+                <option value="custom">Custom</option>
               </select>
               <select
                 value={voiceGenderFilter}
@@ -3353,7 +3305,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {getFilteredPickerVoices().map((voice) => {
                     const isPlaying = previewPlayingId === voice.voiceId
-                    const isSelected = !addVoiceManually && voiceId === voice.voiceId && ((voice.provider === 'vapi' && voiceProvider === 'vapi') || (voice.provider === '11labs' && voiceProvider === '11labs'))
+                    const isSelected = !addVoiceManually && voiceId === voice.voiceId
                     return (
                       <div
                         key={`${voice.provider}-${voice.voiceId}`}
@@ -3380,11 +3332,11 @@ After the function returns success, confirm: "Your appointment is booked for [da
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1 flex-wrap">
                             <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                              voice.provider === 'vapi'
-                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                              voice.isCustom
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                                 : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
                             }`}>
-                              {voice.provider === 'vapi' ? 'VAPI' : '11Labs'}
+                              {voice.isCustom ? 'Custom' : 'ElevenLabs'}
                             </span>
                             {voice.gender && (
                               <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
