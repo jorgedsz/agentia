@@ -21,4 +21,7 @@ router.put('/:id', agentController.updateAgent);
 // DELETE /api/agents/:id - Delete agent
 router.delete('/:id', agentController.deleteAgent);
 
+// GET /api/agents/:id/vapi-sync - Debug: check VAPI sync status
+router.get('/:id/vapi-sync', agentController.checkVapiSync);
+
 module.exports = router;

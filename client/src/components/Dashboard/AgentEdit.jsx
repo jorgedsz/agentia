@@ -1034,10 +1034,14 @@ Important:
         }
       })
 
-      // Show VAPI warning if any
+      // Show VAPI sync result
+      const syncInfo = response.data?.vapiSyncInfo
       if (response.data?.vapiWarning) {
         setError(response.data.vapiWarning)
-        setTimeout(() => setError(''), 8000)
+        setTimeout(() => setError(''), 10000)
+      } else if (syncInfo) {
+        setSuccess(`Agent saved — VAPI synced (${syncInfo.savedTools} tools, prompt: ${syncInfo.savedPromptLength} chars)`)
+        setTimeout(() => setSuccess(''), 5000)
       } else {
         setSuccess('Agent saved successfully')
         setTimeout(() => setSuccess(''), 3000)

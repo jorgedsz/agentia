@@ -128,18 +128,44 @@ const updateAgent = async (req, res) => {
 
     // Update VAPI agent if exists
     let vapiWarning = null;
+    let vapiSyncInfo = null;
     const { vapiApiKey: vapiKey } = await getApiKeys(req.prisma);
     if (existingAgent.vapiId && vapiKey) {
       try {
         vapiService.setApiKey(vapiKey);
         const vapiPayload = { name, ...config };
-        console.log('=== CALLING VAPI ===');
+        const sentToolCount = vapiPayload.tools?.length || 0;
+        const sentToolNames = (vapiPayload.tools || []).map(t => t.function?.name || t.type).join(', ');
+        console.log('=== CALLING VAPI UPDATE ===');
         console.log('VAPI ID:', existingAgent.vapiId);
-        console.log('Tools count:', vapiPayload.tools?.length || 0);
-        console.log('System prompt length:', vapiPayload.systemPrompt?.length || 0);
+        console.log('Sending tools:', sentToolCount, '(' + sentToolNames + ')');
+        console.log('Sending prompt length:', vapiPayload.systemPrompt?.length || 0);
+
         const vapiResult = await vapiService.updateAgent(existingAgent.vapiId, vapiPayload);
-        console.log('=== VAPI SUCCESS ===');
-        console.log('VAPI returned tools:', vapiResult.model?.tools?.length || 0);
+        const returnedToolCount = vapiResult.model?.tools?.length || 0;
+        const returnedPromptLength = vapiResult.model?.systemPrompt?.length || 0;
+        console.log('=== VAPI RESULT ===');
+        console.log('Returned tools:', returnedToolCount);
+        console.log('Returned prompt length:', returnedPromptLength);
+        console.log('Returned model provider:', vapiResult.model?.provider);
+
+        vapiSyncInfo = {
+          sentTools: sentToolCount,
+          savedTools: returnedToolCount,
+          sentPromptLength: vapiPayload.systemPrompt?.length || 0,
+          savedPromptLength: returnedPromptLength,
+          vapiId: existingAgent.vapiId
+        };
+
+        // Verify tools were actually saved
+        if (sentToolCount > 0 && returnedToolCount === 0) {
+          vapiWarning = `VAPI accepted update but saved 0 tools (sent ${sentToolCount}: ${sentToolNames}). Check tool format.`;
+          console.error('=== VAPI TOOL MISMATCH ===');
+          console.error('Sent tools:', JSON.stringify(vapiPayload.tools, null, 2));
+          console.error('VAPI returned model:', JSON.stringify(vapiResult.model, null, 2));
+        } else if (sentToolCount !== returnedToolCount) {
+          vapiWarning = `VAPI saved ${returnedToolCount} of ${sentToolCount} tools. Some may have been rejected.`;
+        }
       } catch (vapiError) {
         console.error('=== VAPI FAILED ===');
         console.error('Error:', vapiError.message);
@@ -179,6 +205,7 @@ const updateAgent = async (req, res) => {
     res.json({
       message: vapiWarning || 'Agent updated successfully',
       vapiWarning,
+      vapiSyncInfo,
       agent: { ...agent, config: parseConfig(agent.config) }
     });
   } catch (error) {
@@ -225,10 +252,58 @@ const deleteAgent = async (req, res) => {
   }
 };
 
+// Debug: Check what VAPI actually has for this agent
+const checkVapiSync = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const agent = await req.prisma.agent.findFirst({
+      where: { id: parseInt(id), userId: req.user.id }
+    });
+
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    if (!agent.vapiId) return res.json({ error: 'Agent has no VAPI ID', agent: { id: agent.id, name: agent.name, vapiId: null } });
+
+    const { vapiApiKey: vapiKey } = await getApiKeys(req.prisma);
+    if (!vapiKey) return res.json({ error: 'No VAPI API key configured' });
+
+    vapiService.setApiKey(vapiKey);
+    const vapiAgent = await vapiService.getAgent(agent.vapiId);
+
+    const localConfig = JSON.parse(agent.config || '{}');
+
+    res.json({
+      local: {
+        id: agent.id,
+        name: agent.name,
+        vapiId: agent.vapiId,
+        toolCount: localConfig.tools?.length || 0,
+        toolNames: (localConfig.tools || []).map(t => t.function?.name || t.type),
+        promptLength: localConfig.systemPrompt?.length || 0
+      },
+      vapi: {
+        id: vapiAgent.id,
+        name: vapiAgent.name,
+        modelProvider: vapiAgent.model?.provider,
+        modelName: vapiAgent.model?.model,
+        toolCount: vapiAgent.model?.tools?.length || 0,
+        toolNames: (vapiAgent.model?.tools || []).map(t => t.function?.name || t.type),
+        promptLength: vapiAgent.model?.systemPrompt?.length || 0,
+        promptPreview: vapiAgent.model?.systemPrompt?.substring(0, 100) + '...',
+        firstMessage: vapiAgent.firstMessage,
+        voice: vapiAgent.voice
+      }
+    });
+  } catch (error) {
+    console.error('Check VAPI sync error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   getAgents,
   getAgent,
   createAgent,
   updateAgent,
-  deleteAgent
+  deleteAgent,
+  checkVapiSync
 };
