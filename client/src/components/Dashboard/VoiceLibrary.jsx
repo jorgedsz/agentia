@@ -101,6 +101,7 @@ export default function VoiceLibrary() {
   // Custom voice management state (OWNER only)
   const [customVoiceId, setCustomVoiceId] = useState('')
   const [customVoiceName, setCustomVoiceName] = useState('')
+  const [customPreviewUrl, setCustomPreviewUrl] = useState('')
   const [addingCustom, setAddingCustom] = useState(false)
   const [customError, setCustomError] = useState(null)
   const [customSuccess, setCustomSuccess] = useState(null)
@@ -130,18 +131,33 @@ export default function VoiceLibrary() {
     }
   }
 
+  // Extract voice ID from ElevenLabs URL or return as-is
+  const parseVoiceInput = (input) => {
+    const trimmed = input.trim()
+    // Match ElevenLabs URLs like https://elevenlabs.io/community/voice/voice-name/voiceId123
+    const communityMatch = trimmed.match(/elevenlabs\.io\/community\/voice\/[^/]+\/([a-zA-Z0-9]+)/)
+    if (communityMatch) return communityMatch[1]
+    // Match voice-lab or app URLs with voice ID in path
+    const appMatch = trimmed.match(/elevenlabs\.io\/[^?]*[/=]([a-zA-Z0-9]{20,})/)
+    if (appMatch) return appMatch[1]
+    return trimmed
+  }
+
   const handleAddCustomVoice = async () => {
     if (!customVoiceId.trim()) return
     setAddingCustom(true)
     setCustomError(null)
     setCustomSuccess(null)
     try {
-      const payload = { voiceId: customVoiceId.trim() }
+      const voiceId = parseVoiceInput(customVoiceId)
+      const payload = { voiceId }
       if (customVoiceName.trim()) payload.name = customVoiceName.trim()
+      if (customPreviewUrl.trim()) payload.previewUrl = customPreviewUrl.trim()
       const res = await voicesAPI.addCustom(payload)
       setCustomSuccess(`Added "${res.data.name}" successfully`)
       setCustomVoiceId('')
       setCustomVoiceName('')
+      setCustomPreviewUrl('')
       // Refresh voice list
       const voicesRes = await voicesAPI.list()
       setVoices(voicesRes.data)
@@ -256,18 +272,18 @@ export default function VoiceLibrary() {
         <div className="mb-6 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Manage Custom Voices</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            Paste an ElevenLabs Voice ID to add it. VAPI will use its own ElevenLabs integration for playback.
+            Paste a Voice ID or ElevenLabs URL. You can also paste the preview audio URL for playback.
           </p>
 
           {/* Add form */}
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex flex-wrap items-center gap-3 mb-4">
             <input
               type="text"
               value={customVoiceId}
               onChange={(e) => setCustomVoiceId(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !addingCustom && handleAddCustomVoice()}
-              placeholder="ElevenLabs Voice ID..."
-              className="flex-1 max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="Voice ID or ElevenLabs URL..."
+              className="flex-1 min-w-[200px] max-w-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               disabled={addingCustom}
             />
             <input
@@ -276,7 +292,16 @@ export default function VoiceLibrary() {
               onChange={(e) => setCustomVoiceName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !addingCustom && handleAddCustomVoice()}
               placeholder="Name (optional)"
-              className="max-w-[180px] px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="max-w-[160px] px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              disabled={addingCustom}
+            />
+            <input
+              type="text"
+              value={customPreviewUrl}
+              onChange={(e) => setCustomPreviewUrl(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !addingCustom && handleAddCustomVoice()}
+              placeholder="Preview audio URL (optional)"
+              className="flex-1 min-w-[200px] max-w-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               disabled={addingCustom}
             />
             <button

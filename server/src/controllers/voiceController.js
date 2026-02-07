@@ -131,7 +131,7 @@ exports.addCustomVoice = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can add custom voices' });
     }
 
-    const { voiceId, name: customName } = req.body;
+    const { voiceId, name: customName, previewUrl: userPreviewUrl } = req.body;
     if (!voiceId || typeof voiceId !== 'string' || !voiceId.trim()) {
       return res.status(400).json({ error: 'voiceId is required' });
     }
@@ -150,7 +150,7 @@ exports.addCustomVoice = async (req, res) => {
     let name = customName || 'Custom Voice';
     let gender = null;
     let description = null;
-    let previewUrl = null;
+    let previewUrl = userPreviewUrl || null;
     let languages = ['en'];
 
     let elevenLabsApiKey = '';
@@ -169,7 +169,7 @@ exports.addCustomVoice = async (req, res) => {
         name = voiceData.name || name;
         gender = (voiceData.labels?.gender || '').toLowerCase() || null;
         description = voiceData.labels?.description || voiceData.labels?.accent || null;
-        previewUrl = voiceData.preview_url || null;
+        previewUrl = previewUrl || voiceData.preview_url || null;
         const verified = voiceData.verified_languages || [];
         if (verified.length > 0) {
           languages = verified.map(vl => vl.language).filter(Boolean);
