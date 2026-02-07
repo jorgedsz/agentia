@@ -72,8 +72,46 @@ class VapiService {
    * @param {string} config.voiceProvider - Voice provider (e.g., 'vapi', '11labs')
    * @param {string} config.voiceId - Voice ID
    */
+  /**
+   * Create or update VAPI tools via /tool endpoint.
+   * Returns array of VAPI tool IDs.
+   */
+  async syncTools(tools) {
+    if (!tools || !Array.isArray(tools) || tools.length === 0) return [];
+
+    const toolIds = [];
+    for (const tool of tools) {
+      try {
+        // Create tool via VAPI /tool endpoint
+        const created = await this.makeRequest('/tool', 'POST', tool);
+        console.log('Created VAPI tool:', created.id, '-', tool.function?.name || tool.type);
+        toolIds.push(created.id);
+      } catch (err) {
+        console.error('Failed to create VAPI tool:', tool.function?.name || tool.type, err.message);
+      }
+    }
+    return toolIds;
+  }
+
+  /**
+   * Delete old VAPI tools by IDs
+   */
+  async deleteTools(toolIds) {
+    for (const id of toolIds) {
+      try {
+        await this.makeRequest(`/tool/${id}`, 'DELETE');
+      } catch (err) {
+        // Ignore delete errors (tool may already be gone)
+      }
+    }
+  }
+
   async createAgent(config) {
     console.log('Creating VAPI agent:', config.name, '| Tools:', config.tools?.length || 0);
+
+    // First create tools separately via /tool endpoint
+    const toolIds = await this.syncTools(config.tools);
+    console.log('Created tool IDs:', toolIds);
 
     const modelConfig = {
       provider: config.modelProvider || 'openai',
@@ -81,9 +119,9 @@ class VapiService {
       systemPrompt: config.systemPrompt || 'You are a helpful AI assistant.'
     };
 
-    // Add tools if provided
-    if (config.tools && Array.isArray(config.tools) && config.tools.length > 0) {
-      modelConfig.tools = config.tools;
+    // Reference tools by ID
+    if (toolIds.length > 0) {
+      modelConfig.toolIds = toolIds;
     }
 
     const agentConfig = {
@@ -120,7 +158,8 @@ class VapiService {
     // Add artifact plan
     agentConfig.artifactPlan = this.buildArtifactPlan(config);
 
-    console.log('VAPI Create payload:', JSON.stringify(agentConfig, null, 2));
+    console.log('VAPI Create payload keys:', Object.keys(agentConfig).join(', '));
+    console.log('Tool IDs:', toolIds);
     return this.makeRequest('/assistant', 'POST', agentConfig);
   }
 
@@ -253,7 +292,21 @@ class VapiService {
     console.log('Agent VAPI ID:', agentId);
     console.log('Tools:', config.tools?.length || 0, 'Prompt length:', config.systemPrompt?.length || 0);
 
-    // Always build full model config
+    // First, get existing assistant to find old tool IDs to clean up
+    let oldToolIds = [];
+    try {
+      const existing = await this.getAgent(agentId);
+      oldToolIds = existing.model?.toolIds || [];
+    } catch (err) {
+      console.log('Could not fetch existing assistant:', err.message);
+    }
+
+    // Create new tools via /tool endpoint
+    const newToolIds = await this.syncTools(config.tools);
+    console.log('Old tool IDs:', oldToolIds);
+    console.log('New tool IDs:', newToolIds);
+
+    // Build update payload with toolIds instead of inline tools
     const updateData = {
       name: config.name || undefined,
       firstMessage: config.firstMessage || undefined,
@@ -261,7 +314,7 @@ class VapiService {
         provider: config.modelProvider || 'openai',
         model: config.modelName || 'gpt-4',
         systemPrompt: config.systemPrompt || '',
-        tools: (config.tools && Array.isArray(config.tools) && config.tools.length > 0) ? config.tools : []
+        toolIds: newToolIds
       },
       voice: this.buildVoiceConfig(config),
       transcriber: this.buildTranscriberConfig(config),
@@ -296,10 +349,18 @@ class VapiService {
 
     console.log('=== VAPI PATCH payload ===');
     console.log('Keys:', Object.keys(updateData).join(', '));
-    console.log('Model tools count:', updateData.model?.tools?.length || 0);
-    console.log('Model provider:', updateData.model?.provider);
+    console.log('Model toolIds:', newToolIds);
 
-    return this.makeRequest(`/assistant/${agentId}`, 'PATCH', updateData);
+    const result = await this.makeRequest(`/assistant/${agentId}`, 'PATCH', updateData);
+
+    // Clean up old tools that are no longer referenced
+    const toDelete = oldToolIds.filter(id => !newToolIds.includes(id));
+    if (toDelete.length > 0) {
+      console.log('Deleting old tools:', toDelete);
+      await this.deleteTools(toDelete);
+    }
+
+    return result;
   }
 
   /**

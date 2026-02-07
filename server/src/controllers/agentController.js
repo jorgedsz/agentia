@@ -142,12 +142,11 @@ const updateAgent = async (req, res) => {
         console.log('Sending prompt length:', vapiPayload.systemPrompt?.length || 0);
 
         const vapiResult = await vapiService.updateAgent(existingAgent.vapiId, vapiPayload);
-        const returnedToolCount = vapiResult.model?.tools?.length || 0;
+        const returnedToolCount = vapiResult.model?.toolIds?.length || 0;
         const returnedPromptLength = vapiResult.model?.systemPrompt?.length || 0;
         console.log('=== VAPI RESULT ===');
-        console.log('Returned tools:', returnedToolCount);
+        console.log('Returned toolIds:', returnedToolCount, vapiResult.model?.toolIds);
         console.log('Returned prompt length:', returnedPromptLength);
-        console.log('Returned model provider:', vapiResult.model?.provider);
 
         vapiSyncInfo = {
           sentTools: sentToolCount,
@@ -159,10 +158,7 @@ const updateAgent = async (req, res) => {
 
         // Verify tools were actually saved
         if (sentToolCount > 0 && returnedToolCount === 0) {
-          vapiWarning = `VAPI accepted update but saved 0 tools (sent ${sentToolCount}: ${sentToolNames}). Check tool format.`;
-          console.error('=== VAPI TOOL MISMATCH ===');
-          console.error('Sent tools:', JSON.stringify(vapiPayload.tools, null, 2));
-          console.error('VAPI returned model:', JSON.stringify(vapiResult.model, null, 2));
+          vapiWarning = `VAPI update succeeded but 0 tools saved (sent ${sentToolCount}: ${sentToolNames}). Tool creation may have failed.`;
         } else if (sentToolCount !== returnedToolCount) {
           vapiWarning = `VAPI saved ${returnedToolCount} of ${sentToolCount} tools. Some may have been rejected.`;
         }
@@ -285,8 +281,8 @@ const checkVapiSync = async (req, res) => {
         name: vapiAgent.name,
         modelProvider: vapiAgent.model?.provider,
         modelName: vapiAgent.model?.model,
-        toolCount: vapiAgent.model?.tools?.length || 0,
-        toolNames: (vapiAgent.model?.tools || []).map(t => t.function?.name || t.type),
+        toolIds: vapiAgent.model?.toolIds || [],
+        toolCount: vapiAgent.model?.toolIds?.length || 0,
         promptLength: vapiAgent.model?.systemPrompt?.length || 0,
         promptPreview: vapiAgent.model?.systemPrompt?.substring(0, 100) + '...',
         firstMessage: vapiAgent.firstMessage,
