@@ -179,7 +179,7 @@ class GoogleCalendarProvider extends CalendarProvider {
       appointment: {
         id: eventData.id,
         startTime,
-        endTime: appointmentEndTime,
+        endTime: normalizedEnd,
         contactName: contactName || contactEmail,
         htmlLink: eventData.htmlLink
       }
