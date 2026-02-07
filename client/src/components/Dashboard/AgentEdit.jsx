@@ -994,7 +994,9 @@ After the function returns success, confirm: "Your appointment is booked for [da
 - NEVER skip calling "book_appointment_${safeName}" after the user picks a time. You MUST call it.
 - NEVER invent or guess dates. Always calculate from {{currentDateTime}}.
 - If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.
-- Keep your responses short and natural during the booking flow.`
+- Keep your responses short and natural during the booking flow.
+- NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words and in the conversation language. For example, if a date is wrong, simply ask the customer for another date.
+- If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.`
 
         // Append calendar instructions to the system prompt
         finalSystemPrompt = systemPrompt + calendarInstructions

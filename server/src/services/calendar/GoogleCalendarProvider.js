@@ -126,12 +126,26 @@ class GoogleCalendarProvider extends CalendarProvider {
   async bookAppointment(calendarId, params) {
     const token = await this.getValidToken();
     const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone } = params;
+    const tz = timezone || 'America/New_York';
 
-    let appointmentEndTime = endTime;
-    if (!appointmentEndTime) {
-      const start = new Date(startTime);
-      start.setMinutes(start.getMinutes() + 30);
-      appointmentEndTime = start.toISOString();
+    // Normalize startTime: strip trailing Z/offset so Google uses the timeZone field
+    let normalizedStart = startTime.replace(/Z$/, '').replace(/[+-]\d{2}:\d{2}$/, '');
+    // Ensure it has seconds
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(normalizedStart)) {
+      normalizedStart += ':00';
+    }
+
+    let normalizedEnd = endTime;
+    if (!normalizedEnd) {
+      // Parse the naive datetime and add 30 minutes
+      const [datePart, timePart] = normalizedStart.split('T');
+      const [h, m, s] = timePart.split(':').map(Number);
+      const totalMin = h * 60 + m + 30;
+      const endH = String(Math.floor(totalMin / 60)).padStart(2, '0');
+      const endM = String(totalMin % 60).padStart(2, '0');
+      normalizedEnd = `${datePart}T${endH}:${endM}:${s || '00'}`;
+    } else {
+      normalizedEnd = normalizedEnd.replace(/Z$/, '').replace(/[+-]\d{2}:\d{2}$/, '');
     }
 
     const event = {
@@ -143,12 +157,12 @@ class GoogleCalendarProvider extends CalendarProvider {
         notes && `Notes: ${notes}`
       ].filter(Boolean).join('\n'),
       start: {
-        dateTime: startTime,
-        timeZone: timezone || 'America/New_York'
+        dateTime: normalizedStart,
+        timeZone: tz
       },
       end: {
-        dateTime: appointmentEndTime,
-        timeZone: timezone || 'America/New_York'
+        dateTime: normalizedEnd,
+        timeZone: tz
       },
       attendees: contactEmail ? [{ email: contactEmail }] : []
     };
