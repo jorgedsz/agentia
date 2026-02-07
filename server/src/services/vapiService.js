@@ -268,7 +268,7 @@ class VapiService {
       if (config.elevenLabsModel) voiceConfig.model = config.elevenLabsModel;
       if (config.stability !== undefined) voiceConfig.stability = Math.min(Math.max(config.stability, 0), 1);
       if (config.similarityBoost !== undefined) voiceConfig.similarityBoost = Math.min(Math.max(config.similarityBoost, 0), 1);
-      if (config.speed !== undefined) voiceConfig.speed = Math.min(Math.max(config.speed, 0.5), 1.2);
+      if (config.speed !== undefined) voiceConfig.speed = Math.min(Math.max(config.speed, 0.7), 1.2);
       if (config.style !== undefined) voiceConfig.style = Math.min(Math.max(config.style, 0), 1);
       if (config.useSpeakerBoost !== undefined) voiceConfig.useSpeakerBoost = config.useSpeakerBoost;
 
