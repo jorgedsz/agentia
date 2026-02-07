@@ -732,12 +732,13 @@ export default function AgentEdit() {
       const savedVoiceId = agentData.config?.voiceId || 'pFZP5JQG7iQjIQuC4Bku'
       setVoiceId(savedVoiceId)
 
-      // Check if it's a custom voice ID
-      const providerVoices = VOICES_BY_PROVIDER[savedProvider] || []
-      const isKnownVoice = providerVoices.some(v => v.voiceId === savedVoiceId)
-      if (!isKnownVoice && savedVoiceId) {
-        setAddVoiceManually(true)
-        setCustomVoiceId(savedVoiceId)
+      // Check if it's a custom/manual voice ID (not found in the fetched voices list)
+      if (savedVoiceId && voicesList.length > 0) {
+        const isKnownVoice = voicesList.some(v => v.voiceId === savedVoiceId)
+        if (!isKnownVoice) {
+          setAddVoiceManually(true)
+          setCustomVoiceId(savedVoiceId)
+        }
       }
 
       // Load transcriber config
@@ -1245,10 +1246,9 @@ After the function returns success, confirm: "Your appointment is booked for [da
 
   const handleProviderChange = (newProvider) => {
     setVoiceProvider(newProvider)
-    // Set first voice of the new provider as default
-    const providerVoices = VOICES_BY_PROVIDER[newProvider] || []
-    if (providerVoices.length > 0 && !addVoiceManually) {
-      setVoiceId(providerVoices[0].voiceId)
+    // Set first voice from the fetched list as default
+    if (voicesList.length > 0 && !addVoiceManually) {
+      setVoiceId(voicesList[0].voiceId)
     }
   }
 
