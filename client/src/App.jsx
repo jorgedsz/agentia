@@ -13,6 +13,7 @@ import Credits from './components/Dashboard/Credits'
 import CallLogs from './components/Dashboard/CallLogs'
 import RatesSettings from './components/Dashboard/RatesSettings'
 import AllUsers from './components/Dashboard/AllUsers'
+import VoiceLibrary from './components/Dashboard/VoiceLibrary'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -106,6 +107,7 @@ function App() {
           <Route path="analytics" element={<ComingSoon title="Analytics" />} />
           <Route path="call-logs" element={<CallLogs />} />
           <Route path="rates" element={<RatesSettings />} />
+          <Route path="voice-library" element={<VoiceLibrary />} />
         </Route>
 
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

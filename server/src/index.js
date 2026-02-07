@@ -19,6 +19,7 @@ const calendarRoutes = require('./routes/calendar');
 const promptGeneratorRoutes = require('./routes/promptGenerator');
 const platformSettingsRoutes = require('./routes/platformSettings');
 const brandingRoutes = require('./routes/branding');
+const voiceRoutes = require('./routes/voices');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -54,6 +55,7 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/prompt-generator', promptGeneratorRoutes);
 app.use('/api/platform-settings', platformSettingsRoutes);
 app.use('/api/branding', brandingRoutes);
+app.use('/api/voices', voiceRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

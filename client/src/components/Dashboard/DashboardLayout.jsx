@@ -202,6 +202,7 @@ export default function DashboardLayout() {
       title: 'Agents',
       items: [
         { id: 'agents', path: '/dashboard/agents', label: 'My Agents', icon: Icons.Agents, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'voice-library', path: '/dashboard/voice-library', label: 'Voice Library', icon: Icons.Voice, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'create-agent', label: 'Create Agent', icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT], isAction: true },
       ]
     },

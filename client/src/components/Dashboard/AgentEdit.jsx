@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, platformSettingsAPI } from '../../services/api'
+import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, platformSettingsAPI, voicesAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 
 const LANGUAGES = [
@@ -543,6 +543,14 @@ export default function AgentEdit() {
   const [voiceId, setVoiceId] = useState('Lily')
   const [addVoiceManually, setAddVoiceManually] = useState(false)
   const [customVoiceId, setCustomVoiceId] = useState('')
+  const [showVoicePicker, setShowVoicePicker] = useState(false)
+  const [voicesList, setVoicesList] = useState([])
+  const [voicesLoading, setVoicesLoading] = useState(false)
+  const [voiceSearch, setVoiceSearch] = useState('')
+  const [voiceProviderFilter, setVoiceProviderFilter] = useState('all')
+  const [voiceGenderFilter, setVoiceGenderFilter] = useState('all')
+  const [previewPlayingId, setPreviewPlayingId] = useState(null)
+  const voiceAudioRef = useRef(null)
 
   // Transcriber settings
   const [transcriberProvider, setTranscriberProvider] = useState('deepgram')
@@ -1276,6 +1284,79 @@ After the function returns success, confirm: "Your appointment is booked for [da
     }
   }
 
+  const openVoicePicker = async () => {
+    setShowVoicePicker(true)
+    setVoiceSearch('')
+    setVoiceProviderFilter('all')
+    setVoiceGenderFilter('all')
+    if (voicesList.length === 0) {
+      setVoicesLoading(true)
+      try {
+        const res = await voicesAPI.list()
+        setVoicesList(res.data)
+      } catch (err) {
+        console.error('Failed to load voices:', err)
+      } finally {
+        setVoicesLoading(false)
+      }
+    }
+  }
+
+  const closeVoicePicker = () => {
+    if (voiceAudioRef.current) {
+      voiceAudioRef.current.pause()
+      voiceAudioRef.current = null
+    }
+    setPreviewPlayingId(null)
+    setShowVoicePicker(false)
+  }
+
+  const handleVoicePreview = (voice) => {
+    if (previewPlayingId === voice.voiceId) {
+      if (voiceAudioRef.current) {
+        voiceAudioRef.current.pause()
+        voiceAudioRef.current = null
+      }
+      setPreviewPlayingId(null)
+      return
+    }
+    if (voiceAudioRef.current) {
+      voiceAudioRef.current.pause()
+    }
+    if (!voice.previewUrl) return
+    const audio = new Audio(voice.previewUrl)
+    voiceAudioRef.current = audio
+    setPreviewPlayingId(voice.voiceId)
+    audio.play().catch(() => setPreviewPlayingId(null))
+    audio.addEventListener('ended', () => { setPreviewPlayingId(null); voiceAudioRef.current = null })
+    audio.addEventListener('error', () => { setPreviewPlayingId(null); voiceAudioRef.current = null })
+  }
+
+  const selectVoiceFromPicker = (voice) => {
+    const provider = voice.provider === '11labs' ? '11labs' : 'vapi'
+    setVoiceProvider(provider)
+    setVoiceId(voice.voiceId)
+    setAddVoiceManually(false)
+    setCustomVoiceId('')
+    closeVoicePicker()
+  }
+
+  const getFilteredPickerVoices = () => {
+    return voicesList.filter(v => {
+      if (voiceProviderFilter !== 'all' && v.provider !== voiceProviderFilter) return false
+      if (voiceGenderFilter !== 'all' && v.gender !== voiceGenderFilter) return false
+      if (voiceSearch && !v.name.toLowerCase().includes(voiceSearch.toLowerCase())) return false
+      return true
+    })
+  }
+
+  const getCurrentVoiceName = () => {
+    if (addVoiceManually) return customVoiceId || 'Custom Voice ID'
+    const providerVoices = VOICES_BY_PROVIDER[voiceProvider] || []
+    const found = providerVoices.find(v => v.voiceId === voiceId)
+    return found ? found.name : voiceId
+  }
+
   const copyPrompt = () => {
     navigator.clipboard.writeText(systemPrompt)
     setSuccess('Prompt copied to clipboard')
@@ -1604,65 +1685,34 @@ After the function returns success, confirm: "Your appointment is booked for [da
             </div>
           </div>
 
-          {/* Voice Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Provider */}
-            <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">Provider</label>
-              <div className="relative">
-                <select
-                  value={voiceProvider}
-                  onChange={(e) => handleProviderChange(e.target.value)}
-                  disabled={addVoiceManually}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {VOICE_PROVIDERS.map(provider => (
-                    <option key={provider.id} value={provider.id}>
-                      {provider.icon} {provider.label} · {TTS_LATENCY[provider.id] || TTS_LATENCY.vapi}ms
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+          {/* Voice Selection - Card-based picker */}
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">Voice</label>
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {getCurrentVoiceName()}
+                  </span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                    voiceProvider === 'vapi'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                      : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                  }`}>
+                    {voiceProvider === 'vapi' ? 'VAPI' : 'ElevenLabs'}
+                  </span>
                 </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {voiceProvider === 'vapi' ? 'Free' : 'Premium'} · {TTS_LATENCY[voiceProvider] || TTS_LATENCY.vapi}ms latency
+                </p>
               </div>
-            </div>
-
-            {/* Voice */}
-            <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">Voice</label>
-              <div className="relative">
-                {addVoiceManually ? (
-                  <input
-                    type="text"
-                    value={customVoiceId}
-                    onChange={(e) => setCustomVoiceId(e.target.value)}
-                    placeholder="Enter Voice ID..."
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                ) : (
-                  <>
-                    <select
-                      value={voiceId}
-                      onChange={(e) => setVoiceId(e.target.value)}
-                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer"
-                    >
-                      {(VOICES_BY_PROVIDER[voiceProvider] || []).map(voice => (
-                        <option key={voice.voiceId} value={voice.voiceId}>
-                          {voice.name}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={openVoicePicker}
+                className="px-3 py-1.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors"
+              >
+                Change Voice
+              </button>
             </div>
           </div>
 
@@ -1679,6 +1729,19 @@ After the function returns success, confirm: "Your appointment is booked for [da
               Add Voice ID Manually
             </label>
           </div>
+
+          {addVoiceManually && (
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">Custom Voice ID</label>
+              <input
+                type="text"
+                value={customVoiceId}
+                onChange={(e) => setCustomVoiceId(e.target.value)}
+                placeholder="Enter Voice ID..."
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+          )}
 
           {/* Transcriber Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -3172,6 +3235,143 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Voice Picker Modal */}
+      {showVoicePicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={closeVoicePicker}>
+          <div className="bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Choose a Voice</h2>
+              <button onClick={closeVoicePicker} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap items-center gap-2 p-4 border-b border-gray-200 dark:border-dark-border">
+              <select
+                value={voiceProviderFilter}
+                onChange={(e) => setVoiceProviderFilter(e.target.value)}
+                className="pl-2 pr-7 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+              >
+                <option value="all">All Providers</option>
+                <option value="vapi">VAPI</option>
+                <option value="11labs">ElevenLabs</option>
+              </select>
+              <select
+                value={voiceGenderFilter}
+                onChange={(e) => setVoiceGenderFilter(e.target.value)}
+                className="pl-2 pr-7 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+              >
+                <option value="all">All Genders</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+              <div className="relative flex-1 min-w-[150px]">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  value={voiceSearch}
+                  onChange={(e) => setVoiceSearch(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+
+            {/* Voice Grid */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {voicesLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {getFilteredPickerVoices().map((voice) => {
+                    const isPlaying = previewPlayingId === voice.voiceId
+                    const isSelected = !addVoiceManually && voiceId === voice.voiceId && ((voice.provider === 'vapi' && voiceProvider === 'vapi') || (voice.provider === '11labs' && voiceProvider === '11labs'))
+                    return (
+                      <div
+                        key={`${voice.provider}-${voice.voiceId}`}
+                        className={`relative rounded-lg border p-3 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-1 ring-primary-500'
+                            : isPlaying
+                              ? 'border-primary-400 bg-primary-50/50 dark:bg-primary-900/10'
+                              : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+                        }`}
+                        onClick={() => selectVoiceFromPicker(voice)}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{voice.name}</span>
+                          {isSelected && (
+                            <svg className="w-4 h-4 text-primary-600 flex-shrink-0 ml-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                        {voice.description && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 truncate">{voice.description}</p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                              voice.provider === 'vapi'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                            }`}>
+                              {voice.provider === 'vapi' ? 'VAPI' : '11Labs'}
+                            </span>
+                            {voice.gender && (
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                voice.gender === 'female'
+                                  ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
+                                  : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
+                              }`}>
+                                {voice.gender === 'female' ? 'F' : 'M'}
+                              </span>
+                            )}
+                          </div>
+                          {voice.previewUrl && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleVoicePreview(voice) }}
+                              className={`p-1 rounded-full transition-colors ${
+                                isPlaying
+                                  ? 'text-primary-600 bg-primary-100 dark:bg-primary-900/30'
+                                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-dark-hover'
+                              }`}
+                            >
+                              {isPlaying ? (
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                  <rect x="6" y="4" width="4" height="16" rx="1" />
+                                  <rect x="14" y="4" width="4" height="16" rx="1" />
+                                </svg>
+                              ) : (
+                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {!voicesLoading && getFilteredPickerVoices().length === 0 && (
+                <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No voices match your filters</p>
+              )}
+            </div>
           </div>
         </div>
       )}

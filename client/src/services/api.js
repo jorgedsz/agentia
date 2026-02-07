@@ -150,4 +150,9 @@ export const brandingAPI = {
   update: (data) => api.put('/branding', data)
 }
 
+// Voices API
+export const voicesAPI = {
+  list: () => api.get('/voices')
+}
+
 export default api
