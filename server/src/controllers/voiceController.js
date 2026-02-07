@@ -77,6 +77,7 @@ async function getCustomVoicesFromDB(prisma) {
     voiceId: row.voiceId,
     name: row.name,
     gender: row.gender || null,
+    accent: row.accent || null,
     description: row.description || null,
     languages: row.languages ? JSON.parse(row.languages) : [],
     previewUrl: row.previewUrl || null,
@@ -131,7 +132,14 @@ exports.addCustomVoice = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can add custom voices' });
     }
 
-    const { voiceId, name: customName, previewUrl: userPreviewUrl } = req.body;
+    const {
+      voiceId,
+      name: customName,
+      gender: userGender,
+      accent: userAccent,
+      languages: userLanguages,
+      previewUrl: userPreviewUrl,
+    } = req.body;
     if (!voiceId || typeof voiceId !== 'string' || !voiceId.trim()) {
       return res.status(400).json({ error: 'voiceId is required' });
     }
@@ -146,12 +154,13 @@ exports.addCustomVoice = async (req, res) => {
       return res.status(409).json({ error: 'This voice ID has already been added' });
     }
 
-    // Try to fetch voice metadata from ElevenLabs (optional - enrich with name/preview if possible)
+    // Use user-provided values, fall back to defaults
     let name = customName || 'Custom Voice';
-    let gender = null;
+    let gender = userGender || null;
+    let accent = userAccent || null;
     let description = null;
     let previewUrl = userPreviewUrl || null;
-    let languages = ['en'];
+    let languages = Array.isArray(userLanguages) && userLanguages.length > 0 ? userLanguages : ['en'];
 
     let elevenLabsApiKey = '';
     try {
@@ -166,14 +175,17 @@ exports.addCustomVoice = async (req, res) => {
           headers: { 'xi-api-key': elevenLabsApiKey },
         });
         const voiceData = response.data;
-        name = voiceData.name || name;
-        gender = (voiceData.labels?.gender || '').toLowerCase() || null;
-        description = voiceData.labels?.description || voiceData.labels?.accent || null;
+        if (!customName) name = voiceData.name || name;
+        if (!userGender) gender = (voiceData.labels?.gender || '').toLowerCase() || null;
+        if (!userAccent) accent = (voiceData.labels?.accent || '').toLowerCase() || null;
+        description = voiceData.labels?.description || null;
         previewUrl = previewUrl || voiceData.preview_url || null;
-        const verified = voiceData.verified_languages || [];
-        if (verified.length > 0) {
-          languages = verified.map(vl => vl.language).filter(Boolean);
-          if (languages.length === 0) languages = ['en'];
+        if (!userLanguages || userLanguages.length === 0) {
+          const verified = voiceData.verified_languages || [];
+          if (verified.length > 0) {
+            languages = verified.map(vl => vl.language).filter(Boolean);
+            if (languages.length === 0) languages = ['en'];
+          }
         }
       } catch (err) {
         // API enrichment failed - that's OK, save with basic info
@@ -186,6 +198,7 @@ exports.addCustomVoice = async (req, res) => {
         voiceId: trimmedId,
         name,
         gender,
+        accent,
         languages: JSON.stringify(languages),
         description,
         previewUrl,
@@ -203,6 +216,7 @@ exports.addCustomVoice = async (req, res) => {
       voiceId: saved.voiceId,
       name: saved.name,
       gender: saved.gender,
+      accent: saved.accent,
       description: saved.description,
       languages: JSON.parse(saved.languages || '[]'),
       previewUrl: saved.previewUrl,

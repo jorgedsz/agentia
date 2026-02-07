@@ -158,6 +158,7 @@ model CustomVoice {
   voiceId     String   // ElevenLabs voice_id
   name        String
   gender      String?  // male, female
+  accent      String?  // american, british, etc.
   languages   String?  // JSON array e.g. '["en","es"]'
   description String?
   previewUrl  String?

@@ -101,6 +101,9 @@ export default function VoiceLibrary() {
   // Custom voice management state (OWNER only)
   const [customVoiceId, setCustomVoiceId] = useState('')
   const [customVoiceName, setCustomVoiceName] = useState('')
+  const [customGender, setCustomGender] = useState('')
+  const [customAccent, setCustomAccent] = useState('')
+  const [customLanguages, setCustomLanguages] = useState([])
   const [customPreviewUrl, setCustomPreviewUrl] = useState('')
   const [addingCustom, setAddingCustom] = useState(false)
   const [customError, setCustomError] = useState(null)
@@ -167,11 +170,17 @@ export default function VoiceLibrary() {
       const voiceId = parseVoiceInput(customVoiceId)
       const payload = { voiceId }
       if (customVoiceName.trim()) payload.name = customVoiceName.trim()
+      if (customGender) payload.gender = customGender
+      if (customAccent) payload.accent = customAccent
+      if (customLanguages.length > 0) payload.languages = customLanguages
       if (customPreviewUrl.trim()) payload.previewUrl = convertDriveUrl(customPreviewUrl.trim())
       const res = await voicesAPI.addCustom(payload)
       setCustomSuccess(`Added "${res.data.name}" successfully`)
       setCustomVoiceId('')
       setCustomVoiceName('')
+      setCustomGender('')
+      setCustomAccent('')
+      setCustomLanguages([])
       setCustomPreviewUrl('')
       // Refresh voice list
       const voicesRes = await voicesAPI.list()
@@ -291,50 +300,117 @@ export default function VoiceLibrary() {
       {/* Custom Voice Management (OWNER only) */}
       {isOwner && (
         <div className="mb-6 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Manage Custom Voices</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            Paste a Voice ID or ElevenLabs URL. You can also paste the preview audio URL for playback.
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Add Custom Voice</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            Paste a Voice ID or ElevenLabs URL. Add details so it shows up like the other voices.
           </p>
 
-          {/* Add form */}
-          <div className="flex flex-wrap items-center gap-3 mb-4">
-            <input
-              type="text"
-              value={customVoiceId}
-              onChange={(e) => setCustomVoiceId(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !addingCustom && handleAddCustomVoice()}
-              placeholder="Voice ID or ElevenLabs URL..."
-              className="flex-1 min-w-[200px] max-w-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              disabled={addingCustom}
-            />
-            <input
-              type="text"
-              value={customVoiceName}
-              onChange={(e) => setCustomVoiceName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !addingCustom && handleAddCustomVoice()}
-              placeholder="Name (optional)"
-              className="max-w-[160px] px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              disabled={addingCustom}
-            />
-            <input
-              type="text"
-              value={customPreviewUrl}
-              onChange={(e) => setCustomPreviewUrl(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !addingCustom && handleAddCustomVoice()}
-              placeholder="Preview audio URL (optional)"
-              className="flex-1 min-w-[200px] max-w-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              disabled={addingCustom}
-            />
-            <button
-              onClick={handleAddCustomVoice}
-              disabled={addingCustom || !customVoiceId.trim()}
-              className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {addingCustom && (
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+          {/* Add form - grid layout */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
+            <div className="col-span-2 sm:col-span-3 lg:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Voice ID / URL *</label>
+              <input
+                type="text"
+                value={customVoiceId}
+                onChange={(e) => setCustomVoiceId(e.target.value)}
+                placeholder="Voice ID or ElevenLabs URL..."
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={addingCustom}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Name</label>
+              <input
+                type="text"
+                value={customVoiceName}
+                onChange={(e) => setCustomVoiceName(e.target.value)}
+                placeholder="Voice name..."
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={addingCustom}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Gender</label>
+              <select
+                value={customGender}
+                onChange={(e) => setCustomGender(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+                disabled={addingCustom}
+              >
+                <option value="">Select...</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Accent</label>
+              <select
+                value={customAccent}
+                onChange={(e) => setCustomAccent(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+                disabled={addingCustom}
+              >
+                <option value="">Select...</option>
+                {ACCENTS.filter(a => a.value !== 'all').map(a => (
+                  <option key={a.value} value={a.value}>{a.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Languages</label>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value && !customLanguages.includes(e.target.value)) {
+                    setCustomLanguages([...customLanguages, e.target.value])
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+                disabled={addingCustom}
+              >
+                <option value="">{customLanguages.length > 0 ? `${customLanguages.length} selected` : 'Add language...'}</option>
+                {LANGUAGES.filter(l => l.value !== 'all' && !customLanguages.includes(l.value)).map(l => (
+                  <option key={l.value} value={l.value}>{l.label}</option>
+                ))}
+              </select>
+              {customLanguages.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {customLanguages.map(lang => (
+                    <span
+                      key={lang}
+                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400 cursor-pointer hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                      onClick={() => setCustomLanguages(customLanguages.filter(l => l !== lang))}
+                      title="Click to remove"
+                    >
+                      {LANG_LABELS[lang] || lang.toUpperCase()} &times;
+                    </span>
+                  ))}
+                </div>
               )}
-              {addingCustom ? 'Adding...' : 'Add'}
-            </button>
+            </div>
+            <div className="col-span-2 sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Preview Audio URL</label>
+              <input
+                type="text"
+                value={customPreviewUrl}
+                onChange={(e) => setCustomPreviewUrl(e.target.value)}
+                placeholder="Google Drive or direct audio link..."
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                disabled={addingCustom}
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={handleAddCustomVoice}
+                disabled={addingCustom || !customVoiceId.trim()}
+                className="w-full px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {addingCustom && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                )}
+                {addingCustom ? 'Adding...' : 'Add Voice'}
+              </button>
+            </div>
           </div>
 
           {/* Status messages */}
