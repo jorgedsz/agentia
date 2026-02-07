@@ -152,7 +152,10 @@ export const brandingAPI = {
 
 // Voices API
 export const voicesAPI = {
-  list: () => api.get('/voices')
+  list: () => api.get('/voices'),
+  listCustom: () => api.get('/voices/custom'),
+  addCustom: (data) => api.post('/voices/custom', data),
+  deleteCustom: (id) => api.delete(`/voices/custom/${id}`)
 }
 
 export default api

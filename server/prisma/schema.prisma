@@ -151,3 +151,18 @@ model PhoneNumber {
   // Same Twilio number can exist for different credentials (different users)
   @@unique([twilioSid, twilioCredentialsId])
 }
+
+model CustomVoice {
+  id          Int      @id @default(autoincrement())
+  voiceId     String   // ElevenLabs voice_id
+  name        String
+  gender      String?  // male, female
+  languages   String?  // JSON array e.g. '["en","es"]'
+  description String?
+  previewUrl  String?
+  provider    String   @default("11labs")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([voiceId, provider])
+}

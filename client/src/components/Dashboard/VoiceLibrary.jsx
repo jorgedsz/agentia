@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { voicesAPI } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
 
 const PROVIDERS = [
   { value: 'all', label: 'All Providers' },
@@ -33,6 +34,9 @@ function EqualizerIcon() {
 }
 
 export default function VoiceLibrary() {
+  const { user } = useAuth()
+  const isOwner = user?.role === 'OWNER'
+
   const [voices, setVoices] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -42,6 +46,13 @@ export default function VoiceLibrary() {
   const [search, setSearch] = useState('')
   const [playingId, setPlayingId] = useState(null)
   const audioRef = useRef(null)
+
+  // Custom voice management state (OWNER only)
+  const [customVoiceId, setCustomVoiceId] = useState('')
+  const [addingCustom, setAddingCustom] = useState(false)
+  const [customError, setCustomError] = useState(null)
+  const [customSuccess, setCustomSuccess] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     fetchVoices()
@@ -63,6 +74,39 @@ export default function VoiceLibrary() {
       console.error(err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAddCustomVoice = async () => {
+    if (!customVoiceId.trim()) return
+    setAddingCustom(true)
+    setCustomError(null)
+    setCustomSuccess(null)
+    try {
+      const res = await voicesAPI.addCustom({ voiceId: customVoiceId.trim() })
+      setCustomSuccess(`Added "${res.data.name}" successfully`)
+      setCustomVoiceId('')
+      // Refresh voice list
+      const voicesRes = await voicesAPI.list()
+      setVoices(voicesRes.data)
+    } catch (err) {
+      setCustomError(err.response?.data?.error || 'Failed to add custom voice')
+    } finally {
+      setAddingCustom(false)
+    }
+  }
+
+  const handleDeleteCustomVoice = async (customId) => {
+    setDeletingId(customId)
+    setCustomError(null)
+    try {
+      await voicesAPI.deleteCustom(customId)
+      const voicesRes = await voicesAPI.list()
+      setVoices(voicesRes.data)
+    } catch (err) {
+      setCustomError(err.response?.data?.error || 'Failed to delete custom voice')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -102,6 +146,8 @@ export default function VoiceLibrary() {
     })
   }, [playingId])
 
+  const customVoices = voices.filter(v => v.isCustom)
+
   const filtered = voices.filter(v => {
     if (providerFilter !== 'all' && v.provider !== providerFilter) return false
     if (genderFilter !== 'all' && v.gender !== genderFilter) return false
@@ -127,6 +173,103 @@ export default function VoiceLibrary() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Voice Library</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">Browse and preview voices for your agents</p>
       </div>
+
+      {/* Custom Voice Management (OWNER only) */}
+      {isOwner && (
+        <div className="mb-6 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Manage Custom Voices</h2>
+
+          {/* Add form */}
+          <div className="flex items-center gap-3 mb-4">
+            <input
+              type="text"
+              value={customVoiceId}
+              onChange={(e) => setCustomVoiceId(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !addingCustom && handleAddCustomVoice()}
+              placeholder="Paste ElevenLabs Voice ID..."
+              className="flex-1 max-w-md px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              disabled={addingCustom}
+            />
+            <button
+              onClick={handleAddCustomVoice}
+              disabled={addingCustom || !customVoiceId.trim()}
+              className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {addingCustom && (
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              )}
+              {addingCustom ? 'Fetching...' : 'Add'}
+            </button>
+          </div>
+
+          {/* Status messages */}
+          {customError && (
+            <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
+              {customError}
+            </div>
+          )}
+          {customSuccess && (
+            <div className="mb-3 p-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg text-sm">
+              {customSuccess}
+            </div>
+          )}
+
+          {/* Existing custom voices list */}
+          {customVoices.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">
+                Custom Voices ({customVoices.length})
+              </p>
+              {customVoices.map((voice) => (
+                <div
+                  key={voice.customId}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-dark-hover border border-gray-100 dark:border-dark-border"
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{voice.name}</span>
+                    <span className="ml-2 text-xs text-gray-400">{voice.voiceId}</span>
+                    {voice.gender && (
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400 capitalize">{voice.gender}</span>
+                    )}
+                  </div>
+                  {voice.previewUrl && (
+                    <button
+                      onClick={() => handlePlay(voice)}
+                      className="p-1.5 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
+                      title="Preview"
+                    >
+                      {playingId === voice.voiceId ? (
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <rect x="6" y="4" width="4" height="16" rx="1" />
+                          <rect x="14" y="4" width="4" height="16" rx="1" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDeleteCustomVoice(voice.customId)}
+                    disabled={deletingId === voice.customId}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                    title="Delete"
+                  >
+                    {deletingId === voice.customId ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-400 border-t-transparent" />
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -229,7 +372,7 @@ export default function VoiceLibrary() {
                   {isPlaying && <EqualizerIcon />}
                 </div>
 
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                     voice.provider === 'vapi'
                       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
@@ -237,6 +380,11 @@ export default function VoiceLibrary() {
                   }`}>
                     {voice.provider === 'vapi' ? 'VAPI' : 'ElevenLabs'}
                   </span>
+                  {voice.isCustom && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                      Custom
+                    </span>
+                  )}
                   {voice.gender && (
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                       voice.gender === 'female'
