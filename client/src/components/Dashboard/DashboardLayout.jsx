@@ -248,7 +248,7 @@ export default function DashboardLayout() {
             ) : null}
             <div>
               <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400">
-                {branding?.companyName || 'AgentBuilder'}
+                {branding?.companyName || 'Appex Innovations AI'}
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {branding?.companyTagline || 'AI Voice Platform'}

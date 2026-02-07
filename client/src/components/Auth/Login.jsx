@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 
@@ -48,7 +48,7 @@ export default function Login() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h1 className="text-center text-3xl font-extrabold text-primary-600 dark:text-primary-400">
-            AgentBuilder
+            Appex Innovations AI
           </h1>
           <h2 className="mt-6 text-center text-2xl font-bold text-gray-900 dark:text-white">
             Sign in to your account
@@ -107,15 +107,6 @@ export default function Login() {
             </button>
           </div>
 
-          <div className="text-sm text-center">
-            <span className="text-gray-600 dark:text-gray-400">Don't have an account? </span>
-            <Link
-              to="/register"
-              className="font-medium text-primary-600 dark:text-primary-400 hover:text-primary-500"
-            >
-              Register here
-            </Link>
-          </div>
         </form>
       </div>
     </div>
