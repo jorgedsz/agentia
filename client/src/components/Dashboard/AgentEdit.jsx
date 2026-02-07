@@ -846,7 +846,7 @@ export default function AgentEdit() {
 
       // Build calendar tools using unified API endpoints (supports all providers)
       const calendarTools = []
-      const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+      const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
 
       if (calendarConfig.enabled && calendarConfig.calendarId) {
         // Determine the base URL: use legacy GHL path for legacy GHL agents, unified path for everything else
