@@ -79,12 +79,13 @@ class GoogleCalendarProvider extends CalendarProvider {
     const tz = timezone || 'America/New_York';
     const slotDuration = duration || 30;
 
-    // Send freeBusy request using naive datetimes + timeZone so Google interprets in user's timezone
+    // Send freeBusy request with valid RFC3339 timestamps (Z suffix required)
+    // Query midnight-to-midnight UTC; for Americas timezones this fully covers business hours
     const freeBusyData = await this._googleRequest(`${GOOGLE_API_BASE}/freeBusy`, token, {
       method: 'POST',
       body: JSON.stringify({
-        timeMin: `${date}T00:00:00`,
-        timeMax: `${date}T23:59:59`,
+        timeMin: `${date}T00:00:00Z`,
+        timeMax: `${date}T23:59:59Z`,
         timeZone: tz,
         items: [{ id: calendarId }]
       })
