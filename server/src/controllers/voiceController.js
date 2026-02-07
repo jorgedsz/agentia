@@ -36,10 +36,13 @@ const ELEVENLABS_SUPPORTED_LANGUAGES = [
   'id', 'ms', 'no', 'ro', 'sk', 'sv', 'tr', 'uk', 'vi'
 ];
 
-async function fetchElevenLabsVoices() {
+async function fetchElevenLabsVoices(elevenLabsApiKey) {
   try {
+    const headers = {};
+    if (elevenLabsApiKey) headers['xi-api-key'] = elevenLabsApiKey;
     const response = await axios.get('https://api.elevenlabs.io/v1/voices', {
       timeout: 10000,
+      headers,
     });
     const voices = response.data?.voices || [];
     return voices
@@ -103,7 +106,13 @@ exports.listVoices = async (req, res) => {
       previewUrl: v.previewUrl,
     }));
 
-    const elevenLabsVoices = await fetchElevenLabsVoices();
+    // Use ElevenLabs API key if available for authenticated access
+    let elevenLabsKey = '';
+    try {
+      const keys = await getApiKeys(req.prisma);
+      elevenLabsKey = keys.elevenLabsApiKey;
+    } catch (_) {}
+    const elevenLabsVoices = await fetchElevenLabsVoices(elevenLabsKey);
 
     const premadeVoices = [...vapiNormalized, ...elevenLabsVoices];
     cachedVoices = premadeVoices;
