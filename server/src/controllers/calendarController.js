@@ -640,7 +640,7 @@ const checkAvailability = async (req, res) => {
     const calendarId = req.query.calendarId || functionArgs.calendarId;
     const timezone = req.query.timezone || functionArgs.timezone;
     const userId = req.query.userId || functionArgs.userId;
-    const date = functionArgs.date;
+    let date = functionArgs.date;
 
     console.log('Check availability - provider:', provider, 'integrationId:', integrationId, 'calendarId:', calendarId, 'date:', date);
 
@@ -649,6 +649,27 @@ const checkAvailability = async (req, res) => {
     }
     if (!userId) {
       return res.json({ results: [{ error: 'userId is required' }] });
+    }
+
+    // Validate date — reject past dates and auto-correct obvious hallucinations
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const requestedDate = new Date(date + 'T00:00:00');
+    const todayStr = today.toISOString().split('T')[0];
+
+    if (isNaN(requestedDate.getTime())) {
+      return res.json({ results: [{ error: `Invalid date format: "${date}". Use YYYY-MM-DD format. Today's date is ${todayStr}.` }] });
+    }
+
+    if (requestedDate < today) {
+      return res.json({ results: [{ error: `The date ${date} is in the past. Today is ${todayStr}. Please ask the customer for a future date and use YYYY-MM-DD format relative to today.` }] });
+    }
+
+    // Reject dates more than 90 days in the future
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + 90);
+    if (requestedDate > maxDate) {
+      return res.json({ results: [{ error: `The date ${date} is too far in the future (max 90 days). Today is ${todayStr}.` }] });
     }
 
     const integration = await req.prisma.calendarIntegration.findFirst({
@@ -708,6 +729,19 @@ const bookAppointment = async (req, res) => {
     }
     if (!userId) {
       return res.json({ results: [{ error: 'userId is required' }] });
+    }
+
+    // Validate startTime — reject past dates
+    const now = new Date();
+    const bookingTime = new Date(startTime);
+    const todayStr = now.toISOString().split('T')[0];
+
+    if (isNaN(bookingTime.getTime())) {
+      return res.json({ results: [{ error: `Invalid startTime format: "${startTime}". Use ISO 8601 format (e.g., 2026-02-08T10:00:00). Today is ${todayStr}.` }] });
+    }
+
+    if (bookingTime < now) {
+      return res.json({ results: [{ error: `Cannot book in the past. The time ${startTime} has already passed. Today is ${todayStr}. Ask the customer for a future date/time.` }] });
     }
 
     const integration = await req.prisma.calendarIntegration.findFirst({
