@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { agentsAPI, usersAPI } from '../../services/api'
+import TestCallModal from './TestCallModal'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -158,6 +159,7 @@ export default function DashboardContent({ tab }) {
   const [formData, setFormData] = useState({})
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
+  const [testCallAgent, setTestCallAgent] = useState(null)
 
   // Auto-open creation modal from URL params (?create=outbound or ?create=inbound)
   useEffect(() => {
@@ -369,7 +371,7 @@ export default function DashboardContent({ tab }) {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {agents.slice(0, 6).map((agent) => (
-                        <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} />
+                        <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
                       ))}
                     </div>
                   )}
@@ -384,7 +386,7 @@ export default function DashboardContent({ tab }) {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {agents.map((agent) => (
-                      <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} />
+                      <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
                     ))}
                   </div>
                 )}
@@ -521,6 +523,10 @@ export default function DashboardContent({ tab }) {
           </form>
         </Modal>
       )}
+
+      {testCallAgent && (
+        <TestCallModal agent={testCallAgent} onClose={() => setTestCallAgent(null)} />
+      )}
     </>
   )
 }
@@ -549,7 +555,7 @@ function StatCard({ title, value, icon }) {
   )
 }
 
-function AgentCard({ agent, onDelete, onEdit }) {
+function AgentCard({ agent, onDelete, onEdit, onTest }) {
   const type = agent.agentType || agent.config?.agentType || 'outbound'
   return (
     <div className="bg-gray-50 dark:bg-transparent rounded-lg p-4 border border-gray-200 dark:border-primary-500">
@@ -569,6 +575,11 @@ function AgentCard({ agent, onDelete, onEdit }) {
       )}
       <div className="flex gap-2">
         <button onClick={onEdit} className="flex-1 px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700">Edit</button>
+        <button onClick={onTest} disabled={!agent.vapiId} className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50" title={agent.vapiId ? 'Test Agent' : 'Agent not connected to VAPI'}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+        </button>
         <button onClick={onDelete} className="px-3 py-1.5 text-red-500 text-sm rounded-lg hover:bg-red-500/10">Delete</button>
       </div>
     </div>
