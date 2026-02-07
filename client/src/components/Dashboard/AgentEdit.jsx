@@ -956,27 +956,45 @@ export default function AgentEdit() {
       if (calendarConfig.enabled && calendarConfig.calendarId) {
         const calendarInstructions = `
 
-## APPOINTMENT BOOKING INSTRUCTIONS
+## APPOINTMENT BOOKING INSTRUCTIONS (PRIORITY — OVERRIDE ANY PHASE/SCRIPT FLOW)
 
-You have access to calendar booking tools. Follow these steps when a customer wants to book an appointment:
+IMPORTANT: If the customer asks to schedule, book, or make an appointment AT ANY POINT in the conversation, IMMEDIATELY start the booking process below. Do NOT wait for any other phase or step to complete first. Appointment booking always takes priority.
 
-1. **Check Availability First**: When the customer mentions wanting to book or schedule an appointment, ask them for their preferred date. Then use the "check_calendar_availability_${safeName}" function to see available time slots.
+### Date & Time Reference
+Today's date and time is provided in the {{currentDateTime}} variable. ALWAYS use this as reference when the user says "today", "tomorrow", "next Monday", etc. Calculate the correct date in YYYY-MM-DD format based on {{currentDateTime}}. NEVER guess or invent a date.
 
-2. **Present Options**: After checking availability, present the available times to the customer in a friendly way. For example: "I have these times available on [date]: 9:00 AM, 10:30 AM, 2:00 PM. Which works best for you?"
+### Booking Flow
 
-3. **Collect Information**: Once they choose a time, collect their information:
-   - Full name
-   - Email address
-   - Phone number (optional but recommended)
+**Step 1 — Ask for preferred date**
+When the customer wants to book, ask: "What date works best for you?"
 
-4. **Book the Appointment**: Use the "book_appointment_${safeName}" function with all the collected information to complete the booking.
+**Step 2 — Check availability**
+Call the "check_calendar_availability_${safeName}" function with the date in YYYY-MM-DD format.
+- "tomorrow" = the day after {{currentDateTime}}
+- "today" = the date from {{currentDateTime}}
+- Calculate any relative date from {{currentDateTime}}
 
-5. **Confirm**: After booking, confirm the appointment details with the customer including the date, time, and that they'll receive a confirmation email.
+**Step 3 — Present available times**
+Read back 3-5 of the best available times in a natural way. For example: "I have 9:00 AM, 10:30 AM, and 2:00 PM available. Which one works for you?"
+- Do NOT read all 16 slots — pick a few spread throughout the day.
+- If no slots are available, say so and offer to check another date.
 
-Important:
-- Always confirm the date and time before booking
-- If no slots are available on their preferred date, offer to check another date
-- Be helpful and conversational throughout the process`
+**Step 4 — User picks a time → Collect info and book IMMEDIATELY**
+Once the user selects a time slot, collect their name and email (phone is optional), then IMMEDIATELY call the "book_appointment_${safeName}" function. Do NOT hesitate or wait — call the function right away.
+- startTime: combine the selected date + time in ISO 8601 format (e.g., 2026-02-08T09:00:00)
+- contactName: the customer's full name
+- contactEmail: the customer's email address
+- contactPhone: optional
+- notes: optional
+
+**Step 5 — Confirm the booking**
+After the function returns success, confirm: "Your appointment is booked for [date] at [time]. You'll receive a confirmation email at [email]."
+
+### Critical Rules
+- NEVER skip calling "book_appointment_${safeName}" after the user picks a time. You MUST call it.
+- NEVER invent or guess dates. Always calculate from {{currentDateTime}}.
+- If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.
+- Keep your responses short and natural during the booking flow.`
 
         // Append calendar instructions to the system prompt
         finalSystemPrompt = systemPrompt + calendarInstructions
