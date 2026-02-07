@@ -174,14 +174,16 @@ exports.addCustomVoice = async (req, res) => {
       });
       voiceData = response.data;
     } catch (err) {
-      console.error('ElevenLabs API error:', err.response?.status, err.message);
-      if (err.response?.status === 401) {
+      const elStatus = err.response?.status;
+      const elDetail = JSON.stringify(err.response?.data || err.message);
+      console.error('ElevenLabs API error:', elStatus, elDetail);
+      if (elStatus === 401) {
         return res.status(422).json({ error: 'Invalid ElevenLabs API key. Check your key in Settings > API Keys.' });
       }
-      if (err.response?.status === 404) {
+      if (elStatus === 404) {
         return res.status(404).json({ error: 'Voice ID not found on ElevenLabs' });
       }
-      return res.status(422).json({ error: 'ElevenLabs API error: ' + (err.response?.status || err.message) });
+      return res.status(422).json({ error: 'ElevenLabs API error (' + elStatus + '): ' + elDetail });
     }
 
     // Extract voice info
