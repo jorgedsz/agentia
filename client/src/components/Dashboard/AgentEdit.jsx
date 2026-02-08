@@ -1685,32 +1685,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
             </div>
           </div>
 
-          {/* Add Voice ID Manually */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="addVoiceManually"
-              checked={addVoiceManually}
-              onChange={(e) => setAddVoiceManually(e.target.checked)}
-              className="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:bg-dark-card dark:border-dark-border"
-            />
-            <label htmlFor="addVoiceManually" className="text-sm text-gray-600 dark:text-gray-400">
-              Add Voice ID Manually
-            </label>
-          </div>
 
-          {addVoiceManually && (
-            <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">Custom Voice ID</label>
-              <input
-                type="text"
-                value={customVoiceId}
-                onChange={(e) => setCustomVoiceId(e.target.value)}
-                placeholder="Enter Voice ID..."
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-          )}
 
           {/* Transcriber Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
