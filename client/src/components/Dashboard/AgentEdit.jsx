@@ -1167,7 +1167,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
         }
       })
 
-      // Start the call with the agent's vapiId
+      // Start the call with the agent's vapiId and mark as test call
       await vapi.start(agent.vapiId)
     } catch (err) {
       console.error('Failed to start test call:', err)
@@ -1878,9 +1878,9 @@ After the function returns success, confirm: "Your appointment is booked for [da
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              rows={12}
+              rows={24}
               placeholder="Enter your agent's instructions here..."
-              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm"
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm resize-y"
             />
           </div>
 
@@ -3321,6 +3321,32 @@ After the function returns success, confirm: "Your appointment is booked for [da
                   placeholder="Search..."
                   className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
+              </div>
+            </div>
+
+            {/* Manual Voice ID */}
+            <div className="px-4 pt-3 pb-1 border-b border-gray-200 dark:border-dark-border">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={customVoiceId}
+                  onChange={(e) => setCustomVoiceId(e.target.value)}
+                  placeholder="Paste a Voice ID manually..."
+                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <button
+                  type="button"
+                  disabled={!customVoiceId.trim()}
+                  onClick={() => {
+                    setVoiceProvider('11labs')
+                    setVoiceId(customVoiceId.trim())
+                    setAddVoiceManually(true)
+                    closeVoicePicker()
+                  }}
+                  className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  Use ID
+                </button>
               </div>
             </div>
 
