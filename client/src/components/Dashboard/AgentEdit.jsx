@@ -3324,32 +3324,6 @@ After the function returns success, confirm: "Your appointment is booked for [da
               </div>
             </div>
 
-            {/* Manual Voice ID */}
-            <div className="px-4 pt-3 pb-1 border-b border-gray-200 dark:border-dark-border">
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={customVoiceId}
-                  onChange={(e) => setCustomVoiceId(e.target.value)}
-                  placeholder="Paste a Voice ID manually..."
-                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-                <button
-                  type="button"
-                  disabled={!customVoiceId.trim()}
-                  onClick={() => {
-                    setVoiceProvider('11labs')
-                    setVoiceId(customVoiceId.trim())
-                    setAddVoiceManually(true)
-                    closeVoicePicker()
-                  }}
-                  className="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                >
-                  Use ID
-                </button>
-              </div>
-            </div>
-
             {/* Voice Grid */}
             <div className="flex-1 overflow-y-auto p-4">
               {voicesLoading ? (
@@ -3358,6 +3332,37 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {/* Manual Voice ID Card */}
+                  <div className={`rounded-lg border border-dashed p-3 flex flex-col justify-between ${addVoiceManually && customVoiceId ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-1 ring-primary-500' : 'border-gray-300 dark:border-dark-border'}`}>
+                    <div className="mb-2">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Add Voice ID Manually</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Paste an ElevenLabs voice ID</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={customVoiceId}
+                        onChange={(e) => setCustomVoiceId(e.target.value)}
+                        placeholder="Voice ID..."
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 min-w-0 px-2 py-1.5 rounded-md border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                      <button
+                        type="button"
+                        disabled={!customVoiceId.trim()}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setVoiceProvider('11labs')
+                          setVoiceId(customVoiceId.trim())
+                          setAddVoiceManually(true)
+                          closeVoicePicker()
+                        }}
+                        className="px-2.5 py-1.5 rounded-md bg-primary-600 text-white text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        Use
+                      </button>
+                    </div>
+                  </div>
                   {getFilteredPickerVoices().map((voice) => {
                     const isPlaying = previewPlayingId === voice.voiceId
                     const isSelected = !addVoiceManually && voiceId === voice.voiceId
