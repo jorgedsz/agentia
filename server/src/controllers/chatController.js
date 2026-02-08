@@ -17,11 +17,11 @@ const sendMessage = async (req, res) => {
     // Fetch user's agents for context
     const agents = await req.prisma.agent.findMany({
       where: { userId: req.user.id },
-      select: { id: true, name: true, type: true, systemPrompt: true }
+      select: { id: true, name: true, agentType: true }
     });
 
     const agentSummary = agents.length > 0
-      ? agents.map(a => `- "${a.name}" (${a.type})`).join('\n')
+      ? agents.map(a => `- "${a.name}" (${a.agentType})`).join('\n')
       : 'No agents created yet.';
 
     const systemPrompt = `You are a helpful AI assistant for the Appex Innovations AI voice agent platform. You help users manage their AI voice agents, understand platform features, and troubleshoot issues.
