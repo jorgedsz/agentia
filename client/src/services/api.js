@@ -161,4 +161,66 @@ export const voicesAPI = {
   deleteCustom: (id) => api.delete(`/voices/custom/${id}`)
 }
 
+// Chat API (uses fetch for SSE streaming, not axios)
+export const chatAPI = {
+  sendMessage: async (messages, onChunk, onDone, onError) => {
+    try {
+      const token = localStorage.getItem('token')
+      const baseURL = import.meta.env.VITE_API_URL || '/api'
+      const response = await fetch(`${baseURL}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ messages })
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'Request failed' }))
+        onError(err.error || 'Request failed')
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed || !trimmed.startsWith('data: ')) continue
+          const data = trimmed.slice(6)
+          if (data === '[DONE]') {
+            onDone()
+            return
+          }
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.error) {
+              onError(parsed.error)
+              return
+            }
+            if (parsed.content) {
+              onChunk(parsed.content)
+            }
+          } catch {
+            // skip malformed lines
+          }
+        }
+      }
+      onDone()
+    } catch (err) {
+      onError(err.message || 'Network error')
+    }
+  }
+}
+
 export default api

@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { twilioAPI, creditsAPI } from '../../services/api'
+import ChatAssistant from './ChatAssistant'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -473,6 +474,9 @@ export default function DashboardLayout() {
         {/* Page Content */}
         <Outlet />
       </div>
+
+      {/* Floating Chat Assistant */}
+      <ChatAssistant />
     </div>
   )
 }
