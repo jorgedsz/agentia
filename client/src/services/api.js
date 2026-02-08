@@ -158,7 +158,8 @@ export const voicesAPI = {
   listCustom: () => api.get('/voices/custom'),
   addCustom: (data) => api.post('/voices/custom', data),
   refreshCustom: (id) => api.patch(`/voices/custom/${id}/refresh`),
-  deleteCustom: (id) => api.delete(`/voices/custom/${id}`)
+  deleteCustom: (id) => api.delete(`/voices/custom/${id}`),
+  lookup: (voiceId) => api.get(`/voices/lookup/${voiceId}`)
 }
 
 // Chat API (uses fetch for SSE streaming, not axios)

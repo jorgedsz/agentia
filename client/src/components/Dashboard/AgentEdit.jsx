@@ -509,6 +509,8 @@ export default function AgentEdit() {
   const [voiceId, setVoiceId] = useState('')
   const [addVoiceManually, setAddVoiceManually] = useState(false)
   const [customVoiceId, setCustomVoiceId] = useState('')
+  const [lookupResult, setLookupResult] = useState(null) // { name, gender, accent } or null
+  const [lookupLoading, setLookupLoading] = useState(false)
   const [showVoicePicker, setShowVoicePicker] = useState(false)
   const [voicesList, setVoicesList] = useState([])
   const [voicesLoading, setVoicesLoading] = useState(false)
@@ -3317,26 +3319,73 @@ After the function returns success, confirm: "Your appointment is booked for [da
                       <input
                         type="text"
                         value={customVoiceId}
-                        onChange={(e) => setCustomVoiceId(e.target.value)}
+                        onChange={(e) => {
+                          setCustomVoiceId(e.target.value)
+                          setLookupResult(null)
+                        }}
                         placeholder="Voice ID..."
                         onClick={(e) => e.stopPropagation()}
                         className="flex-1 min-w-0 px-2 py-1.5 rounded-md border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
                       <button
                         type="button"
-                        disabled={!customVoiceId.trim()}
-                        onClick={(e) => {
+                        disabled={!customVoiceId.trim() || lookupLoading}
+                        onClick={async (e) => {
                           e.stopPropagation()
-                          setVoiceProvider('11labs')
-                          setVoiceId(customVoiceId.trim())
-                          setAddVoiceManually(true)
-                          closeVoicePicker()
+                          const id = customVoiceId.trim()
+                          setLookupLoading(true)
+                          setLookupResult(null)
+                          try {
+                            const res = await voicesAPI.lookup(id)
+                            setLookupResult(res.data)
+                          } catch {
+                            setLookupResult({ error: true, name: 'Voice not found' })
+                          }
+                          setLookupLoading(false)
                         }}
-                        className="px-2.5 py-1.5 rounded-md bg-primary-600 text-white text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                        className="px-2.5 py-1.5 rounded-md bg-gray-200 dark:bg-dark-hover text-gray-700 dark:text-gray-300 text-xs font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                       >
-                        Use
+                        {lookupLoading ? '...' : 'Lookup'}
                       </button>
                     </div>
+                    {lookupResult && (
+                      <div className="mt-2">
+                        {lookupResult.error ? (
+                          <p className="text-xs text-red-500">Voice not found</p>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-medium text-gray-900 dark:text-white">{lookupResult.name}</p>
+                              <div className="flex items-center gap-1 mt-0.5">
+                                {lookupResult.gender && (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${lookupResult.gender === 'female' ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400' : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'}`}>
+                                    {lookupResult.gender === 'female' ? 'F' : 'M'}
+                                  </span>
+                                )}
+                                {lookupResult.accent && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                    {lookupResult.accent.charAt(0).toUpperCase() + lookupResult.accent.slice(1)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setVoiceProvider('11labs')
+                                setVoiceId(customVoiceId.trim())
+                                setAddVoiceManually(true)
+                                closeVoicePicker()
+                              }}
+                              className="px-2.5 py-1.5 rounded-md bg-primary-600 text-white text-xs font-medium hover:bg-primary-700 transition-colors"
+                            >
+                              Use
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {getFilteredPickerVoices().map((voice) => {
                     const isPlaying = previewPlayingId === voice.voiceId

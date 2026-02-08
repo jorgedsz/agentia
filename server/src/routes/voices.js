@@ -11,6 +11,9 @@ router.use(authMiddleware);
 // GET /api/voices - List all available voices
 router.get('/', voiceController.listVoices);
 
+// GET /api/voices/lookup/:voiceId - Lookup voice info from ElevenLabs
+router.get('/lookup/:voiceId', voiceController.lookupVoice);
+
 // GET /api/voices/custom - List custom voices (OWNER only)
 router.get('/custom', voiceController.listCustomVoices);
 
