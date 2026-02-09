@@ -551,8 +551,12 @@ export default function AgentEdit() {
     enableGetContact: true,
     enableCreateContact: true,
     enableCheckAvailability: true,
-    enableCreateEvent: true
+    enableCreateEvent: true,
+    calendars: []        // Multi-calendar: [{ id, name, scenario, provider, integrationId, calendarId, timezone, appointmentDuration }]
   })
+
+  // Per-calendar-entry dropdown data: { [entryId]: { calendars: [], loading: false, error: '' } }
+  const [providerCalendarsMap, setProviderCalendarsMap] = useState({})
 
   // GHL Integration state (legacy)
   const [ghlStatus, setGhlStatus] = useState({ isConnected: false, locationId: null, locationName: null })
@@ -693,12 +697,127 @@ export default function AgentEdit() {
   const handleOpenCalendarModal = () => {
     setShowCalendarModal(true)
     // Load calendars based on current provider selection
-    if (calendarConfig.provider === 'ghl' && !calendarConfig.integrationId && ghlStatus.isConnected) {
+    if (calendarConfig.calendars && calendarConfig.calendars.length >= 2) {
+      // Multi-calendar mode: load calendars for each entry
+      calendarConfig.calendars.forEach(entry => {
+        if (entry.integrationId) {
+          fetchCalendarsForEntry(entry.id, entry.integrationId)
+        } else if (entry.provider === 'ghl' && ghlStatus.isConnected) {
+          fetchGhlCalendars()
+        }
+      })
+    } else if (calendarConfig.provider === 'ghl' && !calendarConfig.integrationId && ghlStatus.isConnected) {
       fetchGhlCalendars()
     } else if (calendarConfig.integrationId) {
       fetchProviderCalendars(calendarConfig.integrationId)
     } else if (ghlStatus.isConnected) {
       fetchGhlCalendars()
+    }
+  }
+
+  // Multi-calendar helpers
+  const getActiveCalendars = () => {
+    if (calendarConfig.calendars && calendarConfig.calendars.length >= 2) {
+      return calendarConfig.calendars
+    }
+    // Single calendar mode: synthesize from top-level fields
+    return [{
+      id: 'single',
+      name: '',
+      scenario: '',
+      provider: calendarConfig.provider,
+      integrationId: calendarConfig.integrationId,
+      calendarId: calendarConfig.calendarId,
+      timezone: calendarConfig.timezone,
+      appointmentDuration: calendarConfig.appointmentDuration
+    }]
+  }
+
+  const updateCalendarEntry = (entryId, updates) => {
+    setCalendarConfig(prev => ({
+      ...prev,
+      calendars: prev.calendars.map(c => c.id === entryId ? { ...c, ...updates } : c)
+    }))
+  }
+
+  const removeCalendarEntry = (entryId) => {
+    setCalendarConfig(prev => {
+      const remaining = prev.calendars.filter(c => c.id !== entryId)
+      if (remaining.length <= 1) {
+        // Revert to single-calendar mode
+        const single = remaining[0] || {}
+        return {
+          ...prev,
+          provider: single.provider || '',
+          integrationId: single.integrationId || '',
+          calendarId: single.calendarId || '',
+          timezone: single.timezone || 'America/New_York',
+          appointmentDuration: single.appointmentDuration || 30,
+          calendars: []
+        }
+      }
+      return { ...prev, calendars: remaining }
+    })
+  }
+
+  const fetchCalendarsForEntry = async (entryId, integrationId) => {
+    setProviderCalendarsMap(prev => ({
+      ...prev,
+      [entryId]: { calendars: prev[entryId]?.calendars || [], loading: true, error: '' }
+    }))
+    try {
+      const response = await calendarAPI.getCalendars(integrationId)
+      setProviderCalendarsMap(prev => ({
+        ...prev,
+        [entryId]: { calendars: response.data.calendars || [], loading: false, error: '' }
+      }))
+    } catch (err) {
+      setProviderCalendarsMap(prev => ({
+        ...prev,
+        [entryId]: { calendars: [], loading: false, error: err.response?.data?.error || 'Failed to fetch calendars' }
+      }))
+    }
+  }
+
+  const addCalendarEntry = () => {
+    const newId = `cal_${Date.now()}`
+    if (!calendarConfig.calendars || calendarConfig.calendars.length < 2) {
+      // Migrate current single config into calendars[0], add empty calendars[1]
+      const firstEntry = {
+        id: `cal_${Date.now() - 1}`,
+        name: '',
+        scenario: '',
+        provider: calendarConfig.provider || '',
+        integrationId: calendarConfig.integrationId || '',
+        calendarId: calendarConfig.calendarId || '',
+        timezone: calendarConfig.timezone || 'America/New_York',
+        appointmentDuration: calendarConfig.appointmentDuration || 30
+      }
+      // Copy existing provider calendars into the map for migrated entry
+      const isLegacyGhl = calendarConfig.provider === 'ghl' && !calendarConfig.integrationId
+      const existingCalendars = isLegacyGhl ? ghlCalendars : providerCalendars
+      if (existingCalendars.length > 0) {
+        setProviderCalendarsMap(prev => ({
+          ...prev,
+          [firstEntry.id]: { calendars: existingCalendars, loading: false, error: '' }
+        }))
+      }
+      setCalendarConfig(prev => ({
+        ...prev,
+        calendars: [
+          firstEntry,
+          { id: newId, name: '', scenario: '', provider: '', integrationId: '', calendarId: '', timezone: 'America/New_York', appointmentDuration: 30 }
+        ]
+      }))
+    } else {
+      // Already in multi-mode, just add a new entry
+      setCalendarConfig(prev => ({
+        ...prev,
+        calendars: [
+          ...prev.calendars,
+          { id: newId, name: '', scenario: '', provider: '', integrationId: '', calendarId: '', timezone: 'America/New_York', appointmentDuration: 30 }
+        ]
+      }))
     }
   }
 
@@ -758,7 +877,8 @@ export default function AgentEdit() {
         setCalendarConfig({
           ...saved,
           provider: saved.provider || (saved.enabled ? 'ghl' : ''),
-          integrationId: saved.integrationId || ''
+          integrationId: saved.integrationId || '',
+          calendars: saved.calendars || []
         })
       }
 
@@ -842,62 +962,70 @@ export default function AgentEdit() {
       // Sanitize agent name for use in tool names (lowercase, underscores, no special chars)
       const safeName = name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
 
-      if (calendarConfig.enabled && calendarConfig.calendarId) {
-        // Determine the base URL: use legacy GHL path for legacy GHL agents, unified path for everything else
-        const useLegacyGhl = calendarConfig.provider === 'ghl' && !calendarConfig.integrationId
+      if (calendarConfig.enabled) {
+        const activeCalendars = getActiveCalendars().filter(c => c.calendarId)
+        const isMultiCalendar = activeCalendars.length >= 2
 
-        const queryParamsObj = {
-          calendarId: calendarConfig.calendarId,
-          timezone: calendarConfig.timezone || 'America/New_York',
-          userId: user?.id?.toString() || '',
-          duration: (calendarConfig.appointmentDuration || 30).toString()
-        }
+        activeCalendars.forEach((cal, idx) => {
+          // Determine the base URL: use legacy GHL path for legacy GHL agents, unified path for everything else
+          const useLegacyGhl = cal.provider === 'ghl' && !cal.integrationId
 
-        // Add provider/integrationId for unified calendar API
-        if (!useLegacyGhl) {
-          queryParamsObj.provider = calendarConfig.provider
-          if (calendarConfig.integrationId) {
-            queryParamsObj.integrationId = calendarConfig.integrationId
+          const queryParamsObj = {
+            calendarId: cal.calendarId,
+            timezone: cal.timezone || 'America/New_York',
+            userId: user?.id?.toString() || '',
+            duration: (cal.appointmentDuration || 30).toString()
           }
-        }
 
-        const queryParams = new URLSearchParams(queryParamsObj).toString()
-        const checkUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}`
-        const bookUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}`
-
-        // Check Availability Tool (always created — booking requires checking availability first)
-        calendarTools.push({
-          type: 'apiRequest',
-          method: 'POST',
-          url: checkUrl,
-          name: `check_calendar_availability_${safeName}`,
-          description: 'Check available appointment slots on a specific date. You MUST call this BEFORE booking to see what times are open.',
-          body: {
-            type: 'object',
-            properties: {
-              date: {
-                type: 'string',
-                description: 'The date to check availability for in YYYY-MM-DD format (e.g., 2026-02-08)'
-              }
-            },
-            required: ['date']
-          },
-          timeoutSeconds: 30,
-          messages: [
-            {
-              type: 'request-start',
-              content: 'Un momento, déjame verificar los horarios disponibles...'
+          // Add provider/integrationId for unified calendar API
+          if (!useLegacyGhl) {
+            queryParamsObj.provider = cal.provider
+            if (cal.integrationId) {
+              queryParamsObj.integrationId = cal.integrationId
             }
-          ]
-        })
+          }
 
-        // Book Appointment Tool (always created alongside check availability)
-        calendarTools.push({
+          const queryParams = new URLSearchParams(queryParamsObj).toString()
+          const checkUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}`
+          const bookUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}`
+
+          // Tool name suffix: plain for single, indexed for multi
+          const toolSuffix = isMultiCalendar ? `${safeName}_${idx + 1}` : safeName
+          const descPrefix = isMultiCalendar && cal.name ? `[${cal.name}] ` : ''
+
+          // Check Availability Tool
+          calendarTools.push({
+            type: 'apiRequest',
+            method: 'POST',
+            url: checkUrl,
+            name: `check_calendar_availability_${toolSuffix}`,
+            description: `${descPrefix}Check available appointment slots on a specific date. You MUST call this BEFORE booking to see what times are open.`,
+            body: {
+              type: 'object',
+              properties: {
+                date: {
+                  type: 'string',
+                  description: 'The date to check availability for in YYYY-MM-DD format (e.g., 2026-02-08)'
+                }
+              },
+              required: ['date']
+            },
+            timeoutSeconds: 30,
+            messages: [
+              {
+                type: 'request-start',
+                content: 'Un momento, déjame verificar los horarios disponibles...'
+              }
+            ]
+          })
+
+          // Book Appointment Tool
+          calendarTools.push({
             type: 'apiRequest',
             method: 'POST',
             url: bookUrl,
-            name: `book_appointment_${safeName}`,
-            description: 'Book an appointment for the customer. Use this after confirming the date, time, and collecting customer contact information.',
+            name: `book_appointment_${toolSuffix}`,
+            description: `${descPrefix}Book an appointment for the customer. Use this after confirming the date, time, and collecting customer contact information.`,
             body: {
               type: 'object',
               properties: {
@@ -936,6 +1064,7 @@ export default function AgentEdit() {
               }
             ]
           })
+        })
       }
 
       // Merge regular tools with calendar tools (filter duplicates in case tools still contain old calendar tools)
@@ -946,8 +1075,74 @@ export default function AgentEdit() {
 
       // Generate calendar booking instructions if calendar is enabled
       let finalSystemPrompt = systemPrompt
-      if (calendarConfig.enabled && calendarConfig.calendarId) {
-        const calendarInstructions = `
+      if (calendarConfig.enabled) {
+        const activeCalendars = getActiveCalendars().filter(c => c.calendarId)
+        const isMultiCalendar = activeCalendars.length >= 2
+
+        if (isMultiCalendar) {
+          // Multi-calendar prompt
+          const calendarList = activeCalendars.map((cal, idx) => {
+            const num = idx + 1
+            return `- **${cal.name}**: ${cal.scenario}
+  - Check availability: "check_calendar_availability_${safeName}_${num}"
+  - Book appointment: "book_appointment_${safeName}_${num}"`
+          }).join('\n')
+
+          const calendarInstructions = `
+
+## APPOINTMENT BOOKING INSTRUCTIONS (PRIORITY — OVERRIDE ANY PHASE/SCRIPT FLOW)
+
+IMPORTANT: If the customer asks to schedule, book, or make an appointment AT ANY POINT in the conversation, IMMEDIATELY start the booking process below. Do NOT wait for any other phase or step to complete first. Appointment booking always takes priority.
+
+### Available Calendars
+${calendarList}
+
+### Date & Time Reference
+Today's date and time is provided in the {{currentDateTime}} variable. ALWAYS use this as reference when the user says "today", "tomorrow", "next Monday", etc. Calculate the correct date in YYYY-MM-DD format based on {{currentDateTime}}. NEVER guess or invent a date.
+
+### Booking Flow
+
+**Step 1 — Determine the right calendar**
+Based on what the customer needs, select the appropriate calendar from the list above. If it's not clear which calendar to use, ask a brief clarifying question (e.g., "Are you looking to schedule a sales consultation or a support call?").
+
+**Step 2 — Ask for preferred date**
+Ask: "What date works best for you?"
+
+**Step 3 — Check availability**
+Call the correct "check_calendar_availability_..." function for the chosen calendar with the date in YYYY-MM-DD format.
+- "tomorrow" = the day after {{currentDateTime}}
+- "today" = the date from {{currentDateTime}}
+- Calculate any relative date from {{currentDateTime}}
+
+**Step 4 — Present available times**
+Read back 3-5 of the best available times in a natural way. For example: "I have 9:00 AM, 10:30 AM, and 2:00 PM available. Which one works for you?"
+- Do NOT read all 16 slots — pick a few spread throughout the day.
+- If no slots are available, say so and offer to check another date.
+
+**Step 5 — User picks a time → Collect info and book IMMEDIATELY**
+Once the user selects a time slot, collect their name and email (phone is optional), then IMMEDIATELY call the correct "book_appointment_..." function for the chosen calendar. Do NOT hesitate or wait — call the function right away.
+- startTime: combine the selected date + time in ISO 8601 format (e.g., 2026-02-08T09:00:00)
+- contactName: the customer's full name
+- contactEmail: the customer's email address
+- contactPhone: optional
+- notes: optional
+
+**Step 6 — Confirm the booking**
+After the function returns success, confirm: "Your appointment is booked for [date] at [time]. You'll receive a confirmation email at [email]."
+
+### Critical Rules
+- NEVER skip calling the book function after the user picks a time. You MUST call it.
+- NEVER invent or guess dates. Always calculate from {{currentDateTime}}.
+- If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.
+- Keep your responses short and natural during the booking flow.
+- NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words and in the conversation language.
+- If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.`
+
+          finalSystemPrompt = systemPrompt + calendarInstructions
+
+        } else if (activeCalendars.length === 1) {
+          // Single calendar prompt (original behavior)
+          const calendarInstructions = `
 
 ## APPOINTMENT BOOKING INSTRUCTIONS (PRIORITY — OVERRIDE ANY PHASE/SCRIPT FLOW)
 
@@ -991,8 +1186,8 @@ After the function returns success, confirm: "Your appointment is booked for [da
 - NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words and in the conversation language. For example, if a date is wrong, simply ask the customer for another date.
 - If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.`
 
-        // Append calendar instructions to the system prompt
-        finalSystemPrompt = systemPrompt + calendarInstructions
+          finalSystemPrompt = systemPrompt + calendarInstructions
+        }
       }
 
       const response = await agentsAPI.update(id, {
@@ -1010,7 +1205,21 @@ After the function returns success, confirm: "Your appointment is booked for [da
           voiceId: finalVoiceId,
           transcriberProvider,
           transcriberLanguage,
-          calendarConfig,
+          calendarConfig: (() => {
+            // Sync top-level fields from calendars[0] for backward compat
+            if (calendarConfig.calendars && calendarConfig.calendars.length >= 2) {
+              const first = calendarConfig.calendars[0]
+              return {
+                ...calendarConfig,
+                provider: first.provider,
+                integrationId: first.integrationId,
+                calendarId: first.calendarId,
+                timezone: first.timezone,
+                appointmentDuration: first.appointmentDuration
+              }
+            }
+            return calendarConfig
+          })(),
           // Voice settings
           elevenLabsModel: voiceSettings.model,
           stability: voiceSettings.stability,
@@ -1810,11 +2019,14 @@ After the function returns success, confirm: "Your appointment is booked for [da
               </button>
               {calendarConfig.enabled && (
                 <p className="text-xs mt-1 text-green-600">
-                  {calendarConfig.provider === 'google' ? 'Google Calendar' :
-                   calendarConfig.provider === 'calendly' ? 'Calendly' :
-                   calendarConfig.provider === 'hubspot' ? 'HubSpot' :
-                   calendarConfig.provider === 'calcom' ? 'Cal.com' :
-                   'GoHighLevel'} {ta('connected')}
+                  {calendarConfig.calendars && calendarConfig.calendars.length >= 2
+                    ? `${calendarConfig.calendars.length} calendars configured`
+                    : `${calendarConfig.provider === 'google' ? 'Google Calendar' :
+                       calendarConfig.provider === 'calendly' ? 'Calendly' :
+                       calendarConfig.provider === 'hubspot' ? 'HubSpot' :
+                       calendarConfig.provider === 'calcom' ? 'Cal.com' :
+                       'GoHighLevel'} ${ta('connected')}`
+                  }
                 </p>
               )}
             </div>
@@ -2268,10 +2480,261 @@ After the function returns success, confirm: "Your appointment is booked for [da
       )}
 
       {/* Calendar Options Modal (Multi-Provider) */}
-      {showCalendarModal && (
+      {showCalendarModal && (() => {
+        const PROVIDER_ICONS = {
+          ghl: (
+            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+              <rect width="24" height="24" rx="4" fill="#FF6B35"/>
+              <path d="M7 8h10v2H7V8zm0 3h7v2H7v-2zm0 3h10v2H7v-2z" fill="white"/>
+            </svg>
+          ),
+          google: (
+            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+          ),
+          calendly: (
+            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="11" fill="#006BFF"/>
+              <path d="M15.9 9.2c-.4-.7-1-1.2-1.7-1.5-.7-.3-1.5-.4-2.3-.2-.8.1-1.5.5-2 1.1-.6.6-.9 1.3-1 2.1-.1.8.1 1.6.4 2.3.4.7 1 1.2 1.7 1.5.7.3 1.5.4 2.3.2.5-.1 1-.3 1.4-.6l1.3 1.3c-.7.5-1.4.9-2.3 1.1-1.1.2-2.2.1-3.2-.4s-1.8-1.2-2.3-2.2c-.5-1-.7-2.1-.5-3.2.2-1.1.7-2 1.5-2.8.8-.8 1.7-1.3 2.8-1.5 1.1-.2 2.2 0 3.2.5s1.7 1.3 2.2 2.3l-1.5.7z" fill="white"/>
+            </svg>
+          ),
+          hubspot: (
+            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+              <path d="M17.5 8.2V5.8c.6-.3 1-.9 1-1.6 0-1-.8-1.8-1.8-1.8s-1.8.8-1.8 1.8c0 .7.4 1.3 1 1.6v2.4c-.9.2-1.7.6-2.3 1.2L7.5 5.3c0-.1.1-.3.1-.4 0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2c.4 0 .7-.1 1-.3l5.9 4c-.4.7-.6 1.5-.6 2.4 0 1.1.4 2.2 1.1 3l-1.3 1.3c-.2-.1-.4-.1-.6-.1-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5 1.5-.7 1.5-1.5c0-.2 0-.4-.1-.6l1.3-1.3c.8.7 1.9 1.1 3 1.1 2.6 0 4.7-2.1 4.7-4.7 0-2.3-1.7-4.2-3.9-4.6zm-.7 7.5c-1.6 0-2.9-1.3-2.9-2.9s1.3-2.9 2.9-2.9 2.9 1.3 2.9 2.9-1.3 2.9-2.9 2.9z" fill="#FF7A59"/>
+            </svg>
+          ),
+          calcom: (
+            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+              <rect width="24" height="24" rx="4" fill="#111827"/>
+              <path d="M6 9.5C6 7.01 8.01 5 10.5 5h3C15.99 5 18 7.01 18 9.5v5c0 2.49-2.01 4.5-4.5 4.5h-3C8.01 19 6 16.99 6 14.5v-5z" stroke="white" strokeWidth="2"/>
+            </svg>
+          )
+        }
+
+        const PROVIDER_NAMES = {
+          ghl: 'GoHighLevel',
+          google: 'Google Calendar',
+          calendly: 'Calendly',
+          hubspot: 'HubSpot',
+          calcom: 'Cal.com'
+        }
+
+        // Build connected accounts list (shared across single & multi modes)
+        const connectedAccounts = []
+        if (ghlStatus?.isConnected) {
+          connectedAccounts.push({
+            key: 'ghl-legacy', provider: 'ghl', integrationId: '',
+            icon: PROVIDER_ICONS.ghl, label: 'GoHighLevel',
+            sublabel: ghlStatus.locationName || '', connected: true
+          })
+        }
+        calendarIntegrations.filter(i => i.isConnected).forEach(i => {
+          connectedAccounts.push({
+            key: `${i.provider}:${i.id}`, provider: i.provider,
+            integrationId: String(i.id), icon: PROVIDER_ICONS[i.provider],
+            label: PROVIDER_NAMES[i.provider] || i.provider,
+            sublabel: i.accountLabel || '', connected: true
+          })
+        })
+        const connectedProviderSet = new Set(connectedAccounts.map(a => a.provider))
+        if (ghlStatus?.isConnected) connectedProviderSet.add('ghl')
+        const allProviders = ['ghl', 'google', 'calendly', 'hubspot', 'calcom']
+        const notConnectedProviders = allProviders.filter(p => !connectedProviderSet.has(p))
+
+        const isMultiCalendarMode = calendarConfig.calendars && calendarConfig.calendars.length >= 2
+
+        // Render a provider dropdown for a given entry (single or multi)
+        const renderProviderDropdown = (currentProvider, currentIntegrationId, onSelect, dropdownId) => {
+          const currentKey = currentIntegrationId
+            ? `${currentProvider}:${currentIntegrationId}`
+            : currentProvider === 'ghl' && !currentIntegrationId && ghlStatus?.isConnected
+              ? 'ghl-legacy'
+              : currentProvider || ''
+          const currentAccount = connectedAccounts.find(a => a.key === currentKey)
+          const currentNotConnected = !currentAccount && currentProvider
+            ? notConnectedProviders.includes(currentProvider) ? currentProvider : null
+            : null
+
+          return (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowProviderDropdown(showProviderDropdown === dropdownId ? false : dropdownId)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-left"
+              >
+                {currentAccount ? (
+                  <>
+                    {currentAccount.icon}
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-gray-900 dark:text-white">{currentAccount.label}</span>
+                      {currentAccount.sublabel && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-1.5">- {currentAccount.sublabel}</span>
+                      )}
+                    </div>
+                  </>
+                ) : currentNotConnected ? (
+                  <>
+                    {PROVIDER_ICONS[currentNotConnected]}
+                    <span className="text-sm text-gray-900 dark:text-white">{PROVIDER_NAMES[currentNotConnected]}</span>
+                    <span className="text-xs text-red-400 ml-auto">Not connected</span>
+                  </>
+                ) : (
+                  <span className="text-sm text-gray-400">Select a provider</span>
+                )}
+                <svg className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showProviderDropdown === dropdownId && <div className="fixed inset-0 z-40" onClick={() => setShowProviderDropdown(false)} />}
+              <div className={`${showProviderDropdown === dropdownId ? '' : 'hidden'} absolute z-50 mt-1 w-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg max-h-64 overflow-y-auto`}>
+                {connectedAccounts.length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">Connected</div>
+                    {connectedAccounts.map(account => (
+                      <button
+                        key={account.key}
+                        type="button"
+                        onClick={() => {
+                          onSelect(account.provider, account.integrationId)
+                          setShowProviderDropdown(false)
+                        }}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-hover text-left ${currentKey === account.key ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`}
+                      >
+                        {account.icon}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-gray-900 dark:text-white">{account.label}</span>
+                          {account.sublabel && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 block truncate">{account.sublabel}</span>
+                          )}
+                        </div>
+                        {currentKey === account.key && (
+                          <svg className="w-4 h-4 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {notConnectedProviders.length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide border-t border-gray-100 dark:border-dark-border mt-1">Not Connected</div>
+                    {notConnectedProviders.map(providerId => (
+                      <button
+                        key={providerId}
+                        type="button"
+                        onClick={() => {
+                          onSelect(providerId, '')
+                          setShowProviderDropdown(false)
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-hover text-left opacity-60"
+                      >
+                        {PROVIDER_ICONS[providerId]}
+                        <span className="text-sm text-gray-900 dark:text-white">{PROVIDER_NAMES[providerId]}</span>
+                        <span className="text-xs text-gray-400 ml-auto">Setup required</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        }
+
+        // Render calendar dropdown for a given entry
+        const renderCalendarDropdown = (entryProvider, entryIntegrationId, entryCalendarId, entryTimezone, onCalendarSelect, entryId) => {
+          const isLegacyGhl = entryProvider === 'ghl' && !entryIntegrationId
+          if (!entryProvider) return null
+
+          const isConnected = entryIntegrationId || (entryProvider === 'ghl' && ghlStatus?.isConnected) || connectedProviderSet.has(entryProvider)
+          if (!isConnected) return null
+
+          // For multi-calendar, use per-entry data; for single, use shared state
+          let calendars, loading, error
+          if (isMultiCalendarMode && entryId !== 'single') {
+            const mapData = providerCalendarsMap[entryId]
+            if (isLegacyGhl) {
+              calendars = ghlCalendars; loading = ghlCalendarsLoading; error = ghlError
+            } else {
+              calendars = mapData?.calendars || []; loading = mapData?.loading || false; error = mapData?.error || ''
+            }
+          } else {
+            calendars = isLegacyGhl ? ghlCalendars : providerCalendars
+            loading = isLegacyGhl ? ghlCalendarsLoading : providerCalendarsLoading
+            error = isLegacyGhl ? ghlError : providerError
+          }
+
+          return (
+            <div>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar *</label>
+              {error && (
+                <div className="p-2 mb-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+                </div>
+              )}
+              {loading ? (
+                <div className="flex items-center gap-2 py-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                  <span className="text-sm text-gray-500">Loading calendars...</span>
+                </div>
+              ) : calendars.length > 0 ? (
+                <select
+                  value={entryCalendarId}
+                  onChange={(e) => {
+                    const selectedCal = calendars.find(c => c.id === e.target.value)
+                    onCalendarSelect(e.target.value, selectedCal?.timezone || entryTimezone)
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                >
+                  <option value="">Select a calendar</option>
+                  {calendars.map(cal => (
+                    <option key={cal.id} value={cal.id}>{cal.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-gray-500 py-2">
+                  No calendars found for this account.
+                </div>
+              )}
+            </div>
+          )
+        }
+
+        // Render "not connected" warning for a provider
+        const renderNotConnectedWarning = (entryProvider, entryIntegrationId) => {
+          if (!entryProvider) return null
+          const isConnected = entryIntegrationId || (entryProvider === 'ghl' && ghlStatus?.isConnected) || connectedProviderSet.has(entryProvider)
+          if (isConnected) return null
+          return (
+            <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <svg className="w-5 h-5 text-yellow-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">This provider is not connected yet.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCalendarModal(false)
+                  navigate('/dashboard/settings?tab=calendars')
+                }}
+                className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-xs font-medium whitespace-nowrap"
+              >
+                Go to Settings
+              </button>
+            </div>
+          )
+        }
+
+        return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+            <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border z-10">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Calendar Options</h3>
               <button onClick={() => setShowCalendarModal(false)} className="text-gray-500 hover:text-gray-700">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2297,384 +2760,260 @@ After the function returns success, confirm: "Your appointment is booked for [da
 
               {calendarConfig.enabled && (
                 <>
-                  {/* Provider Selection - Custom dropdown with icons */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar Provider *</label>
-                    {(() => {
-                      // Build provider options: all 5 providers, with connected accounts grouped
-                      const PROVIDER_ICONS = {
-                        ghl: (
-                          <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
-                            <rect width="24" height="24" rx="4" fill="#FF6B35"/>
-                            <path d="M7 8h10v2H7V8zm0 3h7v2H7v-2zm0 3h10v2H7v-2z" fill="white"/>
-                          </svg>
-                        ),
-                        google: (
-                          <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
-                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                          </svg>
-                        ),
-                        calendly: (
-                          <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
-                            <circle cx="12" cy="12" r="11" fill="#006BFF"/>
-                            <path d="M15.9 9.2c-.4-.7-1-1.2-1.7-1.5-.7-.3-1.5-.4-2.3-.2-.8.1-1.5.5-2 1.1-.6.6-.9 1.3-1 2.1-.1.8.1 1.6.4 2.3.4.7 1 1.2 1.7 1.5.7.3 1.5.4 2.3.2.5-.1 1-.3 1.4-.6l1.3 1.3c-.7.5-1.4.9-2.3 1.1-1.1.2-2.2.1-3.2-.4s-1.8-1.2-2.3-2.2c-.5-1-.7-2.1-.5-3.2.2-1.1.7-2 1.5-2.8.8-.8 1.7-1.3 2.8-1.5 1.1-.2 2.2 0 3.2.5s1.7 1.3 2.2 2.3l-1.5.7z" fill="white"/>
-                          </svg>
-                        ),
-                        hubspot: (
-                          <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
-                            <path d="M17.5 8.2V5.8c.6-.3 1-.9 1-1.6 0-1-.8-1.8-1.8-1.8s-1.8.8-1.8 1.8c0 .7.4 1.3 1 1.6v2.4c-.9.2-1.7.6-2.3 1.2L7.5 5.3c0-.1.1-.3.1-.4 0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2c.4 0 .7-.1 1-.3l5.9 4c-.4.7-.6 1.5-.6 2.4 0 1.1.4 2.2 1.1 3l-1.3 1.3c-.2-.1-.4-.1-.6-.1-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5 1.5-.7 1.5-1.5c0-.2 0-.4-.1-.6l1.3-1.3c.8.7 1.9 1.1 3 1.1 2.6 0 4.7-2.1 4.7-4.7 0-2.3-1.7-4.2-3.9-4.6zm-.7 7.5c-1.6 0-2.9-1.3-2.9-2.9s1.3-2.9 2.9-2.9 2.9 1.3 2.9 2.9-1.3 2.9-2.9 2.9z" fill="#FF7A59"/>
-                          </svg>
-                        ),
-                        calcom: (
-                          <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
-                            <rect width="24" height="24" rx="4" fill="#111827"/>
-                            <path d="M6 9.5C6 7.01 8.01 5 10.5 5h3C15.99 5 18 7.01 18 9.5v5c0 2.49-2.01 4.5-4.5 4.5h-3C8.01 19 6 16.99 6 14.5v-5z" stroke="white" strokeWidth="2"/>
-                          </svg>
-                        )
-                      }
-
-                      const PROVIDER_NAMES = {
-                        ghl: 'GoHighLevel',
-                        google: 'Google Calendar',
-                        calendly: 'Calendly',
-                        hubspot: 'HubSpot',
-                        calcom: 'Cal.com'
-                      }
-
-                      // Get all connected accounts grouped by provider
-                      const connectedAccounts = []
-
-                      // Legacy GHL
-                      if (ghlStatus?.isConnected) {
-                        connectedAccounts.push({
-                          key: 'ghl-legacy',
-                          provider: 'ghl',
-                          integrationId: '',
-                          icon: PROVIDER_ICONS.ghl,
-                          label: 'GoHighLevel',
-                          sublabel: ghlStatus.locationName || '',
-                          connected: true
-                        })
-                      }
-
-                      // CalendarIntegration accounts
-                      calendarIntegrations.filter(i => i.isConnected).forEach(i => {
-                        connectedAccounts.push({
-                          key: `${i.provider}:${i.id}`,
-                          provider: i.provider,
-                          integrationId: String(i.id),
-                          icon: PROVIDER_ICONS[i.provider],
-                          label: PROVIDER_NAMES[i.provider] || i.provider,
-                          sublabel: i.accountLabel || '',
-                          connected: true
-                        })
-                      })
-
-                      // Providers that are NOT connected at all
-                      const connectedProviders = new Set(connectedAccounts.map(a => a.provider))
-                      if (ghlStatus?.isConnected) connectedProviders.add('ghl')
-                      const allProviders = ['ghl', 'google', 'calendly', 'hubspot', 'calcom']
-                      const notConnected = allProviders.filter(p => !connectedProviders.has(p))
-
-                      // Current selection
-                      const currentKey = calendarConfig.integrationId
-                        ? `${calendarConfig.provider}:${calendarConfig.integrationId}`
-                        : calendarConfig.provider === 'ghl' && !calendarConfig.integrationId && ghlStatus?.isConnected
-                          ? 'ghl-legacy'
-                          : calendarConfig.provider || ''
-                      const currentAccount = connectedAccounts.find(a => a.key === currentKey)
-                      const currentNotConnected = !currentAccount && calendarConfig.provider
-                        ? notConnected.includes(calendarConfig.provider) ? calendarConfig.provider : null
-                        : null
-
-                      return (
-                        <div className="relative">
-                          {/* Selected value display */}
-                          <button
-                            type="button"
-                            onClick={() => setShowProviderDropdown(!showProviderDropdown)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-left"
-                          >
-                            {currentAccount ? (
-                              <>
-                                {currentAccount.icon}
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-sm text-gray-900 dark:text-white">{currentAccount.label}</span>
-                                  {currentAccount.sublabel && (
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1.5">- {currentAccount.sublabel}</span>
-                                  )}
-                                </div>
-                              </>
-                            ) : currentNotConnected ? (
-                              <>
-                                {PROVIDER_ICONS[currentNotConnected]}
-                                <span className="text-sm text-gray-900 dark:text-white">{PROVIDER_NAMES[currentNotConnected]}</span>
-                                <span className="text-xs text-red-400 ml-auto">Not connected</span>
-                              </>
-                            ) : (
-                              <span className="text-sm text-gray-400">Select a provider</span>
-                            )}
-                            <svg className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </button>
-
-                          {/* Dropdown options */}
-                          {showProviderDropdown && <div className="fixed inset-0 z-40" onClick={() => setShowProviderDropdown(false)} />}
-                          <div ref={providerDropdownRef} className={`${showProviderDropdown ? '' : 'hidden'} absolute z-50 mt-1 w-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg max-h-64 overflow-y-auto`}>
-                            {/* Connected accounts */}
-                            {connectedAccounts.length > 0 && (
-                              <>
-                                <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">Connected</div>
-                                {connectedAccounts.map(account => (
-                                  <button
-                                    key={account.key}
-                                    type="button"
-                                    onClick={() => {
-                                      setCalendarConfig({
-                                        ...calendarConfig,
-                                        provider: account.provider,
-                                        integrationId: account.integrationId,
-                                        calendarId: ''
-                                      })
-                                      setProviderCalendars([])
-                                      setProviderError('')
-                                      if (account.provider === 'ghl' && !account.integrationId) {
-                                        fetchGhlCalendars()
-                                      } else if (account.integrationId) {
-                                        fetchProviderCalendars(account.integrationId)
-                                      }
-                                      setShowProviderDropdown(false)
-                                    }}
-                                    className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-hover text-left ${currentKey === account.key ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`}
-                                  >
-                                    {account.icon}
-                                    <div className="flex-1 min-w-0">
-                                      <span className="text-sm text-gray-900 dark:text-white">{account.label}</span>
-                                      {account.sublabel && (
-                                        <span className="text-xs text-gray-500 dark:text-gray-400 block truncate">{account.sublabel}</span>
-                                      )}
-                                    </div>
-                                    {currentKey === account.key && (
-                                      <svg className="w-4 h-4 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                    )}
-                                  </button>
-                                ))}
-                              </>
-                            )}
-
-                            {/* Not connected providers */}
-                            {notConnected.length > 0 && (
-                              <>
-                                <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide border-t border-gray-100 dark:border-dark-border mt-1">Not Connected</div>
-                                {notConnected.map(providerId => (
-                                  <button
-                                    key={providerId}
-                                    type="button"
-                                    onClick={() => {
-                                      setCalendarConfig({
-                                        ...calendarConfig,
-                                        provider: providerId,
-                                        integrationId: '',
-                                        calendarId: ''
-                                      })
-                                      setProviderCalendars([])
-                                      setProviderError('')
-                                      setShowProviderDropdown(false)
-                                    }}
-                                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-hover text-left opacity-60"
-                                  >
-                                    {PROVIDER_ICONS[providerId]}
-                                    <span className="text-sm text-gray-900 dark:text-white">{PROVIDER_NAMES[providerId]}</span>
-                                    <span className="text-xs text-gray-400 ml-auto">Setup required</span>
-                                  </button>
-                                ))}
-                              </>
-                            )}
-                          </div>
+                  {/* Tool Toggles (global) */}
+                  <div className="border-t border-gray-200 dark:border-dark-border pt-4">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Available Functions</h4>
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={calendarConfig.enableCheckAvailability}
+                          onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCheckAvailability: e.target.checked })}
+                          className="w-4 h-4 text-green-600 rounded"
+                        />
+                        <div>
+                          <span className="text-sm text-gray-900 dark:text-white">Check Availability</span>
+                          <p className="text-xs text-gray-500">Query available time slots on calendar</p>
                         </div>
-                      )
-                    })()}
+                      </label>
+                      <label className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={calendarConfig.enableCreateEvent}
+                          onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCreateEvent: e.target.checked })}
+                          className="w-4 h-4 text-green-600 rounded"
+                        />
+                        <div>
+                          <span className="text-sm text-gray-900 dark:text-white">Create Event / Book Appointment</span>
+                          <p className="text-xs text-gray-500">Book appointments on the calendar</p>
+                        </div>
+                      </label>
+                      {(calendarConfig.provider === 'ghl' || (isMultiCalendarMode && calendarConfig.calendars.some(c => c.provider === 'ghl'))) && (
+                        <>
+                          <label className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={calendarConfig.enableGetContact}
+                              onChange={(e) => setCalendarConfig({ ...calendarConfig, enableGetContact: e.target.checked })}
+                              className="w-4 h-4 text-green-600 rounded"
+                            />
+                            <div>
+                              <span className="text-sm text-gray-900 dark:text-white">Get Contact</span>
+                              <p className="text-xs text-gray-500">Retrieve existing contacts by email/phone</p>
+                            </div>
+                          </label>
+                          <label className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={calendarConfig.enableCreateContact}
+                              onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCreateContact: e.target.checked })}
+                              className="w-4 h-4 text-green-600 rounded"
+                            />
+                            <div>
+                              <span className="text-sm text-gray-900 dark:text-white">Create Contact</span>
+                              <p className="text-xs text-gray-500">Create new contacts in the CRM</p>
+                            </div>
+                          </label>
+                        </>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Not connected: show Go to Settings button */}
-                  {calendarConfig.provider && (() => {
-                    const connectedProviders = new Set(calendarIntegrations.filter(i => i.isConnected).map(i => i.provider))
-                    if (ghlStatus?.isConnected) connectedProviders.add('ghl')
-                    const isConnected = calendarConfig.integrationId || (calendarConfig.provider === 'ghl' && ghlStatus?.isConnected) || connectedProviders.has(calendarConfig.provider)
-                    if (isConnected) return null
-                    return (
-                      <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                        <svg className="w-5 h-5 text-yellow-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        <div className="flex-1">
-                          <p className="text-sm text-yellow-700 dark:text-yellow-300">This provider is not connected yet.</p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setShowCalendarModal(false)
-                            navigate('/dashboard/settings?tab=calendars')
-                          }}
-                          className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-xs font-medium whitespace-nowrap"
-                        >
-                          Go to Settings
-                        </button>
-                      </div>
-                    )
-                  })()}
-
-                  {/* Calendar selection dropdown */}
-                  {(() => {
-                    const isLegacyGhl = calendarConfig.provider === 'ghl' && !calendarConfig.integrationId
-                    if (!calendarConfig.provider) return null
-
-                    // Check if provider is connected
-                    const connectedProviders = new Set(calendarIntegrations.filter(i => i.isConnected).map(i => i.provider))
-                    if (ghlStatus?.isConnected) connectedProviders.add('ghl')
-                    const isConnected = calendarConfig.integrationId || (calendarConfig.provider === 'ghl' && ghlStatus?.isConnected) || connectedProviders.has(calendarConfig.provider)
-                    if (!isConnected) return null
-
-                    const calendars = isLegacyGhl ? ghlCalendars : providerCalendars
-                    const loading = isLegacyGhl ? ghlCalendarsLoading : providerCalendarsLoading
-                    const error = isLegacyGhl ? ghlError : providerError
-
-                    return (
-                      <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar *</label>
-                        {error && (
-                          <div className="p-2 mb-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                            <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
-                          </div>
-                        )}
-                        {loading ? (
-                          <div className="flex items-center gap-2 py-2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
-                            <span className="text-sm text-gray-500">Loading calendars...</span>
-                          </div>
-                        ) : calendars.length > 0 ? (
-                          <select
-                            value={calendarConfig.calendarId}
-                            onChange={(e) => {
-                              const selectedCal = calendars.find(c => c.id === e.target.value)
-                              setCalendarConfig({
-                                ...calendarConfig,
-                                calendarId: e.target.value,
-                                timezone: selectedCal?.timezone || calendarConfig.timezone
-                              })
-                            }}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
-                          >
-                            <option value="">Select a calendar</option>
-                            {calendars.map(cal => (
-                              <option key={cal.id} value={cal.id}>{cal.name}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <div className="text-sm text-gray-500 py-2">
-                            No calendars found for this account.
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })()}
-
-                  {/* Timezone selector (always shown when provider is selected) */}
-                  {calendarConfig.provider && (
+                  {/* ===== SINGLE CALENDAR MODE ===== */}
+                  {!isMultiCalendarMode && (
                     <>
-                      <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
-                        <select
-                          value={calendarConfig.timezone}
-                          onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
-                        >
-                          {TIMEZONES.map(tz => (
-                            <option key={tz} value={tz}>{tz}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Appointment Duration */}
-                      <div>
-                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Appointment Duration</label>
-                        <select
-                          value={calendarConfig.appointmentDuration || 30}
-                          onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
-                        >
-                          <option value={10}>10 minutes</option>
-                          <option value={15}>15 minutes</option>
-                          <option value={30}>30 minutes</option>
-                          <option value={45}>45 minutes</option>
-                          <option value={60}>60 minutes</option>
-                          <option value={90}>90 minutes</option>
-                        </select>
-                      </div>
-
-                      {/* Tool Toggles */}
                       <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Available Functions</h4>
-                        <div className="space-y-3">
-                          <label className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={calendarConfig.enableCheckAvailability}
-                              onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCheckAvailability: e.target.checked })}
-                              className="w-4 h-4 text-green-600 rounded"
-                            />
-                            <div>
-                              <span className="text-sm text-gray-900 dark:text-white">Check Availability</span>
-                              <p className="text-xs text-gray-500">Query available time slots on calendar</p>
+                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar Provider *</label>
+                        {renderProviderDropdown(
+                          calendarConfig.provider,
+                          calendarConfig.integrationId,
+                          (provider, integrationId) => {
+                            setCalendarConfig({ ...calendarConfig, provider, integrationId, calendarId: '' })
+                            setProviderCalendars([])
+                            setProviderError('')
+                            if (provider === 'ghl' && !integrationId) {
+                              fetchGhlCalendars()
+                            } else if (integrationId) {
+                              fetchProviderCalendars(integrationId)
+                            }
+                          },
+                          'single'
+                        )}
+                      </div>
+
+                      {renderNotConnectedWarning(calendarConfig.provider, calendarConfig.integrationId)}
+
+                      {renderCalendarDropdown(
+                        calendarConfig.provider,
+                        calendarConfig.integrationId,
+                        calendarConfig.calendarId,
+                        calendarConfig.timezone,
+                        (calendarId, timezone) => setCalendarConfig({ ...calendarConfig, calendarId, timezone }),
+                        'single'
+                      )}
+
+                      {calendarConfig.provider && (
+                        <>
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
+                            <select
+                              value={calendarConfig.timezone}
+                              onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                            >
+                              {TIMEZONES.map(tz => (
+                                <option key={tz} value={tz}>{tz}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Appointment Duration</label>
+                            <select
+                              value={calendarConfig.appointmentDuration || 30}
+                              onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                            >
+                              <option value={10}>10 minutes</option>
+                              <option value={15}>15 minutes</option>
+                              <option value={30}>30 minutes</option>
+                              <option value={45}>45 minutes</option>
+                              <option value={60}>60 minutes</option>
+                              <option value={90}>90 minutes</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Add another calendar button (only when a calendar is already configured) */}
+                      {calendarConfig.provider && calendarConfig.calendarId && (
+                        <button
+                          type="button"
+                          onClick={addCalendarEntry}
+                          className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                        >
+                          + Add another calendar
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {/* ===== MULTI CALENDAR MODE ===== */}
+                  {isMultiCalendarMode && (
+                    <>
+                      <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-4">
+                        {calendarConfig.calendars.map((entry, idx) => (
+                          <div key={entry.id} className="border border-gray-200 dark:border-dark-border rounded-lg p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Calendar {idx + 1}</h4>
+                              <button
+                                type="button"
+                                onClick={() => removeCalendarEntry(entry.id)}
+                                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                title="Remove calendar"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
                             </div>
-                          </label>
-                          <label className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={calendarConfig.enableCreateEvent}
-                              onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCreateEvent: e.target.checked })}
-                              className="w-4 h-4 text-green-600 rounded"
-                            />
+
+                            {/* Name */}
                             <div>
-                              <span className="text-sm text-gray-900 dark:text-white">Create Event / Book Appointment</span>
-                              <p className="text-xs text-gray-500">Book appointments on the calendar</p>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Name *</label>
+                              <input
+                                type="text"
+                                value={entry.name}
+                                onChange={(e) => updateCalendarEntry(entry.id, { name: e.target.value })}
+                                placeholder="e.g., Sales Consultation"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                              />
                             </div>
-                          </label>
-                          {/* GHL-specific contact tools */}
-                          {(calendarConfig.provider === 'ghl') && (
-                            <>
-                              <label className="flex items-center gap-3">
-                                <input
-                                  type="checkbox"
-                                  checked={calendarConfig.enableGetContact}
-                                  onChange={(e) => setCalendarConfig({ ...calendarConfig, enableGetContact: e.target.checked })}
-                                  className="w-4 h-4 text-green-600 rounded"
-                                />
+
+                            {/* Scenario */}
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Scenario *</label>
+                              <textarea
+                                value={entry.scenario}
+                                onChange={(e) => updateCalendarEntry(entry.id, { scenario: e.target.value })}
+                                placeholder="e.g., Use when customer wants a sales demo"
+                                rows={2}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none"
+                              />
+                            </div>
+
+                            {/* Provider */}
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Provider *</label>
+                              {renderProviderDropdown(
+                                entry.provider,
+                                entry.integrationId,
+                                (provider, integrationId) => {
+                                  updateCalendarEntry(entry.id, { provider, integrationId, calendarId: '' })
+                                  if (provider === 'ghl' && !integrationId) {
+                                    fetchGhlCalendars()
+                                  } else if (integrationId) {
+                                    fetchCalendarsForEntry(entry.id, integrationId)
+                                  }
+                                },
+                                `multi-${entry.id}`
+                              )}
+                            </div>
+
+                            {renderNotConnectedWarning(entry.provider, entry.integrationId)}
+
+                            {/* Calendar dropdown */}
+                            {renderCalendarDropdown(
+                              entry.provider,
+                              entry.integrationId,
+                              entry.calendarId,
+                              entry.timezone,
+                              (calendarId, timezone) => updateCalendarEntry(entry.id, { calendarId, timezone }),
+                              entry.id
+                            )}
+
+                            {/* Timezone */}
+                            {entry.provider && (
+                              <>
                                 <div>
-                                  <span className="text-sm text-gray-900 dark:text-white">Get Contact</span>
-                                  <p className="text-xs text-gray-500">Retrieve existing contacts by email/phone</p>
+                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
+                                  <select
+                                    value={entry.timezone}
+                                    onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                  >
+                                    {TIMEZONES.map(tz => (
+                                      <option key={tz} value={tz}>{tz}</option>
+                                    ))}
+                                  </select>
                                 </div>
-                              </label>
-                              <label className="flex items-center gap-3">
-                                <input
-                                  type="checkbox"
-                                  checked={calendarConfig.enableCreateContact}
-                                  onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCreateContact: e.target.checked })}
-                                  className="w-4 h-4 text-green-600 rounded"
-                                />
                                 <div>
-                                  <span className="text-sm text-gray-900 dark:text-white">Create Contact</span>
-                                  <p className="text-xs text-gray-500">Create new contacts in the CRM</p>
+                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Duration</label>
+                                  <select
+                                    value={entry.appointmentDuration || 30}
+                                    onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                  >
+                                    <option value={10}>10 minutes</option>
+                                    <option value={15}>15 minutes</option>
+                                    <option value={30}>30 minutes</option>
+                                    <option value={45}>45 minutes</option>
+                                    <option value={60}>60 minutes</option>
+                                    <option value={90}>90 minutes</option>
+                                  </select>
                                 </div>
-                              </label>
-                            </>
-                          )}
-                        </div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+
+                        {/* Add Calendar button */}
+                        <button
+                          type="button"
+                          onClick={addCalendarEntry}
+                          className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                        >
+                          + Add Calendar
+                        </button>
                       </div>
                     </>
                   )}
@@ -2691,7 +3030,8 @@ After the function returns success, confirm: "Your appointment is booked for [da
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Advanced Options Modal */}
       {showAdvancedModal && (
