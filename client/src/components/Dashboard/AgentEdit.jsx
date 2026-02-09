@@ -2564,7 +2564,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
             : null
 
           return (
-            <div className="relative">
+            <div>
               <button
                 type="button"
                 onClick={() => setShowProviderDropdown(showProviderDropdown === dropdownId ? false : dropdownId)}
@@ -2589,13 +2589,12 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 ) : (
                   <span className="text-sm text-gray-400">Select a provider</span>
                 )}
-                <svg className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 ml-auto transition-transform ${showProviderDropdown === dropdownId ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
-              {showProviderDropdown === dropdownId && <div className="fixed inset-0 z-40" onClick={() => setShowProviderDropdown(false)} />}
-              <div className={`${showProviderDropdown === dropdownId ? '' : 'hidden'} absolute z-50 mt-1 w-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg max-h-64 overflow-y-auto`}>
+              <div className={`${showProviderDropdown === dropdownId ? '' : 'hidden'} mt-1 w-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg max-h-64 overflow-y-auto`}>
                 {connectedAccounts.length > 0 && (
                   <>
                     <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">Connected</div>
