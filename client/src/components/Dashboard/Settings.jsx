@@ -73,6 +73,17 @@ const SETTINGS_ITEMS = [
     roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
   },
   {
+    id: 'slack',
+    label: 'settings.slack',
+    description: 'settings.slackDesc',
+    icon: (
+      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.163 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.163 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.163 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 0 1-2.52-2.523 2.527 2.527 0 0 1 2.52-2.52h6.315A2.528 2.528 0 0 1 24 15.163a2.528 2.528 0 0 1-2.522 2.523h-6.315z"/>
+      </svg>
+    ),
+    roles: [ROLES.OWNER]
+  },
+  {
     id: 'account',
     label: 'settings.account',
     description: 'settings.accountDesc',
@@ -193,6 +204,7 @@ export default function Settings() {
         {activeTab === 'api-keys' && isOwner && <APIKeysTab />}
         {activeTab === 'billing' && <BillingTab />}
         {activeTab === 'branding' && <BrandingTab />}
+        {activeTab === 'slack' && isOwner && <SlackTab />}
         {activeTab === 'account' && <AccountTab />}
       </div>
     </div>
@@ -1882,6 +1894,147 @@ function APIKeysTab() {
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
             {saving ? 'Saving...' : hasElevenLabs ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SlackTab() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [hasSlackWebhook, setHasSlackWebhook] = useState(false)
+  const [maskedUrl, setMaskedUrl] = useState('')
+  const { t } = useLanguage()
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  const fetchSettings = async () => {
+    setLoading(true)
+    try {
+      const { data } = await platformSettingsAPI.get()
+      setHasSlackWebhook(data.hasSlackWebhook)
+      setMaskedUrl(data.slackWebhookUrl || '')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load settings')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSave = async () => {
+    setError('')
+    setSuccess('')
+    setSaving(true)
+    try {
+      const { data } = await platformSettingsAPI.update({ slackWebhookUrl: webhookUrl })
+      setHasSlackWebhook(data.hasSlackWebhook)
+      setMaskedUrl(data.slackWebhookUrl || '')
+      setWebhookUrl('')
+      setSuccess(t('settings.slackSaved'))
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save webhook')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemove = async () => {
+    if (!confirm(t('settings.slackRemoveConfirm'))) return
+    setError('')
+    setSuccess('')
+    setSaving(true)
+    try {
+      const { data } = await platformSettingsAPI.update({ slackWebhookUrl: '' })
+      setHasSlackWebhook(data.hasSlackWebhook)
+      setMaskedUrl(data.slackWebhookUrl || '')
+      setSuccess(t('settings.slackRemoved'))
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to remove webhook')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
+          {success}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center gap-3 mb-2">
+          <svg className="w-6 h-6 text-primary-500" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.163 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.163 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.163 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 0 1-2.52-2.523 2.527 2.527 0 0 1 2.52-2.52h6.315A2.528 2.528 0 0 1 24 15.163a2.528 2.528 0 0 1-2.522 2.523h-6.315z"/>
+          </svg>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('settings.slackTitle')}</h2>
+        </div>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">{t('settings.slackSubtitle')}</p>
+      </div>
+
+      {/* Webhook URL */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('settings.slackWebhookUrl')}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('settings.slackWebhookHint')}</p>
+          </div>
+          {hasSlackWebhook && (
+            <span className="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full">Active</span>
+          )}
+        </div>
+
+        {hasSlackWebhook && (
+          <div className="mb-4 flex items-center justify-between bg-gray-50 dark:bg-dark-hover p-3 rounded-lg">
+            <code className="text-sm text-gray-600 dark:text-gray-300 font-mono">{maskedUrl}</code>
+            <button
+              onClick={handleRemove}
+              disabled={saving}
+              className="ml-3 px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 text-xs font-medium disabled:opacity-50"
+            >
+              {t('settings.slackRemove')}
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <input
+            type="password"
+            value={webhookUrl}
+            onChange={(e) => setWebhookUrl(e.target.value)}
+            placeholder={hasSlackWebhook ? 'Enter new URL to replace...' : t('settings.slackWebhookPlaceholder')}
+            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+          />
+          <button
+            onClick={handleSave}
+            disabled={saving || !webhookUrl.trim()}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {saving ? 'Saving...' : hasSlackWebhook ? 'Update' : t('settings.slackSave')}
           </button>
         </div>
       </div>

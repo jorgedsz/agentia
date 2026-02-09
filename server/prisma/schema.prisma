@@ -113,6 +113,7 @@ model PlatformSettings {
   vapiPublicKey      String?  // Encrypted - VAPI Public Key for web SDK
   openaiApiKey       String?  // Encrypted
   elevenLabsApiKey   String?  // Encrypted - ElevenLabs API Key for voice library
+  slackWebhookUrl    String?  // Encrypted - Slack incoming webhook URL
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

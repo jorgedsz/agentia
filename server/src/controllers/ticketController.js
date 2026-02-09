@@ -1,3 +1,27 @@
+const axios = require('axios');
+const { decrypt } = require('../utils/encryption');
+
+/**
+ * Fire-and-forget Slack webhook notification for ticket events.
+ * Reads the encrypted webhook URL from PlatformSettings, decrypts it, and POSTs the payload.
+ * Errors are logged but never thrown.
+ */
+const sendSlackNotification = async (prisma, payload) => {
+  try {
+    const settings = await prisma.platformSettings.findFirst();
+    if (!settings?.slackWebhookUrl) return;
+
+    const webhookUrl = decrypt(settings.slackWebhookUrl);
+    if (!webhookUrl) return;
+
+    axios.post(webhookUrl, payload).catch(err => {
+      console.error('Slack webhook delivery failed:', err.message);
+    });
+  } catch (error) {
+    console.error('Slack notification error:', error.message);
+  }
+};
+
 const listTickets = async (req, res) => {
   try {
     const { status } = req.query;
@@ -105,6 +129,19 @@ const createTicket = async (req, res) => {
       }
     });
 
+    sendSlackNotification(req.prisma, {
+      text: `🎫 New ticket #${ticket.id}: *${ticket.title}*`,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `🎫 *New Support Ticket #${ticket.id}*\n*Title:* ${ticket.title}\n*Priority:* ${ticket.priority}\n*Category:* ${ticket.category}\n*Created by:* ${ticket.user.name || ticket.user.email}`
+          }
+        }
+      ]
+    });
+
     res.status(201).json(ticket);
   } catch (error) {
     console.error('Error creating ticket:', error);
@@ -182,6 +219,19 @@ const updateStatus = async (req, res) => {
       data: { status }
     });
 
+    sendSlackNotification(req.prisma, {
+      text: `🔄 Ticket #${id} status changed to ${status}`,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `🔄 *Ticket #${id} Status Updated*\n*Title:* ${ticket.title}\n*New Status:* ${status}\n*Updated by:* ${user.name || user.email}`
+          }
+        }
+      ]
+    });
+
     res.json(updated);
   } catch (error) {
     console.error('Error updating ticket status:', error);
@@ -244,6 +294,20 @@ const addReply = async (req, res) => {
         data: { status: 'in_progress' }
       });
     }
+
+    const truncatedMsg = message.length > 200 ? message.slice(0, 200) + '...' : message;
+    sendSlackNotification(req.prisma, {
+      text: `💬 New reply on ticket #${id}: ${ticket.title}`,
+      blocks: [
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `💬 *New Reply on Ticket #${id}*\n*Title:* ${ticket.title}\n*From:* ${user.name || user.email} (${isStaff ? 'Staff' : 'User'})\n*Message:* ${truncatedMsg}`
+          }
+        }
+      ]
+    });
 
     res.status(201).json(reply);
   } catch (error) {
