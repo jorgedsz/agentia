@@ -557,6 +557,8 @@ export default function AgentEdit() {
 
   // Per-calendar-entry dropdown data: { [entryId]: { calendars: [], loading: false, error: '' } }
   const [providerCalendarsMap, setProviderCalendarsMap] = useState({})
+  // Track which multi-calendar entry is expanded (null = all collapsed)
+  const [expandedCalendarEntry, setExpandedCalendarEntry] = useState(null)
 
   // GHL Integration state (legacy)
   const [ghlStatus, setGhlStatus] = useState({ isConnected: false, locationId: null, locationName: null })
@@ -809,6 +811,7 @@ export default function AgentEdit() {
           { id: newId, name: '', scenario: '', provider: '', integrationId: '', calendarId: '', timezone: 'America/New_York', appointmentDuration: 30 }
         ]
       }))
+      setExpandedCalendarEntry(newId)
     } else {
       // Already in multi-mode, just add a new entry
       setCalendarConfig(prev => ({
@@ -818,6 +821,7 @@ export default function AgentEdit() {
           { id: newId, name: '', scenario: '', provider: '', integrationId: '', calendarId: '', timezone: 'America/New_York', appointmentDuration: 30 }
         ]
       }))
+      setExpandedCalendarEntry(newId)
     }
   }
 
@@ -2901,110 +2905,137 @@ After the function returns success, confirm: "Your appointment is booked for [da
                   {isMultiCalendarMode && (
                     <>
                       <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-4">
-                        {calendarConfig.calendars.map((entry, idx) => (
-                          <div key={entry.id} className="border border-gray-200 dark:border-dark-border rounded-lg p-4 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Calendar {idx + 1}</h4>
+                        {calendarConfig.calendars.map((entry, idx) => {
+                          const isExpanded = expandedCalendarEntry === entry.id
+                          const providerLabel = PROVIDER_NAMES[entry.provider] || ''
+                          const subtitle = entry.name || `Calendar ${idx + 1}`
+
+                          return (
+                          <div key={entry.id} className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+                            {/* Collapsible header */}
+                            <button
+                              type="button"
+                              onClick={() => setExpandedCalendarEntry(isExpanded ? null : entry.id)}
+                              className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-dark-hover text-left hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
+                            >
+                              <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-semibold text-gray-900 dark:text-white">{subtitle}</span>
+                                {providerLabel && (
+                                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{providerLabel}</span>
+                                )}
+                              </div>
+                              {entry.calendarId && (
+                                <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                              )}
                               <button
                                 type="button"
-                                onClick={() => removeCalendarEntry(entry.id)}
-                                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                onClick={(e) => { e.stopPropagation(); removeCalendarEntry(entry.id) }}
+                                className="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
                                 title="Remove calendar"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                               </button>
-                            </div>
+                            </button>
 
-                            {/* Name */}
-                            <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Name *</label>
-                              <input
-                                type="text"
-                                value={entry.name}
-                                onChange={(e) => updateCalendarEntry(entry.id, { name: e.target.value })}
-                                placeholder="e.g., Sales Consultation"
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                              />
-                            </div>
-
-                            {/* Scenario */}
-                            <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Scenario *</label>
-                              <textarea
-                                value={entry.scenario}
-                                onChange={(e) => updateCalendarEntry(entry.id, { scenario: e.target.value })}
-                                placeholder="e.g., Use when customer wants a sales demo"
-                                rows={2}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none"
-                              />
-                            </div>
-
-                            {/* Provider */}
-                            <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Provider *</label>
-                              {renderProviderDropdown(
-                                entry.provider,
-                                entry.integrationId,
-                                (provider, integrationId) => {
-                                  updateCalendarEntry(entry.id, { provider, integrationId, calendarId: '' })
-                                  if (provider === 'ghl' && !integrationId) {
-                                    fetchGhlCalendars()
-                                  } else if (integrationId) {
-                                    fetchCalendarsForEntry(entry.id, integrationId)
-                                  }
-                                },
-                                `multi-${entry.id}`
-                              )}
-                            </div>
-
-                            {renderNotConnectedWarning(entry.provider, entry.integrationId)}
-
-                            {/* Calendar dropdown */}
-                            {renderCalendarDropdown(
-                              entry.provider,
-                              entry.integrationId,
-                              entry.calendarId,
-                              entry.timezone,
-                              (calendarId, timezone) => updateCalendarEntry(entry.id, { calendarId, timezone }),
-                              entry.id
-                            )}
-
-                            {/* Timezone */}
-                            {entry.provider && (
-                              <>
+                            {/* Expandable content */}
+                            {isExpanded && (
+                              <div className="p-4 space-y-3 border-t border-gray-200 dark:border-dark-border">
+                                {/* Name */}
                                 <div>
-                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
-                                  <select
-                                    value={entry.timezone}
-                                    onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
+                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Name *</label>
+                                  <input
+                                    type="text"
+                                    value={entry.name}
+                                    onChange={(e) => updateCalendarEntry(entry.id, { name: e.target.value })}
+                                    placeholder="e.g., Sales Consultation"
                                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                                  >
-                                    {TIMEZONES.map(tz => (
-                                      <option key={tz} value={tz}>{tz}</option>
-                                    ))}
-                                  </select>
+                                  />
                                 </div>
+
+                                {/* Scenario */}
                                 <div>
-                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Duration</label>
-                                  <select
-                                    value={entry.appointmentDuration || 30}
-                                    onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                                  >
-                                    <option value={10}>10 minutes</option>
-                                    <option value={15}>15 minutes</option>
-                                    <option value={30}>30 minutes</option>
-                                    <option value={45}>45 minutes</option>
-                                    <option value={60}>60 minutes</option>
-                                    <option value={90}>90 minutes</option>
-                                  </select>
+                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Scenario *</label>
+                                  <textarea
+                                    value={entry.scenario}
+                                    onChange={(e) => updateCalendarEntry(entry.id, { scenario: e.target.value })}
+                                    placeholder="e.g., Use when customer wants a sales demo"
+                                    rows={2}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none"
+                                  />
                                 </div>
-                              </>
+
+                                {/* Provider */}
+                                <div>
+                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Provider *</label>
+                                  {renderProviderDropdown(
+                                    entry.provider,
+                                    entry.integrationId,
+                                    (provider, integrationId) => {
+                                      updateCalendarEntry(entry.id, { provider, integrationId, calendarId: '' })
+                                      if (provider === 'ghl' && !integrationId) {
+                                        fetchGhlCalendars()
+                                      } else if (integrationId) {
+                                        fetchCalendarsForEntry(entry.id, integrationId)
+                                      }
+                                    },
+                                    `multi-${entry.id}`
+                                  )}
+                                </div>
+
+                                {renderNotConnectedWarning(entry.provider, entry.integrationId)}
+
+                                {/* Calendar dropdown */}
+                                {renderCalendarDropdown(
+                                  entry.provider,
+                                  entry.integrationId,
+                                  entry.calendarId,
+                                  entry.timezone,
+                                  (calendarId, timezone) => updateCalendarEntry(entry.id, { calendarId, timezone }),
+                                  entry.id
+                                )}
+
+                                {/* Timezone & Duration */}
+                                {entry.provider && (
+                                  <>
+                                    <div>
+                                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
+                                      <select
+                                        value={entry.timezone}
+                                        onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                      >
+                                        {TIMEZONES.map(tz => (
+                                          <option key={tz} value={tz}>{tz}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Duration</label>
+                                      <select
+                                        value={entry.appointmentDuration || 30}
+                                        onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                      >
+                                        <option value={10}>10 minutes</option>
+                                        <option value={15}>15 minutes</option>
+                                        <option value={30}>30 minutes</option>
+                                        <option value={45}>45 minutes</option>
+                                        <option value={60}>60 minutes</option>
+                                        <option value={90}>90 minutes</option>
+                                      </select>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             )}
                           </div>
-                        ))}
+                          )
+                        })}
 
                         {/* Add Calendar button */}
                         <button
