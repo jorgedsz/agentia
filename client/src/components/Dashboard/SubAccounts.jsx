@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 import { authAPI } from '../../services/api'
 
 const ROLES = {
@@ -10,6 +11,7 @@ const ROLES = {
 
 export default function SubAccounts() {
   const { user, switchAccount, isImpersonating } = useAuth()
+  const { t } = useLanguage()
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [switching, setSwitching] = useState(null)
@@ -82,9 +84,9 @@ export default function SubAccounts() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Access Restricted</h3>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('subAccounts.accessRestricted')}</h3>
         <p className="text-gray-500 dark:text-gray-400">
-          Only Owners and Agencies can access sub-accounts.
+          {t('subAccounts.onlyOwnersAgencies')}
         </p>
       </div>
     )
@@ -99,7 +101,7 @@ export default function SubAccounts() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <p className="text-sm text-yellow-400">
-            You are currently viewing as another account. Switch back to access sub-accounts.
+            {t('subAccounts.impersonatingWarning')}
           </p>
         </div>
       )}
@@ -120,16 +122,16 @@ export default function SubAccounts() {
             </svg>
           </div>
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Sub-Account Access</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('subAccounts.title')}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               {user?.role === ROLES.OWNER
-                ? 'As an Owner, you can access any agency or client account.'
-                : 'Access your client accounts to manage their settings and agents.'}
+                ? t('subAccounts.ownerDesc')
+                : t('subAccounts.agencyDesc')}
             </p>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold text-gray-900 dark:text-white">{accounts.length}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Accessible Accounts</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">{t('subAccounts.accessibleAccounts')}</div>
           </div>
         </div>
       </div>
@@ -139,7 +141,7 @@ export default function SubAccounts() {
         <div className="flex-1">
           <input
             type="text"
-            placeholder="Search by name or email..."
+            placeholder={t('allUsers.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full px-4 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -155,7 +157,7 @@ export default function SubAccounts() {
                   : 'bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover'
               }`}
             >
-              All
+              {t('common.all')}
             </button>
             <button
               onClick={() => setFilter(ROLES.AGENCY)}
@@ -165,7 +167,7 @@ export default function SubAccounts() {
                   : 'bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover'
               }`}
             >
-              Agencies
+              {t('sidebar.agencies')}
             </button>
             <button
               onClick={() => setFilter(ROLES.CLIENT)}
@@ -175,7 +177,7 @@ export default function SubAccounts() {
                   : 'bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover'
               }`}
             >
-              Clients
+              {t('sidebar.clients')}
             </button>
           </div>
         )}
@@ -190,14 +192,14 @@ export default function SubAccounts() {
             </svg>
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {search ? 'No Matching Accounts' : 'No Accounts Available'}
+            {search ? t('subAccounts.noMatchingAccounts') : t('subAccounts.noAccountsAvailable')}
           </h3>
           <p className="text-gray-500 dark:text-gray-400">
             {search
-              ? 'Try adjusting your search terms.'
+              ? t('subAccounts.adjustSearch')
               : user?.role === ROLES.AGENCY
-                ? 'Create clients to access their accounts.'
-                : 'No agencies or clients have been created yet.'}
+                ? t('subAccounts.createClients')
+                : t('subAccounts.noCreatedYet')}
           </p>
         </div>
       ) : (
@@ -206,7 +208,7 @@ export default function SubAccounts() {
           {user?.role === ROLES.OWNER && agencies.length > 0 && (filter === 'all' || filter === ROLES.AGENCY) && (
             <div>
               <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                Agencies ({agencies.length})
+                {t('sidebar.agencies')} ({agencies.length})
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {agencies.map((account) => (
@@ -226,7 +228,7 @@ export default function SubAccounts() {
           {clients.length > 0 && (filter === 'all' || filter === ROLES.CLIENT) && (
             <div>
               <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                Clients ({clients.length})
+                {t('sidebar.clients')} ({clients.length})
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {clients.map((account) => (
@@ -248,6 +250,7 @@ export default function SubAccounts() {
 }
 
 function AccountCard({ account, onSwitch, switching, getRoleBadgeColor }) {
+  const { t } = useLanguage()
   return (
     <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5 hover:border-primary-500/50 transition-colors">
       <div className="flex items-start justify-between mb-3">
@@ -270,12 +273,12 @@ function AccountCard({ account, onSwitch, switching, getRoleBadgeColor }) {
       {/* Stats */}
       <div className="flex gap-4 mb-4 text-sm">
         <div>
-          <span className="text-gray-500 dark:text-gray-400">Agents: </span>
+          <span className="text-gray-500 dark:text-gray-400">{t('subAccounts.agents')}</span>
           <span className="font-medium text-gray-900 dark:text-white">{account._count?.agents || 0}</span>
         </div>
         {account._count?.clients !== undefined && (
           <div>
-            <span className="text-gray-500 dark:text-gray-400">Clients: </span>
+            <span className="text-gray-500 dark:text-gray-400">{t('subAccounts.clientsLabel')}</span>
             <span className="font-medium text-gray-900 dark:text-white">{account._count.clients}</span>
           </div>
         )}
@@ -296,14 +299,14 @@ function AccountCard({ account, onSwitch, switching, getRoleBadgeColor }) {
         {switching === account.id ? (
           <>
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            Switching...
+            {t('common.switching')}
           </>
         ) : (
           <>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
             </svg>
-            Access Account
+            {t('common.accessAccount')}
           </>
         )}
       </button>

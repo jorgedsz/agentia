@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, brandingAPI } from '../../services/api'
+import { useLanguage } from '../../context/LanguageContext'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -18,8 +19,8 @@ const TEAM_ROLES = {
 const SETTINGS_ITEMS = [
   {
     id: 'team',
-    label: 'Team Access',
-    description: 'Manage team members and permissions',
+    label: 'settings.teamAccess',
+    description: 'settings.teamAccessDesc',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -29,8 +30,8 @@ const SETTINGS_ITEMS = [
   },
   {
     id: 'calendars',
-    label: 'Calendars',
-    description: 'Calendar provider integrations',
+    label: 'settings.calendars',
+    description: 'settings.calendarsDesc',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -40,8 +41,8 @@ const SETTINGS_ITEMS = [
   },
   {
     id: 'api-keys',
-    label: 'API Keys',
-    description: 'Platform API configuration',
+    label: 'settings.apiKeys',
+    description: 'settings.apiKeysDesc',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -51,8 +52,8 @@ const SETTINGS_ITEMS = [
   },
   {
     id: 'billing',
-    label: 'Billing & Rates',
-    description: 'View your billing rates',
+    label: 'settings.billing',
+    description: 'settings.billingDesc',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -62,8 +63,8 @@ const SETTINGS_ITEMS = [
   },
   {
     id: 'branding',
-    label: 'Branding',
-    description: 'Logo and company name',
+    label: 'settings.branding',
+    description: 'settings.brandingDesc',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
@@ -73,8 +74,8 @@ const SETTINGS_ITEMS = [
   },
   {
     id: 'account',
-    label: 'Account',
-    description: 'Profile and security settings',
+    label: 'settings.account',
+    description: 'settings.accountDesc',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -87,6 +88,7 @@ const SETTINGS_ITEMS = [
 export default function Settings() {
   const [searchParams] = useSearchParams()
   const { user } = useAuth()
+  const { t } = useLanguage()
   const tabParam = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState(tabParam === 'ghl' ? 'calendars' : (tabParam || 'team'))
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -106,7 +108,7 @@ export default function Settings() {
       <div className="lg:hidden">
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Settings
+            {t('settings.title')}
           </label>
           <div className="relative">
             <select
@@ -116,7 +118,7 @@ export default function Settings() {
             >
               {visibleItems.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.label}
+                  {t(item.label)}
                 </option>
               ))}
             </select>
@@ -127,7 +129,7 @@ export default function Settings() {
             </div>
           </div>
           {activeItem && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{activeItem.description}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{t(activeItem.description)}</p>
           )}
         </div>
       </div>
@@ -138,14 +140,14 @@ export default function Settings() {
           <div className={`flex items-center justify-between border-b border-gray-200 dark:border-dark-border ${sidebarCollapsed ? 'p-2' : 'p-4'}`}>
             {!sidebarCollapsed && (
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Settings</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your account</p>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.title')}</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('settings.manageAccount')}</p>
               </div>
             )}
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               className={`p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors ${sidebarCollapsed ? 'mx-auto' : ''}`}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={sidebarCollapsed ? t('settings.expandSidebar') : t('settings.collapseSidebar')}
             >
               <svg className={`w-5 h-5 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
@@ -157,7 +159,7 @@ export default function Settings() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                title={sidebarCollapsed ? item.label : undefined}
+                title={sidebarCollapsed ? t(item.label) : undefined}
                 className={`w-full flex items-start gap-3 p-3 rounded-lg text-left transition-colors ${
                   activeTab === item.id
                     ? 'bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400'
@@ -170,10 +172,10 @@ export default function Settings() {
                 {!sidebarCollapsed && (
                   <div>
                     <div className={`font-medium text-sm ${activeTab === item.id ? 'text-primary-600 dark:text-primary-400' : ''}`}>
-                      {item.label}
+                      {t(item.label)}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {item.description}
+                      {t(item.description)}
                     </div>
                   </div>
                 )}
@@ -200,26 +202,27 @@ export default function Settings() {
 // Billing Tab
 function BillingTab() {
   const { user } = useAuth()
+  const { t } = useLanguage()
 
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Billing & Rates</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.billingTitle')}</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Your current call rates and billing information.
+          {t('settings.billingSubtitle')}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4">
-            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Outbound Rate</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('settings.outboundRate')}</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              ${(user?.outboundRate ?? 0.10).toFixed(2)}<span className="text-sm font-normal text-gray-500">/min</span>
+              ${(user?.outboundRate ?? 0.10).toFixed(2)}<span className="text-sm font-normal text-gray-500">{t('settings.perMin')}</span>
             </div>
           </div>
           <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4">
-            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Inbound Rate</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('settings.inboundRate')}</div>
             <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              ${(user?.inboundRate ?? 0.05).toFixed(2)}<span className="text-sm font-normal text-gray-500">/min</span>
+              ${(user?.inboundRate ?? 0.05).toFixed(2)}<span className="text-sm font-normal text-gray-500">{t('settings.perMin')}</span>
             </div>
           </div>
         </div>
@@ -230,9 +233,9 @@ function BillingTab() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-400">Billing Information</p>
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-400">{t('settings.billingInfoTitle')}</p>
               <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
-                Calls are billed per minute based on your account rates. Contact your administrator to adjust rates.
+                {t('settings.billingInfoDesc')}
               </p>
             </div>
           </div>
@@ -245,18 +248,19 @@ function BillingTab() {
 // Account Tab
 function AccountTab() {
   const { user } = useAuth()
+  const { t } = useLanguage()
 
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account Information</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.accountInfo')}</h2>
 
         <div className="flex items-center gap-4 mb-6">
           <div className="w-16 h-16 rounded-full bg-primary-600 flex items-center justify-center text-white text-2xl font-medium">
             {(user?.name || user?.email)?.[0]?.toUpperCase() || 'U'}
           </div>
           <div>
-            <div className="text-lg font-semibold text-gray-900 dark:text-white">{user?.name || 'Unnamed User'}</div>
+            <div className="text-lg font-semibold text-gray-900 dark:text-white">{user?.name || t('settings.unnamedUser')}</div>
             <div className="text-sm text-gray-500 dark:text-gray-400">{user?.email}</div>
             <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
               user?.role === ROLES.OWNER
@@ -272,17 +276,17 @@ function AccountTab() {
 
         <div className="space-y-4">
           <div className="flex justify-between py-3 border-b border-gray-200 dark:border-dark-border">
-            <span className="text-sm text-gray-500 dark:text-gray-400">Account ID</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{t('settings.accountId')}</span>
             <span className="text-sm font-mono text-gray-900 dark:text-white">{user?.id}</span>
           </div>
           <div className="flex justify-between py-3 border-b border-gray-200 dark:border-dark-border">
-            <span className="text-sm text-gray-500 dark:text-gray-400">Member Since</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{t('settings.memberSince')}</span>
             <span className="text-sm text-gray-900 dark:text-white">
               {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
             </span>
           </div>
           <div className="flex justify-between py-3">
-            <span className="text-sm text-gray-500 dark:text-gray-400">Credits Balance</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{t('settings.creditsBalance')}</span>
             <span className="text-sm font-medium text-green-500">${(user?.vapiCredits ?? 0).toFixed(2)}</span>
           </div>
         </div>

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { phoneNumbersAPI, agentsAPI, twilioAPI } from '../../services/api'
+import { useLanguage } from '../../context/LanguageContext'
 
 export default function PhoneNumbers() {
+  const { t } = useLanguage()
   const [phoneNumbers, setPhoneNumbers] = useState([])
   const [availableNumbers, setAvailableNumbers] = useState([])
   const [agents, setAgents] = useState([])
@@ -147,12 +149,12 @@ export default function PhoneNumbers() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Set Up Twilio First</h3>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('phoneNumbers.setupTwilioFirst')}</h3>
         <p className="text-gray-500 dark:text-gray-400 mb-4">
-          You need to configure your Twilio credentials before you can manage phone numbers.
+          {t('phoneNumbers.setupTwilioDesc')}
         </p>
         <p className="text-sm text-gray-400 dark:text-gray-500">
-          Go to Twilio Setup in the sidebar to add your credentials.
+          {t('phoneNumbers.goToTwilioSetup')}
         </p>
       </div>
     )
@@ -167,12 +169,12 @@ export default function PhoneNumbers() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Verify Your Credentials</h3>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('phoneNumbers.verifyFirst')}</h3>
         <p className="text-gray-500 dark:text-gray-400 mb-4">
-          Please verify your Twilio credentials before managing phone numbers.
+          {t('phoneNumbers.verifyFirstDesc')}
         </p>
         <p className="text-sm text-gray-400 dark:text-gray-500">
-          Go to Twilio Setup and click "Verify Credentials".
+          {t('phoneNumbers.goVerify')}
         </p>
       </div>
     )
@@ -196,9 +198,9 @@ export default function PhoneNumbers() {
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
         <div className="p-6 border-b border-gray-200 dark:border-dark-border flex justify-between items-center">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Your Phone Numbers</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('phoneNumbers.title')}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Manage phone numbers imported from your Twilio account
+              {t('phoneNumbers.subtitle')}
             </p>
           </div>
           <button
@@ -209,14 +211,14 @@ export default function PhoneNumbers() {
             {loadingAvailable ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Loading...
+                {t('common.loading')}
               </>
             ) : (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Import Number
+                {t('phoneNumbers.importNumber')}
               </>
             )}
           </button>
@@ -229,27 +231,27 @@ export default function PhoneNumbers() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No Phone Numbers Yet</h3>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('phoneNumbers.noPhoneNumbers')}</h3>
             <p className="text-gray-500 dark:text-gray-400 mb-4">
-              Import phone numbers from your Twilio account to use with your AI agents.
+              {t('phoneNumbers.importDescription')}
             </p>
             <button
               onClick={fetchAvailableNumbers}
               disabled={loadingAvailable}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
-              Import Your First Number
+              {t('phoneNumbers.importFirst')}
             </button>
           </div>
         ) : (
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-dark-hover">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Phone Number</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Friendly Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Assigned Agent</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('callLogs.phoneNumber')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('phoneNumbers.friendlyName')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.status')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('phoneNumbers.assignedAgent')}</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
@@ -273,7 +275,7 @@ export default function PhoneNumbers() {
                         {number.agent.name}
                       </span>
                     ) : (
-                      <span className="text-gray-400">Not assigned</span>
+                      <span className="text-gray-400">{t('phoneNumbers.notAssigned')}</span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-right space-x-2">
@@ -282,21 +284,21 @@ export default function PhoneNumbers() {
                         onClick={() => handleUnassign(number.id)}
                         className="text-yellow-500 hover:text-yellow-600 text-sm"
                       >
-                        Unassign
+                        {t('common.unassign')}
                       </button>
                     ) : (
                       <button
                         onClick={() => setShowAssignModal(number)}
                         className="text-primary-500 hover:text-primary-600 text-sm"
                       >
-                        Assign
+                        {t('common.assign')}
                       </button>
                     )}
                     <button
                       onClick={() => handleRemove(number)}
                       className="text-red-500 hover:text-red-600 text-sm ml-3"
                     >
-                      Remove
+                      {t('common.remove')}
                     </button>
                   </td>
                 </tr>
@@ -311,7 +313,7 @@ export default function PhoneNumbers() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden border border-gray-200 dark:border-dark-border">
             <div className="p-6 border-b border-gray-200 dark:border-dark-border flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Import Phone Number</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('phoneNumbers.importPhoneNumber')}</h2>
               <button
                 onClick={() => setShowImportModal(false)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
@@ -325,7 +327,7 @@ export default function PhoneNumbers() {
             <div className="p-6 overflow-y-auto max-h-[60vh]">
               {availableNumbers.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-gray-500 dark:text-gray-400">No phone numbers found in your Twilio account.</p>
+                  <p className="text-gray-500 dark:text-gray-400">{t('phoneNumbers.noNumbersFound')}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -354,14 +356,14 @@ export default function PhoneNumbers() {
                           </div>
                         </div>
                         {number.isImported ? (
-                          <span className="text-sm text-gray-400">Already imported</span>
+                          <span className="text-sm text-gray-400">{t('phoneNumbers.alreadyImported')}</span>
                         ) : (
                           <button
                             onClick={() => handleImport(number)}
                             disabled={importing === number.sid}
                             className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
                           >
-                            {importing === number.sid ? 'Importing...' : 'Import'}
+                            {importing === number.sid ? t('phoneNumbers.importing') : t('common.import')}
                           </button>
                         )}
                       </div>
@@ -379,7 +381,7 @@ export default function PhoneNumbers() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-dark-card rounded-xl shadow-xl max-w-md w-full border border-gray-200 dark:border-dark-border">
             <div className="p-6 border-b border-gray-200 dark:border-dark-border flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Assign to Agent</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">{t('phoneNumbers.assignToAgent')}</h2>
               <button
                 onClick={() => setShowAssignModal(null)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
@@ -392,12 +394,12 @@ export default function PhoneNumbers() {
 
             <div className="p-6">
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                Select an agent to handle calls for <span className="font-medium text-gray-900 dark:text-white">{showAssignModal.phoneNumber}</span>
+                {t('phoneNumbers.selectAgent', { number: showAssignModal.phoneNumber })}
               </p>
 
               {agents.length === 0 ? (
                 <div className="text-center py-4">
-                  <p className="text-gray-500 dark:text-gray-400">No agents available. Create an agent first.</p>
+                  <p className="text-gray-500 dark:text-gray-400">{t('phoneNumbers.noAgentsAvailable')}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -411,7 +413,7 @@ export default function PhoneNumbers() {
                         <div>
                           <div className="font-medium text-gray-900 dark:text-white">{agent.name}</div>
                           {agent.vapiId && (
-                            <div className="text-xs text-green-500">VAPI Connected</div>
+                            <div className="text-xs text-green-500">{t('phoneNumbers.vapiConnected')}</div>
                           )}
                         </div>
                         <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -429,7 +431,7 @@ export default function PhoneNumbers() {
                 onClick={() => setShowAssignModal(null)}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

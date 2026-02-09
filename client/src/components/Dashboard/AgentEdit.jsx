@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, platformSettingsAPI, voicesAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 
 const LANGUAGES = [
   { id: 'en', label: 'English' },
@@ -490,6 +491,8 @@ export default function AgentEdit() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t } = useLanguage()
+  const ta = (key) => t('agentEdit.' + key)
 
   const [agent, setAgent] = useState(null)
   const [agentType, setAgentType] = useState('outbound')
@@ -1512,12 +1515,12 @@ After the function returns success, confirm: "Your appointment is booked for [da
     return (
       <div className="p-6">
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-12 text-center">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Agent not found</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{ta('notFound')}</h2>
           <button
             onClick={() => navigate('/dashboard/agents')}
             className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
           >
-            Back to Agents
+            {ta('backToDashboard')}
           </button>
         </div>
       </div>
@@ -1528,7 +1531,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg">
       {/* Breadcrumb */}
       <div className="flex items-center justify-between px-6 py-3 text-sm text-gray-500">
-        <span>Saved Agents</span>
+        <span>{t('agents.title')}</span>
         <div className="flex items-center gap-2">
           <button onClick={() => navigate('/dashboard')} className="hover:text-primary-600">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1536,7 +1539,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
             </svg>
           </button>
           <span>/</span>
-          <span>Saved Agents</span>
+          <span>{t('agents.title')}</span>
         </div>
       </div>
 
@@ -1549,10 +1552,10 @@ After the function returns success, confirm: "Your appointment is booked for [da
               Edit - {name || 'AI Conversation Assistant'}
             </h1>
             <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${agentType === 'inbound' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
-              {agentType === 'inbound' ? 'Inbound' : 'Outbound'}
+              {agentType === 'inbound' ? ta('inbound') : ta('outbound')}
             </span>
             <span className={`px-2 py-0.5 text-xs rounded-full ${agent.vapiId ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-              {agent.vapiId ? 'Connected' : 'Local'}
+              {agent.vapiId ? ta('connected') : ta('local')}
             </span>
           </div>
           <button
@@ -1582,13 +1585,13 @@ After the function returns success, confirm: "Your appointment is booked for [da
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
-                AI Provider
+                {ta('aiProvider')}
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
               <div className="relative">
-                <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">Select Provider</label>
+                <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">{ta('selectProvider')}</label>
                 <select
                   value={modelProvider}
                   onChange={(e) => {
@@ -1613,13 +1616,13 @@ After the function returns success, confirm: "Your appointment is booked for [da
 
             <div>
               <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
-                AI Model
+                {ta('llmModel')}
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
               <div className="relative">
-                <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">Select Model</label>
+                <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">{ta('selectModel')}</label>
                 <select
                   value={modelName}
                   onChange={(e) => setModelName(e.target.value)}
@@ -1641,13 +1644,13 @@ After the function returns success, confirm: "Your appointment is booked for [da
           {/* Opening Message */}
           <div>
             <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
-              Opening Message
+              {ta('firstMessage')}
               <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </label>
             <div className="relative">
-              <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">Opening Message</label>
+              <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">{ta('firstMessage')}</label>
               <input
                 type="text"
                 value={firstMessage}
@@ -1660,7 +1663,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
 
           {/* Voice Selection - Card-based picker */}
           <div>
-            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">Voice</label>
+            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">{ta('voice')}</label>
             <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -1672,7 +1675,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {TTS_LATENCY['11labs']}ms latency
+                  {TTS_LATENCY['11labs']}ms {ta('latency').toLowerCase()}
                 </p>
               </div>
               <button
@@ -1680,7 +1683,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 onClick={openVoicePicker}
                 className="px-3 py-1.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors"
               >
-                Change Voice
+                {ta('changeVoice')}
               </button>
             </div>
           </div>
@@ -1691,7 +1694,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Transcriber Provider */}
             <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">Transcriber</label>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">{ta('transcriberProvider')}</label>
               <div className="relative">
                 <select
                   value={transcriberProvider}
@@ -1722,7 +1725,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
 
             {/* Transcriber Language */}
             <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">Transcriber Language</label>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">{ta('transcriberLanguage')}</label>
               <div className="relative">
                 <select
                   value={transcriberLanguage}
@@ -1758,7 +1761,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
             return (
               <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Latency</span>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">{ta('latency')}</span>
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">~{latency.total}ms</span>
                 </div>
                 <div className="flex h-3 w-full rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700/50 relative">
@@ -1788,7 +1791,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
             {/* Calendar Options */}
             <div className="text-center">
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
-                Calendar Options
+                {ta('calendarOptions')}
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -1811,7 +1814,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
                    calendarConfig.provider === 'calendly' ? 'Calendly' :
                    calendarConfig.provider === 'hubspot' ? 'HubSpot' :
                    calendarConfig.provider === 'calcom' ? 'Cal.com' :
-                   'GoHighLevel'} Connected
+                   'GoHighLevel'} {ta('connected')}
                 </p>
               )}
             </div>
@@ -1819,7 +1822,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
             {/* Advanced Options */}
             <div className="text-center">
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
-                Advanced Options
+                {ta('advancedOptions')}
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -1838,7 +1841,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
           {/* Prompt */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm text-gray-600 dark:text-gray-400">Prompt</label>
+              <label className="text-sm text-gray-600 dark:text-gray-400">{ta('systemPrompt')}</label>
               <button
                 type="button"
                 onClick={() => setShowPromptGenerator(true)}
@@ -1847,14 +1850,14 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                 </svg>
-                Generate with AI
+                {ta('generatePrompt')}
               </button>
             </div>
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               rows={24}
-              placeholder="Enter your agent's instructions here..."
+              placeholder={ta('promptPlaceholder')}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm resize-y"
             />
           </div>
@@ -1870,14 +1873,14 @@ After the function returns success, confirm: "Your appointment is booked for [da
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
-            Copy
+            {ta('copy')}
           </button>
           <button
             onClick={() => setShowCallModal(true)}
             disabled={!agent.vapiId}
             className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
           >
-            Launch A Call
+            {ta('launchCall')}
           </button>
           <button
             onClick={() => setShowTestCallModal(true)}
@@ -1887,7 +1890,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
-            Test Agent
+            {ta('testAgent')}
           </button>
           <button
             onClick={handleSave}
@@ -1897,10 +1900,10 @@ After the function returns success, confirm: "Your appointment is booked for [da
             {saving ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Saving...
+                {ta('saving')}
               </>
             ) : (
-              'Save Agent'
+              ta('saveChanges')
             )}
           </button>
         </div>

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { platformSettingsAPI } from '../../services/api'
+import { useLanguage } from '../../context/LanguageContext'
 
 export default function TestCallModal({ agent, onClose }) {
+  const { t } = useLanguage()
   const [status, setStatus] = useState('idle') // idle, connecting, active, ended
   const [transcript, setTranscript] = useState([])
   const [muted, setMuted] = useState(false)
@@ -152,7 +154,7 @@ export default function TestCallModal({ agent, onClose }) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Test Agent — {agent.name}</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('testCall.title')} — {agent.name}</h3>
           <button onClick={handleClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -191,10 +193,10 @@ export default function TestCallModal({ agent, onClose }) {
                 : status === 'connecting' ? 'text-yellow-600 dark:text-yellow-400'
                 : 'text-gray-500 dark:text-gray-400'
             }`}>
-              {status === 'idle' && 'Ready to call'}
-              {status === 'connecting' && 'Connecting...'}
-              {status === 'active' && 'Call Active'}
-              {status === 'ended' && 'Call Ended'}
+              {status === 'idle' && t('testCall.readyToCall')}
+              {status === 'connecting' && t('testCall.connecting')}
+              {status === 'active' && t('testCall.callActive')}
+              {status === 'ended' && t('testCall.callEnded')}
             </span>
           </div>
 
@@ -208,7 +210,7 @@ export default function TestCallModal({ agent, onClose }) {
                     ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
                 }`}
-                title={muted ? 'Unmute' : 'Mute'}
+                title={muted ? t('testCall.unmute') : t('testCall.mute')}
               >
                 {muted ? (
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,7 +229,7 @@ export default function TestCallModal({ agent, onClose }) {
               <button
                 onClick={startCall}
                 className="p-4 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors shadow-lg"
-                title="Start Call"
+                title={t('testCall.startCall')}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -244,7 +246,7 @@ export default function TestCallModal({ agent, onClose }) {
               <button
                 onClick={stopCall}
                 className="p-4 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-lg"
-                title="End Call"
+                title={t('testCall.endCall')}
               >
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M3.68 16.07l3.92-3.11V9.59c2.85-.93 5.94-.93 8.8 0v3.38l3.91 3.1c.46.36.66.96.5 1.52-.5 1.58-1.33 3.04-2.43 4.28-.37.42-.92.63-1.48.55-1.98-.29-3.86-.97-5.53-1.96a18.8 18.8 0 01-5.53 1.96c-.56.08-1.11-.13-1.48-.55-1.1-1.24-1.93-2.7-2.43-4.28a1.47 1.47 0 01.5-1.52h.25z" />
@@ -256,14 +258,14 @@ export default function TestCallModal({ agent, onClose }) {
           {/* Transcript */}
           <div className="bg-gray-50 dark:bg-dark-hover rounded-lg border border-gray-200 dark:border-dark-border">
             <div className="px-3 py-2 border-b border-gray-200 dark:border-dark-border">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Transcript</span>
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t('testCall.transcript')}</span>
             </div>
             <div className="h-48 overflow-y-auto p-3 space-y-2">
               {transcript.length === 0 ? (
                 <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
                   {status === 'idle' || status === 'ended'
-                    ? 'Start a call to see the transcript'
-                    : 'Waiting for conversation...'}
+                    ? t('testCall.startCallPrompt')
+                    : t('testCall.waitingForConversation')}
                 </p>
               ) : (
                 transcript.map((entry, i) => (
@@ -286,7 +288,7 @@ export default function TestCallModal({ agent, onClose }) {
           {(status === 'active' || status === 'ended') && elapsed > 0 && (
             <div className="text-center">
               <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
-                {formatElapsed(elapsed)} elapsed
+                {formatElapsed(elapsed)} {t('testCall.elapsed')}
               </span>
             </div>
           )}

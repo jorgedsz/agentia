@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useLanguage } from '../../context/LanguageContext'
 import { twilioAPI, creditsAPI } from '../../services/api'
 import ChatAssistant from './ChatAssistant'
 
@@ -105,6 +106,7 @@ export default function DashboardLayout() {
   const location = useLocation()
   const { user, logout, isImpersonating, switchBack, branding } = useAuth()
   const { darkMode, toggleDarkMode } = useTheme()
+  const { t, language, toggleLanguage } = useLanguage()
   const [switchingBack, setSwitchingBack] = useState(false)
   const [balances, setBalances] = useState({ twilio: null, vapi: null })
   const [userCredits, setUserCredits] = useState(null)
@@ -193,41 +195,41 @@ export default function DashboardLayout() {
 
   const menuSections = [
     {
-      title: 'Dashboard',
+      title: t('sidebar.sectionDashboard'),
       items: [
-        { id: 'overview', path: '/dashboard', label: 'Overview', icon: Icons.Overview, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'analytics', path: '/dashboard/analytics', label: 'Analytics', icon: Icons.Analytics, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'overview', path: '/dashboard', label: t('sidebar.overview'), icon: Icons.Overview, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'analytics', path: '/dashboard/analytics', label: t('sidebar.analytics'), icon: Icons.Analytics, roles: [ROLES.OWNER, ROLES.AGENCY] },
       ]
     },
     {
-      title: 'Agents',
+      title: t('sidebar.sectionAgents'),
       items: [
-        { id: 'agents', path: '/dashboard/agents', label: 'My Agents', icon: Icons.Agents, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'voice-library', path: '/dashboard/voice-library', label: 'Voice Library', icon: Icons.Voice, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'create-agent', label: 'Create Agent', icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT], isAction: true },
+        { id: 'agents', path: '/dashboard/agents', label: t('sidebar.myAgents'), icon: Icons.Agents, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'voice-library', path: '/dashboard/voice-library', label: t('sidebar.voiceLibrary'), icon: Icons.Voice, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'create-agent', label: t('sidebar.createAgent'), icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT], isAction: true },
       ]
     },
     {
-      title: 'Management',
+      title: t('sidebar.sectionManagement'),
       items: [
-        { id: 'clients', path: '/dashboard/clients', label: 'Clients', icon: Icons.Users, roles: [ROLES.OWNER, ROLES.AGENCY] },
-        { id: 'agencies', path: '/dashboard/agencies', label: 'Agencies', icon: Icons.SubAccounts, roles: [ROLES.OWNER] },
-        { id: 'all-users', path: '/dashboard/all-users', label: 'All Users', icon: Icons.Users, roles: [ROLES.OWNER] },
-        { id: 'sub-accounts', path: '/dashboard/sub-accounts', label: 'Sub Accounts', icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'clients', path: '/dashboard/clients', label: t('sidebar.clients'), icon: Icons.Users, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'agencies', path: '/dashboard/agencies', label: t('sidebar.agencies'), icon: Icons.SubAccounts, roles: [ROLES.OWNER] },
+        { id: 'all-users', path: '/dashboard/all-users', label: t('sidebar.allUsers'), icon: Icons.Users, roles: [ROLES.OWNER] },
+        { id: 'sub-accounts', path: '/dashboard/sub-accounts', label: t('sidebar.subAccounts'), icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.AGENCY] },
       ]
     },
     {
-      title: 'Phone',
+      title: t('sidebar.sectionPhone'),
       items: [
-        { id: 'twilio-setup', path: '/dashboard/twilio-setup', label: 'Twilio Setup', icon: Icons.Twilio, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'phone-numbers', path: '/dashboard/phone-numbers', label: 'Phone Numbers', icon: Icons.Phone, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'twilio-setup', path: '/dashboard/twilio-setup', label: t('sidebar.twilioSetup'), icon: Icons.Twilio, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'phone-numbers', path: '/dashboard/phone-numbers', label: t('sidebar.phoneNumbers'), icon: Icons.Phone, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     },
     {
-      title: 'System',
+      title: t('sidebar.sectionSystem'),
       items: [
-        { id: 'call-logs', path: '/dashboard/call-logs', label: 'Call Logs', icon: Icons.Logs, roles: [ROLES.OWNER, ROLES.AGENCY] },
-        { id: 'settings', path: '/dashboard/settings', label: 'Settings', icon: Icons.Settings, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'call-logs', path: '/dashboard/call-logs', label: t('sidebar.callLogs'), icon: Icons.Logs, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'settings', path: '/dashboard/settings', label: t('sidebar.settings'), icon: Icons.Settings, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     }
   ]

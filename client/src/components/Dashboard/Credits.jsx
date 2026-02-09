@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { creditsAPI } from '../../services/api'
+import { useLanguage } from '../../context/LanguageContext'
 
 export default function Credits() {
   const { user } = useAuth()
+  const { t } = useLanguage()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -77,16 +79,16 @@ export default function Credits() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Credits</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('credits.title')}</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Manage call credits for users
+          {t('credits.subtitle')}
         </p>
       </div>
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
           {error}
-          <button onClick={() => setError(null)} className="ml-2 underline">Dismiss</button>
+          <button onClick={() => setError(null)} className="ml-2 underline">{t('common.dismiss')}</button>
         </div>
       )}
 
@@ -95,31 +97,31 @@ export default function Credits() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-dark-card rounded-xl p-6 max-w-md w-full mx-4 border border-gray-200 dark:border-dark-border">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Update Credits for {editingUser.name || editingUser.email}
+              {t('credits.updateCreditsFor', { name: editingUser.name || editingUser.email })}
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Current balance: <span className="font-semibold text-primary-600 dark:text-primary-400">${editingUser.vapiCredits?.toFixed(2) || '0.00'}</span>
+              {t('credits.currentBalance')} <span className="font-semibold text-primary-600 dark:text-primary-400">${editingUser.vapiCredits?.toFixed(2) || '0.00'}</span>
             </p>
 
             <form onSubmit={handleUpdateCredits}>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Operation
+                  {t('credits.operation')}
                 </label>
                 <select
                   value={operation}
                   onChange={(e) => setOperation(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
                 >
-                  <option value="add">Add Credits</option>
-                  <option value="subtract">Subtract Credits</option>
-                  <option value="set">Set Balance</option>
+                  <option value="add">{t('credits.addCredits')}</option>
+                  <option value="subtract">{t('credits.subtractCredits')}</option>
+                  <option value="set">{t('credits.setBalance')}</option>
                 </select>
               </div>
 
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Amount ($)
+                  {t('credits.amount')}
                 </label>
                 <input
                   type="number"
@@ -143,14 +145,14 @@ export default function Credits() {
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={updating}
                   className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
                 >
-                  {updating ? 'Updating...' : 'Update'}
+                  {updating ? t('common.updating') : t('common.update')}
                 </button>
               </div>
             </form>
@@ -165,20 +167,20 @@ export default function Credits() {
             <thead className="bg-gray-50 dark:bg-dark-hover">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  User
+                  {t('credits.user')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Role
+                  {t('common.role')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Agency
+                  {t('credits.agency')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Credits
+                  {t('credits.title')}
                 </th>
                 {canManageCredits && (
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
+                    {t('common.actions')}
                   </th>
                 )}
               </tr>
@@ -216,7 +218,7 @@ export default function Credits() {
                           onClick={() => setEditingUser(u)}
                           className="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 text-sm font-medium"
                         >
-                          Manage Credits
+                          {t('common.manageCredits')}
                         </button>
                       )}
                     </td>
@@ -226,7 +228,7 @@ export default function Credits() {
               {users.length === 0 && (
                 <tr>
                   <td colSpan={canManageCredits ? 5 : 4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                    No users found
+                    {t('credits.noUsersFound')}
                   </td>
                 </tr>
               )}

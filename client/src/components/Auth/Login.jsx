@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useLanguage } from '../../context/LanguageContext'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -10,6 +11,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const { darkMode, toggleDarkMode } = useTheme()
+  const { t, language, toggleLanguage } = useLanguage()
   const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
@@ -29,6 +31,14 @@ export default function Login() {
 
   return (
     <div className={`min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 ${darkMode ? 'dark bg-dark-bg' : 'bg-gray-100'}`}>
+      {/* Language toggle */}
+      <button
+        onClick={toggleLanguage}
+        className="absolute top-4 right-16 p-2 rounded-lg bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover text-sm font-medium"
+      >
+        {language === 'en' ? 'ES' : 'EN'}
+      </button>
+
       {/* Theme toggle */}
       <button
         onClick={toggleDarkMode}
@@ -48,10 +58,10 @@ export default function Login() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h1 className="text-center text-3xl font-extrabold text-primary-600 dark:text-primary-400">
-            Appex Innovations AI
+            {t('auth.title')}
           </h1>
           <h2 className="mt-6 text-center text-2xl font-bold text-gray-900 dark:text-white">
-            Sign in to your account
+            {t('auth.signIn')}
           </h2>
         </div>
 
@@ -66,7 +76,7 @@ export default function Login() {
             <div className="space-y-4">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Email address
+                  {t('auth.emailLabel')}
                 </label>
                 <input
                   id="email"
@@ -75,14 +85,14 @@ export default function Login() {
                   autoComplete="email"
                   required
                   className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="you@example.com"
+                  placeholder={t('auth.emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Password
+                  {t('auth.passwordLabel')}
                 </label>
                 <input
                   id="password"
@@ -91,7 +101,7 @@ export default function Login() {
                   autoComplete="current-password"
                   required
                   className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="••••••••"
+                  placeholder={t('auth.passwordPlaceholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -103,7 +113,7 @@ export default function Login() {
               disabled={loading}
               className="w-full mt-6 py-2.5 px-4 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? t('auth.signingIn') : t('auth.signInButton')}
             </button>
           </div>
 

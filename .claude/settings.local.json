@@ -22,7 +22,26 @@
       "Bash(git commit:*)",
       "Bash(git reset:*)",
       "Bash(git config:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "WebFetch(domain:vapi.ai)",
+      "Bash(npx vite build:*)",
+      "Bash(ls -la \"C:\\\\Users\\\\Jorge\\\\Project-Guille-Jorge\\\\server\\\\prisma\"\" 2>/dev/null || echo \"Directory not found \")",
+      "Bash(dir:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma validate:*)",
+      "WebFetch(domain:api.vapi.ai)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:marketplace.gohighlevel.com)",
+      "Bash(npx eslint:*)",
+      "Bash(git restore:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:agentia-production-3bbe.up.railway.app)",
+      "WebFetch(domain:agentia-cop.pages.dev)",
+      "Bash(git -C \"C:\\\\Users\\\\Jorge\\\\Project-Guille-Jorge\" status)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git stash pop:*)"
     ]
   }
 }

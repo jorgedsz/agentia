@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { callsAPI } from '../../services/api'
+import { useLanguage } from '../../context/LanguageContext'
 
 const OUTCOME_CONFIG = {
   booked: { label: 'Booked', bg: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
@@ -21,6 +22,7 @@ function OutcomeBadge({ outcome }) {
 }
 
 export default function CallLogs() {
+  const { t } = useLanguage()
   const [calls, setCalls] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -149,9 +151,9 @@ export default function CallLogs() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Call Logs</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('callLogs.title')}</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            View all call history from your agents
+            {t('callLogs.subtitle')}
           </p>
         </div>
         <button
@@ -161,14 +163,14 @@ export default function CallLogs() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Refresh
+          {t('common.refresh')}
         </button>
       </div>
 
       {error && (
         <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
           {error}
-          <button onClick={() => setError(null)} className="ml-2 underline">Dismiss</button>
+          <button onClick={() => setError(null)} className="ml-2 underline">{t('common.dismiss')}</button>
         </div>
       )}
 
@@ -177,7 +179,7 @@ export default function CallLogs() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-dark-card rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto border border-gray-200 dark:border-dark-border">
             <div className="sticky top-0 bg-white dark:bg-dark-card border-b border-gray-200 dark:border-dark-border px-6 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Details</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('callLogs.callDetails')}</h3>
               <button
                 onClick={() => setSelectedCall(null)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -190,7 +192,7 @@ export default function CallLogs() {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400">Call ID</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">{t('callLogs.callId')}</label>
                   <p className="text-sm font-mono text-gray-900 dark:text-white break-all">{selectedCall.id}</p>
                 </div>
                 <div>
@@ -198,42 +200,42 @@ export default function CallLogs() {
                   <p><span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedCall.status)}`}>{selectedCall.status}</span></p>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400">Started At</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">{t('callLogs.startedAt')}</label>
                   <p className="text-sm text-gray-900 dark:text-white">{formatDate(selectedCall.startedAt || selectedCall.createdAt)}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400">Ended At</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">{t('callLogs.endedAt')}</label>
                   <p className="text-sm text-gray-900 dark:text-white">{formatDate(selectedCall.endedAt)}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400">Duration</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">{t('callLogs.duration')}</label>
                   <p className="text-sm text-gray-900 dark:text-white">{formatDuration(selectedCall.duration)}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400">End Reason</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">{t('callLogs.endReason')}</label>
                   <p className="text-sm text-gray-900 dark:text-white">{getEndReasonLabel(selectedCall.endedReason)}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400">Customer Number</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">{t('callLogs.customerNumber')}</label>
                   <p className="text-sm text-gray-900 dark:text-white">{selectedCall.customer?.number || '-'}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400">Phone Number</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">{t('callLogs.phoneNumber')}</label>
                   <p className="text-sm text-gray-900 dark:text-white">{selectedCall.phoneNumber?.number || '-'}</p>
                 </div>
                 {(selectedCall.costCharged || selectedCall.cost) && (
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-gray-400">Cost</label>
+                    <label className="text-xs text-gray-500 dark:text-gray-400">{t('callLogs.cost')}</label>
                     <p className="text-sm text-gray-900 dark:text-white">${(selectedCall.costCharged || selectedCall.cost).toFixed(4)}</p>
                   </div>
                 )}
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400">Agent</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400">{t('callLogs.agent')}</label>
                   <p className="text-sm text-gray-900 dark:text-white">{selectedCall.agentName || selectedCall.assistant?.name || '-'}</p>
                 </div>
                 {/* Outcome with manual override */}
                 <div className="col-span-2">
-                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Outcome</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">{t('callLogs.outcome')}</label>
                   {selectedCall.callLogId ? (
                     <select
                       value={selectedCall.outcome || 'unknown'}
@@ -253,7 +255,7 @@ export default function CallLogs() {
 
               {selectedCall.transcript && (
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-2 block">Transcript</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-2 block">{t('callLogs.transcript')}</label>
                   <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4 max-h-64 overflow-y-auto">
                     <pre className="text-sm text-gray-900 dark:text-white whitespace-pre-wrap font-sans">{selectedCall.transcript}</pre>
                   </div>
@@ -262,7 +264,7 @@ export default function CallLogs() {
 
               {selectedCall.messages && selectedCall.messages.length > 0 && (
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-2 block">Messages</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-2 block">{t('callLogs.messages')}</label>
                   <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4 max-h-64 overflow-y-auto space-y-2">
                     {selectedCall.messages.map((msg, i) => (
                       <div key={i} className={`text-sm ${msg.role === 'assistant' ? 'text-primary-600 dark:text-primary-400' : 'text-gray-900 dark:text-white'}`}>
@@ -275,7 +277,7 @@ export default function CallLogs() {
 
               {selectedCall.recordingUrl && (
                 <div>
-                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-2 block">Recording</label>
+                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-2 block">{t('callLogs.recording')}</label>
                   <audio controls className="w-full">
                     <source src={selectedCall.recordingUrl} type="audio/mpeg" />
                     Your browser does not support the audio element.
@@ -294,8 +296,8 @@ export default function CallLogs() {
             <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No calls yet</h3>
-            <p className="text-gray-500 dark:text-gray-400">Make your first call from an agent page</p>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('callLogs.noCallsYet')}</h3>
+            <p className="text-gray-500 dark:text-gray-400">{t('callLogs.makeFirstCall')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -303,31 +305,31 @@ export default function CallLogs() {
               <thead className="bg-gray-50 dark:bg-dark-hover">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Date
+                    {t('callLogs.date')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Agent
+                    {t('callLogs.agent')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Customer
+                    {t('callLogs.customer')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Status
+                    {t('common.status')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Outcome
+                    {t('callLogs.outcome')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Duration
+                    {t('callLogs.duration')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    End Reason
+                    {t('callLogs.endReason')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Cost
+                    {t('callLogs.cost')}
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
+                    {t('common.actions')}
                   </th>
                 </tr>
               </thead>
@@ -341,7 +343,7 @@ export default function CallLogs() {
                       {call.agentName || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {call.type === 'webCall' ? 'Test Call' : (call.customer?.number || '-')}
+                      {call.type === 'webCall' ? t('callLogs.testCall') : (call.customer?.number || '-')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(call.status)}`}>
@@ -365,7 +367,7 @@ export default function CallLogs() {
                         onClick={() => setSelectedCall(call)}
                         className="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 text-sm font-medium"
                       >
-                        View Details
+                        {t('common.viewDetails')}
                       </button>
                     </td>
                   </tr>

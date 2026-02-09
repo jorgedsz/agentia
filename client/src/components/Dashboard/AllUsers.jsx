@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 import { usersAPI } from '../../services/api'
 
 const ROLES = {
@@ -10,6 +11,7 @@ const ROLES = {
 
 export default function AllUsers() {
   const { user } = useAuth()
+  const { t } = useLanguage()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -135,9 +137,9 @@ export default function AllUsers() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         </div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Access Restricted</h3>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('allUsers.accessRestricted')}</h3>
         <p className="text-gray-500 dark:text-gray-400">
-          Only Owners can access user management.
+          {t('allUsers.onlyOwnersAccess')}
         </p>
       </div>
     )
@@ -162,14 +164,14 @@ export default function AllUsers() {
             </svg>
           </div>
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">All Users</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('allUsers.title')}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Manage user credits and billing rates for all accounts.
+              {t('allUsers.subtitle')}
             </p>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold text-gray-900 dark:text-white">{users.length}</div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">Total Users</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">{t('allUsers.totalUsers')}</div>
           </div>
         </div>
       </div>
@@ -179,7 +181,7 @@ export default function AllUsers() {
         <div className="flex-1">
           <input
             type="text"
-            placeholder="Search by name or email..."
+            placeholder={t('allUsers.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full px-4 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -196,7 +198,7 @@ export default function AllUsers() {
                   : 'bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover'
               }`}
             >
-              {f === 'all' ? 'All' : f}
+              {f === 'all' ? t('common.all') : f}
             </button>
           ))}
         </div>
@@ -208,13 +210,13 @@ export default function AllUsers() {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-dark-hover">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Credits</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Outbound Rate</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Inbound Rate</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Agency</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('credits.user')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('common.role')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('credits.title')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('allUsers.outboundRate')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('allUsers.inboundRate')}</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('credits.agency')}</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
@@ -265,7 +267,7 @@ export default function AllUsers() {
                       onClick={() => openBillingModal(u)}
                       className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
                     >
-                      Manage Billing
+                      {t('common.manageBilling')}
                     </button>
                   </td>
                 </tr>
@@ -275,7 +277,7 @@ export default function AllUsers() {
         </div>
         {filteredUsers.length === 0 && (
           <div className="p-12 text-center">
-            <p className="text-gray-500 dark:text-gray-400">No users found</p>
+            <p className="text-gray-500 dark:text-gray-400">{t('credits.noUsersFound')}</p>
           </div>
         )}
       </div>
@@ -286,7 +288,7 @@ export default function AllUsers() {
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Manage Billing
+                {t('common.manageBilling')}
               </h3>
               <button
                 onClick={closeBillingModal}
@@ -310,7 +312,7 @@ export default function AllUsers() {
                 </div>
               </div>
               <div className="mt-3 text-sm">
-                <span className="text-gray-500 dark:text-gray-400">Current Credits: </span>
+                <span className="text-gray-500 dark:text-gray-400">{t('allUsers.currentCredits')} </span>
                 <span className="font-medium text-gray-900 dark:text-white">${(editingUser.vapiCredits || 0).toFixed(2)}</span>
               </div>
             </div>
@@ -331,7 +333,7 @@ export default function AllUsers() {
               {/* Credits Section */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Credits Adjustment
+                  {t('allUsers.creditsAdjustment')}
                 </label>
                 <div className="flex gap-2">
                   <select
@@ -339,9 +341,9 @@ export default function AllUsers() {
                     onChange={(e) => setBillingForm({ ...billingForm, creditOperation: e.target.value })}
                     className="px-3 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
-                    <option value="add">Add</option>
-                    <option value="subtract">Subtract</option>
-                    <option value="set">Set to</option>
+                    <option value="add">{t('allUsers.add')}</option>
+                    <option value="subtract">{t('allUsers.subtract')}</option>
+                    <option value="set">{t('allUsers.setTo')}</option>
                   </select>
                   <div className="relative flex-1">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -362,7 +364,7 @@ export default function AllUsers() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Outbound Rate ($/min)
+                    {t('allUsers.outboundRateLabel')}
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -378,7 +380,7 @@ export default function AllUsers() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Inbound Rate ($/min)
+                    {t('allUsers.inboundRateLabel')}
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
@@ -401,7 +403,7 @@ export default function AllUsers() {
                   onClick={closeBillingModal}
                   className="flex-1 px-4 py-2 border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -411,10 +413,10 @@ export default function AllUsers() {
                   {saving ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Saving...
+                      {t('common.saving')}
                     </>
                   ) : (
-                    'Save Changes'
+                    t('common.saveChanges')
                   )}
                 </button>
               </div>

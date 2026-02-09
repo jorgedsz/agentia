@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { callsAPI } from '../../services/api'
+import { useLanguage } from '../../context/LanguageContext'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
@@ -25,11 +26,11 @@ const OUTCOME_LABELS = {
   unknown: 'Unknown'
 }
 
-const DATE_RANGES = [
-  { label: '7 Days', value: '7d' },
-  { label: '30 Days', value: '30d' },
-  { label: '90 Days', value: '90d' },
-  { label: 'All Time', value: 'all' }
+const DATE_RANGE_KEYS = [
+  { key: 'analytics.days7', value: '7d' },
+  { key: 'analytics.days30', value: '30d' },
+  { key: 'analytics.days90', value: '90d' },
+  { key: 'analytics.allTime', value: 'all' }
 ]
 
 function formatDuration(seconds) {
@@ -41,6 +42,7 @@ function formatDuration(seconds) {
 }
 
 export default function Analytics() {
+  const { t } = useLanguage()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -99,8 +101,8 @@ export default function Analytics() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Analytics</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Call performance and outcomes</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('analytics.title')}</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">{t('analytics.subtitle')}</p>
         </div>
         <button
           onClick={fetchAnalytics}
@@ -109,7 +111,7 @@ export default function Analytics() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Refresh
+          {t('common.refresh')}
         </button>
       </div>
 
@@ -122,7 +124,7 @@ export default function Analytics() {
       {/* Filter Bar */}
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="flex bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
-          {DATE_RANGES.map((range) => (
+          {DATE_RANGE_KEYS.map((range) => (
             <button
               key={range.value}
               onClick={() => setDateRange(range.value)}
@@ -132,7 +134,7 @@ export default function Analytics() {
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover'
               }`}
             >
-              {range.label}
+              {t(range.key)}
             </button>
           ))}
         </div>
@@ -142,7 +144,7 @@ export default function Analytics() {
             onChange={(e) => setAgentId(e.target.value)}
             className="px-4 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-sm text-gray-700 dark:text-gray-300"
           >
-            <option value="">All Agents</option>
+            <option value="">{t('analytics.allAgents')}</option>
             {data.agents.map((agent) => (
               <option key={agent.id} value={agent.id}>{agent.name}</option>
             ))}
@@ -153,7 +155,7 @@ export default function Analytics() {
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
-          title="Total Calls"
+          title={t('analytics.totalCalls')}
           value={data?.summary?.totalCalls || 0}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -163,7 +165,7 @@ export default function Analytics() {
           color="blue"
         />
         <StatCard
-          title="Answer Rate"
+          title={t('analytics.answerRate')}
           value={`${(data?.summary?.answerRate || 0).toFixed(1)}%`}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -173,7 +175,7 @@ export default function Analytics() {
           color="green"
         />
         <StatCard
-          title="Booking Rate"
+          title={t('analytics.bookingRate')}
           value={`${(data?.summary?.bookingRate || 0).toFixed(1)}%`}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -183,7 +185,7 @@ export default function Analytics() {
           color="emerald"
         />
         <StatCard
-          title="Avg Duration"
+          title={t('analytics.avgDuration')}
           value={formatDuration(data?.summary?.avgDuration || 0)}
           icon={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -198,7 +200,7 @@ export default function Analytics() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* Donut Chart */}
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Outcome Distribution</h3>
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.outcomeDistribution')}</h3>
           {pieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
@@ -232,14 +234,14 @@ export default function Analytics() {
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[260px] text-gray-400 text-sm">
-              No call data yet
+              {t('analytics.noCallData')}
             </div>
           )}
         </div>
 
         {/* Stacked Bar Chart */}
         <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Daily Call Outcomes</h3>
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.dailyCallOutcomes')}</h3>
           {data?.dailyCounts?.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={data.dailyCounts}>
@@ -274,7 +276,7 @@ export default function Analytics() {
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-[260px] text-gray-400 text-sm">
-              No call data yet
+              {t('analytics.noCallData')}
             </div>
           )}
         </div>
@@ -283,7 +285,7 @@ export default function Analytics() {
       {/* Outcome Breakdown Table */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Outcome Breakdown</h3>
+          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('analytics.outcomeBreakdown')}</h3>
         </div>
         <div className="divide-y divide-gray-200 dark:divide-dark-border">
           {Object.entries(OUTCOME_LABELS).map(([key, label]) => {

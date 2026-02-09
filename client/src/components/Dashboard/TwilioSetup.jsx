@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { twilioAPI } from '../../services/api'
+import { useLanguage } from '../../context/LanguageContext'
 
 export default function TwilioSetup() {
+  const { t } = useLanguage()
   const [credentials, setCredentials] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -118,10 +120,9 @@ export default function TwilioSetup() {
             </svg>
           </div>
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Twilio Integration</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('twilio.title')}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Connect your Twilio account to import phone numbers for your AI agents.
-              Your credentials are encrypted and stored securely.
+              {t('twilio.subtitle')}
             </p>
           </div>
         </div>
@@ -144,20 +145,20 @@ export default function TwilioSetup() {
         {credentials && !isEditing ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Credentials</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('twilio.yourCredentials')}</h3>
               <span className={`px-3 py-1 text-xs font-medium rounded-full ${
                 credentials.isVerified
                   ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                   : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
               }`}>
-                {credentials.isVerified ? 'Verified' : 'Not Verified'}
+                {credentials.isVerified ? t('common.verified') : t('common.notVerified')}
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Account SID
+                  {t('twilio.accountSid')}
                 </label>
                 <div className="px-3 py-2 bg-gray-50 dark:bg-dark-hover rounded-lg text-gray-900 dark:text-white font-mono text-sm">
                   {credentials.accountSid}
@@ -165,7 +166,7 @@ export default function TwilioSetup() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Auth Token
+                  {t('twilio.authToken')}
                 </label>
                 <div className="px-3 py-2 bg-gray-50 dark:bg-dark-hover rounded-lg text-gray-900 dark:text-white font-mono text-sm">
                   {credentials.authToken}
@@ -174,7 +175,7 @@ export default function TwilioSetup() {
             </div>
 
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              <span className="font-medium text-primary-500">{credentials.phoneNumberCount}</span> phone numbers imported
+              {t('twilio.phoneNumbersImported', { count: credentials.phoneNumberCount })}
             </div>
 
             <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-dark-border">
@@ -187,14 +188,14 @@ export default function TwilioSetup() {
                   {verifying ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Verifying...
+                      {t('twilio.verifying')}
                     </>
                   ) : (
                     <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Verify Credentials
+                      {t('twilio.verifyCredentials')}
                     </>
                   )}
                 </button>
@@ -203,25 +204,25 @@ export default function TwilioSetup() {
                 onClick={() => setIsEditing(true)}
                 className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
               >
-                Update Credentials
+                {t('twilio.updateCredentials')}
               </button>
               <button
                 onClick={handleDelete}
                 className="px-4 py-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
               >
-                Delete
+                {t('common.delete')}
               </button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSave} className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {credentials ? 'Update Credentials' : 'Add Twilio Credentials'}
+              {credentials ? t('twilio.updateCredentials') : t('twilio.addCredentials')}
             </h3>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Account SID *
+                {t('twilio.accountSid')} *
               </label>
               <input
                 type="text"
@@ -232,13 +233,13 @@ export default function TwilioSetup() {
                 required={!credentials}
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Find this in your Twilio Console dashboard
+                {t('twilio.accountSidHelp')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Auth Token *
+                {t('twilio.authToken')} *
               </label>
               <input
                 type="password"
@@ -249,7 +250,7 @@ export default function TwilioSetup() {
                 required={!credentials}
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Keep this secret - it will be encrypted before storage
+                {t('twilio.authTokenHelp')}
               </p>
             </div>
 
@@ -263,7 +264,7 @@ export default function TwilioSetup() {
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               )}
               <button
@@ -271,7 +272,7 @@ export default function TwilioSetup() {
                 disabled={saving}
                 className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
               >
-                {saving ? 'Saving...' : credentials ? 'Update' : 'Save Credentials'}
+                {saving ? t('common.saving') : credentials ? t('common.update') : t('twilio.saveCredentials')}
               </button>
             </div>
           </form>
@@ -280,12 +281,12 @@ export default function TwilioSetup() {
 
       {/* Help Section */}
       <div className="bg-gray-50 dark:bg-dark-hover rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">How to get your Twilio credentials</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">{t('twilio.howToGetCredentials')}</h3>
         <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-decimal list-inside">
-          <li>Log in to your <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:underline">Twilio Console</a></li>
-          <li>Your Account SID and Auth Token are displayed on the main dashboard</li>
-          <li>Click "Show" to reveal your Auth Token, then copy it</li>
-          <li>Paste both values in the form above</li>
+          <li>{t('twilio.step1')}</li>
+          <li>{t('twilio.step2')}</li>
+          <li>{t('twilio.step3')}</li>
+          <li>{t('twilio.step4')}</li>
         </ol>
       </div>
     </div>

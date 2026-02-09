@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { chatAPI } from '../../services/api'
+import { useLanguage } from '../../context/LanguageContext'
 
 export default function ChatAssistant() {
+  const { t } = useLanguage()
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -87,7 +89,7 @@ export default function ChatAssistant() {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
-              <span className="font-semibold text-sm">AI Assistant</span>
+              <span className="font-semibold text-sm">{t('chat.title')}</span>
             </div>
             <button
               onClick={() => setIsOpen(false)}
@@ -106,7 +108,7 @@ export default function ChatAssistant() {
                 <svg className="w-10 h-10 mx-auto mb-3 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                 </svg>
-                Ask me anything about your agents or the platform!
+                {t('chat.emptyState')}
               </div>
             )}
             {messages.map((msg, i) => (
@@ -144,7 +146,7 @@ export default function ChatAssistant() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type a message..."
+                placeholder={t('chat.placeholder')}
                 disabled={isStreaming}
                 className="flex-1 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-hover text-gray-900 dark:text-white rounded-xl border-0 focus:ring-2 focus:ring-primary-500 outline-none disabled:opacity-50 placeholder-gray-400 dark:placeholder-gray-500"
               />

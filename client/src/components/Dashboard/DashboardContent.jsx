@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 import { agentsAPI, usersAPI } from '../../services/api'
 import TestCallModal from './TestCallModal'
 
@@ -147,6 +148,7 @@ const LLM_MODELS = [
 
 export default function DashboardContent({ tab }) {
   const { user } = useAuth()
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [stats, setStats] = useState({})
@@ -285,11 +287,11 @@ export default function DashboardContent({ tab }) {
 
   const getPageTitle = () => {
     switch (tab) {
-      case 'overview': return 'Overview'
-      case 'agents': return 'My Agents'
-      case 'clients': return 'Clients'
-      case 'agencies': return 'Agencies'
-      case 'all-users': return 'All Users'
+      case 'overview': return t('sidebar.overview')
+      case 'agents': return t('sidebar.myAgents')
+      case 'clients': return t('sidebar.clients')
+      case 'agencies': return t('sidebar.agencies')
+      case 'all-users': return t('sidebar.allUsers')
       default: return tab.replace('-', ' ')
     }
   }
@@ -303,7 +305,7 @@ export default function DashboardContent({ tab }) {
               {getPageTitle()}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Manage your AI agents and clients
+              {t('dashboardContent.manageAgentsAndClients')}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -315,7 +317,7 @@ export default function DashboardContent({ tab }) {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                New Agent
+                {t('dashboardContent.newAgent')}
               </button>
             )}
             {tab === 'clients' && (
@@ -326,7 +328,7 @@ export default function DashboardContent({ tab }) {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add Client
+                {t('dashboardContent.addClient')}
               </button>
             )}
             {tab === 'agencies' && (
@@ -337,7 +339,7 @@ export default function DashboardContent({ tab }) {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add Agency
+                {t('dashboardContent.addAgency')}
               </button>
             )}
           </div>
@@ -354,18 +356,18 @@ export default function DashboardContent({ tab }) {
             {tab === 'overview' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <StatCard title="Total Agents" value={stats.totalAgents || 0} icon="agents" />
+                  <StatCard title={t('dashboardContent.totalAgents')} value={stats.totalAgents || 0} icon="agents" />
                   {(user?.role === ROLES.OWNER || user?.role === ROLES.AGENCY) && (
-                    <StatCard title="Total Clients" value={stats.totalClients || 0} icon="users" />
+                    <StatCard title={t('dashboardContent.totalClients')} value={stats.totalClients || 0} icon="users" />
                   )}
                   {user?.role === ROLES.OWNER && (
-                    <StatCard title="Total Agencies" value={stats.totalAgencies || 0} icon="agency" />
+                    <StatCard title={t('dashboardContent.totalAgencies')} value={stats.totalAgencies || 0} icon="agency" />
                   )}
-                  <StatCard title="Active Calls" value="0" icon="phone" />
+                  <StatCard title={t('dashboardContent.activeCalls')} value="0" icon="phone" />
                 </div>
 
                 <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Agents</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('dashboardContent.recentAgents')}</h2>
                   {agents.length === 0 ? (
                     <EmptyState type="agents" onCreate={() => { setShowModal('agent'); setFormData({}); }} />
                   ) : (
@@ -403,10 +405,10 @@ export default function DashboardContent({ tab }) {
                   <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-dark-hover">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Agents</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.name')}</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.email')}</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('sidebar.myAgents')}</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.actions')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
@@ -416,7 +418,7 @@ export default function DashboardContent({ tab }) {
                           <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{client.email}</td>
                           <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">{client._count?.agents || 0}</td>
                           <td className="px-6 py-4 text-right">
-                            <button onClick={() => handleDelete('client', client.id)} className="text-red-500 hover:text-red-700 text-sm">Delete</button>
+                            <button onClick={() => handleDelete('client', client.id)} className="text-red-500 hover:text-red-700 text-sm">{t('common.delete')}</button>
                           </td>
                         </tr>
                       ))}
@@ -451,11 +453,11 @@ export default function DashboardContent({ tab }) {
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-dark-hover">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Role</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Agency</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Agents</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.name')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.email')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('common.role')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('credits.agency')}</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('sidebar.myAgents')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
@@ -481,11 +483,11 @@ export default function DashboardContent({ tab }) {
       </main>
 
       {showModal === 'agent' && (
-        <Modal title={<span className="flex items-center gap-2">Create New Agent{formData.agentType && (<span className={`px-2 py-0.5 text-xs font-medium rounded-full ${formData.agentType === 'inbound' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>{formData.agentType === 'inbound' ? 'Inbound' : 'Outbound'}</span>)}</span>} onClose={() => setShowModal(null)}>
+        <Modal title={<span className="flex items-center gap-2">{t('dashboardContent.createNewAgent')}{formData.agentType && (<span className={`px-2 py-0.5 text-xs font-medium rounded-full ${formData.agentType === 'inbound' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>{formData.agentType === 'inbound' ? t('dashboardContent.inbound') : t('dashboardContent.outbound')}</span>)}</span>} onClose={() => setShowModal(null)}>
           <form onSubmit={(e) => { e.preventDefault(); handleCreate('agent'); }}>
             {error && <ErrorAlert message={error} />}
-            <Input label="Agent Name *" value={formData.name || ''} onChange={(v) => setFormData({...formData, name: v})} required />
-            <TextArea label="System Prompt" value={formData.systemPrompt || ''} onChange={(v) => setFormData({...formData, systemPrompt: v})} />
+            <Input label={`${t('dashboardContent.agentName')} *`} value={formData.name || ''} onChange={(v) => setFormData({...formData, name: v})} required />
+            <TextArea label={t('dashboardContent.systemPrompt')} value={formData.systemPrompt || ''} onChange={(v) => setFormData({...formData, systemPrompt: v})} />
             <ModelSelect value={formData.llmModel || 'openai:gpt-4'} onChange={(v) => setFormData({...formData, llmModel: v})} />
             <VoiceSelect
               value={formData.voice || '11labs:21m00Tcm4TlvDq8ikWAM'}
@@ -495,31 +497,31 @@ export default function DashboardContent({ tab }) {
               voiceSettings={formData.voiceSettings || {}}
               onVoiceSettingsChange={(v) => setFormData({...formData, voiceSettings: v})}
             />
-            <ModalActions onCancel={() => setShowModal(null)} loading={creating} submitText="Create Agent" />
+            <ModalActions onCancel={() => setShowModal(null)} loading={creating} submitText={t('dashboardContent.createAgentBtn')} />
           </form>
         </Modal>
       )}
 
       {showModal === 'client' && (
-        <Modal title="Add New Client" onClose={() => setShowModal(null)}>
+        <Modal title={t('dashboardContent.addNewClient')} onClose={() => setShowModal(null)}>
           <form onSubmit={(e) => { e.preventDefault(); handleCreate('client'); }}>
             {error && <ErrorAlert message={error} />}
-            <Input label="Name" value={formData.name || ''} onChange={(v) => setFormData({...formData, name: v})} />
-            <Input label="Email *" type="email" value={formData.email || ''} onChange={(v) => setFormData({...formData, email: v})} required />
-            <Input label="Password *" type="password" value={formData.password || ''} onChange={(v) => setFormData({...formData, password: v})} required />
-            <ModalActions onCancel={() => setShowModal(null)} loading={creating} submitText="Add Client" />
+            <Input label={t('common.name')} value={formData.name || ''} onChange={(v) => setFormData({...formData, name: v})} />
+            <Input label={`${t('common.email')} *`} type="email" value={formData.email || ''} onChange={(v) => setFormData({...formData, email: v})} required />
+            <Input label={`${t('common.password')} *`} type="password" value={formData.password || ''} onChange={(v) => setFormData({...formData, password: v})} required />
+            <ModalActions onCancel={() => setShowModal(null)} loading={creating} submitText={t('dashboardContent.addClient')} />
           </form>
         </Modal>
       )}
 
       {showModal === 'agency' && (
-        <Modal title="Add New Agency" onClose={() => setShowModal(null)}>
+        <Modal title={t('dashboardContent.addNewAgency')} onClose={() => setShowModal(null)}>
           <form onSubmit={(e) => { e.preventDefault(); handleCreate('agency'); }}>
             {error && <ErrorAlert message={error} />}
-            <Input label="Agency Name" value={formData.name || ''} onChange={(v) => setFormData({...formData, name: v})} />
-            <Input label="Email *" type="email" value={formData.email || ''} onChange={(v) => setFormData({...formData, email: v})} required />
-            <Input label="Password *" type="password" value={formData.password || ''} onChange={(v) => setFormData({...formData, password: v})} required />
-            <ModalActions onCancel={() => setShowModal(null)} loading={creating} submitText="Add Agency" />
+            <Input label={t('dashboardContent.agentName')} value={formData.name || ''} onChange={(v) => setFormData({...formData, name: v})} />
+            <Input label={`${t('common.email')} *`} type="email" value={formData.email || ''} onChange={(v) => setFormData({...formData, email: v})} required />
+            <Input label={`${t('common.password')} *`} type="password" value={formData.password || ''} onChange={(v) => setFormData({...formData, password: v})} required />
+            <ModalActions onCancel={() => setShowModal(null)} loading={creating} submitText={t('dashboardContent.addAgency')} />
           </form>
         </Modal>
       )}
@@ -556,6 +558,7 @@ function StatCard({ title, value, icon }) {
 }
 
 function AgentCard({ agent, onDelete, onEdit, onTest }) {
+  const { t } = useLanguage()
   const type = agent.agentType || agent.config?.agentType || 'outbound'
   return (
     <div className="bg-gray-50 dark:bg-transparent rounded-lg p-4 border border-gray-200 dark:border-primary-500">
@@ -563,34 +566,35 @@ function AgentCard({ agent, onDelete, onEdit, onTest }) {
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-gray-900 dark:text-white">{agent.name}</h3>
           <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${type === 'inbound' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'}`}>
-            {type === 'inbound' ? 'In' : 'Out'}
+            {type === 'inbound' ? t('dashboardContent.inbound') : t('dashboardContent.outbound')}
           </span>
         </div>
         <span className={`px-2 py-0.5 text-xs rounded-full ${agent.vapiId ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-          {agent.vapiId ? 'Connected' : 'Local'}
+          {agent.vapiId ? t('common.connected') : t('common.local')}
         </span>
       </div>
       {agent.config?.systemPrompt && (
         <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-3">{agent.config.systemPrompt}</p>
       )}
       <div className="flex gap-2">
-        <button onClick={onEdit} className="flex-1 px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700">Edit</button>
+        <button onClick={onEdit} className="flex-1 px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700">{t('common.edit')}</button>
         <button onClick={onTest} disabled={!agent.vapiId} className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50" title={agent.vapiId ? 'Test Agent' : 'Agent not connected to VAPI'}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
         </button>
-        <button onClick={onDelete} className="px-3 py-1.5 text-red-500 text-sm rounded-lg hover:bg-red-500/10">Delete</button>
+        <button onClick={onDelete} className="px-3 py-1.5 text-red-500 text-sm rounded-lg hover:bg-red-500/10">{t('common.delete')}</button>
       </div>
     </div>
   )
 }
 
 function EmptyState({ type, onCreate }) {
+  const { t } = useLanguage()
   const content = {
-    agents: { icon: '🤖', title: 'No agents yet', desc: 'Create your first AI agent to get started.' },
-    clients: { icon: '👤', title: 'No clients yet', desc: 'Add your first client to get started.' },
-    agencies: { icon: '🏢', title: 'No agencies yet', desc: 'Add your first agency partner.' },
+    agents: { icon: '🤖', title: t('dashboardContent.noAgentsYet'), desc: t('dashboardContent.createFirstAgent'), btn: t('dashboardContent.newAgent') },
+    clients: { icon: '👤', title: t('dashboardContent.noClientsYet'), desc: t('dashboardContent.addFirstClient'), btn: t('dashboardContent.addClient') },
+    agencies: { icon: '🏢', title: t('dashboardContent.noAgenciesYet'), desc: t('dashboardContent.addFirstAgency'), btn: t('dashboardContent.addAgency') },
   }
   const c = content[type]
   return (
@@ -599,7 +603,7 @@ function EmptyState({ type, onCreate }) {
       <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{c.title}</h3>
       <p className="text-gray-500 dark:text-gray-400 mb-4">{c.desc}</p>
       <button onClick={onCreate} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-        Create {type.slice(0, -1)}
+        {c.btn}
       </button>
     </div>
   )
@@ -653,9 +657,10 @@ function TextArea({ label, value, onChange }) {
 }
 
 function ModelSelect({ value, onChange }) {
+  const { t } = useLanguage()
   return (
     <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">LLM Model</label>
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('dashboardContent.llmModel')}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -667,12 +672,13 @@ function ModelSelect({ value, onChange }) {
           </option>
         ))}
       </select>
-      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Select the AI model for this agent</p>
+      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('dashboardContent.selectAiModel')}</p>
     </div>
   )
 }
 
 function VoiceSelect({ value, onChange, customVoiceId, onCustomVoiceIdChange, voiceSettings, onVoiceSettingsChange }) {
+  const { t } = useLanguage()
   const isCustom = value === '11labs:custom'
   const is11Labs = value.startsWith('11labs:')
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -683,7 +689,7 @@ function VoiceSelect({ value, onChange, customVoiceId, onCustomVoiceIdChange, vo
 
   return (
     <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Voice</label>
+      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('dashboardContent.voice')}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -851,7 +857,7 @@ function VoiceSelect({ value, onChange, customVoiceId, onCustomVoiceIdChange, vo
           )}
         </div>
       )}
-      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Select the voice for this agent</p>
+      <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t('dashboardContent.selectVoice')}</p>
     </div>
   )
 }
@@ -865,6 +871,7 @@ function ErrorAlert({ message }) {
 }
 
 function ModalActions({ onCancel, loading, submitText }) {
+  const { t } = useLanguage()
   return (
     <div className="flex gap-3 mt-6">
       <button
@@ -872,14 +879,14 @@ function ModalActions({ onCancel, loading, submitText }) {
         onClick={onCancel}
         className="flex-1 px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover"
       >
-        Cancel
+        {t('common.cancel')}
       </button>
       <button
         type="submit"
         disabled={loading}
         className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
       >
-        {loading ? 'Creating...' : submitText}
+        {loading ? t('common.creating') : submitText}
       </button>
     </div>
   )

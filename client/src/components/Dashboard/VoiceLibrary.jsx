@@ -1,21 +1,22 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { voicesAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import { useLanguage } from '../../context/LanguageContext'
 
 const PROVIDERS = [
-  { value: 'all', label: 'All Voices' },
+  { value: 'all', labelKey: 'voiceLibrary.allVoices' },
   { value: '11labs', label: 'ElevenLabs' },
-  { value: 'custom', label: 'Custom' },
+  { value: 'custom', labelKey: 'voiceLibrary.custom' },
 ]
 
 const GENDERS = [
-  { value: 'all', label: 'All Genders' },
-  { value: 'male', label: 'Male' },
-  { value: 'female', label: 'Female' },
+  { value: 'all', labelKey: 'voiceLibrary.allGenders' },
+  { value: 'male', labelKey: 'voiceLibrary.male' },
+  { value: 'female', labelKey: 'voiceLibrary.female' },
 ]
 
 const ACCENTS = [
-  { value: 'all', label: 'All Accents' },
+  { value: 'all', labelKey: 'voiceLibrary.allAccents' },
   { value: 'american', label: 'American' },
   { value: 'british', label: 'British' },
   { value: 'australian', label: 'Australian' },
@@ -44,7 +45,7 @@ const ACCENTS = [
 ]
 
 const LANGUAGES = [
-  { value: 'all', label: 'All Languages' },
+  { value: 'all', labelKey: 'voiceLibrary.allLanguages' },
   { value: 'en', label: 'English' },
   { value: 'es', label: 'Spanish' },
   { value: 'fr', label: 'French' },
@@ -115,6 +116,7 @@ function EqualizerIcon() {
 
 export default function VoiceLibrary() {
   const { user } = useAuth()
+  const { t } = useLanguage()
   const isOwner = user?.role === 'OWNER'
 
   const [voices, setVoices] = useState([])
@@ -466,7 +468,7 @@ export default function VoiceLibrary() {
             className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
           >
             {PROVIDERS.map(p => (
-              <option key={p.value} value={p.value}>{p.label}</option>
+              <option key={p.value} value={p.value}>{p.labelKey ? t(p.labelKey) : p.label}</option>
             ))}
           </select>
           <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
@@ -483,7 +485,7 @@ export default function VoiceLibrary() {
             className="pl-3 pr-8 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
           >
             {GENDERS.map(g => (
-              <option key={g.value} value={g.value}>{g.label}</option>
+              <option key={g.value} value={g.value}>{g.labelKey ? t(g.labelKey) : g.label}</option>
             ))}
           </select>
           <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
