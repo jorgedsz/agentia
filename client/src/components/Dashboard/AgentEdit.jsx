@@ -2764,65 +2764,6 @@ After the function returns success, confirm: "Your appointment is booked for [da
 
               {calendarConfig.enabled && (
                 <>
-                  {/* Tool Toggles (global) */}
-                  <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Available Functions</h4>
-                    <div className="space-y-3">
-                      <label className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={calendarConfig.enableCheckAvailability}
-                          onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCheckAvailability: e.target.checked })}
-                          className="w-4 h-4 text-green-600 rounded"
-                        />
-                        <div>
-                          <span className="text-sm text-gray-900 dark:text-white">Check Availability</span>
-                          <p className="text-xs text-gray-500">Query available time slots on calendar</p>
-                        </div>
-                      </label>
-                      <label className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={calendarConfig.enableCreateEvent}
-                          onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCreateEvent: e.target.checked })}
-                          className="w-4 h-4 text-green-600 rounded"
-                        />
-                        <div>
-                          <span className="text-sm text-gray-900 dark:text-white">Create Event / Book Appointment</span>
-                          <p className="text-xs text-gray-500">Book appointments on the calendar</p>
-                        </div>
-                      </label>
-                      {(calendarConfig.provider === 'ghl' || (isMultiCalendarMode && calendarConfig.calendars.some(c => c.provider === 'ghl'))) && (
-                        <>
-                          <label className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={calendarConfig.enableGetContact}
-                              onChange={(e) => setCalendarConfig({ ...calendarConfig, enableGetContact: e.target.checked })}
-                              className="w-4 h-4 text-green-600 rounded"
-                            />
-                            <div>
-                              <span className="text-sm text-gray-900 dark:text-white">Get Contact</span>
-                              <p className="text-xs text-gray-500">Retrieve existing contacts by email/phone</p>
-                            </div>
-                          </label>
-                          <label className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={calendarConfig.enableCreateContact}
-                              onChange={(e) => setCalendarConfig({ ...calendarConfig, enableCreateContact: e.target.checked })}
-                              className="w-4 h-4 text-green-600 rounded"
-                            />
-                            <div>
-                              <span className="text-sm text-gray-900 dark:text-white">Create Contact</span>
-                              <p className="text-xs text-gray-500">Create new contacts in the CRM</p>
-                            </div>
-                          </label>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
                   {/* ===== SINGLE CALENDAR MODE ===== */}
                   {!isMultiCalendarMode && (
                     <>
