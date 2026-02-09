@@ -99,6 +99,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
     </svg>
   ),
+  Support: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+  ),
 }
 
 export default function DashboardLayout() {
@@ -230,6 +235,7 @@ export default function DashboardLayout() {
       items: [
         { id: 'call-logs', path: '/dashboard/call-logs', label: t('sidebar.callLogs'), icon: Icons.Logs, roles: [ROLES.OWNER, ROLES.AGENCY] },
         { id: 'settings', path: '/dashboard/settings', label: t('sidebar.settings'), icon: Icons.Settings, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'support', path: '/dashboard/support', label: t('sidebar.support'), icon: Icons.Support, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     }
   ]

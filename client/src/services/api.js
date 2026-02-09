@@ -161,6 +161,17 @@ export const voicesAPI = {
   deleteCustom: (id) => api.delete(`/voices/custom/${id}`)
 }
 
+// Tickets API
+export const ticketsAPI = {
+  list: (status) => api.get('/tickets', { params: status ? { status } : {} }),
+  get: (id) => api.get(`/tickets/${id}`),
+  create: (data) => api.post('/tickets', data),
+  update: (id, data) => api.put(`/tickets/${id}`, data),
+  updateStatus: (id, status) => api.patch(`/tickets/${id}/status`, { status }),
+  addReply: (id, message) => api.post(`/tickets/${id}/replies`, { message }),
+  delete: (id) => api.delete(`/tickets/${id}`)
+}
+
 // Chat API (uses fetch for SSE streaming, not axios)
 export const chatAPI = {
   sendMessage: async (messages, onChunk, onDone, onError) => {

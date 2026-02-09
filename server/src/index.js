@@ -21,6 +21,7 @@ const platformSettingsRoutes = require('./routes/platformSettings');
 const brandingRoutes = require('./routes/branding');
 const voiceRoutes = require('./routes/voices');
 const chatRoutes = require('./routes/chat');
+const ticketRoutes = require('./routes/tickets');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -58,6 +59,7 @@ app.use('/api/platform-settings', platformSettingsRoutes);
 app.use('/api/branding', brandingRoutes);
 app.use('/api/voices', voiceRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/tickets', ticketRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

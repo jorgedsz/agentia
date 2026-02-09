@@ -15,6 +15,7 @@ import RatesSettings from './components/Dashboard/RatesSettings'
 import AllUsers from './components/Dashboard/AllUsers'
 import VoiceLibrary from './components/Dashboard/VoiceLibrary'
 import Analytics from './components/Dashboard/Analytics'
+import Support from './components/Dashboard/Support'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -109,6 +110,7 @@ function App() {
           <Route path="call-logs" element={<CallLogs />} />
           <Route path="rates" element={<RatesSettings />} />
           <Route path="voice-library" element={<VoiceLibrary />} />
+          <Route path="support" element={<Support />} />
         </Route>
 
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

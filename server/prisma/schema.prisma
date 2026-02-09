@@ -31,6 +31,8 @@ model User {
   teamMembers       TeamMember[]       @relation("AccountTeamMembers")
   ghlIntegration    GHLIntegration?
   calendarIntegrations CalendarIntegration[]
+  supportTickets       SupportTicket[]
+  ticketReplies        TicketReply[]
 }
 
 model GHLIntegration {
@@ -169,4 +171,29 @@ model CustomVoice {
   updatedAt   DateTime @updatedAt
 
   @@unique([voiceId, provider])
+}
+
+model SupportTicket {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String
+  status      String         @default("open")
+  priority    String         @default("medium")
+  category    String         @default("general")
+  userId      Int
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies     TicketReply[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model TicketReply {
+  id        Int           @id @default(autoincrement())
+  message   String
+  isStaff   Boolean       @default(false)
+  userId    Int
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticketId  Int
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
 }
