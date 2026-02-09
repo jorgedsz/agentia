@@ -2992,14 +2992,28 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 </>
               )}
             </div>
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
-              <button
-                onClick={() => setShowCalendarModal(false)}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-              >
-                Done
-              </button>
-            </div>
+            {(() => {
+              // Validate: all calendars must be fully configured
+              const isValid = !calendarConfig.enabled || (() => {
+                if (isMultiCalendarMode) {
+                  return calendarConfig.calendars.every(c => c.name && c.scenario && c.provider && c.calendarId)
+                }
+                // Single mode: just need provider + calendarId (or not enabled)
+                return !calendarConfig.provider || calendarConfig.calendarId
+              })()
+
+              return (
+                <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
+                  <button
+                    onClick={() => setShowCalendarModal(false)}
+                    disabled={!isValid}
+                    className={`px-4 py-2 rounded-lg ${isValid ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                  >
+                    Done
+                  </button>
+                </div>
+              )
+            })()}
           </div>
         </div>
         )
