@@ -172,12 +172,15 @@ class VapiService {
     // Always route VAPI events to our server (we forward to user's webhook)
     const ourServerUrl = this.getOurServerUrl();
     if (ourServerUrl) {
+      agentConfig.server = { url: ourServerUrl, timeoutSeconds: 20 };
       agentConfig.serverUrl = ourServerUrl;
       agentConfig.serverMessages = ['end-of-call-report'];
     } else if (config.serverUrl) {
       // Fallback: if we can't determine our URL, use user's directly
+      agentConfig.server = { url: config.serverUrl, timeoutSeconds: 20 };
       agentConfig.serverUrl = config.serverUrl;
       if (config.serverUrlSecret) {
+        agentConfig.server.secret = config.serverUrlSecret;
         agentConfig.serverUrlSecret = config.serverUrlSecret;
       }
       if (config.serverMessages && Array.isArray(config.serverMessages)) {
@@ -370,12 +373,15 @@ class VapiService {
     // Always route VAPI events to our server (we forward to user's webhook)
     const ourServerUrl = this.getOurServerUrl();
     if (ourServerUrl) {
+      updateData.server = { url: ourServerUrl, timeoutSeconds: 20 };
       updateData.serverUrl = ourServerUrl;
       updateData.serverMessages = ['end-of-call-report'];
     } else if (config.serverUrl) {
       // Fallback: if we can't determine our URL, use user's directly
+      updateData.server = { url: config.serverUrl, timeoutSeconds: 20 };
       updateData.serverUrl = config.serverUrl;
       if (config.serverUrlSecret) {
+        updateData.server.secret = config.serverUrlSecret;
         updateData.serverUrlSecret = config.serverUrlSecret;
       }
       if (config.serverMessages && Array.isArray(config.serverMessages)) {
