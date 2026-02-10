@@ -503,6 +503,8 @@ export default function AgentEdit() {
 
   // Form fields
   const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [showAgentInfoModal, setShowAgentInfoModal] = useState(false)
   const [language, setLanguage] = useState('en')
   const [systemPrompt, setSystemPrompt] = useState('')
   const [firstMessage, setFirstMessage] = useState('')
@@ -949,6 +951,7 @@ export default function AgentEdit() {
       const agentData = response.data.agent
       setAgent(agentData)
       setName(agentData.name || '')
+      setDescription(agentData.description || '')
       setAgentType(agentData.agentType || agentData.config?.agentType || 'outbound')
       // Use base prompt if available (without auto-generated calendar instructions)
       setSystemPrompt(agentData.config?.systemPromptBase || agentData.config?.systemPrompt || '')
@@ -1442,6 +1445,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
       const response = await agentsAPI.update(id, {
         name,
+        description,
         agentType,
         config: {
           agentType,
@@ -2011,19 +2015,20 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               Edit - {name || 'AI Conversation Assistant'}
             </h1>
             <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">ID: {agent.id}</span>
-            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${agentType === 'inbound' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
-              {agentType === 'inbound' ? ta('inbound') : ta('outbound')}
+            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${agentType === 'inbound' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : assignedPhoneId ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
+              {agentType === 'inbound' ? ta('inbound') : assignedPhoneId ? 'Inbound & Outbound' : ta('outbound')}
             </span>
             <span className={`px-2 py-0.5 text-xs rounded-full ${agent.vapiId ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
               {agent.vapiId ? ta('connected') : ta('local')}
             </span>
           </div>
           <button
-            onClick={() => navigate('/dashboard/agents')}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+            onClick={() => setShowAgentInfoModal(true)}
+            className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg"
+            title="Edit agent info"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
           </button>
         </div>
@@ -4600,6 +4605,71 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               {!voicesLoading && getFilteredPickerVoices().length === 0 && (
                 <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No voices match your filters</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Agent Info Modal */}
+      {showAgentInfoModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAgentInfoModal(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent Info</h3>
+              <button onClick={() => setShowAgentInfoModal(false)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Agent name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                  placeholder="Short description of this agent's purpose..."
+                />
+              </div>
+              {assignedPhoneId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agent Type</label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: 'outbound', label: 'Outbound', desc: 'Makes outgoing calls only' },
+                      { value: 'inbound', label: 'Inbound & Outbound', desc: 'Receives and makes calls' }
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setAgentType(opt.value)}
+                        className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${agentType === opt.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : 'border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                      >
+                        <div className="text-center">
+                          <div>{opt.label}</div>
+                          <div className="text-[10px] font-normal opacity-70 mt-0.5">{opt.desc}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-dark-border">
+              <button
+                onClick={() => setShowAgentInfoModal(false)}
+                className="w-full py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-sm"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

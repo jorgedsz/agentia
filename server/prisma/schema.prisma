@@ -85,6 +85,7 @@ model TeamMember {
 model Agent {
   id           Int           @id @default(autoincrement())
   name         String
+  description  String?
   agentType    String        @default("outbound")
   vapiId       String?
   config       String?

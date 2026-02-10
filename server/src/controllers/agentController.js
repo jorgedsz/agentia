@@ -87,7 +87,7 @@ const getAgent = async (req, res) => {
 
 const createAgent = async (req, res) => {
   try {
-    const { name, config, agentType } = req.body;
+    const { name, description, config, agentType } = req.body;
     console.log('Create agent request - name:', name, 'agentType:', agentType, 'config:', JSON.stringify(config, null, 2));
 
     if (!name) {
@@ -121,6 +121,7 @@ const createAgent = async (req, res) => {
     const agent = await req.prisma.agent.create({
       data: {
         name,
+        description: description || null,
         agentType: agentType || 'outbound',
         vapiId,
         config: savedConfig ? JSON.stringify(savedConfig) : null,
@@ -142,7 +143,7 @@ const createAgent = async (req, res) => {
 const updateAgent = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, config, agentType } = req.body;
+    const { name, description, config, agentType } = req.body;
     console.log('=== UPDATE AGENT REQUEST ===');
     console.log('Agent ID:', id, '| Name:', name, '| Type:', agentType);
     console.log('Tools count:', config?.tools?.length || 0);
@@ -228,7 +229,7 @@ const updateAgent = async (req, res) => {
     }
 
     const savedConfig = rewriteToolUrls(config) || config;
-    const updateData = { name, config: savedConfig ? JSON.stringify(savedConfig) : null };
+    const updateData = { name, description: description || null, config: savedConfig ? JSON.stringify(savedConfig) : null };
     if (agentType) updateData.agentType = agentType;
 
     const agent = await req.prisma.agent.update({
