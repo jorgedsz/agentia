@@ -636,6 +636,8 @@ export default function AgentEdit() {
   // Call section
   const [phoneNumbers, setPhoneNumbers] = useState([])
   const [selectedPhone, setSelectedPhone] = useState('')
+  const [assignedPhoneId, setAssignedPhoneId] = useState('')
+  const [assigningPhone, setAssigningPhone] = useState(false)
   const [customerNumber, setCustomerNumber] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [calling, setCalling] = useState(false)
@@ -1038,8 +1040,36 @@ export default function AgentEdit() {
       } else if (allNumbers.length > 0) {
         setSelectedPhone(allNumbers[0].id.toString())
       }
+      // Track which phone is assigned to THIS agent
+      const assigned = allNumbers.find(p => p.agentId === parseInt(id))
+      setAssignedPhoneId(assigned ? assigned.id.toString() : '')
     } catch (err) {
       console.error('Failed to fetch phone numbers:', err)
+    }
+  }
+
+  const handlePhoneAssignment = async (newPhoneId) => {
+    setAssigningPhone(true)
+    setError('')
+    try {
+      // Unassign the currently assigned phone if there is one
+      if (assignedPhoneId) {
+        await phoneNumbersAPI.unassign(assignedPhoneId)
+      }
+      // Assign the new phone if not "none"
+      if (newPhoneId) {
+        await phoneNumbersAPI.assignToAgent(newPhoneId, id)
+      }
+      setAssignedPhoneId(newPhoneId)
+      await fetchPhoneNumbers()
+      setSuccess(newPhoneId ? 'Phone number assigned successfully' : 'Phone number unassigned')
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      console.error('Failed to assign phone number:', err)
+      setError(err.response?.data?.error || 'Failed to assign phone number')
+      await fetchPhoneNumbers()
+    } finally {
+      setAssigningPhone(false)
     }
   }
 
@@ -2183,6 +2213,53 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               </div>
             )
           })()}
+
+          {/* Phone Number Assignment */}
+          {phoneNumbers.length > 0 && (
+            <div>
+              <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Phone Number (Inbound)
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </label>
+              <div className="relative">
+                <select
+                  value={assignedPhoneId}
+                  onChange={(e) => handlePhoneAssignment(e.target.value)}
+                  disabled={assigningPhone}
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer disabled:opacity-50"
+                >
+                  <option value="">None</option>
+                  {phoneNumbers.map((phone) => {
+                    const assignedToOther = phone.agentId && phone.agentId !== parseInt(id)
+                    return (
+                      <option key={phone.id} value={phone.id.toString()} disabled={assignedToOther}>
+                        {phone.phoneNumber}{assignedToOther ? ` (assigned to ${phone.agent?.name || 'another agent'})` : ''}
+                      </option>
+                    )
+                  })}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  {assigningPhone ? (
+                    <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+              {assignedPhoneId && (
+                <p className="text-xs mt-1 text-green-600 dark:text-green-400">
+                  Inbound calls to this number will be handled by this agent
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Feature Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
