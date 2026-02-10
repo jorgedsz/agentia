@@ -80,6 +80,7 @@
     "clients": "Clients",
     "agencies": "Agencies",
     "allUsers": "All Users",
+    "accounts": "Accounts",
     "subAccounts": "Sub Accounts",
     "twilioSetup": "Twilio Setup",
     "phoneNumbers": "Phone Numbers",

@@ -217,10 +217,7 @@ export default function DashboardLayout() {
     {
       title: t('sidebar.sectionManagement'),
       items: [
-        { id: 'clients', path: '/dashboard/clients', label: t('sidebar.clients'), icon: Icons.Users, roles: [ROLES.OWNER, ROLES.AGENCY] },
-        { id: 'agencies', path: '/dashboard/agencies', label: t('sidebar.agencies'), icon: Icons.SubAccounts, roles: [ROLES.OWNER] },
-        { id: 'all-users', path: '/dashboard/all-users', label: t('sidebar.allUsers'), icon: Icons.Users, roles: [ROLES.OWNER] },
-        { id: 'sub-accounts', path: '/dashboard/sub-accounts', label: t('sidebar.subAccounts'), icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'accounts', path: '/dashboard/accounts', label: t('sidebar.accounts'), icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.AGENCY] },
       ]
     },
     {

@@ -13,6 +13,7 @@ import Credits from './components/Dashboard/Credits'
 import CallLogs from './components/Dashboard/CallLogs'
 import RatesSettings from './components/Dashboard/RatesSettings'
 import AllUsers from './components/Dashboard/AllUsers'
+import AccountManagement from './components/Dashboard/AccountManagement'
 import VoiceLibrary from './components/Dashboard/VoiceLibrary'
 import Analytics from './components/Dashboard/Analytics'
 import Support from './components/Dashboard/Support'
@@ -98,14 +99,15 @@ function App() {
           <Route index element={<DashboardContent tab="overview" />} />
           <Route path="agents" element={<DashboardContent tab="agents" />} />
           <Route path="agent/:id" element={<AgentEdit />} />
-          <Route path="clients" element={<DashboardContent tab="clients" />} />
-          <Route path="agencies" element={<DashboardContent tab="agencies" />} />
-          <Route path="all-users" element={<AllUsers />} />
-          <Route path="sub-accounts" element={<SubAccounts />} />
+          <Route path="accounts" element={<AccountManagement />} />
+          <Route path="clients" element={<Navigate to="/dashboard/accounts" replace />} />
+          <Route path="agencies" element={<Navigate to="/dashboard/accounts" replace />} />
+          <Route path="all-users" element={<Navigate to="/dashboard/accounts" replace />} />
+          <Route path="sub-accounts" element={<Navigate to="/dashboard/accounts" replace />} />
+          <Route path="credits" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="twilio-setup" element={<TwilioSetup />} />
           <Route path="phone-numbers" element={<PhoneNumbers />} />
           <Route path="settings" element={<Settings />} />
-          <Route path="credits" element={<Credits />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="call-logs" element={<CallLogs />} />
           <Route path="rates" element={<RatesSettings />} />
