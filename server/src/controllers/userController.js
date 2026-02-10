@@ -120,9 +120,33 @@ const createAgency = async (req, res) => {
       }
     });
 
+    // Auto-assign a VAPI key from the pool
+    let vapiKeyWarning = null;
+    const availableKey = await req.prisma.vapiKeyPool.findFirst({
+      where: { assignedUserId: null }
+    });
+    if (availableKey) {
+      await req.prisma.$transaction([
+        req.prisma.vapiKeyPool.update({
+          where: { id: availableKey.id },
+          data: { assignedUserId: agency.id }
+        }),
+        req.prisma.user.update({
+          where: { id: agency.id },
+          data: {
+            vapiApiKey: availableKey.vapiApiKey,
+            vapiPublicKey: availableKey.vapiPublicKey
+          }
+        })
+      ]);
+    } else {
+      vapiKeyWarning = 'No VAPI keys available in the pool. Add more keys in Settings > VAPI Key Pool.';
+    }
+
     res.status(201).json({
       message: 'Agency created successfully',
-      agency
+      agency,
+      vapiKeyWarning
     });
   } catch (error) {
     console.error('Create agency error:', error);
@@ -175,9 +199,33 @@ const createClient = async (req, res) => {
       }
     });
 
+    // Auto-assign a VAPI key from the pool
+    let vapiKeyWarning = null;
+    const availableKey = await req.prisma.vapiKeyPool.findFirst({
+      where: { assignedUserId: null }
+    });
+    if (availableKey) {
+      await req.prisma.$transaction([
+        req.prisma.vapiKeyPool.update({
+          where: { id: availableKey.id },
+          data: { assignedUserId: client.id }
+        }),
+        req.prisma.user.update({
+          where: { id: client.id },
+          data: {
+            vapiApiKey: availableKey.vapiApiKey,
+            vapiPublicKey: availableKey.vapiPublicKey
+          }
+        })
+      ]);
+    } else {
+      vapiKeyWarning = 'No VAPI keys available in the pool. Add more keys in Settings > VAPI Key Pool.';
+    }
+
     res.status(201).json({
       message: 'Client created successfully',
-      client
+      client,
+      vapiKeyWarning
     });
   } catch (error) {
     console.error('Create client error:', error);
@@ -232,6 +280,12 @@ const deleteUser = async (req, res) => {
         return res.status(403).json({ error: 'Cannot delete this client' });
       }
     }
+
+    // Release any assigned VAPI key back to the pool
+    await req.prisma.vapiKeyPool.updateMany({
+      where: { assignedUserId: targetId },
+      data: { assignedUserId: null }
+    });
 
     await req.prisma.user.delete({
       where: { id: targetId }

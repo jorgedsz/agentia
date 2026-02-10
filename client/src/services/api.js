@@ -134,6 +134,13 @@ export const calendarAPI = {
   getOAuthUrl: (provider) => api.get(`/calendar/oauth/${provider}/authorize`)
 }
 
+// VAPI Key Pool API (OWNER only)
+export const vapiKeyPoolAPI = {
+  list: () => api.get('/vapi-key-pool'),
+  add: (data) => api.post('/vapi-key-pool', data),
+  remove: (id) => api.delete(`/vapi-key-pool/${id}`)
+}
+
 // Prompt Generator API
 export const promptGeneratorAPI = {
   generate: (data) => api.post('/prompt-generator/generate', data)

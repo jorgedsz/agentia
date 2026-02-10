@@ -25,6 +25,7 @@ const chatRoutes = require('./routes/chat');
 const ticketRoutes = require('./routes/tickets');
 const callTriggerRoutes = require('./routes/callTrigger');
 const vapiWebhookRoutes = require('./routes/vapiWebhook');
+const vapiKeyPoolRoutes = require('./routes/vapiKeyPool');
 const recordingRoutes = require('./routes/recordings');
 
 const app = express();
@@ -67,6 +68,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/call/trigger', callTriggerRoutes);
 app.use('/api/vapi', vapiWebhookRoutes);
+app.use('/api/vapi-key-pool', vapiKeyPoolRoutes);
 app.use('/api/recordings', recordingRoutes);
 
 // Health check

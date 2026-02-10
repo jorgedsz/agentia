@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI } from '../../services/api'
+import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI, vapiKeyPoolAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 
 const ROLES = {
@@ -71,6 +71,17 @@ const SETTINGS_ITEMS = [
       </svg>
     ),
     roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
+  },
+  {
+    id: 'vapi-pool',
+    label: 'settings.vapiPool',
+    description: 'settings.vapiPoolDesc',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+      </svg>
+    ),
+    roles: [ROLES.OWNER]
   },
   {
     id: 'slack',
@@ -204,6 +215,7 @@ export default function Settings() {
         {activeTab === 'api-keys' && <APIKeysTab />}
         {activeTab === 'billing' && <BillingTab />}
         {activeTab === 'branding' && <BrandingTab />}
+        {activeTab === 'vapi-pool' && isOwner && <VapiKeyPoolTab />}
         {activeTab === 'slack' && isOwner && <SlackTab />}
         {activeTab === 'account' && <AccountTab />}
       </div>
@@ -1980,6 +1992,217 @@ function APIKeysTab() {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+function VapiKeyPoolTab() {
+  const [loading, setLoading] = useState(true)
+  const [keys, setKeys] = useState([])
+  const [total, setTotal] = useState(0)
+  const [available, setAvailable] = useState(0)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [form, setForm] = useState({ label: '', vapiApiKey: '', vapiPublicKey: '' })
+  const { t } = useLanguage()
+
+  useEffect(() => {
+    fetchKeys()
+  }, [])
+
+  const fetchKeys = async () => {
+    setLoading(true)
+    try {
+      const { data } = await vapiKeyPoolAPI.list()
+      setKeys(data.keys)
+      setTotal(data.total)
+      setAvailable(data.available)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load key pool')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    if (!form.vapiApiKey || !form.vapiPublicKey) return
+    setAdding(true)
+    setError('')
+    try {
+      await vapiKeyPoolAPI.add(form)
+      setForm({ label: '', vapiApiKey: '', vapiPublicKey: '' })
+      setShowForm(false)
+      setSuccess(t('settings.vapiPoolAdded'))
+      setTimeout(() => setSuccess(''), 3000)
+      fetchKeys()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to add key pair')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const handleRemove = async (id) => {
+    if (!confirm(t('settings.vapiPoolRemoveConfirm'))) return
+    setError('')
+    try {
+      await vapiKeyPoolAPI.remove(id)
+      setSuccess(t('settings.vapiPoolRemoved'))
+      setTimeout(() => setSuccess(''), 3000)
+      fetchKeys()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to remove key pair')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
+          {success}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('settings.vapiPoolTitle')}</h2>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{t('settings.vapiPoolSubtitle')}</p>
+          </div>
+          {total > 0 && (
+            <span className="px-3 py-1.5 bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400 text-sm font-medium rounded-full">
+              {t('settings.vapiPoolAvailable', { available, total })}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Keys Table */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+            {t('settings.vapiPoolTitle')} ({total})
+          </h3>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+          >
+            {showForm ? '−' : '+'} {t('settings.vapiPoolAddKey')}
+          </button>
+        </div>
+
+        {/* Add Form */}
+        {showForm && (
+          <form onSubmit={handleAdd} className="p-4 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-hover">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('settings.vapiPoolLabel')}</label>
+                <input
+                  type="text"
+                  value={form.label}
+                  onChange={(e) => setForm({ ...form, label: e.target.value })}
+                  placeholder={t('settings.vapiPoolLabelPlaceholder')}
+                  className="w-full px-3 py-2 bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('settings.vapiPoolPrivateKey')} *</label>
+                <input
+                  type="password"
+                  value={form.vapiApiKey}
+                  onChange={(e) => setForm({ ...form, vapiApiKey: e.target.value })}
+                  placeholder={t('settings.vapiPoolPrivateKeyPlaceholder')}
+                  required
+                  className="w-full px-3 py-2 bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('settings.vapiPoolPublicKey')} *</label>
+                <input
+                  type="password"
+                  value={form.vapiPublicKey}
+                  onChange={(e) => setForm({ ...form, vapiPublicKey: e.target.value })}
+                  placeholder={t('settings.vapiPoolPublicKeyPlaceholder')}
+                  required
+                  className="w-full px-3 py-2 bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end mt-3">
+              <button
+                type="submit"
+                disabled={adding || !form.vapiApiKey || !form.vapiPublicKey}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+              >
+                {adding ? '...' : t('settings.vapiPoolAddKey')}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Keys List */}
+        {keys.length === 0 ? (
+          <div className="p-8 text-center">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">{t('settings.vapiPoolEmpty')}</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('settings.vapiPoolEmptyDesc')}</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200 dark:divide-dark-border">
+            {keys.map((key) => (
+              <div key={key.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {key.label || `Key #${key.id}`}
+                    </span>
+                    {key.assignedUser ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400">
+                        {t('settings.vapiPoolAssigned')}: {key.assignedUser.email}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400">
+                        {t('settings.vapiPoolAvailableStatus')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex gap-4 text-xs text-gray-500 dark:text-gray-400 font-mono">
+                    <span>API: {key.maskedApiKey}</span>
+                    <span>Public: {key.maskedPublicKey}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRemove(key.id)}
+                  disabled={!!key.assignedUserId}
+                  title={key.assignedUserId ? t('settings.vapiPoolCannotRemoveAssigned') : t('settings.vapiPoolRemove')}
+                  className="ml-4 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                >
+                  {t('settings.vapiPoolRemove')}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

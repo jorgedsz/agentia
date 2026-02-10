@@ -35,6 +35,18 @@ model User {
   calendarIntegrations CalendarIntegration[]
   supportTickets       SupportTicket[]
   ticketReplies        TicketReply[]
+  vapiKeyPoolEntry     VapiKeyPool?
+}
+
+model VapiKeyPool {
+  id              Int      @id @default(autoincrement())
+  label           String?  // Optional friendly name (e.g. "VAPI Org #1")
+  vapiApiKey      String   // Encrypted private key
+  vapiPublicKey   String   // Encrypted public key
+  assignedUserId  Int?     @unique // null = available, set = assigned
+  assignedUser    User?    @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model GHLIntegration {
