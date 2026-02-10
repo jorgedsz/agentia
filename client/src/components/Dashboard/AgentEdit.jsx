@@ -644,8 +644,6 @@ export default function AgentEdit() {
     startSpeakingOnNoPunctuationSeconds: 1.5,
     startSpeakingOnNumberSeconds: 0.5,
     voicemailDetectionEnabled: false,
-    voicemailDetectionProvider: 'twilio',
-    voicemailDetectionType: 'machine_end_beep',
     maxDurationSeconds: 1800,
     silenceTimeoutSeconds: 30
   })
@@ -1051,8 +1049,6 @@ export default function AgentEdit() {
           startSpeakingOnNoPunctuationSeconds: cfg.startSpeakingOnNoPunctuationSeconds ?? 1.5,
           startSpeakingOnNumberSeconds: cfg.startSpeakingOnNumberSeconds ?? 0.5,
           voicemailDetectionEnabled: cfg.voicemailDetectionEnabled || false,
-          voicemailDetectionProvider: cfg.voicemailDetectionProvider || 'twilio',
-          voicemailDetectionType: cfg.voicemailDetectionType || 'machine_end_beep',
           maxDurationSeconds: cfg.maxDurationSeconds ?? 1800,
           silenceTimeoutSeconds: cfg.silenceTimeoutSeconds ?? 30
         })
@@ -3701,7 +3697,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     </button>
 
                     {/* Voicemail Detection */}
-                    <button onClick={() => setAdvancedSubPanel('voicemailDetection')} className="flex flex-col items-center gap-2 group">
+                    <button onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, voicemailDetectionEnabled: !callBehaviorSettings.voicemailDetectionEnabled })} className="flex flex-col items-center gap-2 group">
                       <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Voicemail</span>
                       <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.voicemailDetectionEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
                         <svg className={`w-7 h-7 ${callBehaviorSettings.voicemailDetectionEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4200,77 +4196,6 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                           </div>
                         </div>
                       )}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Sub-panel: Voicemail Detection */}
-            {advancedSubPanel === 'voicemailDetection' && (
-              <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                  </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Voicemail Detection</h3>
-                </div>
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Detect when a call reaches voicemail and handle it automatically. The assistant can hang up or leave a message.</p>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Enable Voicemail Detection</span>
-                    <button
-                      onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, voicemailDetectionEnabled: !callBehaviorSettings.voicemailDetectionEnabled })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.voicemailDetectionEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.voicemailDetectionEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
-                  </div>
-
-                  {callBehaviorSettings.voicemailDetectionEnabled && (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Provider</label>
-                        <div className="flex gap-2">
-                          {['twilio', 'google'].map(p => (
-                            <button
-                              key={p}
-                              onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, voicemailDetectionProvider: p })}
-                              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${callBehaviorSettings.voicemailDetectionProvider === p ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : 'border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
-                            >
-                              {p.charAt(0).toUpperCase() + p.slice(1)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Detection Type</label>
-                        <div className="space-y-2">
-                          {[
-                            { value: 'machine_end_beep', label: 'After Beep', desc: 'Detect voicemail after the beep sound' },
-                            { value: 'machine_end_silence', label: 'After Silence', desc: 'Detect voicemail after silence' },
-                            { value: 'machine_end_other', label: 'Other', desc: 'Other machine detection method' }
-                          ].map(opt => (
-                            <button
-                              key={opt.value}
-                              onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, voicemailDetectionType: opt.value })}
-                              className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${callBehaviorSettings.voicemailDetectionType === opt.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
-                            >
-                              <div>
-                                <div className="text-sm font-medium text-gray-900 dark:text-white">{opt.label}</div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">{opt.desc}</div>
-                              </div>
-                              {callBehaviorSettings.voicemailDetectionType === opt.value && (
-                                <svg className="w-5 h-5 text-primary-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   )}
                 </div>

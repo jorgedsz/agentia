@@ -224,12 +224,8 @@ class VapiService {
     // Voicemail Detection
     if (config.voicemailDetectionEnabled) {
       agentConfig.voicemailDetection = {
-        provider: config.voicemailDetectionProvider || 'twilio',
-        voicemailDetectionTypes: [config.voicemailDetectionType || 'machine_end_beep'],
-        enabled: true,
-        machineDetectionTimeout: 31,
-        machineDetectionSpeechThreshold: 3500,
-        machineDetectionSpeechEndThreshold: 2750
+        provider: 'vapi',
+        enabled: true
       };
     }
 
@@ -438,12 +434,8 @@ class VapiService {
     // Voicemail Detection
     if (config.voicemailDetectionEnabled) {
       updateData.voicemailDetection = {
-        provider: config.voicemailDetectionProvider || 'twilio',
-        voicemailDetectionTypes: [config.voicemailDetectionType || 'machine_end_beep'],
-        enabled: true,
-        machineDetectionTimeout: 31,
-        machineDetectionSpeechThreshold: 3500,
-        machineDetectionSpeechEndThreshold: 2750
+        provider: 'vapi',
+        enabled: true
       };
     } else {
       updateData.voicemailDetection = null;
