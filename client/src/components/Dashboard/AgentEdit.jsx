@@ -621,16 +621,13 @@ export default function AgentEdit() {
     serverUrl: '',
     serverUrlSecret: '',
     serverMessages: ['end-of-call-report'],
-    summaryEnabled: true,
     summaryPrompt: '',
     successEvaluationEnabled: false,
     successEvaluationRubric: '',
     successEvaluationPrompt: '',
     structuredDataEnabled: false,
     structuredDataSchema: '{\n  "type": "object",\n  "properties": {}\n}',
-    structuredDataPrompt: '',
-    recordingEnabled: true,
-    transcriptEnabled: true
+    structuredDataPrompt: ''
   })
 
   // Call Behavior settings (stop speaking, start speaking, voicemail detection, timeouts)
@@ -1029,16 +1026,13 @@ export default function AgentEdit() {
           serverUrl: cfg.serverUrl || '',
           serverUrlSecret: cfg.serverUrlSecret || '',
           serverMessages: cfg.serverMessages || ['end-of-call-report'],
-          summaryEnabled: cfg.summaryEnabled ?? true,
           summaryPrompt: cfg.summaryPrompt || '',
           successEvaluationEnabled: cfg.successEvaluationEnabled || false,
           successEvaluationRubric: cfg.successEvaluationRubric || '',
           successEvaluationPrompt: cfg.successEvaluationPrompt || '',
           structuredDataEnabled: cfg.structuredDataEnabled || false,
           structuredDataSchema: cfg.structuredDataSchema || '{\n  "type": "object",\n  "properties": {}\n}',
-          structuredDataPrompt: cfg.structuredDataPrompt || '',
-          recordingEnabled: cfg.recordingEnabled ?? true,
-          transcriptEnabled: cfg.transcriptEnabled ?? true
+          structuredDataPrompt: cfg.structuredDataPrompt || ''
         })
       }
       // Load call behavior settings
@@ -1493,7 +1487,6 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
           backgroundSound: voiceSettings.backgroundSound,
           backgroundSoundVolume: voiceSettings.backgroundSoundVolume,
           tools: allTools,
-          summaryEnabled: serverConfig.summaryEnabled,
           summaryPrompt: serverConfig.summaryPrompt,
           successEvaluationEnabled: serverConfig.successEvaluationEnabled,
           successEvaluationRubric: serverConfig.successEvaluationRubric,
@@ -1501,8 +1494,6 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
           structuredDataEnabled: serverConfig.structuredDataEnabled,
           structuredDataSchema: serverConfig.structuredDataSchema,
           structuredDataPrompt: serverConfig.structuredDataPrompt,
-          recordingEnabled: serverConfig.recordingEnabled,
-          transcriptEnabled: serverConfig.transcriptEnabled,
           // Call behavior settings
           ...callBehaviorSettings,
           ...(serverConfig.serverUrl && {
@@ -3673,48 +3664,6 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                         </svg>
                       </div>
-                    </button>
-
-                    {/* Recording */}
-                    <button
-                      onClick={() => setServerConfig({ ...serverConfig, recordingEnabled: !serverConfig.recordingEnabled })}
-                      className="flex flex-col items-center gap-2 group"
-                    >
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Recording</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.recordingEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${serverConfig.recordingEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                        </svg>
-                      </div>
-                      {serverConfig.recordingEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
-                    </button>
-
-                    {/* Transcript */}
-                    <button
-                      onClick={() => setServerConfig({ ...serverConfig, transcriptEnabled: !serverConfig.transcriptEnabled })}
-                      className="flex flex-col items-center gap-2 group"
-                    >
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Transcript</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.transcriptEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${serverConfig.transcriptEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      {serverConfig.transcriptEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
-                    </button>
-
-                    {/* Call Summary */}
-                    <button
-                      onClick={() => setServerConfig({ ...serverConfig, summaryEnabled: !serverConfig.summaryEnabled })}
-                      className="flex flex-col items-center gap-2 group"
-                    >
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Call Summary</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.summaryEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${serverConfig.summaryEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                        </svg>
-                      </div>
-                      {serverConfig.summaryEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
                     </button>
 
                     {/* Structured Data */}

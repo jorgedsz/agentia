@@ -249,17 +249,13 @@ class VapiService {
   buildAnalysisPlan(config) {
     const analysisPlan = {};
 
-    // Summary plan
-    if (config.summaryEnabled !== false) {
-      analysisPlan.summaryPlan = { enabled: true };
-      if (config.summaryPrompt) {
-        analysisPlan.summaryPlan.messages = [{
-          role: 'system',
-          content: config.summaryPrompt
-        }];
-      }
-    } else {
-      analysisPlan.summaryPlan = { enabled: false };
+    // Summary plan - always enabled
+    analysisPlan.summaryPlan = { enabled: true };
+    if (config.summaryPrompt) {
+      analysisPlan.summaryPlan.messages = [{
+        role: 'system',
+        content: config.summaryPrompt
+      }];
     }
 
     // Success evaluation plan
@@ -300,10 +296,10 @@ class VapiService {
 
   buildArtifactPlan(config) {
     return {
-      recordingEnabled: config.recordingEnabled !== false,
+      recordingEnabled: true,
       videoRecordingEnabled: false,
       transcriptPlan: {
-        enabled: config.transcriptEnabled !== false
+        enabled: true
       }
     };
   }
