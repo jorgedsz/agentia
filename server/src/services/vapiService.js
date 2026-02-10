@@ -505,6 +505,10 @@ class VapiService {
       payload.customer.name = callConfig.customer.name;
     }
 
+    if (callConfig.assistantOverrides) {
+      payload.assistantOverrides = callConfig.assistantOverrides;
+    }
+
     console.log('VAPI Call payload:', JSON.stringify(payload, null, 2));
     return this.makeRequest('/call', 'POST', payload);
   }
