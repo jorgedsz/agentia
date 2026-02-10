@@ -2722,7 +2722,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
           <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editingTool ? 'Edit Tool' : 'Add Tool'}
+                {editingTool ? ta('editTool') : ta('addTool')}
               </h3>
               <button onClick={() => { setShowToolModal(false); resetToolForm(); setAdvancedSubPanel(null); setShowAdvancedModal(true); }} className="text-gray-500 hover:text-gray-700">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2732,14 +2732,14 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Tool Type</label>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('toolType')}</label>
                 <select
                   value={toolForm.type}
                   onChange={(e) => setToolForm({ ...toolForm, type: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                 >
-                  {TOOL_TYPES.map(t => (
-                    <option key={t.id} value={t.id}>{t.label}</option>
+                  {TOOL_TYPES.map(tt => (
+                    <option key={tt.id} value={tt.id}>{tt.id === 'function' ? ta('customFunction') : tt.id === 'transferCall' ? ta('transferCall') : ta('endCallTool')}</option>
                   ))}
                 </select>
               </div>
@@ -2747,7 +2747,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               {toolForm.type === 'function' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Function Name *</label>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('functionName')} *</label>
                     <input
                       type="text"
                       value={toolForm.functionName}
@@ -2757,7 +2757,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Description *</label>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('description')} *</label>
                     <input
                       type="text"
                       value={toolForm.functionDescription}
@@ -2767,7 +2767,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Webhook URL *</label>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('webhookUrl')} *</label>
                     <input
                       type="url"
                       value={toolForm.webhookUrl}
@@ -2777,7 +2777,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Parameters (JSON)</label>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('parametersJson')}</label>
                     <textarea
                       value={toolForm.functionParameters}
                       onChange={(e) => setToolForm({ ...toolForm, functionParameters: e.target.value })}
@@ -2791,20 +2791,20 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               {toolForm.type === 'transferCall' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Destination Type</label>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('destinationType')}</label>
                     <select
                       value={toolForm.destinationType}
                       onChange={(e) => setToolForm({ ...toolForm, destinationType: e.target.value })}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                     >
-                      {TRANSFER_DESTINATION_TYPES.map(t => (
-                        <option key={t.id} value={t.id}>{t.label}</option>
+                      {TRANSFER_DESTINATION_TYPES.map(td => (
+                        <option key={td.id} value={td.id}>{td.id === 'number' ? ta('phoneNumber') : td.id === 'sip' ? ta('sipEndpoint') : ta('anotherAssistant')}</option>
                       ))}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                      {toolForm.destinationType === 'number' ? 'Phone Number' : toolForm.destinationType === 'sip' ? 'SIP URI' : 'Assistant ID'} *
+                      {toolForm.destinationType === 'number' ? ta('phoneNumber') : toolForm.destinationType === 'sip' ? ta('sipUri') : ta('assistantId')} *
                     </label>
                     <input
                       type="text"
@@ -2819,7 +2819,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
               {toolForm.type === 'endCall' && (
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">End Message (Optional)</label>
+                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('endMessage')}</label>
                   <input
                     type="text"
                     value={toolForm.endCallMessage}
@@ -2835,13 +2835,13 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                 onClick={() => { setShowToolModal(false); resetToolForm(); setAdvancedSubPanel(null); setShowAdvancedModal(true); }}
                 className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
               >
-                Cancel
+                {ta('cancel')}
               </button>
               <button
                 onClick={handleSaveTool}
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
               >
-                {editingTool ? 'Update' : 'Save'}
+                {editingTool ? ta('update') : ta('save')}
               </button>
             </div>
           </div>
@@ -3638,13 +3638,13 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             {!advancedSubPanel && (
               <>
                 <div className="p-6 pb-2">
-                  <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">Advanced Options</h3>
+                  <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">{ta('advancedOptions')}</h3>
                 </div>
                 <div className="p-6 pt-4">
                   <div className="grid grid-cols-3 gap-4">
                     {/* Voice Model */}
                     <button onClick={() => setAdvancedSubPanel('voiceModel')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Voice Model</span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('voiceModel')}</span>
                       <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
                         <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
@@ -3654,7 +3654,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                     {/* Voice Tuning */}
                     <button onClick={() => setAdvancedSubPanel('voiceTuning')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Voice Tuning</span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('voiceTuning')}</span>
                       <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
                         <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -3664,7 +3664,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                     {/* Background Sound */}
                     <button onClick={() => setAdvancedSubPanel('bgSound')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Background Sound</span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('backgroundSound')}</span>
                       <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
                         <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
@@ -3674,7 +3674,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                     {/* Agent Tools */}
                     <button onClick={() => setAdvancedSubPanel('tools')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Agent Tools</span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('agentTools')}</span>
                       <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
                         <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -3685,7 +3685,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                     {/* Webhook */}
                     <button onClick={() => setAdvancedSubPanel('webhook')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Webhook</span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('postCallWebhook')}</span>
                       <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
                         <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -3695,7 +3695,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                     {/* Structured Data */}
                     <button onClick={() => setAdvancedSubPanel('structuredData')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Structured Data</span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('structuredData')}</span>
                       <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.structuredDataEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
                         <svg className={`w-7 h-7 ${serverConfig.structuredDataEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
@@ -3706,7 +3706,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                     {/* Stop Speaking */}
                     <button onClick={() => setAdvancedSubPanel('stopSpeaking')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Stop Speaking</span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('stopSpeaking')}</span>
                       <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.stopSpeakingEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
                         <svg className={`w-7 h-7 ${callBehaviorSettings.stopSpeakingEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -3717,7 +3717,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                     {/* Start Speaking */}
                     <button onClick={() => setAdvancedSubPanel('startSpeaking')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Start Speaking</span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('startSpeaking')}</span>
                       <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.startSpeakingEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
                         <svg className={`w-7 h-7 ${callBehaviorSettings.startSpeakingEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -3729,7 +3729,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                     {/* Voicemail Detection */}
                     <button onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, voicemailDetectionEnabled: !callBehaviorSettings.voicemailDetectionEnabled })} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Voicemail</span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('voicemail')}</span>
                       <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.voicemailDetectionEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
                         <svg className={`w-7 h-7 ${callBehaviorSettings.voicemailDetectionEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -3740,7 +3740,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                     {/* Call Timeouts */}
                     <button onClick={() => setAdvancedSubPanel('callTimeouts')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Call Timeouts</span>
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('callTimeouts')}</span>
                       <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
                         <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -3754,7 +3754,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     onClick={() => { setAdvancedSubPanel(null); setShowAdvancedModal(false) }}
                     className="w-full py-2.5 text-primary-600 border border-primary-600 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors font-medium"
                   >
-                    Close
+                    {ta('close')}
                   </button>
                 </div>
               </>
@@ -3767,15 +3767,15 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Voice Model</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceModel')}</h3>
                 </div>
                 <div className="p-4 space-y-3">
                   {[
-                    { value: 'eleven_multilingual_v2', label: 'Multilingual v2', desc: 'Best quality, supports 29 languages' },
-                    { value: 'eleven_flash_v2_5', label: 'Flash v2.5', desc: 'Low latency, good quality' },
-                    { value: 'eleven_flash_v2', label: 'Flash v2', desc: 'Fastest response time' },
-                    { value: 'eleven_turbo_v2_5', label: 'Turbo v2.5', desc: 'Balance of speed and quality' },
-                    { value: 'eleven_turbo_v2', label: 'Turbo v2', desc: 'Fast with decent quality' }
+                    { value: 'eleven_multilingual_v2', label: ta('voiceModelMultilingualV2'), desc: ta('voiceModelMultilingualV2Desc') },
+                    { value: 'eleven_flash_v2_5', label: ta('voiceModelFlashV25'), desc: ta('voiceModelFlashV25Desc') },
+                    { value: 'eleven_flash_v2', label: ta('voiceModelFlashV2'), desc: ta('voiceModelFlashV2Desc') },
+                    { value: 'eleven_turbo_v2_5', label: ta('voiceModelTurboV25'), desc: ta('voiceModelTurboV25Desc') },
+                    { value: 'eleven_turbo_v2', label: ta('voiceModelTurboV2'), desc: ta('voiceModelTurboV2Desc') }
                   ].map(model => (
                     <button
                       key={model.value}
@@ -3802,14 +3802,14 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Voice Tuning</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceTuning')}</h3>
                 </div>
                 <div className="p-4 space-y-5">
                   {[
-                    { key: 'stability', label: 'Stability', min: 0, max: 1, step: 0.05, left: 'Variable', right: 'Stable', fmt: v => v.toFixed(2) },
-                    { key: 'similarityBoost', label: 'Clarity + Similarity', min: 0, max: 1, step: 0.05, left: 'Low', right: 'High', fmt: v => v.toFixed(2) },
-                    { key: 'speed', label: 'Speed', min: 0.5, max: 1.2, step: 0.1, left: 'Slower', right: 'Faster', fmt: v => v.toFixed(1) },
-                    { key: 'style', label: 'Style Exaggeration', min: 0, max: 1, step: 0.05, left: 'None', right: 'Exaggerated', fmt: v => v.toFixed(2) }
+                    { key: 'stability', label: ta('stability'), min: 0, max: 1, step: 0.05, left: ta('variable'), right: ta('stable'), fmt: v => v.toFixed(2) },
+                    { key: 'similarityBoost', label: ta('similarityBoost'), min: 0, max: 1, step: 0.05, left: ta('low'), right: ta('high'), fmt: v => v.toFixed(2) },
+                    { key: 'speed', label: ta('speed'), min: 0.5, max: 1.2, step: 0.1, left: ta('slower'), right: ta('faster'), fmt: v => v.toFixed(1) },
+                    { key: 'style', label: ta('styleExaggeration'), min: 0, max: 1, step: 0.05, left: ta('none'), right: ta('exaggerated'), fmt: v => v.toFixed(2) }
                   ].map(s => (
                     <div key={s.key}>
                       <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
@@ -3825,8 +3825,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   ))}
                   <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-dark-border">
                     <div>
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Speaker Boost</span>
-                      <p className="text-xs text-gray-400">Enhance voice similarity</p>
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{ta('useSpeakerBoost')}</span>
+                      <p className="text-xs text-gray-400">{ta('similarityBoost')}</p>
                     </div>
                     <button
                       onClick={() => setVoiceSettings({ ...voiceSettings, useSpeakerBoost: !voiceSettings.useSpeakerBoost })}
@@ -3846,7 +3846,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Background Sound</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('backgroundSound')}</h3>
                 </div>
                 <div className="p-4 space-y-3">
                   {[
@@ -3879,31 +3879,31 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                     </button>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent Tools</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('agentTools')}</h3>
                   </div>
-                  <button onClick={openAddToolModal} className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">+ Add</button>
+                  <button onClick={openAddToolModal} className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">+ {ta('add')}</button>
                 </div>
                 <div className="p-4">
                   {tools.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 dark:bg-dark-hover rounded-lg border border-dashed border-gray-300 dark:border-dark-border">
                       <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                      <p className="text-sm text-gray-500">No tools configured</p>
-                      <p className="text-xs text-gray-400 mt-1">Add functions, call transfers, or other tools</p>
+                      <p className="text-sm text-gray-500">{ta('noToolsConfigured')}</p>
+                      <p className="text-xs text-gray-400 mt-1">{ta('addToolsDesc')}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {tools.map((tool, index) => {
-                        const getToolLabel = (t) => {
-                          if (t.type === 'function') return t.function?.name || 'Function'
-                          if (t.type === 'ghl.contact.get') return 'Get Contact'
-                          if (t.type === 'ghl.contact.create') return 'Create Contact'
-                          if (t.type === 'ghl.calendar.availability.check') return 'Check Availability'
-                          if (t.type === 'ghl.calendar.event.create') return 'Create Event'
-                          return t.type
+                        const getToolLabel = (tl) => {
+                          if (tl.type === 'function') return tl.function?.name || ta('function')
+                          if (tl.type === 'ghl.contact.get') return ta('getContact')
+                          if (tl.type === 'ghl.contact.create') return ta('createContact')
+                          if (tl.type === 'ghl.calendar.availability.check') return ta('checkAvailability')
+                          if (tl.type === 'ghl.calendar.event.create') return ta('bookAppointment')
+                          return tl.type
                         }
-                        const getToolBadge = (t) => {
-                          if (t.type.startsWith('ghl.')) return 'GHL'
-                          return t.type
+                        const getToolBadge = (tb) => {
+                          if (tb.type.startsWith('ghl.')) return 'GHL'
+                          return tb.type
                         }
                         return (
                           <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg border border-gray-200 dark:border-dark-border">
@@ -3935,11 +3935,11 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Post-Call Webhook</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('postCallWebhook')}</h3>
                 </div>
                 <div className="p-4 space-y-4">
                   <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Webhook URL</label>
+                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('webhookUrlLabel')}</label>
                     <input
                       type="url"
                       value={serverConfig.serverUrl}
@@ -3947,10 +3947,10 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       placeholder="https://your-server.com/webhook"
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                     />
-                    <p className="text-xs text-gray-400 mt-1">Receives call data after each call ends</p>
+                    <p className="text-xs text-gray-400 mt-1">{ta('receivesCallData')}</p>
                   </div>
                   <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Webhook Secret (Optional)</label>
+                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('webhookSecret')}</label>
                     <input
                       type="password"
                       value={serverConfig.serverUrlSecret}
@@ -3970,14 +3970,14 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Structured Data</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('structuredData')}</h3>
                 </div>
                 <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Extract structured information from calls using a JSON schema. VAPI will populate the schema fields based on conversation data.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('structuredDataFullDesc')}</p>
 
                   {/* Enable toggle */}
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Enable Structured Data</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStructuredDataToggle')}</span>
                     <button
                       onClick={() => setServerConfig({ ...serverConfig, structuredDataEnabled: !serverConfig.structuredDataEnabled })}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${serverConfig.structuredDataEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
@@ -3990,7 +3990,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     <>
                       {/* JSON Schema */}
                       <div>
-                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">JSON Schema</label>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('jsonSchema')}</label>
                         <textarea
                           value={serverConfig.structuredDataSchema}
                           onChange={(e) => setServerConfig({ ...serverConfig, structuredDataSchema: e.target.value })}
@@ -3999,12 +3999,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm font-mono"
                           spellCheck={false}
                         />
-                        <p className="text-xs text-gray-400 mt-1">Define the JSON schema for data to extract from the call</p>
+                        <p className="text-xs text-gray-400 mt-1">{ta('jsonSchemaPlaceholder')}</p>
                       </div>
 
                       {/* Extraction Prompt */}
                       <div>
-                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Extraction Instructions</label>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('extractionInstructions')}</label>
                         <textarea
                           value={serverConfig.structuredDataPrompt}
                           onChange={(e) => setServerConfig({ ...serverConfig, structuredDataPrompt: e.target.value })}
@@ -4012,7 +4012,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                           placeholder="Extract the customer's name, appointment date they requested, and the issue they described..."
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                         />
-                        <p className="text-xs text-gray-400 mt-1">Instructions for how to extract data from the conversation</p>
+                        <p className="text-xs text-gray-400 mt-1">{ta('extractionInstructionsDesc')}</p>
                       </div>
                     </>
                   )}
@@ -4027,13 +4027,13 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Stop Speaking Plan</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('stopSpeakingPlan')}</h3>
                 </div>
                 <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Configure how the assistant detects when the user starts speaking and stops its own speech. This helps create more natural conversations.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('stopSpeakingDesc')}</p>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Enable Stop Speaking</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStopSpeaking')}</span>
                     <button
                       onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingEnabled: !callBehaviorSettings.stopSpeakingEnabled })}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.stopSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
@@ -4046,7 +4046,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     <div className="space-y-4">
                       <div>
                         <div className="flex justify-between mb-1">
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Number of Words</label>
+                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('numberOfWords')}</label>
                           <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingNumWords}</span>
                         </div>
                         <input
@@ -4058,12 +4058,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                           onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingNumWords: parseInt(e.target.value) })}
                           className="w-full accent-primary-600"
                         />
-                        <p className="text-xs text-gray-400 mt-0.5">Words the user must speak before the assistant stops talking</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{ta('wordsBeforeStop')}</p>
                       </div>
 
                       <div>
                         <div className="flex justify-between mb-1">
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Voice Seconds</label>
+                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('voiceSeconds')}</label>
                           <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingVoiceSeconds}s</span>
                         </div>
                         <input
@@ -4075,12 +4075,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                           onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingVoiceSeconds: parseFloat(e.target.value) })}
                           className="w-full accent-primary-600"
                         />
-                        <p className="text-xs text-gray-400 mt-0.5">Duration of voice activity needed to trigger stop</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{ta('voiceActivityDuration')}</p>
                       </div>
 
                       <div>
                         <div className="flex justify-between mb-1">
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Backoff Seconds</label>
+                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('backoffSeconds')}</label>
                           <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingBackoffSeconds}s</span>
                         </div>
                         <input
@@ -4092,7 +4092,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                           onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingBackoffSeconds: parseFloat(e.target.value) })}
                           className="w-full accent-primary-600"
                         />
-                        <p className="text-xs text-gray-400 mt-0.5">Cooldown after assistant stops before it can be interrupted again</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{ta('backoffCooldown')}</p>
                       </div>
                     </div>
                   )}
@@ -4107,13 +4107,13 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Start Speaking Plan</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('startSpeakingPlan')}</h3>
                 </div>
                 <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Configure when the assistant starts speaking after the user stops. Adjust timing, smart endpointing, and transcription-based detection for natural turn-taking.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('startSpeakingDesc')}</p>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Enable Start Speaking Plan</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStartSpeaking')}</span>
                     <button
                       onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingEnabled: !callBehaviorSettings.startSpeakingEnabled })}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.startSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
@@ -4126,7 +4126,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     <div className="space-y-4">
                       <div>
                         <div className="flex justify-between mb-1">
-                          <label className="text-xs text-gray-600 dark:text-gray-400">Wait Seconds</label>
+                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('waitSeconds')}</label>
                           <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingWaitSeconds}s</span>
                         </div>
                         <input
@@ -4138,12 +4138,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                           onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingWaitSeconds: parseFloat(e.target.value) })}
                           className="w-full accent-primary-600"
                         />
-                        <p className="text-xs text-gray-400 mt-0.5">Final delay before the assistant speaks after processing completes (default: 0.4s)</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{ta('waitSecondsDesc')}</p>
                       </div>
 
                       <div className="border-t border-gray-200 dark:border-dark-border pt-4">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm text-gray-700 dark:text-gray-300">Smart Endpointing</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{ta('smartEndpointing')}</span>
                           <button
                             onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingSmartEndpointing: !callBehaviorSettings.startSpeakingSmartEndpointing })}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
@@ -4151,11 +4151,11 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'translate-x-6' : 'translate-x-1'}`} />
                           </button>
                         </div>
-                        <p className="text-xs text-gray-400 mb-3">Uses AI to predict when users finish speaking. English only.</p>
+                        <p className="text-xs text-gray-400 mb-3">{ta('smartEndpointingDesc')}</p>
 
                         {callBehaviorSettings.startSpeakingSmartEndpointing && (
                           <div>
-                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Provider</label>
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('provider')}</label>
                             <div className="flex flex-wrap gap-2">
                               {['livekit', 'vapi', 'krisp', 'deepgram-flux', 'assembly'].map(p => (
                                 <button
@@ -4173,11 +4173,11 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                       {!callBehaviorSettings.startSpeakingSmartEndpointing && (
                         <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-4">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Transcription Endpointing</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{ta('transcriptionEndpointing')}</p>
 
                           <div>
                             <div className="flex justify-between mb-1">
-                              <label className="text-xs text-gray-600 dark:text-gray-400">On Punctuation</label>
+                              <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onPunctuation')}</label>
                               <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnPunctuationSeconds}s</span>
                             </div>
                             <input
@@ -4189,12 +4189,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                               onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnPunctuationSeconds: parseFloat(e.target.value) })}
                               className="w-full accent-primary-600"
                             />
-                            <p className="text-xs text-gray-400 mt-0.5">Wait time after punctuation is detected (default: 0.1s)</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{ta('onPunctuationDesc')}</p>
                           </div>
 
                           <div>
                             <div className="flex justify-between mb-1">
-                              <label className="text-xs text-gray-600 dark:text-gray-400">On No Punctuation</label>
+                              <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onNoPunctuation')}</label>
                               <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnNoPunctuationSeconds}s</span>
                             </div>
                             <input
@@ -4206,12 +4206,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                               onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnNoPunctuationSeconds: parseFloat(e.target.value) })}
                               className="w-full accent-primary-600"
                             />
-                            <p className="text-xs text-gray-400 mt-0.5">Wait time when no punctuation is present (default: 1.5s)</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{ta('onNoPunctuationDesc')}</p>
                           </div>
 
                           <div>
                             <div className="flex justify-between mb-1">
-                              <label className="text-xs text-gray-600 dark:text-gray-400">On Number</label>
+                              <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onNumber')}</label>
                               <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnNumberSeconds}s</span>
                             </div>
                             <input
@@ -4223,7 +4223,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                               onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnNumberSeconds: parseFloat(e.target.value) })}
                               className="w-full accent-primary-600"
                             />
-                            <p className="text-xs text-gray-400 mt-0.5">Wait time after numbers are detected (default: 0.5s)</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{ta('onNumberDesc')}</p>
                           </div>
                         </div>
                       )}
@@ -4240,15 +4240,15 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Timeouts</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callTimeouts')}</h3>
                 </div>
                 <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Configure maximum call duration and silence timeout. These help prevent runaway calls and wasted credits.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('callTimeoutsDesc')}</p>
 
                   <div>
                     <div className="flex justify-between mb-1">
-                      <label className="text-xs text-gray-600 dark:text-gray-400">Max Call Duration</label>
-                      <span className="text-xs text-gray-500">{Math.floor(callBehaviorSettings.maxDurationSeconds / 60)} min</span>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">{ta('maxCallDuration')}</label>
+                      <span className="text-xs text-gray-500">{Math.floor(callBehaviorSettings.maxDurationSeconds / 60)} {ta('min')}</span>
                     </div>
                     <input
                       type="range"
@@ -4259,12 +4259,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, maxDurationSeconds: parseInt(e.target.value) })}
                       className="w-full accent-primary-600"
                     />
-                    <p className="text-xs text-gray-400 mt-0.5">Maximum duration before the call is automatically ended ({callBehaviorSettings.maxDurationSeconds}s)</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{ta('maxCallDurationDesc')} ({callBehaviorSettings.maxDurationSeconds}s)</p>
                   </div>
 
                   <div>
                     <div className="flex justify-between mb-1">
-                      <label className="text-xs text-gray-600 dark:text-gray-400">Silence Timeout</label>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">{ta('silenceTimeoutLabel')}</label>
                       <span className="text-xs text-gray-500">{callBehaviorSettings.silenceTimeoutSeconds}s</span>
                     </div>
                     <input
@@ -4276,7 +4276,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, silenceTimeoutSeconds: parseInt(e.target.value) })}
                       className="w-full accent-primary-600"
                     />
-                    <p className="text-xs text-gray-400 mt-0.5">End the call after this many seconds of silence</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{ta('silenceTimeoutDesc')}</p>
                   </div>
                 </div>
               </>
