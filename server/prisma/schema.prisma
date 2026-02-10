@@ -136,6 +136,12 @@ model CallLog {
   billed          Boolean  @default(false)
   outcome         String   @default("unknown") // answered, booked, not_interested, failed, transferred, voicemail, unknown
   agentId         Int?     // Local agent ID for per-agent filtering
+  recordingUrl    String?  // Our local recording URL
+  transcript      String?  // Full transcript text
+  summary         String?  // Call summary
+  structuredData  String?  // JSON string of extracted data
+  endedReason     String?  // Why the call ended
+  customerNumber  String?  // The customer's phone number
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }

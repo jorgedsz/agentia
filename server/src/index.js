@@ -23,6 +23,8 @@ const voiceRoutes = require('./routes/voices');
 const chatRoutes = require('./routes/chat');
 const ticketRoutes = require('./routes/tickets');
 const callTriggerRoutes = require('./routes/callTrigger');
+const vapiWebhookRoutes = require('./routes/vapiWebhook');
+const recordingRoutes = require('./routes/recordings');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -62,6 +64,8 @@ app.use('/api/voices', voiceRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/call/trigger', callTriggerRoutes);
+app.use('/api/vapi', vapiWebhookRoutes);
+app.use('/api/recordings', recordingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

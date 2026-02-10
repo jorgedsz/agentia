@@ -24,6 +24,22 @@ class VapiService {
     return !!this.getApiKey();
   }
 
+  // Get our server's public URL for VAPI webhook events
+  getOurServerUrl() {
+    let baseUrl = null;
+    if (process.env.APP_URL) {
+      baseUrl = process.env.APP_URL;
+    } else if (process.env.GHL_REDIRECT_URI) {
+      try {
+        const url = new URL(process.env.GHL_REDIRECT_URI);
+        baseUrl = url.origin;
+      } catch {}
+    } else if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      baseUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+    }
+    return baseUrl ? `${baseUrl}/api/vapi/events` : null;
+  }
+
   async makeRequest(endpoint, method = 'GET', body = null, retries = 3) {
     const apiKey = this.getApiKey();
     if (!apiKey) {
@@ -153,8 +169,13 @@ class VapiService {
       agentConfig.backgroundSound = config.backgroundSound;
     }
 
-    // Server/webhook configuration — only include if set
-    if (config.serverUrl) {
+    // Always route VAPI events to our server (we forward to user's webhook)
+    const ourServerUrl = this.getOurServerUrl();
+    if (ourServerUrl) {
+      agentConfig.serverUrl = ourServerUrl;
+      agentConfig.serverMessages = ['end-of-call-report'];
+    } else if (config.serverUrl) {
+      // Fallback: if we can't determine our URL, use user's directly
       agentConfig.serverUrl = config.serverUrl;
       if (config.serverUrlSecret) {
         agentConfig.serverUrlSecret = config.serverUrlSecret;
@@ -346,8 +367,13 @@ class VapiService {
       updateData.backgroundSound = config.backgroundSound;
     }
 
-    // Server/webhook configuration — only include if set (don't send null)
-    if (config.serverUrl) {
+    // Always route VAPI events to our server (we forward to user's webhook)
+    const ourServerUrl = this.getOurServerUrl();
+    if (ourServerUrl) {
+      updateData.serverUrl = ourServerUrl;
+      updateData.serverMessages = ['end-of-call-report'];
+    } else if (config.serverUrl) {
+      // Fallback: if we can't determine our URL, use user's directly
       updateData.serverUrl = config.serverUrl;
       if (config.serverUrlSecret) {
         updateData.serverUrlSecret = config.serverUrlSecret;

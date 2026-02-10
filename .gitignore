@@ -31,6 +31,10 @@ Thumbs.db
 # Prisma
 server/prisma/migrations/*.db
 
+# Recordings (keep .gitkeep)
+server/uploads/recordings/*
+!server/uploads/recordings/.gitkeep
+
 # Temp files
 *.tmp
 *.temp
