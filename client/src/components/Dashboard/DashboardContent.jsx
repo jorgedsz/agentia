@@ -561,31 +561,39 @@ function StatCard({ title, value, icon }) {
 function AgentCard({ agent, onDelete, onEdit, onTest }) {
   const { t } = useLanguage()
   const type = agent.agentType || agent.config?.agentType || 'outbound'
+  const hasPhone = agent.phoneNumbers && agent.phoneNumbers.length > 0
+  const directionLabel = type === 'inbound' ? t('dashboardContent.inbound') : hasPhone ? 'Inbound & Outbound' : t('dashboardContent.outbound')
+  const directionColor = type === 'inbound' ? 'bg-blue-500/20 text-blue-400' : hasPhone ? 'bg-purple-500/20 text-purple-400' : 'bg-green-500/20 text-green-400'
   return (
-    <div className="bg-gray-50 dark:bg-transparent rounded-lg p-4 border border-gray-200 dark:border-primary-500">
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-gray-900 dark:text-white">{agent.name}</h3>
+    <div className="bg-gray-50 dark:bg-transparent rounded-lg p-5 border border-gray-200 dark:border-primary-500">
+      <div className="flex justify-between items-start mb-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{agent.name}</h3>
           <span className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-gray-500/20 text-gray-400">ID: {agent.id}</span>
-          <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${type === 'inbound' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'}`}>
-            {type === 'inbound' ? t('dashboardContent.inbound') : t('dashboardContent.outbound')}
-          </span>
         </div>
-        <span className={`px-2 py-0.5 text-xs rounded-full ${agent.vapiId ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+        <span className={`px-2 py-0.5 text-xs rounded-full flex-shrink-0 ${agent.vapiId ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
           {agent.vapiId ? t('common.connected') : t('common.local')}
         </span>
       </div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${directionColor}`}>
+          {directionLabel}
+        </span>
+      </div>
+      {agent.description && (
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{agent.description}</p>
+      )}
       {agent.config?.systemPrompt && (
-        <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-3">{agent.config.systemPrompt}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4">{agent.config.systemPrompt}</p>
       )}
       <div className="flex gap-2">
-        <button onClick={onEdit} className="flex-1 px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700">{t('common.edit')}</button>
-        <button onClick={onTest} disabled={!agent.vapiId} className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50" title={agent.vapiId ? 'Test Agent' : 'Agent not connected to VAPI'}>
+        <button onClick={onEdit} className="flex-1 px-3 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium">{t('common.edit')}</button>
+        <button onClick={onTest} disabled={!agent.vapiId} className="px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50" title={agent.vapiId ? 'Test Agent' : 'Agent not connected to VAPI'}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
         </button>
-        <button onClick={onDelete} className="px-3 py-1.5 text-red-500 text-sm rounded-lg hover:bg-red-500/10">{t('common.delete')}</button>
+        <button onClick={onDelete} className="px-3 py-2 text-red-500 text-sm rounded-lg hover:bg-red-500/10">{t('common.delete')}</button>
       </div>
     </div>
   )

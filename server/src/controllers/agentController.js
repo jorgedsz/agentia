@@ -47,7 +47,8 @@ const getAgents = async (req, res) => {
   try {
     const agents = await req.prisma.agent.findMany({
       where: { userId: req.user.id },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      include: { phoneNumbers: { select: { id: true } } }
     });
 
     // Parse config JSON strings
