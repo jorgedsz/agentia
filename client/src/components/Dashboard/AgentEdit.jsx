@@ -633,6 +633,26 @@ export default function AgentEdit() {
     transcriptEnabled: true
   })
 
+  // Call Behavior settings (stop speaking, start speaking, voicemail detection, timeouts)
+  const [callBehaviorSettings, setCallBehaviorSettings] = useState({
+    stopSpeakingEnabled: false,
+    stopSpeakingNumWords: 2,
+    stopSpeakingVoiceSeconds: 0.2,
+    stopSpeakingBackoffSeconds: 1,
+    startSpeakingEnabled: false,
+    startSpeakingWaitSeconds: 0.4,
+    startSpeakingSmartEndpointing: false,
+    startSpeakingSmartProvider: 'livekit',
+    startSpeakingOnPunctuationSeconds: 0.1,
+    startSpeakingOnNoPunctuationSeconds: 1.5,
+    startSpeakingOnNumberSeconds: 0.5,
+    voicemailDetectionEnabled: false,
+    voicemailDetectionProvider: 'twilio',
+    voicemailDetectionType: 'machine_end_beep',
+    maxDurationSeconds: 1800,
+    silenceTimeoutSeconds: 30
+  })
+
   // Call section
   const [phoneNumbers, setPhoneNumbers] = useState([])
   const [selectedPhone, setSelectedPhone] = useState('')
@@ -1021,6 +1041,29 @@ export default function AgentEdit() {
           transcriptEnabled: cfg.transcriptEnabled ?? true
         })
       }
+      // Load call behavior settings
+      if (agentData.config) {
+        const cfg = agentData.config
+        setCallBehaviorSettings({
+          stopSpeakingEnabled: cfg.stopSpeakingEnabled || false,
+          stopSpeakingNumWords: cfg.stopSpeakingNumWords ?? 2,
+          stopSpeakingVoiceSeconds: cfg.stopSpeakingVoiceSeconds ?? 0.2,
+          stopSpeakingBackoffSeconds: cfg.stopSpeakingBackoffSeconds ?? 1,
+          startSpeakingEnabled: cfg.startSpeakingEnabled || false,
+          startSpeakingWaitSeconds: cfg.startSpeakingWaitSeconds ?? 0.4,
+          startSpeakingSmartEndpointing: cfg.startSpeakingSmartEndpointing || false,
+          startSpeakingSmartProvider: cfg.startSpeakingSmartProvider || 'livekit',
+          startSpeakingOnPunctuationSeconds: cfg.startSpeakingOnPunctuationSeconds ?? 0.1,
+          startSpeakingOnNoPunctuationSeconds: cfg.startSpeakingOnNoPunctuationSeconds ?? 1.5,
+          startSpeakingOnNumberSeconds: cfg.startSpeakingOnNumberSeconds ?? 0.5,
+          voicemailDetectionEnabled: cfg.voicemailDetectionEnabled || false,
+          voicemailDetectionProvider: cfg.voicemailDetectionProvider || 'twilio',
+          voicemailDetectionType: cfg.voicemailDetectionType || 'machine_end_beep',
+          maxDurationSeconds: cfg.maxDurationSeconds ?? 1800,
+          silenceTimeoutSeconds: cfg.silenceTimeoutSeconds ?? 30
+        })
+      }
+
     } catch (err) {
       setError('Failed to load agent')
       console.error(err)
@@ -1460,6 +1503,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
           structuredDataPrompt: serverConfig.structuredDataPrompt,
           recordingEnabled: serverConfig.recordingEnabled,
           transcriptEnabled: serverConfig.transcriptEnabled,
+          // Call behavior settings
+          ...callBehaviorSettings,
           ...(serverConfig.serverUrl && {
             serverUrl: serverConfig.serverUrl,
             serverUrlSecret: serverConfig.serverUrlSecret,
@@ -3682,6 +3727,50 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       </div>
                       {serverConfig.structuredDataEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
                     </button>
+
+                    {/* Stop Speaking */}
+                    <button onClick={() => setAdvancedSubPanel('stopSpeaking')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Stop Speaking</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.stopSpeakingEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${callBehaviorSettings.stopSpeakingEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                      </div>
+                      {callBehaviorSettings.stopSpeakingEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
+
+                    {/* Start Speaking */}
+                    <button onClick={() => setAdvancedSubPanel('startSpeaking')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Start Speaking</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.startSpeakingEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${callBehaviorSettings.startSpeakingEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      {callBehaviorSettings.startSpeakingEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
+
+                    {/* Voicemail Detection */}
+                    <button onClick={() => setAdvancedSubPanel('voicemailDetection')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Voicemail</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.voicemailDetectionEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${callBehaviorSettings.voicemailDetectionEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      {callBehaviorSettings.voicemailDetectionEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
+
+                    {/* Call Timeouts */}
+                    <button onClick={() => setAdvancedSubPanel('callTimeouts')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">Call Timeouts</span>
+                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
+                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </button>
                   </div>
                 </div>
                 <div className="p-4 pt-2">
@@ -3951,6 +4040,339 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       </div>
                     </>
                   )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Stop Speaking */}
+            {advancedSubPanel === 'stopSpeaking' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Stop Speaking Plan</h3>
+                </div>
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Configure how the assistant detects when the user starts speaking and stops its own speech. This helps create more natural conversations.</p>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Enable Stop Speaking</span>
+                    <button
+                      onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingEnabled: !callBehaviorSettings.stopSpeakingEnabled })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.stopSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.stopSpeakingEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {callBehaviorSettings.stopSpeakingEnabled && (
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <label className="text-xs text-gray-600 dark:text-gray-400">Number of Words</label>
+                          <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingNumWords}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={10}
+                          step={1}
+                          value={callBehaviorSettings.stopSpeakingNumWords}
+                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingNumWords: parseInt(e.target.value) })}
+                          className="w-full accent-primary-600"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">Words the user must speak before the assistant stops talking</p>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <label className="text-xs text-gray-600 dark:text-gray-400">Voice Seconds</label>
+                          <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingVoiceSeconds}s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.1}
+                          max={2}
+                          step={0.1}
+                          value={callBehaviorSettings.stopSpeakingVoiceSeconds}
+                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingVoiceSeconds: parseFloat(e.target.value) })}
+                          className="w-full accent-primary-600"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">Duration of voice activity needed to trigger stop</p>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <label className="text-xs text-gray-600 dark:text-gray-400">Backoff Seconds</label>
+                          <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingBackoffSeconds}s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.5}
+                          max={5}
+                          step={0.5}
+                          value={callBehaviorSettings.stopSpeakingBackoffSeconds}
+                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingBackoffSeconds: parseFloat(e.target.value) })}
+                          className="w-full accent-primary-600"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">Cooldown after assistant stops before it can be interrupted again</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Start Speaking */}
+            {advancedSubPanel === 'startSpeaking' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Start Speaking Plan</h3>
+                </div>
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Configure when the assistant starts speaking after the user stops. Adjust timing, smart endpointing, and transcription-based detection for natural turn-taking.</p>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Enable Start Speaking Plan</span>
+                    <button
+                      onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingEnabled: !callBehaviorSettings.startSpeakingEnabled })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.startSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.startSpeakingEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {callBehaviorSettings.startSpeakingEnabled && (
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <label className="text-xs text-gray-600 dark:text-gray-400">Wait Seconds</label>
+                          <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingWaitSeconds}s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={5}
+                          step={0.1}
+                          value={callBehaviorSettings.startSpeakingWaitSeconds}
+                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingWaitSeconds: parseFloat(e.target.value) })}
+                          className="w-full accent-primary-600"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">Final delay before the assistant speaks after processing completes (default: 0.4s)</p>
+                      </div>
+
+                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">Smart Endpointing</span>
+                          <button
+                            onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingSmartEndpointing: !callBehaviorSettings.startSpeakingSmartEndpointing })}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-3">Uses AI to predict when users finish speaking. English only.</p>
+
+                        {callBehaviorSettings.startSpeakingSmartEndpointing && (
+                          <div>
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Provider</label>
+                            <div className="flex flex-wrap gap-2">
+                              {['livekit', 'vapi', 'krisp', 'deepgram-flux', 'assembly'].map(p => (
+                                <button
+                                  key={p}
+                                  onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingSmartProvider: p })}
+                                  className={`py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors ${callBehaviorSettings.startSpeakingSmartProvider === p ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : 'border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                                >
+                                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {!callBehaviorSettings.startSpeakingSmartEndpointing && (
+                        <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-4">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Transcription Endpointing</p>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <label className="text-xs text-gray-600 dark:text-gray-400">On Punctuation</label>
+                              <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnPunctuationSeconds}s</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={3}
+                              step={0.1}
+                              value={callBehaviorSettings.startSpeakingOnPunctuationSeconds}
+                              onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnPunctuationSeconds: parseFloat(e.target.value) })}
+                              className="w-full accent-primary-600"
+                            />
+                            <p className="text-xs text-gray-400 mt-0.5">Wait time after punctuation is detected (default: 0.1s)</p>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <label className="text-xs text-gray-600 dark:text-gray-400">On No Punctuation</label>
+                              <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnNoPunctuationSeconds}s</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={5}
+                              step={0.1}
+                              value={callBehaviorSettings.startSpeakingOnNoPunctuationSeconds}
+                              onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnNoPunctuationSeconds: parseFloat(e.target.value) })}
+                              className="w-full accent-primary-600"
+                            />
+                            <p className="text-xs text-gray-400 mt-0.5">Wait time when no punctuation is present (default: 1.5s)</p>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <label className="text-xs text-gray-600 dark:text-gray-400">On Number</label>
+                              <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnNumberSeconds}s</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={3}
+                              step={0.1}
+                              value={callBehaviorSettings.startSpeakingOnNumberSeconds}
+                              onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnNumberSeconds: parseFloat(e.target.value) })}
+                              className="w-full accent-primary-600"
+                            />
+                            <p className="text-xs text-gray-400 mt-0.5">Wait time after numbers are detected (default: 0.5s)</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Voicemail Detection */}
+            {advancedSubPanel === 'voicemailDetection' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Voicemail Detection</h3>
+                </div>
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Detect when a call reaches voicemail and handle it automatically. The assistant can hang up or leave a message.</p>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Enable Voicemail Detection</span>
+                    <button
+                      onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, voicemailDetectionEnabled: !callBehaviorSettings.voicemailDetectionEnabled })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.voicemailDetectionEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.voicemailDetectionEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {callBehaviorSettings.voicemailDetectionEnabled && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Provider</label>
+                        <div className="flex gap-2">
+                          {['twilio', 'google'].map(p => (
+                            <button
+                              key={p}
+                              onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, voicemailDetectionProvider: p })}
+                              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border transition-colors ${callBehaviorSettings.voicemailDetectionProvider === p ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : 'border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                            >
+                              {p.charAt(0).toUpperCase() + p.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Detection Type</label>
+                        <div className="space-y-2">
+                          {[
+                            { value: 'machine_end_beep', label: 'After Beep', desc: 'Detect voicemail after the beep sound' },
+                            { value: 'machine_end_silence', label: 'After Silence', desc: 'Detect voicemail after silence' },
+                            { value: 'machine_end_other', label: 'Other', desc: 'Other machine detection method' }
+                          ].map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, voicemailDetectionType: opt.value })}
+                              className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${callBehaviorSettings.voicemailDetectionType === opt.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                            >
+                              <div>
+                                <div className="text-sm font-medium text-gray-900 dark:text-white">{opt.label}</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">{opt.desc}</div>
+                              </div>
+                              {callBehaviorSettings.voicemailDetectionType === opt.value && (
+                                <svg className="w-5 h-5 text-primary-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Call Timeouts */}
+            {advancedSubPanel === 'callTimeouts' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Timeouts</h3>
+                </div>
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Configure maximum call duration and silence timeout. These help prevent runaway calls and wasted credits.</p>
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Max Call Duration</label>
+                      <span className="text-xs text-gray-500">{Math.floor(callBehaviorSettings.maxDurationSeconds / 60)} min</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={60}
+                      max={7200}
+                      step={60}
+                      value={callBehaviorSettings.maxDurationSeconds}
+                      onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, maxDurationSeconds: parseInt(e.target.value) })}
+                      className="w-full accent-primary-600"
+                    />
+                    <p className="text-xs text-gray-400 mt-0.5">Maximum duration before the call is automatically ended ({callBehaviorSettings.maxDurationSeconds}s)</p>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Silence Timeout</label>
+                      <span className="text-xs text-gray-500">{callBehaviorSettings.silenceTimeoutSeconds}s</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={5}
+                      max={120}
+                      step={5}
+                      value={callBehaviorSettings.silenceTimeoutSeconds}
+                      onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, silenceTimeoutSeconds: parseInt(e.target.value) })}
+                      className="w-full accent-primary-600"
+                    />
+                    <p className="text-xs text-gray-400 mt-0.5">End the call after this many seconds of silence</p>
+                  </div>
                 </div>
               </>
             )}

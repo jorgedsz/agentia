@@ -194,6 +194,53 @@ class VapiService {
     // Add artifact plan
     agentConfig.artifactPlan = this.buildArtifactPlan(config);
 
+    // Stop Speaking Plan
+    if (config.stopSpeakingEnabled) {
+      agentConfig.stopSpeakingPlan = {
+        numWords: config.stopSpeakingNumWords ?? 2,
+        voiceSeconds: config.stopSpeakingVoiceSeconds ?? 0.2,
+        backoffSeconds: config.stopSpeakingBackoffSeconds ?? 1
+      };
+    }
+
+    // Start Speaking Plan
+    if (config.startSpeakingEnabled) {
+      agentConfig.startSpeakingPlan = {
+        waitSeconds: config.startSpeakingWaitSeconds ?? 0.4
+      };
+      if (config.startSpeakingSmartEndpointing) {
+        agentConfig.startSpeakingPlan.smartEndpointingPlan = {
+          provider: config.startSpeakingSmartProvider || 'livekit'
+        };
+      } else {
+        agentConfig.startSpeakingPlan.transcriptionEndpointingPlan = {
+          onPunctuationSeconds: config.startSpeakingOnPunctuationSeconds ?? 0.1,
+          onNoPunctuationSeconds: config.startSpeakingOnNoPunctuationSeconds ?? 1.5,
+          onNumberSeconds: config.startSpeakingOnNumberSeconds ?? 0.5
+        };
+      }
+    }
+
+    // Voicemail Detection
+    if (config.voicemailDetectionEnabled) {
+      agentConfig.voicemailDetection = {
+        provider: config.voicemailDetectionProvider || 'twilio',
+        voicemailDetectionTypes: [config.voicemailDetectionType || 'machine_end_beep'],
+        enabled: true,
+        machineDetectionTimeout: 31,
+        machineDetectionSpeechThreshold: 3500,
+        machineDetectionSpeechEndThreshold: 2750
+      };
+    }
+
+    // Call timeouts
+    if (config.maxDurationSeconds) {
+      agentConfig.maxDurationSeconds = config.maxDurationSeconds;
+    }
+    if (config.silenceTimeoutSeconds) {
+      agentConfig.silenceTimeoutSeconds = config.silenceTimeoutSeconds;
+    }
+
     console.log('VAPI Create payload keys:', Object.keys(agentConfig).join(', '));
     console.log('Tool IDs:', toolIds);
     return this.makeRequest('/assistant', 'POST', agentConfig);
@@ -360,6 +407,59 @@ class VapiService {
       analysisPlan: this.buildAnalysisPlan(config),
       artifactPlan: this.buildArtifactPlan(config)
     };
+
+    // Stop Speaking Plan
+    if (config.stopSpeakingEnabled) {
+      updateData.stopSpeakingPlan = {
+        numWords: config.stopSpeakingNumWords ?? 2,
+        voiceSeconds: config.stopSpeakingVoiceSeconds ?? 0.2,
+        backoffSeconds: config.stopSpeakingBackoffSeconds ?? 1
+      };
+    } else {
+      updateData.stopSpeakingPlan = null;
+    }
+
+    // Start Speaking Plan
+    if (config.startSpeakingEnabled) {
+      updateData.startSpeakingPlan = {
+        waitSeconds: config.startSpeakingWaitSeconds ?? 0.4
+      };
+      if (config.startSpeakingSmartEndpointing) {
+        updateData.startSpeakingPlan.smartEndpointingPlan = {
+          provider: config.startSpeakingSmartProvider || 'livekit'
+        };
+      } else {
+        updateData.startSpeakingPlan.transcriptionEndpointingPlan = {
+          onPunctuationSeconds: config.startSpeakingOnPunctuationSeconds ?? 0.1,
+          onNoPunctuationSeconds: config.startSpeakingOnNoPunctuationSeconds ?? 1.5,
+          onNumberSeconds: config.startSpeakingOnNumberSeconds ?? 0.5
+        };
+      }
+    } else {
+      updateData.startSpeakingPlan = null;
+    }
+
+    // Voicemail Detection
+    if (config.voicemailDetectionEnabled) {
+      updateData.voicemailDetection = {
+        provider: config.voicemailDetectionProvider || 'twilio',
+        voicemailDetectionTypes: [config.voicemailDetectionType || 'machine_end_beep'],
+        enabled: true,
+        machineDetectionTimeout: 31,
+        machineDetectionSpeechThreshold: 3500,
+        machineDetectionSpeechEndThreshold: 2750
+      };
+    } else {
+      updateData.voicemailDetection = null;
+    }
+
+    // Call timeouts
+    if (config.maxDurationSeconds) {
+      updateData.maxDurationSeconds = config.maxDurationSeconds;
+    }
+    if (config.silenceTimeoutSeconds) {
+      updateData.silenceTimeoutSeconds = config.silenceTimeoutSeconds;
+    }
 
     // Background sound
     const validBackgroundSounds = ['off', 'office'];
