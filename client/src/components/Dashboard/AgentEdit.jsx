@@ -464,6 +464,11 @@ const TIMEZONES = [
   'Pacific/Auckland',
 ]
 
+const TRANSFER_DESTINATION_TYPES = [
+  { id: 'number', label: 'Phone Number' },
+  { id: 'sip', label: 'SIP Endpoint' },
+  { id: 'assistant', label: 'Another Assistant' },
+]
 
 const DEFAULT_SERVER_MESSAGES = [
   'conversation-update',
@@ -555,6 +560,18 @@ export default function AgentEdit() {
   const [providerCalendarsMap, setProviderCalendarsMap] = useState({})
   // Track which multi-calendar entry is expanded (null = all collapsed)
   const [expandedCalendarEntry, setExpandedCalendarEntry] = useState(null)
+
+  // Call Transfer settings
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [transferConfig, setTransferConfig] = useState({
+    enabled: false,
+    destinationType: 'number',
+    destinationValue: '',
+    description: '',
+    message: '',
+    transfers: []
+  })
+  const [expandedTransferEntry, setExpandedTransferEntry] = useState(null)
 
   // GHL Integration state (legacy)
   const [ghlStatus, setGhlStatus] = useState({ isConnected: false, locationId: null, locationName: null })
@@ -838,6 +855,80 @@ export default function AgentEdit() {
     }
   }
 
+  // Transfer helpers
+  const getActiveTransfers = () => {
+    if (transferConfig.transfers && transferConfig.transfers.length >= 2) {
+      return transferConfig.transfers
+    }
+    if (transferConfig.destinationValue) {
+      return [{
+        id: 'single',
+        name: '',
+        scenario: transferConfig.description,
+        destinationType: transferConfig.destinationType,
+        destinationValue: transferConfig.destinationValue,
+        message: transferConfig.message
+      }]
+    }
+    return []
+  }
+
+  const updateTransferEntry = (entryId, updates) => {
+    setTransferConfig(prev => ({
+      ...prev,
+      transfers: prev.transfers.map(t => t.id === entryId ? { ...t, ...updates } : t)
+    }))
+  }
+
+  const removeTransferEntry = (entryId) => {
+    setTransferConfig(prev => {
+      const remaining = prev.transfers.filter(t => t.id !== entryId)
+      if (remaining.length <= 1) {
+        const single = remaining[0] || {}
+        return {
+          ...prev,
+          destinationType: single.destinationType || 'number',
+          destinationValue: single.destinationValue || '',
+          description: single.scenario || '',
+          message: single.message || '',
+          transfers: []
+        }
+      }
+      return { ...prev, transfers: remaining }
+    })
+  }
+
+  const addTransferEntry = () => {
+    const newId = `xfer_${Date.now()}`
+    if (!transferConfig.transfers || transferConfig.transfers.length < 2) {
+      const firstEntry = {
+        id: `xfer_${Date.now() - 1}`,
+        name: '',
+        scenario: transferConfig.description || '',
+        destinationType: transferConfig.destinationType || 'number',
+        destinationValue: transferConfig.destinationValue || '',
+        message: transferConfig.message || ''
+      }
+      setTransferConfig(prev => ({
+        ...prev,
+        transfers: [
+          firstEntry,
+          { id: newId, name: '', scenario: '', destinationType: 'number', destinationValue: '', message: '' }
+        ]
+      }))
+      setExpandedTransferEntry(newId)
+    } else {
+      setTransferConfig(prev => ({
+        ...prev,
+        transfers: [
+          ...prev.transfers,
+          { id: newId, name: '', scenario: '', destinationType: 'number', destinationValue: '', message: '' }
+        ]
+      }))
+      setExpandedTransferEntry(newId)
+    }
+  }
+
   const fetchCredits = async () => {
     try {
       const response = await creditsAPI.list()
@@ -900,6 +991,11 @@ export default function AgentEdit() {
         })
       }
 
+      // Load transfer config
+      if (agentData.config?.transferConfig) {
+        setTransferConfig(agentData.config.transferConfig)
+      }
+
       // Load voice settings
       if (agentData.config) {
         setVoiceSettings({
@@ -917,9 +1013,10 @@ export default function AgentEdit() {
       }
 
 
-      // Load tools (filter out calendar tools — they're rebuilt from config on save)
+      // Load tools (filter out calendar + transfer tools — they're rebuilt from config on save)
       const isCalendarTool = (toolName) => toolName && (toolName.startsWith('check_calendar_availability') || toolName.startsWith('book_appointment'))
-      const savedTools = (agentData.config?.tools || []).filter(t => !isCalendarTool(t.function?.name || t.name))
+      const isTransferTool = (tool) => tool.type === 'transferCall'
+      const savedTools = (agentData.config?.tools || []).filter(t => !isCalendarTool(t.function?.name || t.name) && !isTransferTool(t))
       setTools(savedTools)
 
       // Load server config
@@ -1131,10 +1228,84 @@ export default function AgentEdit() {
         })
       }
 
-      // Merge regular tools with calendar tools (filter duplicates)
+      // Build a single transferCall tool with all destinations (VAPI only allows one per agent)
+      const transferTools = []
+      if (transferConfig.enabled) {
+        const activeTransfers = getActiveTransfers().filter(entry => entry.destinationValue)
+
+        if (activeTransfers.length > 0) {
+          const destinations = []
+          const messages = []
+
+          activeTransfers.forEach((entry) => {
+            // Build destination based on type
+            const destination = { type: entry.destinationType }
+            if (entry.destinationType === 'number') {
+              destination.number = entry.destinationValue
+              if (entry.message) destination.message = entry.message
+              if (entry.scenario || entry.name) destination.description = entry.scenario || entry.name
+            } else if (entry.destinationType === 'sip') {
+              destination.sipUri = entry.destinationValue
+              if (entry.message) destination.message = entry.message
+              if (entry.scenario || entry.name) destination.description = entry.scenario || entry.name
+            } else if (entry.destinationType === 'assistant') {
+              destination.assistantName = entry.destinationValue
+              destination.description = entry.scenario || entry.name || ''
+              if (entry.message) destination.message = entry.message
+            }
+            destinations.push(destination)
+
+            // Add per-destination message with condition
+            if (entry.message) {
+              messages.push({
+                type: 'request-start',
+                content: entry.message,
+                conditions: [{
+                  param: 'destination',
+                  operator: 'eq',
+                  value: entry.destinationValue
+                }]
+              })
+            }
+          })
+
+          // Build function parameters with destination enum
+          const destValues = activeTransfers.map(e => e.destinationValue)
+          const toolDescription = activeTransfers.length === 1
+            ? (activeTransfers[0].scenario || `Transfer the call to ${activeTransfers[0].destinationValue}`)
+            : 'Use this function to transfer the call to the appropriate destination based on the conversation context.'
+
+          const transferTool = {
+            type: 'transferCall',
+            destinations,
+            function: {
+              name: 'transferCall',
+              description: toolDescription,
+              parameters: {
+                type: 'object',
+                properties: {
+                  destination: {
+                    type: 'string',
+                    enum: destValues,
+                    description: 'The destination to transfer the call to.'
+                  }
+                },
+                required: ['destination']
+              }
+            },
+            messages
+          }
+
+          transferTools.push(transferTool)
+        }
+      }
+
+      // Merge regular tools with calendar + transfer tools (filter duplicates)
       const isCalTool = (toolName) => toolName && (toolName.startsWith('check_calendar_availability') || toolName.startsWith('book_appointment'))
-      const regularTools = tools.filter(t => !isCalTool(t.function?.name || t.name))
-      const allTools = [...regularTools, ...calendarTools]
+      const isXferTool = (tool) => tool.type === 'transferCall'
+      const regularTools = tools.filter(t => !isCalTool(t.function?.name || t.name) && !isXferTool(t))
+      const allTools = [...regularTools, ...calendarTools, ...transferTools]
+      console.log('Saving agent - tools:', allTools.length, 'calendar:', calendarTools.length, 'transfer:', transferTools.length, 'regular:', regularTools.length, allTools.map(t => t.function?.name || t.name || t.type))
 
       // Generate calendar booking instructions if calendar is enabled
       let finalSystemPrompt = systemPrompt
@@ -1253,6 +1424,50 @@ After the function returns success, confirm: "Your appointment is booked for [da
         }
       }
 
+      // Generate transfer instructions if transfer is enabled
+      if (transferConfig.enabled) {
+        const activeTransfers = getActiveTransfers().filter(e => e.destinationValue)
+
+        if (activeTransfers.length >= 2) {
+          const transferList = activeTransfers.map((entry) => {
+            return `- **${entry.name || entry.destinationValue}**: ${entry.scenario || 'No scenario specified'} → destination: "${entry.destinationValue}"`
+          }).join('\n')
+
+          const transferInstructions = `
+
+## CALL TRANSFER INSTRUCTIONS
+
+You have the ability to transfer this call using the "transferCall" tool. Pass the correct destination based on the situation.
+
+### Available Destinations
+${transferList}
+
+### Transfer Rules
+- Only transfer when the situation clearly matches one of the scenarios above.
+- Before transferring, briefly inform the caller (e.g., "Let me connect you with the right department").
+- If unsure which destination to use, ask the caller a clarifying question.
+- NEVER transfer without a clear reason matching a scenario above.`
+
+          finalSystemPrompt = finalSystemPrompt + transferInstructions
+        } else if (activeTransfers.length === 1) {
+          const entry = activeTransfers[0]
+          const transferInstructions = `
+
+## CALL TRANSFER INSTRUCTIONS
+
+You have the ability to transfer this call. Use the "transferCall" tool when appropriate.
+
+### When to Transfer
+${entry.scenario || entry.description || 'Transfer when the caller requests to be connected to another person or department.'}
+
+### Transfer Rules
+- Before transferring, briefly inform the caller (e.g., "Let me connect you now").
+- Only transfer when the situation clearly warrants it.`
+
+          finalSystemPrompt = finalSystemPrompt + transferInstructions
+        }
+      }
+
       const response = await agentsAPI.update(id, {
         name,
         description,
@@ -1284,6 +1499,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
             }
             return calendarConfig
           })(),
+          transferConfig,
           // Voice settings
           elevenLabsModel: voiceSettings.model,
           stability: voiceSettings.stability,
@@ -2062,6 +2278,39 @@ After the function returns success, confirm: "Your appointment is booked for [da
                        calendarConfig.provider === 'hubspot' ? 'HubSpot' :
                        calendarConfig.provider === 'calcom' ? 'Cal.com' :
                        'GoHighLevel'} ${ta('connected')}`
+                  }
+                </p>
+              )}
+            </div>
+
+            {/* Call Transfer */}
+            <div className="text-center">
+              <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
+                Call Transfer
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </label>
+              <button
+                onClick={() => setShowTransferModal(true)}
+                className={`p-4 rounded-xl border-2 transition-all ${
+                  transferConfig.enabled
+                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                    : 'border-gray-200 dark:border-dark-border hover:border-gray-300'
+                }`}
+              >
+                <svg className={`w-8 h-8 mx-auto ${transferConfig.enabled ? 'text-green-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 3h6m0 0v6m0-6l-6 6" />
+                </svg>
+              </button>
+              {transferConfig.enabled && (
+                <p className="text-xs mt-1 text-green-600">
+                  {transferConfig.transfers && transferConfig.transfers.length >= 2
+                    ? `${transferConfig.transfers.length} transfers configured`
+                    : transferConfig.destinationValue
+                      ? `${transferConfig.destinationType === 'sip' ? 'SIP' : transferConfig.destinationType === 'assistant' ? 'Assistant' : 'Phone'}: ${transferConfig.destinationValue}`
+                      : 'Enabled'
                   }
                 </p>
               )}
@@ -3062,6 +3311,252 @@ After the function returns success, confirm: "Your appointment is booked for [da
                 <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
                   <button
                     onClick={() => setShowCalendarModal(false)}
+                    disabled={!isValid}
+                    className={`px-4 py-2 rounded-lg ${isValid ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                  >
+                    Done
+                  </button>
+                </div>
+              )
+            })()}
+          </div>
+        </div>
+        )
+      })()}
+
+      {/* Call Transfer Modal */}
+      {showTransferModal && (() => {
+        const isMultiTransferMode = transferConfig.transfers && transferConfig.transfers.length >= 2
+
+        return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Transfer Options</h3>
+              <button onClick={() => setShowTransferModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 overflow-y-auto flex-1 space-y-4">
+              {/* Enable Toggle */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-900 dark:text-white">Enable Call Transfer</span>
+                <button
+                  type="button"
+                  onClick={() => setTransferConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${transferConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${transferConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {transferConfig.enabled && (
+                <>
+                  {!isMultiTransferMode ? (
+                    /* Single Transfer Mode */
+                    <div className="space-y-4">
+                      {/* Description / When to transfer */}
+                      <div>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">When to transfer</label>
+                        <input
+                          type="text"
+                          value={transferConfig.description}
+                          onChange={(e) => setTransferConfig(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="e.g., When customer wants to speak with a human agent"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+
+                      {/* Destination Type */}
+                      <div>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Destination type</label>
+                        <select
+                          value={transferConfig.destinationType}
+                          onChange={(e) => setTransferConfig(prev => ({ ...prev, destinationType: e.target.value, destinationValue: '' }))}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+                        >
+                          <option value="number">Phone Number</option>
+                          <option value="sip">SIP URI</option>
+                          <option value="assistant">Assistant</option>
+                        </select>
+                      </div>
+
+                      {/* Destination Value */}
+                      <div>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                          {transferConfig.destinationType === 'number' ? 'Phone number' : transferConfig.destinationType === 'sip' ? 'SIP URI' : 'Assistant name or ID'}
+                        </label>
+                        <input
+                          type="text"
+                          value={transferConfig.destinationValue}
+                          onChange={(e) => setTransferConfig(prev => ({ ...prev, destinationValue: e.target.value }))}
+                          placeholder={transferConfig.destinationType === 'number' ? '+1234567890' : transferConfig.destinationType === 'sip' ? 'sip:user@domain.com' : 'Assistant name'}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+
+                      {/* Transfer Message */}
+                      <div>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Message before transferring</label>
+                        <input
+                          type="text"
+                          value={transferConfig.message}
+                          onChange={(e) => setTransferConfig(prev => ({ ...prev, message: e.target.value }))}
+                          placeholder="e.g., Let me connect you now, please hold..."
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+
+                      {/* Add Another Transfer Button */}
+                      <button
+                        type="button"
+                        onClick={addTransferEntry}
+                        className="w-full py-2.5 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                      >
+                        + Add another transfer destination
+                      </button>
+                    </div>
+                  ) : (
+                    /* Multi Transfer Mode */
+                    <div className="space-y-3">
+                      {transferConfig.transfers.map((entry) => {
+                        const isExpanded = expandedTransferEntry === entry.id
+                        return (
+                          <div key={entry.id} className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+                            {/* Collapsed Header */}
+                            <button
+                              type="button"
+                              onClick={() => setExpandedTransferEntry(isExpanded ? null : entry.id)}
+                              className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 dark:bg-dark-card hover:bg-gray-100 dark:hover:bg-dark-border/50 transition-colors"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                  {entry.name || 'Untitled Transfer'}
+                                </span>
+                                {entry.destinationValue && (
+                                  <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                    ({entry.destinationType === 'sip' ? 'SIP' : entry.destinationType === 'assistant' ? 'Asst' : 'Phone'}: {entry.destinationValue})
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); removeTransferEntry(entry.id) }}
+                                className="text-red-400 hover:text-red-600 ml-2 flex-shrink-0"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </button>
+
+                            {/* Expanded Content */}
+                            {isExpanded && (
+                              <div className="p-3 space-y-3 border-t border-gray-200 dark:border-dark-border">
+                                {/* Name */}
+                                <div>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Name</label>
+                                  <input
+                                    type="text"
+                                    value={entry.name}
+                                    onChange={(e) => updateTransferEntry(entry.id, { name: e.target.value })}
+                                    placeholder="e.g., Sales Department"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                  />
+                                </div>
+
+                                {/* Scenario */}
+                                <div>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Scenario (when to use)</label>
+                                  <input
+                                    type="text"
+                                    value={entry.scenario}
+                                    onChange={(e) => updateTransferEntry(entry.id, { scenario: e.target.value })}
+                                    placeholder="e.g., When customer wants to speak with sales"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                  />
+                                </div>
+
+                                {/* Destination Type */}
+                                <div>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Destination type</label>
+                                  <select
+                                    value={entry.destinationType}
+                                    onChange={(e) => updateTransferEntry(entry.id, { destinationType: e.target.value, destinationValue: '' })}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+                                  >
+                                    <option value="number">Phone Number</option>
+                                    <option value="sip">SIP URI</option>
+                                    <option value="assistant">Assistant</option>
+                                  </select>
+                                </div>
+
+                                {/* Destination Value */}
+                                <div>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                    {entry.destinationType === 'number' ? 'Phone number' : entry.destinationType === 'sip' ? 'SIP URI' : 'Assistant name or ID'}
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={entry.destinationValue}
+                                    onChange={(e) => updateTransferEntry(entry.id, { destinationValue: e.target.value })}
+                                    placeholder={entry.destinationType === 'number' ? '+1234567890' : entry.destinationType === 'sip' ? 'sip:user@domain.com' : 'Assistant name'}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                  />
+                                </div>
+
+                                {/* Transfer Message */}
+                                <div>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Message before transferring</label>
+                                  <input
+                                    type="text"
+                                    value={entry.message}
+                                    onChange={(e) => updateTransferEntry(entry.id, { message: e.target.value })}
+                                    placeholder="e.g., Let me connect you now..."
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+
+                      {/* Add Transfer Button */}
+                      <button
+                        type="button"
+                        onClick={addTransferEntry}
+                        className="w-full py-2.5 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                      >
+                        + Add Transfer
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            {(() => {
+              const isValid = !transferConfig.enabled || (() => {
+                if (isMultiTransferMode) {
+                  return transferConfig.transfers.every(t => t.name && t.scenario && t.destinationValue)
+                }
+                return !transferConfig.destinationValue || transferConfig.destinationValue.trim() !== '' || true
+              })()
+
+              return (
+                <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
+                  <button
+                    onClick={() => setShowTransferModal(false)}
                     disabled={!isValid}
                     className={`px-4 py-2 rounded-lg ${isValid ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
                   >
