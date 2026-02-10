@@ -438,7 +438,10 @@ function AgentCard({ agent, onDelete, onEdit, onTest }) {
   return (
     <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4 border border-gray-200 dark:border-dark-border">
       <div className="flex justify-between items-start mb-3">
-        <h3 className="font-semibold text-gray-900 dark:text-white">{agent.name}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-gray-900 dark:text-white">{agent.name}</h3>
+          <span className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-gray-500/20 text-gray-400">ID: {agent.id}</span>
+        </div>
         <span className={`px-2 py-0.5 text-xs rounded-full ${agent.vapiId ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
           {agent.vapiId ? 'Connected' : 'Local'}
         </span>

@@ -565,6 +565,7 @@ function AgentCard({ agent, onDelete, onEdit, onTest }) {
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold text-gray-900 dark:text-white">{agent.name}</h3>
+          <span className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-gray-500/20 text-gray-400">ID: {agent.id}</span>
           <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${type === 'inbound' ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400'}`}>
             {type === 'inbound' ? t('dashboardContent.inbound') : t('dashboardContent.outbound')}
           </span>
