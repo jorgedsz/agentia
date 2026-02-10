@@ -104,19 +104,25 @@ class VapiService {
   async syncTools(tools) {
     if (!tools || !Array.isArray(tools) || tools.length === 0) return [];
 
+    // Create all tools in parallel for speed
+    const results = await Promise.allSettled(
+      tools.map(tool =>
+        this.makeRequest('/tool', 'POST', tool)
+          .then(created => {
+            console.log('Created VAPI tool:', created.id, '-', tool.name || tool.function?.name || tool.type);
+            return created.id;
+          })
+      )
+    );
+
     const toolIds = [];
-    for (let i = 0; i < tools.length; i++) {
-      const tool = tools[i];
-      try {
-        // Small delay between calls to avoid rate limiting
-        if (i > 0) await new Promise(resolve => setTimeout(resolve, 500));
-        const created = await this.makeRequest('/tool', 'POST', tool);
-        console.log('Created VAPI tool:', created.id, '-', tool.name || tool.function?.name || tool.type);
-        toolIds.push(created.id);
-      } catch (err) {
-        console.error('Failed to create VAPI tool:', tool.name || tool.function?.name || tool.type, err.message);
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        toolIds.push(r.value);
+      } else {
+        console.error('Failed to create VAPI tool:', tools[i].name || tools[i].function?.name || tools[i].type, r.reason?.message);
       }
-    }
+    });
     return toolIds;
   }
 
@@ -124,14 +130,10 @@ class VapiService {
    * Delete old VAPI tools by IDs
    */
   async deleteTools(toolIds) {
-    for (let i = 0; i < toolIds.length; i++) {
-      try {
-        if (i > 0) await new Promise(resolve => setTimeout(resolve, 500));
-        await this.makeRequest(`/tool/${toolIds[i]}`, 'DELETE');
-      } catch (err) {
-        // Ignore delete errors (tool may already be gone)
-      }
-    }
+    // Delete all old tools in parallel
+    await Promise.allSettled(
+      toolIds.map(id => this.makeRequest(`/tool/${id}`, 'DELETE').catch(() => {}))
+    );
   }
 
   async createAgent(config) {
@@ -376,9 +378,6 @@ class VapiService {
       console.log('Could not fetch existing assistant:', err.message);
     }
 
-    // Small delay before creating tools to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 500));
-
     // Create new tools via /tool endpoint
     const newToolIds = await this.syncTools(config.tools);
     console.log('Old tool IDs:', oldToolIds);
@@ -486,15 +485,13 @@ class VapiService {
     console.log('Keys:', Object.keys(updateData).join(', '));
     console.log('Model toolIds:', newToolIds);
 
-    // Small delay before PATCH to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 500));
     const result = await this.makeRequest(`/assistant/${agentId}`, 'PATCH', updateData);
 
-    // Clean up old tools that are no longer referenced
+    // Clean up old tools in background (don't block response)
     const toDelete = oldToolIds.filter(id => !newToolIds.includes(id));
     if (toDelete.length > 0) {
-      console.log('Deleting old tools:', toDelete);
-      await this.deleteTools(toDelete);
+      console.log('Deleting old tools (background):', toDelete);
+      this.deleteTools(toDelete).catch(err => console.error('Background tool cleanup error:', err.message));
     }
 
     return result;
