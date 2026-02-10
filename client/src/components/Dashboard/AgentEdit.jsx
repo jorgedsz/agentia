@@ -1229,47 +1229,76 @@ export default function AgentEdit() {
         })
       }
 
-      // Build transfer tools from transferConfig
+      // Build a single transferCall tool with all destinations (VAPI only allows one per agent)
       const transferTools = []
       if (transferConfig.enabled) {
-        const activeTransfers = getActiveTransfers()
-        const isMultiTransfer = activeTransfers.length >= 2
+        const activeTransfers = getActiveTransfers().filter(entry => entry.destinationValue)
 
-        activeTransfers.forEach((entry, idx) => {
-          if (!entry.destinationValue) return
+        if (activeTransfers.length > 0) {
+          const destinations = []
+          const messages = []
 
-          const toolSuffix = isMultiTransfer ? `${safeName}_${idx + 1}` : safeName
-          const toolName = `transfer_call_${toolSuffix}`
+          activeTransfers.forEach((entry) => {
+            // Build destination based on type
+            const destination = { type: entry.destinationType }
+            if (entry.destinationType === 'number') {
+              destination.number = entry.destinationValue
+              if (entry.message) destination.message = entry.message
+              if (entry.scenario || entry.name) destination.description = entry.scenario || entry.name
+            } else if (entry.destinationType === 'sip') {
+              destination.sipUri = entry.destinationValue
+              if (entry.message) destination.message = entry.message
+              if (entry.scenario || entry.name) destination.description = entry.scenario || entry.name
+            } else if (entry.destinationType === 'assistant') {
+              destination.assistantName = entry.destinationValue
+              destination.description = entry.scenario || entry.name || ''
+              if (entry.message) destination.message = entry.message
+            }
+            destinations.push(destination)
 
-          // Build destination based on type
-          const destination = { type: entry.destinationType }
-          if (entry.destinationType === 'number') {
-            destination.number = entry.destinationValue
-          } else if (entry.destinationType === 'sip') {
-            destination.sipUri = entry.destinationValue
-          } else if (entry.destinationType === 'assistant') {
-            destination.assistantName = entry.destinationValue
-            destination.description = entry.scenario || entry.name || ''
+            // Add per-destination message with condition
+            if (entry.message) {
+              messages.push({
+                type: 'request-start',
+                content: entry.message,
+                conditions: [{
+                  param: 'destination',
+                  operator: 'eq',
+                  value: entry.destinationValue
+                }]
+              })
+            }
+          })
+
+          // Build function parameters with destination enum
+          const destValues = activeTransfers.map(e => e.destinationValue)
+          const toolDescription = activeTransfers.length === 1
+            ? (activeTransfers[0].scenario || `Transfer the call to ${activeTransfers[0].destinationValue}`)
+            : 'Use this function to transfer the call to the appropriate destination based on the conversation context.'
+
+          const transferTool = {
+            type: 'transferCall',
+            destinations,
+            function: {
+              name: 'transferCall',
+              description: toolDescription,
+              parameters: {
+                type: 'object',
+                properties: {
+                  destination: {
+                    type: 'string',
+                    enum: destValues,
+                    description: 'The destination to transfer the call to.'
+                  }
+                },
+                required: ['destination']
+              }
+            },
+            messages
           }
 
-          const descPrefix = isMultiTransfer && entry.name ? `[${entry.name}] ` : ''
-          const description = entry.scenario
-            ? `${descPrefix}${entry.scenario}`
-            : `${descPrefix}Transfer the call to ${entry.destinationValue}`
-
-          transferTools.push({
-            type: 'transferCall',
-            destinations: [destination],
-            function: {
-              name: toolName,
-              description
-            },
-            messages: entry.message ? [{
-              type: 'request-start',
-              content: entry.message
-            }] : []
-          })
-        })
+          transferTools.push(transferTool)
+        }
       }
 
       // Merge regular tools with calendar + transfer tools (filter duplicates)
@@ -1398,29 +1427,26 @@ After the function returns success, confirm: "Your appointment is booked for [da
 
       // Generate transfer instructions if transfer is enabled
       if (transferConfig.enabled) {
-        const activeTransfers = getActiveTransfers()
-        const isMultiTransfer = activeTransfers.length >= 2
+        const activeTransfers = getActiveTransfers().filter(e => e.destinationValue)
 
-        if (isMultiTransfer) {
-          const transferList = activeTransfers.map((entry, idx) => {
-            const num = idx + 1
-            return `- **${entry.name || `Transfer ${num}`}**: ${entry.scenario || 'No scenario specified'}
-  - Tool: "transfer_call_${safeName}_${num}"`
+        if (activeTransfers.length >= 2) {
+          const transferList = activeTransfers.map((entry) => {
+            return `- **${entry.name || entry.destinationValue}**: ${entry.scenario || 'No scenario specified'} → destination: "${entry.destinationValue}"`
           }).join('\n')
 
           const transferInstructions = `
 
 ## CALL TRANSFER INSTRUCTIONS
 
-You have the ability to transfer this call to other destinations. Use the appropriate transfer tool based on the situation.
+You have the ability to transfer this call using the "transferCall" tool. Pass the correct destination based on the situation.
 
-### Available Transfers
+### Available Destinations
 ${transferList}
 
 ### Transfer Rules
 - Only transfer when the situation clearly matches one of the scenarios above.
 - Before transferring, briefly inform the caller (e.g., "Let me connect you with the right department").
-- If unsure which transfer to use, ask the caller a clarifying question.
+- If unsure which destination to use, ask the caller a clarifying question.
 - NEVER transfer without a clear reason matching a scenario above.`
 
           finalSystemPrompt = finalSystemPrompt + transferInstructions
@@ -1430,7 +1456,7 @@ ${transferList}
 
 ## CALL TRANSFER INSTRUCTIONS
 
-You have the ability to transfer this call. Use the "transfer_call_${safeName}" tool when appropriate.
+You have the ability to transfer this call. Use the "transferCall" tool when appropriate.
 
 ### When to Transfer
 ${entry.scenario || entry.description || 'Transfer when the caller requests to be connected to another person or department.'}
