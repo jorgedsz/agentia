@@ -304,8 +304,9 @@ export default function DashboardContent({ tab }) {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white capitalize">
               {getPageTitle()}
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
               {t('dashboardContent.manageAgentsAndClients')}
+              <span className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">Client ID: {user?.id}</span>
             </p>
           </div>
           <div className="flex items-center gap-3">
