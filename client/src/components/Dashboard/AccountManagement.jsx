@@ -306,7 +306,10 @@ export default function AccountManagement() {
                           {(account.name || account.email)[0].toUpperCase()}
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900 dark:text-white">{account.name || 'Unnamed'}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900 dark:text-white">{account.name || 'Unnamed'}</span>
+                            <span className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">ID: {account.id}</span>
+                          </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">{account.email}</div>
                         </div>
                       </div>

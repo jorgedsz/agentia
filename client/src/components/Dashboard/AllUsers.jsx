@@ -228,7 +228,10 @@ export default function AllUsers() {
                         {(u.name || u.email)[0].toUpperCase()}
                       </div>
                       <div>
-                        <div className="font-medium text-gray-900 dark:text-white">{u.name || 'Unnamed'}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900 dark:text-white">{u.name || 'Unnamed'}</span>
+                          <span className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">ID: {u.id}</span>
+                        </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">{u.email}</div>
                       </div>
                     </div>
