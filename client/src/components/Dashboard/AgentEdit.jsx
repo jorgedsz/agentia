@@ -2214,53 +2214,6 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             )
           })()}
 
-          {/* Phone Number Assignment */}
-          {phoneNumbers.length > 0 && (
-            <div>
-              <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
-                Phone Number (Inbound)
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </label>
-              <div className="relative">
-                <select
-                  value={assignedPhoneId}
-                  onChange={(e) => handlePhoneAssignment(e.target.value)}
-                  disabled={assigningPhone}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer disabled:opacity-50"
-                >
-                  <option value="">None</option>
-                  {phoneNumbers.map((phone) => {
-                    const assignedToOther = phone.agentId && phone.agentId !== parseInt(id)
-                    return (
-                      <option key={phone.id} value={phone.id.toString()} disabled={assignedToOther}>
-                        {phone.phoneNumber}{assignedToOther ? ` (assigned to ${phone.agent?.name || 'another agent'})` : ''}
-                      </option>
-                    )
-                  })}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  {assigningPhone ? (
-                    <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  )}
-                </div>
-              </div>
-              {assignedPhoneId && (
-                <p className="text-xs mt-1 text-green-600 dark:text-green-400">
-                  Inbound calls to this number will be handled by this agent
-                </p>
-              )}
-            </div>
-          )}
-
           {/* Feature Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Calendar Options */}
@@ -2371,52 +2324,106 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               placeholder={ta('promptPlaceholder')}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono text-sm resize-y"
             />
+            <div className="flex justify-end mt-2">
+              <button
+                onClick={copyPrompt}
+                title={ta('copy')}
+                className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+            </div>
           </div>
 
         </div>
 
         {/* Bottom Actions */}
-        <div className="flex items-center gap-4 px-6 py-4 border-t border-gray-200 dark:border-dark-border">
-          <button
-            onClick={copyPrompt}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            {ta('copy')}
-          </button>
-          <button
-            onClick={() => setShowCallModal(true)}
-            disabled={!agent.vapiId}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-          >
-            {ta('launchCall')}
-          </button>
-          <button
-            onClick={() => setShowTestCallModal(true)}
-            disabled={!agent.vapiId}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-            </svg>
-            {ta('testAgent')}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-2 px-6 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
-          >
-            {saving ? (
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+          {/* Left: Phone Number Assignment */}
+          <div className="flex items-center gap-2 min-w-0">
+            {phoneNumbers.length > 0 ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                {ta('saving')}
+                <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+                <div className="relative">
+                  <select
+                    value={assignedPhoneId}
+                    onChange={(e) => handlePhoneAssignment(e.target.value)}
+                    disabled={assigningPhone}
+                    className="pl-3 pr-8 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer disabled:opacity-50"
+                  >
+                    <option value="">No phone assigned</option>
+                    {phoneNumbers.map((phone) => {
+                      const assignedToOther = phone.agentId && phone.agentId !== parseInt(id)
+                      return (
+                        <option key={phone.id} value={phone.id.toString()} disabled={assignedToOther}>
+                          {phone.phoneNumber}{assignedToOther ? ` (${phone.agent?.name || 'other agent'})` : ''}
+                        </option>
+                      )
+                    })}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                    {assigningPhone ? (
+                      <svg className="w-4 h-4 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                {assignedPhoneId && (
+                  <span className="text-xs text-green-600 dark:text-green-400 flex-shrink-0">Inbound</span>
+                )}
               </>
             ) : (
-              ta('saveChanges')
+              <span className="text-sm text-gray-400">No phone numbers</span>
             )}
-          </button>
+          </div>
+
+          {/* Right: Action Buttons */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowCallModal(true)}
+              disabled={!agent.vapiId}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              {ta('launchCall')}
+            </button>
+            <button
+              onClick={() => setShowTestCallModal(true)}
+              disabled={!agent.vapiId}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+              {ta('testAgent')}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-6 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  {ta('saving')}
+                </>
+              ) : (
+                ta('saveChanges')
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
