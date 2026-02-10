@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, brandingAPI } from '../../services/api'
+import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 
 const ROLES = {
@@ -48,7 +48,7 @@ const SETTINGS_ITEMS = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
       </svg>
     ),
-    roles: [ROLES.OWNER]
+    roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
   },
   {
     id: 'billing',
@@ -201,7 +201,7 @@ export default function Settings() {
         {activeTab === 'team' && <TeamAccessTab />}
         {activeTab === 'calendars' && <CalendarsTab />}
         {activeTab === 'ghl' && <CalendarsTab />}
-        {activeTab === 'api-keys' && isOwner && <APIKeysTab />}
+        {activeTab === 'api-keys' && <APIKeysTab />}
         {activeTab === 'billing' && <BillingTab />}
         {activeTab === 'branding' && <BrandingTab />}
         {activeTab === 'slack' && isOwner && <SlackTab />}
@@ -1596,116 +1596,173 @@ function GHLIntegrationTab() {
   )
 }
 
-// API Keys Tab
+// API Keys Tab - Account VAPI Keys + Platform Keys (OWNER only)
 function APIKeysTab() {
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [vapiApiKey, setVapiApiKey] = useState('')
-  const [vapiPublicKey, setVapiPublicKey] = useState('')
+  const { user, isTeamMember, teamMember } = useAuth()
+  const { t } = useLanguage()
+  const isOwner = user?.role === ROLES.OWNER
+  const canEditVapiKeys = !isTeamMember || teamMember?.teamRole === 'admin'
+
+  // Account VAPI keys state
+  const [acctLoading, setAcctLoading] = useState(true)
+  const [acctSaving, setAcctSaving] = useState(false)
+  const [acctError, setAcctError] = useState('')
+  const [acctSuccess, setAcctSuccess] = useState('')
+  const [acctVapiApiKey, setAcctVapiApiKey] = useState('')
+  const [acctVapiPublicKey, setAcctVapiPublicKey] = useState('')
+  const [acctHasVapi, setAcctHasVapi] = useState(false)
+  const [acctHasVapiPublic, setAcctHasVapiPublic] = useState(false)
+  const [acctMaskedVapi, setAcctMaskedVapi] = useState('')
+  const [acctMaskedVapiPublic, setAcctMaskedVapiPublic] = useState('')
+
+  // Platform keys state (OWNER only)
+  const [platLoading, setPlatLoading] = useState(true)
+  const [platSaving, setPlatSaving] = useState(false)
+  const [platError, setPlatError] = useState('')
+  const [platSuccess, setPlatSuccess] = useState('')
   const [openaiApiKey, setOpenaiApiKey] = useState('')
   const [elevenLabsApiKey, setElevenLabsApiKey] = useState('')
-  const [hasVapi, setHasVapi] = useState(false)
-  const [hasVapiPublicKey, setHasVapiPublicKey] = useState(false)
   const [hasOpenai, setHasOpenai] = useState(false)
   const [hasElevenLabs, setHasElevenLabs] = useState(false)
-  const [maskedVapi, setMaskedVapi] = useState('')
-  const [maskedVapiPublic, setMaskedVapiPublic] = useState('')
   const [maskedOpenai, setMaskedOpenai] = useState('')
   const [maskedElevenLabs, setMaskedElevenLabs] = useState('')
 
   useEffect(() => {
-    fetchSettings()
+    if (canEditVapiKeys) fetchAccountKeys()
+    if (isOwner) fetchPlatformSettings()
   }, [])
 
-  const fetchSettings = async () => {
-    setLoading(true)
+  const fetchAccountKeys = async () => {
+    setAcctLoading(true)
+    try {
+      const { data } = await accountSettingsAPI.getVapiKeys()
+      setAcctHasVapi(data.hasVapi)
+      setAcctHasVapiPublic(data.hasVapiPublicKey)
+      setAcctMaskedVapi(data.vapiApiKey || '')
+      setAcctMaskedVapiPublic(data.vapiPublicKey || '')
+    } catch (err) {
+      setAcctError(err.response?.data?.error || 'Failed to load VAPI keys')
+    } finally {
+      setAcctLoading(false)
+    }
+  }
+
+  const fetchPlatformSettings = async () => {
+    setPlatLoading(true)
     try {
       const { data } = await platformSettingsAPI.get()
-      setHasVapi(data.hasVapi)
-      setHasVapiPublicKey(data.hasVapiPublicKey)
       setHasOpenai(data.hasOpenai)
       setHasElevenLabs(data.hasElevenLabs)
-      setMaskedVapi(data.vapiApiKey || '')
-      setMaskedVapiPublic(data.vapiPublicKey || '')
       setMaskedOpenai(data.openaiApiKey || '')
       setMaskedElevenLabs(data.elevenLabsApiKey || '')
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load settings')
+      setPlatError(err.response?.data?.error || 'Failed to load platform settings')
     } finally {
-      setLoading(false)
+      setPlatLoading(false)
     }
   }
 
-  const handleSave = async (field) => {
-    setError('')
-    setSuccess('')
-    setSaving(true)
-
+  const handleAcctSave = async (field) => {
+    setAcctError('')
+    setAcctSuccess('')
+    setAcctSaving(true)
     try {
       const payload = {}
-      if (field === 'vapi') payload.vapiApiKey = vapiApiKey
-      if (field === 'vapiPublic') payload.vapiPublicKey = vapiPublicKey
-      if (field === 'openai') payload.openaiApiKey = openaiApiKey
-      if (field === 'elevenLabs') payload.elevenLabsApiKey = elevenLabsApiKey
-
-      const { data } = await platformSettingsAPI.update(payload)
-      setHasVapi(data.hasVapi)
-      setHasVapiPublicKey(data.hasVapiPublicKey)
-      setHasOpenai(data.hasOpenai)
-      setHasElevenLabs(data.hasElevenLabs)
-      setMaskedVapi(data.vapiApiKey || '')
-      setMaskedVapiPublic(data.vapiPublicKey || '')
-      setMaskedOpenai(data.openaiApiKey || '')
-      setMaskedElevenLabs(data.elevenLabsApiKey || '')
-      setVapiApiKey('')
-      setVapiPublicKey('')
-      setOpenaiApiKey('')
-      setElevenLabsApiKey('')
-      const fieldLabel = field === 'vapi' ? 'VAPI API' : field === 'vapiPublic' ? 'VAPI Public' : field === 'elevenLabs' ? 'ElevenLabs' : 'OpenAI'
-      setSuccess(`${fieldLabel} key updated successfully`)
-      setTimeout(() => setSuccess(''), 3000)
+      if (field === 'vapi') payload.vapiApiKey = acctVapiApiKey
+      if (field === 'vapiPublic') payload.vapiPublicKey = acctVapiPublicKey
+      const { data } = await accountSettingsAPI.updateVapiKeys(payload)
+      setAcctHasVapi(data.hasVapi)
+      setAcctHasVapiPublic(data.hasVapiPublicKey)
+      setAcctMaskedVapi(data.vapiApiKey || '')
+      setAcctMaskedVapiPublic(data.vapiPublicKey || '')
+      setAcctVapiApiKey('')
+      setAcctVapiPublicKey('')
+      const fieldLabel = field === 'vapi' ? 'VAPI API' : 'VAPI Public'
+      setAcctSuccess(`${fieldLabel} key updated successfully`)
+      setTimeout(() => setAcctSuccess(''), 3000)
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update settings')
+      setAcctError(err.response?.data?.error || 'Failed to update VAPI key')
     } finally {
-      setSaving(false)
+      setAcctSaving(false)
     }
   }
 
-  const handleRemove = async (field) => {
-    const fieldLabel = field === 'vapi' ? 'VAPI API' : field === 'vapiPublic' ? 'VAPI Public' : field === 'elevenLabs' ? 'ElevenLabs' : 'OpenAI'
+  const handleAcctRemove = async (field) => {
+    const fieldLabel = field === 'vapi' ? 'VAPI API' : 'VAPI Public'
     if (!confirm(`Are you sure you want to remove the ${fieldLabel} key?`)) return
-    setError('')
-    setSuccess('')
-    setSaving(true)
-
+    setAcctError('')
+    setAcctSuccess('')
+    setAcctSaving(true)
     try {
       const payload = {}
       if (field === 'vapi') payload.vapiApiKey = ''
       if (field === 'vapiPublic') payload.vapiPublicKey = ''
-      if (field === 'openai') payload.openaiApiKey = ''
-      if (field === 'elevenLabs') payload.elevenLabsApiKey = ''
-
-      const { data } = await platformSettingsAPI.update(payload)
-      setHasVapi(data.hasVapi)
-      setHasVapiPublicKey(data.hasVapiPublicKey)
-      setHasOpenai(data.hasOpenai)
-      setHasElevenLabs(data.hasElevenLabs)
-      setMaskedVapi(data.vapiApiKey || '')
-      setMaskedVapiPublic(data.vapiPublicKey || '')
-      setMaskedOpenai(data.openaiApiKey || '')
-      setMaskedElevenLabs(data.elevenLabsApiKey || '')
-      setSuccess(`${fieldLabel} key removed`)
-      setTimeout(() => setSuccess(''), 3000)
+      const { data } = await accountSettingsAPI.updateVapiKeys(payload)
+      setAcctHasVapi(data.hasVapi)
+      setAcctHasVapiPublic(data.hasVapiPublicKey)
+      setAcctMaskedVapi(data.vapiApiKey || '')
+      setAcctMaskedVapiPublic(data.vapiPublicKey || '')
+      setAcctSuccess(`${fieldLabel} key removed`)
+      setTimeout(() => setAcctSuccess(''), 3000)
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to remove key')
+      setAcctError(err.response?.data?.error || 'Failed to remove key')
     } finally {
-      setSaving(false)
+      setAcctSaving(false)
     }
   }
 
-  if (loading) {
+  const handlePlatSave = async (field) => {
+    setPlatError('')
+    setPlatSuccess('')
+    setPlatSaving(true)
+    try {
+      const payload = {}
+      if (field === 'openai') payload.openaiApiKey = openaiApiKey
+      if (field === 'elevenLabs') payload.elevenLabsApiKey = elevenLabsApiKey
+      const { data } = await platformSettingsAPI.update(payload)
+      setHasOpenai(data.hasOpenai)
+      setHasElevenLabs(data.hasElevenLabs)
+      setMaskedOpenai(data.openaiApiKey || '')
+      setMaskedElevenLabs(data.elevenLabsApiKey || '')
+      setOpenaiApiKey('')
+      setElevenLabsApiKey('')
+      const fieldLabel = field === 'elevenLabs' ? 'ElevenLabs' : 'OpenAI'
+      setPlatSuccess(`${fieldLabel} key updated successfully`)
+      setTimeout(() => setPlatSuccess(''), 3000)
+    } catch (err) {
+      setPlatError(err.response?.data?.error || 'Failed to update settings')
+    } finally {
+      setPlatSaving(false)
+    }
+  }
+
+  const handlePlatRemove = async (field) => {
+    const fieldLabel = field === 'elevenLabs' ? 'ElevenLabs' : 'OpenAI'
+    if (!confirm(`Are you sure you want to remove the ${fieldLabel} key?`)) return
+    setPlatError('')
+    setPlatSuccess('')
+    setPlatSaving(true)
+    try {
+      const payload = {}
+      if (field === 'openai') payload.openaiApiKey = ''
+      if (field === 'elevenLabs') payload.elevenLabsApiKey = ''
+      const { data } = await platformSettingsAPI.update(payload)
+      setHasOpenai(data.hasOpenai)
+      setHasElevenLabs(data.hasElevenLabs)
+      setMaskedOpenai(data.openaiApiKey || '')
+      setMaskedElevenLabs(data.elevenLabsApiKey || '')
+      setPlatSuccess(`${fieldLabel} key removed`)
+      setTimeout(() => setPlatSuccess(''), 3000)
+    } catch (err) {
+      setPlatError(err.response?.data?.error || 'Failed to remove key')
+    } finally {
+      setPlatSaving(false)
+    }
+  }
+
+  const showLoading = (canEditVapiKeys && acctLoading) || (isOwner && platLoading)
+
+  if (showLoading) {
     return (
       <div className="flex justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
@@ -1713,190 +1770,216 @@ function APIKeysTab() {
     )
   }
 
+  // Regular team members without admin access
+  if (!canEditVapiKeys) {
+    return (
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 text-center">
+        <p className="text-gray-500 dark:text-gray-400">{t('settings.apiKeysAdminOnly')}</p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      {error && (
+      {/* ===== Account VAPI Keys Section ===== */}
+      {acctError && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
-          {error}
+          {acctError}
         </div>
       )}
-      {success && (
+      {acctSuccess && (
         <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
-          {success}
+          {acctSuccess}
         </div>
       )}
 
-      {/* Header */}
+      {/* Account VAPI Header */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">API Keys</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.accountVapiKeys')}</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Configure your platform API keys for VAPI and OpenAI. These keys are encrypted and stored securely.
+          {t('settings.accountVapiKeysDesc')}
         </p>
       </div>
 
-      {/* VAPI API Key */}
+      {/* Account VAPI API Key */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-center gap-3 mb-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white">VAPI API Key</h3>
-          {hasVapi && (
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white">{t('settings.vapiApiKey')}</h3>
+          {acctHasVapi && (
             <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
               Connected
             </span>
           )}
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Used for creating and managing voice AI agents.
+          {t('settings.vapiApiKeyDesc')}
         </p>
-
-        {hasVapi && (
+        {acctHasVapi && (
           <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedVapi}</span>
-            <button onClick={() => handleRemove('vapi')} disabled={saving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
-              Remove
+            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{acctMaskedVapi}</span>
+            <button onClick={() => handleAcctRemove('vapi')} disabled={acctSaving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
+              {t('common.remove')}
             </button>
           </div>
         )}
-
         <div className="flex gap-3">
           <input
             type="password"
-            value={vapiApiKey}
-            onChange={(e) => setVapiApiKey(e.target.value)}
-            placeholder={hasVapi ? 'Enter new key to replace...' : 'Enter your VAPI API key...'}
+            value={acctVapiApiKey}
+            onChange={(e) => setAcctVapiApiKey(e.target.value)}
+            placeholder={acctHasVapi ? t('settings.enterNewKey') : t('settings.enterVapiKey')}
             className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
           />
           <button
-            onClick={() => handleSave('vapi')}
-            disabled={saving || !vapiApiKey.trim()}
+            onClick={() => handleAcctSave('vapi')}
+            disabled={acctSaving || !acctVapiApiKey.trim()}
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
-            {saving ? 'Saving...' : hasVapi ? 'Update' : 'Save'}
+            {acctSaving ? t('common.saving') : acctHasVapi ? t('common.update') : t('common.save')}
           </button>
         </div>
       </div>
 
-      {/* VAPI Public Key */}
+      {/* Account VAPI Public Key */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-center gap-3 mb-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white">VAPI Public Key</h3>
-          {hasVapiPublicKey && (
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white">{t('settings.vapiPublicKey')}</h3>
+          {acctHasVapiPublic && (
             <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
               Connected
             </span>
           )}
         </div>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Used for browser-based agent test calls. Find it in your VAPI dashboard under Account &gt; Public Key.
+          {t('settings.vapiPublicKeyDesc')}
         </p>
-
-        {hasVapiPublicKey && (
+        {acctHasVapiPublic && (
           <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedVapiPublic}</span>
-            <button onClick={() => handleRemove('vapiPublic')} disabled={saving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
-              Remove
+            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{acctMaskedVapiPublic}</span>
+            <button onClick={() => handleAcctRemove('vapiPublic')} disabled={acctSaving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
+              {t('common.remove')}
             </button>
           </div>
         )}
-
         <div className="flex gap-3">
           <input
             type="password"
-            value={vapiPublicKey}
-            onChange={(e) => setVapiPublicKey(e.target.value)}
-            placeholder={hasVapiPublicKey ? 'Enter new key to replace...' : 'Enter your VAPI Public key...'}
+            value={acctVapiPublicKey}
+            onChange={(e) => setAcctVapiPublicKey(e.target.value)}
+            placeholder={acctHasVapiPublic ? t('settings.enterNewKey') : t('settings.enterVapiPublicKey')}
             className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
           />
           <button
-            onClick={() => handleSave('vapiPublic')}
-            disabled={saving || !vapiPublicKey.trim()}
+            onClick={() => handleAcctSave('vapiPublic')}
+            disabled={acctSaving || !acctVapiPublicKey.trim()}
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
-            {saving ? 'Saving...' : hasVapiPublicKey ? 'Update' : 'Save'}
+            {acctSaving ? t('common.saving') : acctHasVapiPublic ? t('common.update') : t('common.save')}
           </button>
         </div>
       </div>
 
-      {/* OpenAI API Key */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white">OpenAI API Key</h3>
-          {hasOpenai && (
-            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
-              Connected
-            </span>
+      {/* ===== Platform API Keys Section (OWNER only) ===== */}
+      {isOwner && (
+        <>
+          {platError && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+              {platError}
+            </div>
           )}
-        </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Used for the AI prompt generator feature.
-        </p>
-
-        {hasOpenai && (
-          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedOpenai}</span>
-            <button onClick={() => handleRemove('openai')} disabled={saving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
-              Remove
-            </button>
-          </div>
-        )}
-
-        <div className="flex gap-3">
-          <input
-            type="password"
-            value={openaiApiKey}
-            onChange={(e) => setOpenaiApiKey(e.target.value)}
-            placeholder={hasOpenai ? 'Enter new key to replace...' : 'Enter your OpenAI API key...'}
-            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
-          />
-          <button
-            onClick={() => handleSave('openai')}
-            disabled={saving || !openaiApiKey.trim()}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
-          >
-            {saving ? 'Saving...' : hasOpenai ? 'Update' : 'Save'}
-          </button>
-        </div>
-      </div>
-
-      {/* ElevenLabs API Key */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white">ElevenLabs API Key</h3>
-          {hasElevenLabs && (
-            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
-              Connected
-            </span>
+          {platSuccess && (
+            <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
+              {platSuccess}
+            </div>
           )}
-        </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          Required for adding custom voices from the ElevenLabs Voice Library. Get your key at elevenlabs.io &gt; Profile + API Key.
-        </p>
 
-        {hasElevenLabs && (
-          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedElevenLabs}</span>
-            <button onClick={() => handleRemove('elevenLabs')} disabled={saving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
-              Remove
-            </button>
+          {/* Platform Keys Header */}
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 mt-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.platformApiKeys')}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {t('settings.platformApiKeysDesc')}
+            </p>
           </div>
-        )}
 
-        <div className="flex gap-3">
-          <input
-            type="password"
-            value={elevenLabsApiKey}
-            onChange={(e) => setElevenLabsApiKey(e.target.value)}
-            placeholder={hasElevenLabs ? 'Enter new key to replace...' : 'Enter your ElevenLabs API key...'}
-            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
-          />
-          <button
-            onClick={() => handleSave('elevenLabs')}
-            disabled={saving || !elevenLabsApiKey.trim()}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
-          >
-            {saving ? 'Saving...' : hasElevenLabs ? 'Update' : 'Save'}
-          </button>
-        </div>
-      </div>
+          {/* OpenAI API Key */}
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <h3 className="text-md font-semibold text-gray-900 dark:text-white">{t('settings.openaiApiKey')}</h3>
+              {hasOpenai && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
+                  Connected
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {t('settings.openaiApiKeyDesc')}
+            </p>
+            {hasOpenai && (
+              <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedOpenai}</span>
+                <button onClick={() => handlePlatRemove('openai')} disabled={platSaving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
+                  {t('common.remove')}
+                </button>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <input
+                type="password"
+                value={openaiApiKey}
+                onChange={(e) => setOpenaiApiKey(e.target.value)}
+                placeholder={hasOpenai ? t('settings.enterNewKey') : t('settings.enterOpenaiKey')}
+                className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+              />
+              <button
+                onClick={() => handlePlatSave('openai')}
+                disabled={platSaving || !openaiApiKey.trim()}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+              >
+                {platSaving ? t('common.saving') : hasOpenai ? t('common.update') : t('common.save')}
+              </button>
+            </div>
+          </div>
+
+          {/* ElevenLabs API Key */}
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <h3 className="text-md font-semibold text-gray-900 dark:text-white">{t('settings.elevenLabsApiKey')}</h3>
+              {hasElevenLabs && (
+                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
+                  Connected
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {t('settings.elevenLabsApiKeyDesc')}
+            </p>
+            {hasElevenLabs && (
+              <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedElevenLabs}</span>
+                <button onClick={() => handlePlatRemove('elevenLabs')} disabled={platSaving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
+                  {t('common.remove')}
+                </button>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <input
+                type="password"
+                value={elevenLabsApiKey}
+                onChange={(e) => setElevenLabsApiKey(e.target.value)}
+                placeholder={hasElevenLabs ? t('settings.enterNewKey') : t('settings.enterElevenLabsKey')}
+                className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+              />
+              <button
+                onClick={() => handlePlatSave('elevenLabs')}
+                disabled={platSaving || !elevenLabsApiKey.trim()}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+              >
+                {platSaving ? t('common.saving') : hasElevenLabs ? t('common.update') : t('common.save')}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -100,6 +100,21 @@ const updateSettings = async (req, res) => {
 
 const getVapiPublicKey = async (req, res) => {
   try {
+    // Check per-account key first
+    if (req.user?.id) {
+      const user = await req.prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { vapiPublicKey: true }
+      });
+      if (user?.vapiPublicKey) {
+        const userDecrypted = decrypt(user.vapiPublicKey);
+        if (userDecrypted) {
+          return res.json({ vapiPublicKey: userDecrypted });
+        }
+      }
+    }
+
+    // Fall back to global PlatformSettings
     const settings = await req.prisma.platformSettings.findFirst();
 
     if (!settings || !settings.vapiPublicKey) {

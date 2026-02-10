@@ -1,5 +1,5 @@
 const vapiService = require('../services/vapiService');
-const { getApiKeys } = require('../utils/getApiKeys');
+const { getVapiKeyForUser } = require('../utils/getApiKeys');
 
 // Get the public base URL for this server (VAPI needs publicly reachable URLs)
 const getPublicBaseUrl = () => {
@@ -99,7 +99,7 @@ const createAgent = async (req, res) => {
     let vapiWarning = null;
 
     // Try to create VAPI agent if service is configured
-    const { vapiApiKey } = await getApiKeys(req.prisma);
+    const vapiApiKey = await getVapiKeyForUser(req.prisma, req.user.id);
     if (vapiApiKey) {
       try {
         vapiService.setApiKey(vapiApiKey);
@@ -166,7 +166,7 @@ const updateAgent = async (req, res) => {
     // Update VAPI agent if exists
     let vapiWarning = null;
     let vapiSyncInfo = null;
-    const { vapiApiKey: vapiKey } = await getApiKeys(req.prisma);
+    const vapiKey = await getVapiKeyForUser(req.prisma, req.user.id);
     if (existingAgent.vapiId && vapiKey) {
       try {
         vapiService.setApiKey(vapiKey);
@@ -267,7 +267,7 @@ const deleteAgent = async (req, res) => {
     }
 
     // Delete VAPI agent if exists
-    const { vapiApiKey: vapiDelKey } = await getApiKeys(req.prisma);
+    const vapiDelKey = await getVapiKeyForUser(req.prisma, req.user.id);
     if (existingAgent.vapiId && vapiDelKey) {
       try {
         vapiService.setApiKey(vapiDelKey);
@@ -299,7 +299,7 @@ const checkVapiSync = async (req, res) => {
     if (!agent) return res.status(404).json({ error: 'Agent not found' });
     if (!agent.vapiId) return res.json({ error: 'Agent has no VAPI ID', agent: { id: agent.id, name: agent.name, vapiId: null } });
 
-    const { vapiApiKey: vapiKey } = await getApiKeys(req.prisma);
+    const vapiKey = await getVapiKeyForUser(req.prisma, req.user.id);
     if (!vapiKey) return res.json({ error: 'No VAPI API key configured' });
 
     vapiService.setApiKey(vapiKey);

@@ -1,4 +1,5 @@
 const vapiService = require('../services/vapiService');
+const { getVapiKeyForUser } = require('../utils/getApiKeys');
 
 // Categorize a VAPI call into an outcome
 const categorizeOutcome = (call) => {
@@ -118,6 +119,10 @@ const createCall = async (req, res) => {
       return res.status(400).json({ error: 'Phone number is not imported to VAPI' });
     }
 
+    // Set per-account VAPI key
+    const vapiKey = await getVapiKeyForUser(req.prisma, req.user.id);
+    if (vapiKey) vapiService.setApiKey(vapiKey);
+
     // Create the call via VAPI
     const call = await vapiService.createCall({
       assistantId: agent.vapiId,
@@ -154,6 +159,8 @@ const createCall = async (req, res) => {
 const getCall = async (req, res) => {
   try {
     const { id } = req.params;
+    const vapiKeyGet = await getVapiKeyForUser(req.prisma, req.user.id);
+    if (vapiKeyGet) vapiService.setApiKey(vapiKeyGet);
     const call = await vapiService.getCall(id);
     res.json({ call });
   } catch (error) {
@@ -164,6 +171,8 @@ const getCall = async (req, res) => {
 
 const listCalls = async (req, res) => {
   try {
+    const vapiKeyList = await getVapiKeyForUser(req.prisma, req.user.id);
+    if (vapiKeyList) vapiService.setApiKey(vapiKeyList);
     const calls = await vapiService.listCalls();
 
     // Auto-sync billing for completed calls

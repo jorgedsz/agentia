@@ -29,4 +29,41 @@ async function getApiKeys(prisma) {
   return { vapiApiKey, openaiApiKey, elevenLabsApiKey };
 }
 
-module.exports = { getApiKeys };
+/**
+ * Get the VAPI API key for a specific user, with fallback chain:
+ * 1. User.vapiApiKey (per-account, encrypted)
+ * 2. PlatformSettings.vapiApiKey (global, encrypted)
+ * 3. process.env.VAPI_API_KEY (env var)
+ */
+async function getVapiKeyForUser(prisma, userId) {
+  try {
+    // 1. Check per-account key
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { vapiApiKey: true }
+    });
+
+    if (user?.vapiApiKey) {
+      const decrypted = decrypt(user.vapiApiKey);
+      if (decrypted) return decrypted;
+    }
+  } catch (err) {
+    // Fall through to global key
+  }
+
+  try {
+    // 2. Check global PlatformSettings
+    const settings = await prisma.platformSettings.findFirst();
+    if (settings?.vapiApiKey) {
+      const decrypted = decrypt(settings.vapiApiKey);
+      if (decrypted) return decrypted;
+    }
+  } catch (err) {
+    // Fall through to env var
+  }
+
+  // 3. Env var fallback
+  return process.env.VAPI_API_KEY || '';
+}
+
+module.exports = { getApiKeys, getVapiKeyForUser };

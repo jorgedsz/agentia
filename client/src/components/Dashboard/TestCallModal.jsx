@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { platformSettingsAPI } from '../../services/api'
+import { accountSettingsAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 
 export default function TestCallModal({ agent, onClose }) {
@@ -21,7 +21,7 @@ export default function TestCallModal({ agent, onClose }) {
       setMuted(false)
       setVolume(0)
 
-      const { data } = await platformSettingsAPI.getVapiPublicKey()
+      const { data } = await accountSettingsAPI.getVapiPublicKey()
       const publicKey = data.vapiPublicKey
 
       const { default: Vapi } = await import('@vapi-ai/web')

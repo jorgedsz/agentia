@@ -1,6 +1,7 @@
 const { decrypt } = require('../utils/encryption');
 const twilioService = require('../services/twilioService');
 const vapiService = require('../services/vapiService');
+const { getVapiKeyForUser } = require('../utils/getApiKeys');
 
 /**
  * List phone numbers imported by the authenticated user
@@ -138,6 +139,10 @@ const importPhoneNumber = async (req, res) => {
     let vapiPhoneNumberId = null;
     let status = 'pending';
 
+    // Set per-account VAPI key
+    const vapiKeyImport = await getVapiKeyForUser(req.prisma, userId);
+    if (vapiKeyImport) vapiService.setApiKey(vapiKeyImport);
+
     // Import to VAPI if configured
     if (vapiService.isConfigured()) {
       try {
@@ -231,6 +236,10 @@ const assignToAgent = async (req, res) => {
       }
     }
 
+    // Set per-account VAPI key
+    const vapiKeyAssign = await getVapiKeyForUser(req.prisma, userId);
+    if (vapiKeyAssign) vapiService.setApiKey(vapiKeyAssign);
+
     // Update in VAPI if we have VAPI IDs
     if (vapiService.isConfigured() && phoneNumber.vapiPhoneNumberId) {
       try {
@@ -294,6 +303,10 @@ const removePhoneNumber = async (req, res) => {
     if (phoneNumber.twilioCredentials.userId !== userId) {
       return res.status(403).json({ error: 'Access denied' });
     }
+
+    // Set per-account VAPI key
+    const vapiKeyRemove = await getVapiKeyForUser(req.prisma, userId);
+    if (vapiKeyRemove) vapiService.setApiKey(vapiKeyRemove);
 
     // Delete from VAPI if imported
     if (vapiService.isConfigured() && phoneNumber.vapiPhoneNumberId) {
