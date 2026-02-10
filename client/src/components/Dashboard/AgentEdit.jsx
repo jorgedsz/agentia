@@ -429,9 +429,11 @@ const VOICE_PROVIDERS = [
 
 
 const TOOL_TYPES = [
-  { id: 'function', label: 'Custom Function (Webhook)' },
+  { id: 'apiRequest', label: 'API Request (HTTP)' },
   { id: 'endCall', label: 'End Call' },
 ]
+
+const HTTP_METHODS = ['POST', 'GET', 'PUT', 'PATCH', 'DELETE']
 
 const TIMEZONES = [
   'America/New_York',
@@ -606,14 +608,14 @@ export default function AgentEdit() {
   const [editingTool, setEditingTool] = useState(null)
   const [editingToolIndex, setEditingToolIndex] = useState(null)
   const [toolForm, setToolForm] = useState({
-    type: 'function',
+    type: 'apiRequest',
     functionName: '',
     functionDescription: '',
-    functionParameters: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
+    httpMethod: 'POST',
     webhookUrl: '',
+    httpHeaders: '',
+    httpBody: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
     async: false,
-    destinationType: 'number',
-    destinationValue: '',
     endCallMessage: ''
   })
 
@@ -1016,7 +1018,7 @@ export default function AgentEdit() {
       // Load tools (filter out calendar + transfer tools — they're rebuilt from config on save)
       const isCalendarTool = (toolName) => toolName && (toolName.startsWith('check_calendar_availability') || toolName.startsWith('book_appointment'))
       const isTransferTool = (tool) => tool.type === 'transferCall'
-      const savedTools = (agentData.config?.tools || []).filter(t => !isCalendarTool(t.function?.name || t.name) && !isTransferTool(t))
+      const savedTools = (agentData.config?.tools || []).filter(t => !isCalendarTool(t.function?.name || t.name || '') && !isTransferTool(t))
       setTools(savedTools)
 
       // Load server config
@@ -1302,10 +1304,9 @@ export default function AgentEdit() {
 
       // Merge regular tools with calendar + transfer tools (filter duplicates)
       const isCalTool = (toolName) => toolName && (toolName.startsWith('check_calendar_availability') || toolName.startsWith('book_appointment'))
-      const isXferTool = (tool) => tool.type === 'transferCall'
-      const regularTools = tools.filter(t => !isCalTool(t.function?.name || t.name) && !isXferTool(t))
+      const getToolName = (t) => t.function?.name || t.name || ''
+      const regularTools = tools.filter(t => !isCalTool(getToolName(t)))
       const allTools = [...regularTools, ...calendarTools, ...transferTools]
-      console.log('Saving agent - tools:', allTools.length, 'calendar:', calendarTools.length, 'transfer:', transferTools.length, 'regular:', regularTools.length, allTools.map(t => t.function?.name || t.name || t.type))
 
       // Generate calendar booking instructions if calendar is enabled
       let finalSystemPrompt = systemPrompt
@@ -1855,14 +1856,14 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
   // Tool management functions
   const resetToolForm = () => {
     setToolForm({
-      type: 'function',
+      type: 'apiRequest',
       functionName: '',
       functionDescription: '',
-      functionParameters: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
+      httpMethod: 'POST',
       webhookUrl: '',
+      httpHeaders: '',
+      httpBody: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
       async: false,
-      destinationType: 'number',
-      destinationValue: '',
       endCallMessage: ''
     })
   }
@@ -1879,16 +1880,38 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
     setEditingTool(tool)
     setEditingToolIndex(index)
 
-    if (tool.type === 'function') {
+    if (tool.type === 'apiRequest') {
+      // Parse headers back to JSON string for editing
+      let headersStr = ''
+      if (tool.headers?.properties) {
+        const parsed = {}
+        Object.entries(tool.headers.properties).forEach(([k, v]) => {
+          parsed[k] = v.value || v.description || ''
+        })
+        headersStr = JSON.stringify(parsed, null, 2)
+      }
       setToolForm({
-        type: 'function',
+        type: 'apiRequest',
+        functionName: tool.name || '',
+        functionDescription: tool.description || '',
+        httpMethod: tool.method || 'POST',
+        webhookUrl: tool.url || '',
+        httpHeaders: headersStr,
+        httpBody: JSON.stringify(tool.body || {}, null, 2),
+        async: false,
+        endCallMessage: ''
+      })
+    } else if (tool.type === 'function') {
+      // Backward compat: load old function tools as apiRequest for editing
+      setToolForm({
+        type: 'apiRequest',
         functionName: tool.function?.name || '',
         functionDescription: tool.function?.description || '',
-        functionParameters: JSON.stringify(tool.function?.parameters || {}, null, 2),
+        httpMethod: 'POST',
         webhookUrl: tool.server?.url || '',
+        httpHeaders: '',
+        httpBody: JSON.stringify(tool.function?.parameters || {}, null, 2),
         async: tool.async || false,
-        destinationType: 'number',
-        destinationValue: '',
         endCallMessage: ''
       })
     } else if (tool.type === 'endCall') {
@@ -1896,11 +1919,11 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         type: 'endCall',
         functionName: '',
         functionDescription: '',
-        functionParameters: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
+        httpMethod: 'POST',
         webhookUrl: '',
+        httpHeaders: '',
+        httpBody: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
         async: false,
-        destinationType: 'number',
-        destinationValue: '',
         endCallMessage: tool.messages?.[0]?.content || ''
       })
     }
@@ -1912,30 +1935,46 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
   const handleSaveTool = () => {
     let newTool = {}
 
-    if (toolForm.type === 'function') {
+    if (toolForm.type === 'apiRequest') {
       if (!toolForm.functionName || !toolForm.functionDescription || !toolForm.webhookUrl) {
-        setError('Function name, description, and webhook URL are required')
+        setError('Name, description, and URL are required')
         return
       }
 
-      let parameters = {}
+      let body = {}
       try {
-        parameters = JSON.parse(toolForm.functionParameters)
+        body = toolForm.httpBody ? JSON.parse(toolForm.httpBody) : {}
       } catch (e) {
-        setError('Invalid JSON in parameters field')
+        setError('Invalid JSON in request body field')
         return
+      }
+
+      // Parse headers from JSON string to VAPI schema format
+      let headers
+      if (toolForm.httpHeaders && toolForm.httpHeaders.trim()) {
+        try {
+          const parsed = JSON.parse(toolForm.httpHeaders)
+          const properties = {}
+          Object.entries(parsed).forEach(([key, value]) => {
+            properties[key] = { type: 'string', value: String(value) }
+          })
+          headers = { type: 'object', properties }
+        } catch (e) {
+          setError('Invalid JSON in headers field')
+          return
+        }
       }
 
       newTool = {
-        type: 'function',
-        function: {
-          name: toolForm.functionName,
-          description: toolForm.functionDescription,
-          parameters
-        },
-        server: { url: toolForm.webhookUrl },
-        async: toolForm.async
+        type: 'apiRequest',
+        name: toolForm.functionName,
+        description: toolForm.functionDescription,
+        method: toolForm.httpMethod || 'POST',
+        url: toolForm.webhookUrl,
+        body,
+        timeoutSeconds: 20
       }
+      if (headers) newTool.headers = headers
     } else if (toolForm.type === 'endCall') {
       newTool = { type: 'endCall' }
       if (toolForm.endCallMessage) {
@@ -2709,12 +2748,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                 >
                   {TOOL_TYPES.map(tt => (
-                    <option key={tt.id} value={tt.id}>{tt.id === 'function' ? ta('customFunction') : ta('endCallTool')}</option>
+                    <option key={tt.id} value={tt.id}>{tt.label}</option>
                   ))}
                 </select>
               </div>
 
-              {toolForm.type === 'function' && (
+              {toolForm.type === 'apiRequest' && (
                 <>
                   <div>
                     <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('functionName')} *</label>
@@ -2736,21 +2775,45 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                     />
                   </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-1">
+                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Method *</label>
+                      <select
+                        value={toolForm.httpMethod}
+                        onChange={(e) => setToolForm({ ...toolForm, httpMethod: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                      >
+                        {HTTP_METHODS.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">URL *</label>
+                      <input
+                        type="url"
+                        value={toolForm.webhookUrl}
+                        onChange={(e) => setToolForm({ ...toolForm, webhookUrl: e.target.value })}
+                        placeholder="https://your-api.com/endpoint"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('webhookUrl')} *</label>
-                    <input
-                      type="url"
-                      value={toolForm.webhookUrl}
-                      onChange={(e) => setToolForm({ ...toolForm, webhookUrl: e.target.value })}
-                      placeholder="https://your-server.com/webhook"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Headers (JSON)</label>
+                    <textarea
+                      value={toolForm.httpHeaders}
+                      onChange={(e) => setToolForm({ ...toolForm, httpHeaders: e.target.value })}
+                      rows={2}
+                      placeholder={'{\n  "Authorization": "Bearer token..."\n}'}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white font-mono text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('parametersJson')}</label>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Request Body (JSON Schema)</label>
                     <textarea
-                      value={toolForm.functionParameters}
-                      onChange={(e) => setToolForm({ ...toolForm, functionParameters: e.target.value })}
+                      value={toolForm.httpBody}
+                      onChange={(e) => setToolForm({ ...toolForm, httpBody: e.target.value })}
                       rows={4}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white font-mono text-sm"
                     />
@@ -3835,6 +3898,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     <div className="space-y-2">
                       {tools.map((tool, index) => {
                         const getToolLabel = (tl) => {
+                          if (tl.type === 'apiRequest') return tl.name || 'API Request'
                           if (tl.type === 'function') return tl.function?.name || ta('function')
                           if (tl.type === 'ghl.contact.get') return ta('getContact')
                           if (tl.type === 'ghl.contact.create') return ta('createContact')
@@ -3843,6 +3907,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                           return tl.type
                         }
                         const getToolBadge = (tb) => {
+                          if (tb.type === 'apiRequest') return `${tb.method || 'POST'}`
                           if (tb.type.startsWith('ghl.')) return 'GHL'
                           return tb.type
                         }
