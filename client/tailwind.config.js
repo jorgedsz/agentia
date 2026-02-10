@@ -16,21 +16,33 @@ export default {
           border: '#3D4043',    // Border color
         },
         accent: {
-          red: '#EF3340',       // PANTONE Red 032 C
+          red: '#B07878',       // Dusty terracotta
           mauve: '#593D3B',     // PANTONE 438 C
           gray: '#D7D2CB',      // PANTONE Warm Gray 1 C
         },
         primary: {
-          50: '#FEF2F2',
-          100: '#FEE2E2',
-          200: '#FECACA',
-          300: '#FCA5A5',
-          400: '#F87171',
-          500: '#EF3340',       // PANTONE Red 032 C - main
-          600: '#DC2626',
-          700: '#B91C1C',
-          800: '#991B1B',
-          900: '#7F1D1D',
+          50: '#FBF5F5',
+          100: '#F7E8E8',
+          200: '#F0D2D2',
+          300: '#E0AFAF',
+          400: '#CC8F8F',
+          500: '#B07878',       // Dusty terracotta - main
+          600: '#9A6666',
+          700: '#805555',
+          800: '#6A4747',
+          900: '#583C3C',
+        },
+        red: {
+          50: '#FBF5F5',
+          100: '#F7E8E8',
+          200: '#F0D2D2',
+          300: '#E0AFAF',
+          400: '#CC8F8F',
+          500: '#B07878',
+          600: '#9A6666',
+          700: '#805555',
+          800: '#6A4747',
+          900: '#583C3C',
         }
       }
     },
