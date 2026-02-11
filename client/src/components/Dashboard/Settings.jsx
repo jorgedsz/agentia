@@ -1659,8 +1659,10 @@ function APIKeysTab() {
   const [maskedElevenLabs, setMaskedElevenLabs] = useState('')
 
   useEffect(() => {
-    if (canEditVapiKeys) {
+    if (isOwner && canEditVapiKeys) {
       fetchAccountKeys()
+    }
+    if (canEditVapiKeys) {
       fetchTriggerKey()
     }
     if (isOwner) fetchPlatformSettings()
@@ -1848,7 +1850,8 @@ function APIKeysTab() {
 
   return (
     <div className="space-y-6">
-      {/* ===== Account VAPI Keys Section ===== */}
+      {/* ===== Account VAPI Keys Section (OWNER only) ===== */}
+      {isOwner && (<>
       {acctError && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
           {acctError}
@@ -1945,6 +1948,7 @@ function APIKeysTab() {
           </button>
         </div>
       </div>
+      </>)}
 
       {/* ===== Trigger API Key Section ===== */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">

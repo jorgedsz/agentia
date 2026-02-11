@@ -16,10 +16,13 @@ function hasAccountAdminAccess(req) {
 
 /**
  * GET /api/account-settings/vapi-keys
- * Returns masked VAPI keys for the current account.
+ * Returns masked VAPI keys for the current account. OWNER only.
  */
 const getVapiKeys = async (req, res) => {
   try {
+    if (req.user.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only the platform owner can access VAPI keys' });
+    }
     if (!hasAccountAdminAccess(req)) {
       return res.status(403).json({ error: 'Only account owners and admin team members can access VAPI keys' });
     }
@@ -50,10 +53,13 @@ const getVapiKeys = async (req, res) => {
 
 /**
  * PUT /api/account-settings/vapi-keys
- * Saves encrypted VAPI keys on the User record.
+ * Saves encrypted VAPI keys on the User record. OWNER only.
  */
 const updateVapiKeys = async (req, res) => {
   try {
+    if (req.user.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only the platform owner can update VAPI keys' });
+    }
     if (!hasAccountAdminAccess(req)) {
       return res.status(403).json({ error: 'Only account owners and admin team members can update VAPI keys' });
     }
