@@ -1,5 +1,7 @@
 const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
+const { decryptPHI } = require('../utils/phiEncryption');
+const { logAudit } = require('../utils/auditLog');
 
 // Categorize a VAPI call into an outcome
 const categorizeOutcome = (call) => {
@@ -205,22 +207,42 @@ const listCalls = async (req, res) => {
         call.duration = (endTime - startTime) / 1000; // in seconds
       }
 
-      // Add billing info + outcome
+      // Add billing info + outcome (decrypt PHI fields from DB)
       const callLog = await req.prisma.callLog.findUnique({
         where: { vapiCallId: call.id }
       });
       if (callLog) {
-        call.billed = callLog.billed;
-        call.costCharged = callLog.costCharged;
-        call.outcome = callLog.outcome;
-        call.callLogId = callLog.id;
+        const decrypted = decryptPHI(callLog);
+        call.billed = decrypted.billed;
+        call.costCharged = decrypted.costCharged;
+        call.outcome = decrypted.outcome;
+        call.callLogId = decrypted.id;
+        call.transcript = decrypted.transcript;
+        call.summary = decrypted.summary;
+        call.structuredData = decrypted.structuredData;
+        call.customerNumber = decrypted.customerNumber;
+        call.recordingUrl = decrypted.recordingUrl;
         // Use stored duration if available
-        if (callLog.durationSeconds > 0) {
-          call.duration = callLog.durationSeconds;
+        if (decrypted.durationSeconds > 0) {
+          call.duration = decrypted.durationSeconds;
         }
       }
       return call;
     }));
+
+    // Audit log: PHI access
+    const callLogIds = enrichedCalls.filter(c => c.callLogId).map(c => c.callLogId);
+    if (callLogIds.length > 0) {
+      logAudit(req.prisma, {
+        userId: req.user.id,
+        actorId: req.user.id,
+        actorType: 'user',
+        action: 'phi.access',
+        resourceType: 'call_log',
+        details: { callLogIds, count: callLogIds.length },
+        req
+      });
+    }
 
     // Get user's current credits to return
     const user = await req.prisma.user.findUnique({

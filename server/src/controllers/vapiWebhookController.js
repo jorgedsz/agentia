@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const { getApiKeys } = require('../utils/getApiKeys');
+const { encryptPHI, encryptFile } = require('../utils/phiEncryption');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -209,14 +210,20 @@ const handleEvent = async (req, res) => {
     if (vapiRecordingUrl) {
       try {
         const ext = vapiRecordingUrl.includes('.mp3') ? '.mp3' : '.wav';
-        const filename = `${vapiCallId}${ext}`;
-        const destPath = path.join(recordingsDir, filename);
+        const tempFilename = `${vapiCallId}${ext}`;
+        const tempPath = path.join(recordingsDir, tempFilename);
 
-        await downloadFile(vapiRecordingUrl, destPath);
+        await downloadFile(vapiRecordingUrl, tempPath);
+
+        // Encrypt the recording file on disk
+        const encFilename = `${vapiCallId}${ext}.enc`;
+        const encPath = path.join(recordingsDir, encFilename);
+        await encryptFile(tempPath, encPath);
+        fs.unlinkSync(tempPath); // remove plaintext file
 
         const baseUrl = getPublicBaseUrl();
-        localRecordingUrl = `${baseUrl}/api/recordings/${filename}`;
-        console.log(`[VAPI Webhook] Recording saved: ${localRecordingUrl}`);
+        localRecordingUrl = `${baseUrl}/api/recordings/${encFilename}`;
+        console.log(`[VAPI Webhook] Encrypted recording saved: ${localRecordingUrl}`);
       } catch (dlError) {
         console.error(`[VAPI Webhook] Recording download failed:`, dlError.message);
       }
@@ -246,9 +253,9 @@ const handleEvent = async (req, res) => {
     const cost = durationMinutes * rate;
     const outcome = categorizeOutcome(call);
 
-    // 4. Update or create CallLog
+    // 4. Update or create CallLog (encrypt PHI fields before DB write)
     const existingLog = await prisma.callLog.findUnique({ where: { vapiCallId } });
-    const callLogData = {
+    const callLogData = encryptPHI({
       durationSeconds,
       costCharged: cost,
       billed: true,
@@ -260,7 +267,7 @@ const handleEvent = async (req, res) => {
       endedReason,
       customerNumber,
       ...(agent ? { agentId: agent.id } : {})
-    };
+    });
 
     let callLog;
     if (existingLog) {

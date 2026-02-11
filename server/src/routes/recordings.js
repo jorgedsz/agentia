@@ -3,20 +3,38 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const authMiddleware = require('../middleware/authMiddleware');
+const { decryptFileStream } = require('../utils/phiEncryption');
+const { logAudit } = require('../utils/auditLog');
 
 const recordingsDir = path.join(__dirname, '../../uploads/recordings');
 
 // GET /api/recordings/:filename — serve recording files (auth required)
 router.get('/:filename', authMiddleware, async (req, res) => {
   const filename = path.basename(req.params.filename); // prevent directory traversal
-  const filePath = path.join(recordingsDir, filename);
+
+  // Resolve file: try encrypted first, then fall back to unencrypted (backwards compat)
+  let filePath = path.join(recordingsDir, filename);
+  let isEncrypted = filename.endsWith('.enc');
 
   if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'Recording not found' });
+    // If requested without .enc, try the encrypted version
+    if (!isEncrypted) {
+      const encPath = path.join(recordingsDir, filename + '.enc');
+      if (fs.existsSync(encPath)) {
+        filePath = encPath;
+        isEncrypted = true;
+      } else {
+        return res.status(404).json({ error: 'Recording not found' });
+      }
+    } else {
+      return res.status(404).json({ error: 'Recording not found' });
+    }
   }
 
-  // Verify ownership: extract vapiCallId from filename and check CallLog
-  const vapiCallId = filename.replace(/\.(mp3|wav)$/i, '');
+  // Extract vapiCallId: strip .enc, then strip audio extension
+  const baseName = isEncrypted ? filename.replace(/\.enc$/i, '') : filename;
+  const vapiCallId = baseName.replace(/\.(mp3|wav)$/i, '');
+
   const callLog = await req.prisma.callLog.findUnique({
     where: { vapiCallId }
   });
@@ -31,14 +49,38 @@ router.get('/:filename', authMiddleware, async (req, res) => {
     return res.status(403).json({ error: 'Access denied' });
   }
 
-  const ext = path.extname(filename).toLowerCase();
-  const contentType = ext === '.mp3' ? 'audio/mpeg' : 'audio/wav';
+  // Determine content type from the original audio extension
+  const audioExt = path.extname(baseName).toLowerCase();
+  const contentType = audioExt === '.mp3' ? 'audio/mpeg' : 'audio/wav';
 
   res.setHeader('Content-Type', contentType);
-  res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+  res.setHeader('Content-Disposition', `inline; filename="${baseName}"`);
 
-  const stream = fs.createReadStream(filePath);
-  stream.pipe(res);
+  // Audit log: PHI recording access
+  logAudit(req.prisma, {
+    userId: req.user.id,
+    actorId: req.user.id,
+    actorType: 'user',
+    action: 'phi.access.recording',
+    resourceType: 'call_log',
+    resourceId: callLog.id,
+    details: { vapiCallId, filename: baseName },
+    req
+  });
+
+  if (isEncrypted) {
+    const stream = decryptFileStream(filePath);
+    stream.on('error', (err) => {
+      console.error('[Recordings] Decryption error:', err.message);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to decrypt recording' });
+      }
+    });
+    stream.pipe(res);
+  } else {
+    const stream = fs.createReadStream(filePath);
+    stream.pipe(res);
+  }
 });
 
 module.exports = router;
