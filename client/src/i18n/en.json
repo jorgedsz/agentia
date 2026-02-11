@@ -739,6 +739,18 @@
     "variable": "Variable",
     "stable": "Stable"
   },
+  "pricing": {
+    "modelRates": "Model Rates",
+    "modelRatesDesc": "Cost per minute for each AI model. This rate is combined with the transcriber rate to calculate total call cost.",
+    "transcriberRates": "Transcriber Rates",
+    "transcriberRatesDesc": "Cost per minute for each speech-to-text transcriber provider.",
+    "howItWorks": "How Dynamic Pricing Works",
+    "howItWorksDesc": "Each call is billed based on the AI model and transcriber used by the agent. Total cost per minute = model rate + transcriber rate. If no dynamic pricing is configured, legacy per-account rates apply.",
+    "agencyInfo": "You can override global rates for your clients. Leave a field empty to use the global default. Highlighted items have overrides set.",
+    "fetchError": "Failed to load pricing rates",
+    "saveSuccess": "Pricing rates saved successfully",
+    "saveError": "Failed to save pricing rates"
+  },
   "support": {
     "title": "Support",
     "subtitle": "Create and track support tickets",

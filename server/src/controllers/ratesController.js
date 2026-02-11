@@ -1,3 +1,5 @@
+const { getAgentRate } = require('../utils/pricingUtils');
+
 /**
  * Get current call rates
  * GET /api/rates
@@ -119,16 +121,12 @@ const syncBilling = async (req, res) => {
       const durationSeconds = call.duration || 0;
       const durationMinutes = durationSeconds / 60;
 
-      // Calculate cost
-      const rate = isOutbound ? rates.outboundRate : rates.inboundRate;
-      const cost = durationMinutes * rate;
-
-      // Find the user who owns this call (via phone number or assistant)
-      // For now, we'll use the assistantId to find the agent and then the user
+      // Find the user who owns this call (via assistant)
       let userId = null;
+      let agent = null;
 
       if (call.assistantId) {
-        const agent = await req.prisma.agent.findFirst({
+        agent = await req.prisma.agent.findFirst({
           where: { vapiId: call.assistantId }
         });
         if (agent) {
@@ -137,6 +135,18 @@ const syncBilling = async (req, res) => {
       }
 
       if (!userId) continue; // Skip if we can't determine the user
+
+      // Try dynamic pricing first, fallback to legacy rates
+      let rate;
+      const dynamicRate = agent ? await getAgentRate(req.prisma, agent, userId) : null;
+
+      if (dynamicRate) {
+        rate = dynamicRate.totalRate;
+      } else {
+        rate = isOutbound ? rates.outboundRate : rates.inboundRate;
+      }
+
+      const cost = durationMinutes * rate;
 
       // Create or update call log
       if (existingLog) {

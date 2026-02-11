@@ -188,6 +188,14 @@ export const ticketsAPI = {
   delete: (id) => api.delete(`/tickets/${id}`)
 }
 
+// Pricing API (dynamic per-model/transcriber rates)
+export const pricingAPI = {
+  getModelRates: () => api.get('/pricing/models'),
+  getTranscriberRates: () => api.get('/pricing/transcribers'),
+  updateModelRates: (rates) => api.put('/pricing/models', { rates }),
+  updateTranscriberRates: (rates) => api.put('/pricing/transcribers', { rates })
+}
+
 // Compliance API
 export const complianceAPI = {
   getSettings: () => api.get('/compliance/settings'),

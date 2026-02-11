@@ -29,6 +29,7 @@ const vapiWebhookRoutes = require('./routes/vapiWebhook');
 const vapiKeyPoolRoutes = require('./routes/vapiKeyPool');
 const recordingRoutes = require('./routes/recordings');
 const complianceRoutes = require('./routes/compliance');
+const pricingRoutes = require('./routes/pricing');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -76,6 +77,7 @@ app.use('/api/vapi', vapiWebhookRoutes);
 app.use('/api/vapi-key-pool', vapiKeyPoolRoutes);
 app.use('/api/recordings', recordingRoutes);
 app.use('/api/compliance', complianceRoutes);
+app.use('/api/pricing', pricingRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

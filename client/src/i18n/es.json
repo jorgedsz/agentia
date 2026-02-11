@@ -739,6 +739,18 @@
     "variable": "Variable",
     "stable": "Estable"
   },
+  "pricing": {
+    "modelRates": "Tarifas de Modelos",
+    "modelRatesDesc": "Costo por minuto para cada modelo de IA. Esta tarifa se combina con la tarifa del transcriptor para calcular el costo total de la llamada.",
+    "transcriberRates": "Tarifas de Transcriptores",
+    "transcriberRatesDesc": "Costo por minuto para cada proveedor de transcripción de voz a texto.",
+    "howItWorks": "Cómo Funciona la Tarificación Dinámica",
+    "howItWorksDesc": "Cada llamada se factura según el modelo de IA y el transcriptor utilizado por el agente. Costo total por minuto = tarifa del modelo + tarifa del transcriptor. Si no hay tarificación dinámica configurada, se aplican las tarifas legacy por cuenta.",
+    "agencyInfo": "Puedes sobrescribir las tarifas globales para tus clientes. Deja un campo vacío para usar el valor global por defecto. Los elementos resaltados tienen sobrescrituras configuradas.",
+    "fetchError": "Error al cargar las tarifas",
+    "saveSuccess": "Tarifas guardadas exitosamente",
+    "saveError": "Error al guardar las tarifas"
+  },
   "support": {
     "title": "Soporte",
     "subtitle": "Crea y da seguimiento a tickets de soporte",

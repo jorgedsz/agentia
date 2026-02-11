@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI, vapiKeyPoolAPI, complianceAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
+import PricingSettings from './PricingSettings'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -277,6 +278,9 @@ function BillingTab() {
           </div>
         </div>
       </div>
+
+      {/* Dynamic Pricing Section */}
+      <PricingSettings />
     </div>
   )
 }

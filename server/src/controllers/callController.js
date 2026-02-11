@@ -2,6 +2,7 @@ const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
 const { decryptPHI } = require('../utils/phiEncryption');
 const { logAudit } = require('../utils/auditLog');
+const { getAgentRate } = require('../utils/pricingUtils');
 
 // Categorize a VAPI call into an outcome
 const categorizeOutcome = (call) => {
@@ -456,16 +457,30 @@ const syncCallBilling = async (prisma, vapiCalls) => {
       if (agent) agentId = agent.id;
     }
 
-    // Get user's personal rates
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { outboundRate: true, inboundRate: true }
-    });
+    // Try dynamic pricing first (per-agent model+transcriber rates)
+    let rate;
+    let dynamicRate = null;
 
-    // Use user's rates or defaults
-    const outboundRate = user?.outboundRate ?? 0.10;
-    const inboundRate = user?.inboundRate ?? 0.05;
-    const rate = isOutbound ? outboundRate : inboundRate;
+    if (agentId) {
+      const agent = await prisma.agent.findUnique({ where: { id: agentId } });
+      if (agent) {
+        dynamicRate = await getAgentRate(prisma, agent, userId);
+      }
+    }
+
+    if (dynamicRate) {
+      rate = dynamicRate.totalRate;
+    } else {
+      // Fallback to legacy per-user rates
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { outboundRate: true, inboundRate: true }
+      });
+      const outboundRate = user?.outboundRate ?? 0.10;
+      const inboundRate = user?.inboundRate ?? 0.05;
+      rate = isOutbound ? outboundRate : inboundRate;
+    }
+
     const cost = durationMinutes * rate;
 
     // Categorize outcome

@@ -255,3 +255,24 @@ model ComplianceSetting {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 }
+
+model ModelRate {
+  id        Int      @id @default(autoincrement())
+  provider  String   // "openai", "anthropic", "google", "groq", "deepseek", "mistral"
+  model     String   // "gpt-4o", "claude-3-5-sonnet-20241022", etc.
+  rate      Float    // $ per minute
+  setById   Int      @default(0) // 0 = global (OWNER), >0 = agency user ID override
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([provider, model, setById])
+}
+
+model TranscriberRate {
+  id        Int      @id @default(autoincrement())
+  provider  String   // "deepgram", "assembly-ai", etc.
+  rate      Float    // $ per minute
+  setById   Int      @default(0) // 0 = global (OWNER), >0 = agency user ID override
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([provider, setById])
+}
