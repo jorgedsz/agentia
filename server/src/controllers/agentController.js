@@ -1,5 +1,6 @@
 const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
+const { logAudit } = require('../utils/auditLog');
 
 // Get the public base URL for this server (VAPI needs publicly reachable URLs)
 const getPublicBaseUrl = () => {
@@ -130,6 +131,18 @@ const createAgent = async (req, res) => {
       }
     });
 
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
+      actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
+      actorType: req.isTeamMember ? 'team_member' : 'user',
+      action: 'agent.create',
+      resourceType: 'agent',
+      resourceId: agent.id,
+      details: { name: agent.name, agentType: agent.agentType },
+      req
+    });
+
     res.status(201).json({
       message: vapiWarning || 'Agent created successfully',
       vapiWarning,
@@ -238,6 +251,18 @@ const updateAgent = async (req, res) => {
       data: updateData
     });
 
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
+      actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
+      actorType: req.isTeamMember ? 'team_member' : 'user',
+      action: 'agent.update',
+      resourceType: 'agent',
+      resourceId: agent.id,
+      details: { name: agent.name },
+      req
+    });
+
     res.json({
       message: vapiWarning || 'Agent updated successfully',
       vapiWarning,
@@ -279,6 +304,18 @@ const deleteAgent = async (req, res) => {
 
     await req.prisma.agent.delete({
       where: { id: parseInt(id) }
+    });
+
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
+      actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
+      actorType: req.isTeamMember ? 'team_member' : 'user',
+      action: 'agent.delete',
+      resourceType: 'agent',
+      resourceId: id,
+      details: { name: existingAgent.name },
+      req
     });
 
     res.json({ message: 'Agent deleted successfully' });

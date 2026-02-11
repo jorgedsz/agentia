@@ -36,6 +36,7 @@ model User {
   supportTickets       SupportTicket[]
   ticketReplies        TicketReply[]
   vapiKeyPoolEntry     VapiKeyPool?
+  complianceSetting    ComplianceSetting?
 }
 
 model VapiKeyPool {
@@ -218,4 +219,38 @@ model TicketReply {
   ticketId  Int
   ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   createdAt DateTime      @default(now())
+}
+
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  userId       Int      // Account this action belongs to
+  actorId      Int?     // Who performed the action (user or team member ID)
+  actorEmail   String?  // Email of the actor
+  actorType    String?  // "user", "team_member", "system"
+  action       String   // e.g. "login", "agent.create", "settings.update"
+  resourceType String?  // e.g. "agent", "team_member", "compliance_setting"
+  resourceId   String?  // ID of the affected resource
+  details      String?  // JSON string with extra context
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model ComplianceSetting {
+  id                Int       @id @default(autoincrement())
+  hipaaEnabled      Boolean   @default(false)
+  baaSignedDate     DateTime?
+  baaCounterparty   String?   // Name of the BAA counterparty
+  baaDocumentUrl    String?   // URL or reference to BAA document
+  complianceOfficer String?   // Name of compliance officer
+  dataRetentionDays Int       @default(365) // Data retention period
+  lastReviewDate    DateTime?
+  nextReviewDate    DateTime?
+  notes             String?   // Additional compliance notes
+  userId            Int       @unique
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 }

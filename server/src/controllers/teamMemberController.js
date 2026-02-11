@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { logAudit } = require('../utils/auditLog');
 
 const TEAM_ROLES = {
   ADMIN: 'admin',
@@ -85,6 +86,18 @@ const createTeamMember = async (req, res) => {
       }
     });
 
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.user.id,
+      actorEmail: req.user.email,
+      actorType: 'user',
+      action: 'team_member.create',
+      resourceType: 'team_member',
+      resourceId: teamMember.id,
+      details: { email: teamMember.email, teamRole: teamMember.teamRole },
+      req
+    });
+
     res.status(201).json({
       message: 'Team member created successfully',
       teamMember
@@ -142,6 +155,18 @@ const updateTeamMember = async (req, res) => {
       }
     });
 
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.user.id,
+      actorEmail: req.user.email,
+      actorType: 'user',
+      action: 'team_member.update',
+      resourceType: 'team_member',
+      resourceId: teamMember.id,
+      details: { email: teamMember.email },
+      req
+    });
+
     res.json({
       message: 'Team member updated successfully',
       teamMember
@@ -172,6 +197,18 @@ const deleteTeamMember = async (req, res) => {
 
     await req.prisma.teamMember.delete({
       where: { id: parseInt(id) }
+    });
+
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.user.id,
+      actorEmail: req.user.email,
+      actorType: 'user',
+      action: 'team_member.delete',
+      resourceType: 'team_member',
+      resourceId: id,
+      details: { email: existing.email },
+      req
     });
 
     res.json({ message: 'Team member deleted successfully' });

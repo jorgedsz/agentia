@@ -186,6 +186,13 @@ export const ticketsAPI = {
   delete: (id) => api.delete(`/tickets/${id}`)
 }
 
+// Compliance API
+export const complianceAPI = {
+  getSettings: () => api.get('/compliance/settings'),
+  updateSettings: (data) => api.put('/compliance/settings', data),
+  getAuditLogs: (params) => api.get('/compliance/audit-logs', { params })
+}
+
 // Chat API (uses fetch for SSE streaming, not axios)
 export const chatAPI = {
   sendMessage: async (messages, onChunk, onDone, onError) => {

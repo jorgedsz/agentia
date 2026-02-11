@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { logAudit } = require('../utils/auditLog');
 
 const generateToken = (userId) => {
   return jwt.sign({ userId }, process.env.JWT_SECRET, {
@@ -88,6 +89,17 @@ const login = async (req, res) => {
 
     // Generate token
     const token = generateToken(user.id);
+
+    logAudit(req.prisma, {
+      userId: user.id,
+      actorId: user.id,
+      actorEmail: user.email,
+      actorType: 'user',
+      action: 'auth.login',
+      resourceType: 'user',
+      resourceId: user.id,
+      req
+    });
 
     res.json({
       message: 'Login successful',

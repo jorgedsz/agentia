@@ -1,4 +1,5 @@
 const { encrypt, decrypt, mask } = require('../utils/encryption');
+const { logAudit } = require('../utils/auditLog');
 
 /**
  * Check if the current request has admin-level access to the account.
@@ -74,6 +75,17 @@ const updateVapiKeys = async (req, res) => {
 
     const decryptedVapi = user.vapiApiKey ? decrypt(user.vapiApiKey) : '';
     const decryptedVapiPublic = user.vapiPublicKey ? decrypt(user.vapiPublicKey) : '';
+
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
+      actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
+      actorType: req.isTeamMember ? 'team_member' : 'user',
+      action: 'account_settings.vapi_keys.update',
+      resourceType: 'account_settings',
+      resourceId: req.user.id,
+      req
+    });
 
     res.json({
       message: 'VAPI keys updated',

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI, vapiKeyPoolAPI } from '../../services/api'
+import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI, vapiKeyPoolAPI, complianceAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 
 const ROLES = {
@@ -93,6 +93,17 @@ const SETTINGS_ITEMS = [
       </svg>
     ),
     roles: [ROLES.OWNER]
+  },
+  {
+    id: 'compliance',
+    label: 'settings.compliance',
+    description: 'settings.complianceDesc',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+    ),
+    roles: [ROLES.OWNER, ROLES.AGENCY]
   },
   {
     id: 'account',
@@ -217,6 +228,7 @@ export default function Settings() {
         {activeTab === 'branding' && <BrandingTab />}
         {activeTab === 'vapi-pool' && isOwner && <VapiKeyPoolTab />}
         {activeTab === 'slack' && isOwner && <SlackTab />}
+        {activeTab === 'compliance' && <ComplianceTab />}
         {activeTab === 'account' && <AccountTab />}
       </div>
     </div>
@@ -2344,6 +2356,409 @@ function SlackTab() {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function ComplianceTab() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [activeSection, setActiveSection] = useState('overview')
+  const [settings, setSettings] = useState({
+    hipaaEnabled: false,
+    baaSignedDate: '',
+    baaCounterparty: '',
+    baaDocumentUrl: '',
+    complianceOfficer: '',
+    dataRetentionDays: 365,
+    lastReviewDate: '',
+    nextReviewDate: '',
+    notes: ''
+  })
+  const [auditLogs, setAuditLogs] = useState([])
+  const [auditPagination, setAuditPagination] = useState({ page: 1, totalPages: 1, total: 0 })
+  const [auditFilter, setAuditFilter] = useState('')
+  const { t } = useLanguage()
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  useEffect(() => {
+    if (activeSection === 'audit') {
+      fetchAuditLogs()
+    }
+  }, [activeSection, auditPagination.page, auditFilter])
+
+  const fetchSettings = async () => {
+    setLoading(true)
+    try {
+      const { data } = await complianceAPI.getSettings()
+      setSettings({
+        hipaaEnabled: data.hipaaEnabled || false,
+        baaSignedDate: data.baaSignedDate ? data.baaSignedDate.split('T')[0] : '',
+        baaCounterparty: data.baaCounterparty || '',
+        baaDocumentUrl: data.baaDocumentUrl || '',
+        complianceOfficer: data.complianceOfficer || '',
+        dataRetentionDays: data.dataRetentionDays || 365,
+        lastReviewDate: data.lastReviewDate ? data.lastReviewDate.split('T')[0] : '',
+        nextReviewDate: data.nextReviewDate ? data.nextReviewDate.split('T')[0] : '',
+        notes: data.notes || ''
+      })
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load compliance settings')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchAuditLogs = async () => {
+    try {
+      const params = { page: auditPagination.page, limit: 20 }
+      if (auditFilter) params.action = auditFilter
+      const { data } = await complianceAPI.getAuditLogs(params)
+      setAuditLogs(data.logs || [])
+      setAuditPagination(data.pagination || { page: 1, totalPages: 1, total: 0 })
+    } catch (err) {
+      console.error('Failed to load audit logs:', err)
+    }
+  }
+
+  const handleSave = async () => {
+    setError('')
+    setSuccess('')
+    setSaving(true)
+    try {
+      await complianceAPI.updateSettings(settings)
+      setSuccess(t('settings.complianceSaved'))
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save compliance settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
+
+  const sections = [
+    { id: 'overview', label: t('settings.complianceOverview') },
+    { id: 'settings', label: t('settings.complianceSettings') },
+    { id: 'audit', label: t('settings.complianceAuditLog') }
+  ]
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
+          {success}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center gap-3 mb-2">
+          <svg className="w-6 h-6 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('settings.complianceTitle')}</h2>
+        </div>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">{t('settings.complianceSubtitle')}</p>
+      </div>
+
+      {/* Section Tabs */}
+      <div className="flex gap-1 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-1">
+        {sections.map((section) => (
+          <button
+            key={section.id}
+            onClick={() => setActiveSection(section.id)}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeSection === section.id
+                ? 'bg-primary-600 text-white'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'
+            }`}
+          >
+            {section.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Overview Section */}
+      {activeSection === 'overview' && (
+        <div className="space-y-6">
+          {/* Status Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.hipaaStatus')}</div>
+              <div className={`text-sm font-semibold ${settings.hipaaEnabled ? 'text-green-500' : 'text-gray-400'}`}>
+                {settings.hipaaEnabled ? t('settings.hipaaEnabled') : t('settings.hipaaDisabled')}
+              </div>
+            </div>
+            <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.baaStatus')}</div>
+              <div className={`text-sm font-semibold ${settings.baaSignedDate ? 'text-green-500' : 'text-yellow-500'}`}>
+                {settings.baaSignedDate ? t('settings.baaSigned') : t('settings.baaNotSigned')}
+              </div>
+            </div>
+            <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.complianceOfficer')}</div>
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                {settings.complianceOfficer || t('settings.notSet')}
+              </div>
+            </div>
+            <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{t('settings.dataRetention')}</div>
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                {settings.dataRetentionDays} {t('settings.days')}
+              </div>
+            </div>
+          </div>
+
+          {/* HIPAA Policy Summary */}
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.hipaaPolicySummary')}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="border-l-4 border-blue-500 bg-blue-50/50 dark:bg-blue-500/5 rounded-r-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">{t('settings.hipaaPrivacyRule')}</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400">{t('settings.hipaaPrivacyRuleDesc')}</p>
+              </div>
+              <div className="border-l-4 border-green-500 bg-green-50/50 dark:bg-green-500/5 rounded-r-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">{t('settings.hipaaSecurityRule')}</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400">{t('settings.hipaaSecurityRuleDesc')}</p>
+              </div>
+              <div className="border-l-4 border-yellow-500 bg-yellow-50/50 dark:bg-yellow-500/5 rounded-r-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">{t('settings.hipaaBreachNotification')}</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400">{t('settings.hipaaBreachNotificationDesc')}</p>
+              </div>
+              <div className="border-l-4 border-red-500 bg-red-50/50 dark:bg-red-500/5 rounded-r-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">{t('settings.hipaaEnforcement')}</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400">{t('settings.hipaaEnforcementDesc')}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Section */}
+      {activeSection === 'settings' && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 space-y-6">
+          {/* HIPAA Toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('settings.enableHipaa')}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('settings.hipaaStatus')}</p>
+            </div>
+            <button
+              onClick={() => setSettings({ ...settings, hipaaEnabled: !settings.hipaaEnabled })}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                settings.hipaaEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-border'
+              }`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                settings.hipaaEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+
+          <hr className="border-gray-200 dark:border-dark-border" />
+
+          {/* BAA Info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.baaSignedDate')}</label>
+              <input
+                type="date"
+                value={settings.baaSignedDate}
+                onChange={(e) => setSettings({ ...settings, baaSignedDate: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.baaCounterparty')}</label>
+              <input
+                type="text"
+                value={settings.baaCounterparty}
+                onChange={(e) => setSettings({ ...settings, baaCounterparty: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.baaDocumentUrl')}</label>
+              <input
+                type="url"
+                value={settings.baaDocumentUrl}
+                onChange={(e) => setSettings({ ...settings, baaDocumentUrl: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.complianceOfficer')}</label>
+              <input
+                type="text"
+                value={settings.complianceOfficer}
+                onChange={(e) => setSettings({ ...settings, complianceOfficer: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Retention & Review Dates */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.dataRetentionDays')}</label>
+              <input
+                type="number"
+                min="1"
+                value={settings.dataRetentionDays}
+                onChange={(e) => setSettings({ ...settings, dataRetentionDays: parseInt(e.target.value, 10) || 365 })}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.lastReview')}</label>
+              <input
+                type="date"
+                value={settings.lastReviewDate}
+                onChange={(e) => setSettings({ ...settings, lastReviewDate: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.nextReview')}</label>
+              <input
+                type="date"
+                value={settings.nextReviewDate}
+                onChange={(e) => setSettings({ ...settings, nextReviewDate: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('settings.complianceNotes')}</label>
+            <textarea
+              rows={3}
+              value={settings.notes}
+              onChange={(e) => setSettings({ ...settings, notes: e.target.value })}
+              placeholder={t('settings.complianceNotesPlaceholder')}
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm resize-none"
+            />
+          </div>
+
+          {/* Save Button */}
+          <div className="flex justify-end">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+            >
+              {saving ? t('common.saving') : t('common.saveChanges')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Audit Log Section */}
+      {activeSection === 'audit' && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          {/* Filter */}
+          <div className="flex items-center gap-3 mb-4">
+            <input
+              type="text"
+              value={auditFilter}
+              onChange={(e) => {
+                setAuditFilter(e.target.value)
+                setAuditPagination((p) => ({ ...p, page: 1 }))
+              }}
+              placeholder={t('settings.auditLogFilterAction')}
+              className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+            />
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-dark-border">
+                  <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('settings.auditLogDate')}</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('settings.auditLogActor')}</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('settings.auditLogAction')}</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('settings.auditLogResource')}</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{t('settings.auditLogIp')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-8 text-gray-400 dark:text-gray-500">
+                      {t('settings.auditLogEmpty')}
+                    </td>
+                  </tr>
+                ) : (
+                  auditLogs.map((log) => (
+                    <tr key={log.id} className="border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50 dark:hover:bg-dark-hover">
+                      <td className="py-2.5 px-2 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </td>
+                      <td className="py-2.5 px-2 text-gray-900 dark:text-white">
+                        {log.actorEmail || '-'}
+                      </td>
+                      <td className="py-2.5 px-2">
+                        <span className="px-2 py-0.5 bg-primary-500/10 text-primary-600 dark:text-primary-400 rounded text-xs font-medium">
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-2 text-gray-600 dark:text-gray-300">
+                        {log.resourceType ? `${log.resourceType}${log.resourceId ? ` #${log.resourceId}` : ''}` : '-'}
+                      </td>
+                      <td className="py-2.5 px-2 text-gray-500 dark:text-gray-400 font-mono text-xs">
+                        {log.ipAddress || '-'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {auditPagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-dark-border">
+              <button
+                onClick={() => setAuditPagination((p) => ({ ...p, page: Math.max(1, p.page - 1) }))}
+                disabled={auditPagination.page <= 1}
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-dark-hover rounded-lg disabled:opacity-50 hover:bg-gray-200 dark:hover:bg-dark-border"
+              >
+                {t('settings.auditLogPrevious')}
+              </button>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {t('settings.auditLogPage', { page: auditPagination.page, totalPages: auditPagination.totalPages })}
+              </span>
+              <button
+                onClick={() => setAuditPagination((p) => ({ ...p, page: Math.min(p.totalPages, p.page + 1) }))}
+                disabled={auditPagination.page >= auditPagination.totalPages}
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-dark-hover rounded-lg disabled:opacity-50 hover:bg-gray-200 dark:hover:bg-dark-border"
+              >
+                {t('settings.auditLogNext')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

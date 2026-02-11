@@ -27,6 +27,7 @@ const callTriggerRoutes = require('./routes/callTrigger');
 const vapiWebhookRoutes = require('./routes/vapiWebhook');
 const vapiKeyPoolRoutes = require('./routes/vapiKeyPool');
 const recordingRoutes = require('./routes/recordings');
+const complianceRoutes = require('./routes/compliance');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -70,6 +71,7 @@ app.use('/api/call/trigger', callTriggerRoutes);
 app.use('/api/vapi', vapiWebhookRoutes);
 app.use('/api/vapi-key-pool', vapiKeyPoolRoutes);
 app.use('/api/recordings', recordingRoutes);
+app.use('/api/compliance', complianceRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
