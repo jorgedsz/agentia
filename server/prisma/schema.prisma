@@ -23,6 +23,7 @@ model User {
   companyTagline    String?            // Custom branding: tagline
   vapiApiKey        String?            // Encrypted - Per-account VAPI API Key
   vapiPublicKey     String?            // Encrypted - Per-account VAPI Public Key
+  triggerApiKey     String?            // Encrypted - API key for /api/call/trigger
   agencyId          Int?               // If CLIENT, belongs to this agency
   agency            User?              @relation("AgencyClients", fields: [agencyId], references: [id])
   clients           User[]             @relation("AgencyClients") // If AGENCY, these are their clients

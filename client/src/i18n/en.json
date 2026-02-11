@@ -44,7 +44,9 @@
     "saveChanges": "Save Changes",
     "accessAccount": "Access Account",
     "switchBack": "Switch Back",
-    "logout": "Logout"
+    "logout": "Logout",
+    "copy": "Copy",
+    "generating": "Generating..."
   },
   "auth": {
     "title": "Appex Innovations AI",
@@ -267,6 +269,13 @@
     "enterVapiPublicKey": "Enter your VAPI Public key...",
     "enterOpenaiKey": "Enter your OpenAI API key...",
     "enterElevenLabsKey": "Enter your ElevenLabs API key...",
+    "triggerApiKey": "Trigger API Key",
+    "triggerApiKeyDesc": "Required for the /api/call/trigger endpoint. External systems (Make.com, Zapier, GHL) must send this key in the x-api-key header to trigger outbound calls.",
+    "generateTriggerKey": "Generate API Key",
+    "regenerateTriggerKey": "Regenerate API Key",
+    "triggerKeyGenerated": "Trigger API key generated successfully",
+    "triggerKeyCopyWarning": "Copy this key now. It will not be shown again.",
+    "triggerKeyReplaceConfirm": "This will replace your current trigger API key. Any integrations using the old key will stop working. Continue?",
     "addMember": "Add Member",
     "noTeamMembersYet": "No Team Members Yet",
     "addTeamMembersDesc": "Add team members to give others access to your account.",

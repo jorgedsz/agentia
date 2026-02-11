@@ -1639,6 +1639,13 @@ function APIKeysTab() {
   const [acctMaskedVapi, setAcctMaskedVapi] = useState('')
   const [acctMaskedVapiPublic, setAcctMaskedVapiPublic] = useState('')
 
+  // Trigger API key state
+  const [triggerLoading, setTriggerLoading] = useState(true)
+  const [triggerGenerating, setTriggerGenerating] = useState(false)
+  const [hasTriggerKey, setHasTriggerKey] = useState(false)
+  const [maskedTriggerKey, setMaskedTriggerKey] = useState('')
+  const [newTriggerKey, setNewTriggerKey] = useState('')
+
   // Platform keys state (OWNER only)
   const [platLoading, setPlatLoading] = useState(true)
   const [platSaving, setPlatSaving] = useState(false)
@@ -1652,7 +1659,10 @@ function APIKeysTab() {
   const [maskedElevenLabs, setMaskedElevenLabs] = useState('')
 
   useEffect(() => {
-    if (canEditVapiKeys) fetchAccountKeys()
+    if (canEditVapiKeys) {
+      fetchAccountKeys()
+      fetchTriggerKey()
+    }
     if (isOwner) fetchPlatformSettings()
   }, [])
 
@@ -1668,6 +1678,39 @@ function APIKeysTab() {
       setAcctError(err.response?.data?.error || 'Failed to load VAPI keys')
     } finally {
       setAcctLoading(false)
+    }
+  }
+
+  const fetchTriggerKey = async () => {
+    setTriggerLoading(true)
+    try {
+      const { data } = await accountSettingsAPI.getTriggerKey()
+      setHasTriggerKey(data.hasTriggerKey)
+      setMaskedTriggerKey(data.triggerApiKey || '')
+    } catch (err) {
+      // silently fail — not critical
+    } finally {
+      setTriggerLoading(false)
+    }
+  }
+
+  const handleGenerateTriggerKey = async () => {
+    if (hasTriggerKey && !confirm(t('settings.triggerKeyReplaceConfirm'))) return
+    setTriggerGenerating(true)
+    setNewTriggerKey('')
+    setAcctError('')
+    setAcctSuccess('')
+    try {
+      const { data } = await accountSettingsAPI.generateTriggerKey()
+      setNewTriggerKey(data.triggerApiKey)
+      setHasTriggerKey(true)
+      setMaskedTriggerKey('')  // will show new key instead
+      setAcctSuccess(t('settings.triggerKeyGenerated'))
+      setTimeout(() => setAcctSuccess(''), 5000)
+    } catch (err) {
+      setAcctError(err.response?.data?.error || 'Failed to generate trigger key')
+    } finally {
+      setTriggerGenerating(false)
     }
   }
 
@@ -1901,6 +1944,60 @@ function APIKeysTab() {
             {acctSaving ? t('common.saving') : acctHasVapiPublic ? t('common.update') : t('common.save')}
           </button>
         </div>
+      </div>
+
+      {/* ===== Trigger API Key Section ===== */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white">{t('settings.triggerApiKey')}</h3>
+          {hasTriggerKey && !newTriggerKey && (
+            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
+              Active
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          {t('settings.triggerApiKeyDesc')}
+        </p>
+
+        {triggerLoading ? (
+          <div className="flex justify-center py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+          </div>
+        ) : (
+          <>
+            {hasTriggerKey && !newTriggerKey && maskedTriggerKey && (
+              <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedTriggerKey}</span>
+              </div>
+            )}
+
+            {newTriggerKey && (
+              <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                <p className="text-sm font-medium text-amber-400 mb-2">{t('settings.triggerKeyCopyWarning')}</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-dark-bg px-3 py-2 rounded break-all select-all">
+                    {newTriggerKey}
+                  </code>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(newTriggerKey) }}
+                    className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium flex-shrink-0"
+                  >
+                    {t('common.copy')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleGenerateTriggerKey}
+              disabled={triggerGenerating}
+              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+            >
+              {triggerGenerating ? t('common.generating') : hasTriggerKey ? t('settings.regenerateTriggerKey') : t('settings.generateTriggerKey')}
+            </button>
+          </>
+        )}
       </div>
 
       {/* ===== Platform API Keys Section (OWNER only) ===== */}

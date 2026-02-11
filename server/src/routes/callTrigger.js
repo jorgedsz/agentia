@@ -2,24 +2,67 @@ const express = require('express');
 const router = express.Router();
 const vapiService = require('../services/vapiService');
 const { getApiKeys } = require('../utils/getApiKeys');
+const { decrypt } = require('../utils/encryption');
 
-// POST /api/call/trigger - Public endpoint to trigger outbound calls
-// No authentication required - designed for external systems (Make.com, Zapier, GHL webhooks, etc.)
+// POST /api/call/trigger - Trigger outbound calls (requires x-api-key header)
 router.post('/', async (req, res) => {
   try {
     const { from, to, agentId, clientId, ...variables } = req.body;
 
-    // 1. Validate required fields
+    // 0. Validate API key
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) {
+      return res.status(401).json({
+        success: false,
+        error: 'Missing x-api-key header. Generate a trigger API key in Account Settings.'
+      });
+    }
+
+    if (!clientId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required field: clientId',
+        missing: ['clientId']
+      });
+    }
+
+    // Look up the user and validate the API key
+    const user = await req.prisma.user.findUnique({
+      where: { id: parseInt(clientId) }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: `Client not found. No user exists with ID ${clientId}`
+      });
+    }
+
+    if (!user.triggerApiKey) {
+      return res.status(401).json({
+        success: false,
+        error: 'No trigger API key configured for this account. Generate one in Account Settings.'
+      });
+    }
+
+    const storedKey = decrypt(user.triggerApiKey);
+    if (apiKey !== storedKey) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid API key'
+      });
+    }
+
+    // 1. Validate remaining required fields
     const missing = [];
     if (!from) missing.push('from');
     if (!to) missing.push('to');
     if (!agentId) missing.push('agentId');
-    if (!clientId) missing.push('clientId');
 
     if (missing.length > 0) {
       return res.status(400).json({
         success: false,
-        error: `Missing required fields: from, to, agentId, clientId`,
+        error: `Missing required fields: ${missing.join(', ')}`,
         missing
       });
     }
@@ -43,18 +86,6 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // 3. Look up User (client)
-    const user = await req.prisma.user.findUnique({
-      where: { id: parseInt(clientId) }
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: `Client not found. No user exists with ID ${clientId}`
-      });
-    }
-
     if (user.vapiCredits <= 0) {
       return res.status(403).json({
         success: false,
@@ -63,7 +94,7 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // 4. Look up PhoneNumber by the "from" number
+    // 3. Look up PhoneNumber by the "from" number
     const phoneNumber = await req.prisma.phoneNumber.findFirst({
       where: { phoneNumber: from }
     });
@@ -82,7 +113,7 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // 5. Set up VAPI API key
+    // 4. Set up VAPI API key
     const { vapiApiKey } = await getApiKeys(req.prisma);
     if (!vapiApiKey) {
       return res.status(500).json({
@@ -92,7 +123,7 @@ router.post('/', async (req, res) => {
     }
     vapiService.setApiKey(vapiApiKey);
 
-    // 6. Build call config
+    // 5. Build call config
     const callConfig = {
       assistantId: agent.vapiId,
       phoneNumberId: phoneNumber.vapiPhoneNumberId,
@@ -109,10 +140,10 @@ router.post('/', async (req, res) => {
       };
     }
 
-    // 7. Create the call via VAPI
+    // 6. Create the call via VAPI
     const call = await vapiService.createCall(callConfig);
 
-    // 8. Create CallLog for billing tracking
+    // 7. Create CallLog for billing tracking
     await req.prisma.callLog.create({
       data: {
         vapiCallId: call.id,

@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { encrypt, decrypt, mask } = require('../utils/encryption');
 const { logAudit } = require('../utils/auditLog');
 
@@ -136,4 +137,72 @@ const getAccountVapiPublicKey = async (req, res) => {
   }
 };
 
-module.exports = { getVapiKeys, updateVapiKeys, getAccountVapiPublicKey };
+/**
+ * POST /api/account-settings/generate-trigger-key
+ * Generates a new trigger API key, encrypts and stores it, returns plaintext once.
+ */
+const generateTriggerKey = async (req, res) => {
+  try {
+    if (!hasAccountAdminAccess(req)) {
+      return res.status(403).json({ error: 'Only account owners and admin team members can generate trigger keys' });
+    }
+
+    const plainKey = crypto.randomUUID();
+    const encryptedKey = encrypt(plainKey);
+
+    await req.prisma.user.update({
+      where: { id: req.user.id },
+      data: { triggerApiKey: encryptedKey }
+    });
+
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
+      actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
+      actorType: req.isTeamMember ? 'team_member' : 'user',
+      action: 'account_settings.trigger_key.generate',
+      resourceType: 'account_settings',
+      resourceId: req.user.id,
+      req
+    });
+
+    res.json({
+      message: 'Trigger API key generated. Save it now — it will not be shown again.',
+      triggerApiKey: plainKey
+    });
+  } catch (error) {
+    console.error('Generate trigger key error:', error);
+    res.status(500).json({ error: 'Failed to generate trigger key' });
+  }
+};
+
+/**
+ * GET /api/account-settings/trigger-key
+ * Returns whether a trigger key exists (masked).
+ */
+const getTriggerKey = async (req, res) => {
+  try {
+    if (!hasAccountAdminAccess(req)) {
+      return res.status(403).json({ error: 'Only account owners and admin team members can view trigger key status' });
+    }
+
+    const user = await req.prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { triggerApiKey: true }
+    });
+
+    const hasKey = !!user?.triggerApiKey;
+    let maskedKey = '';
+    if (hasKey) {
+      const decrypted = decrypt(user.triggerApiKey);
+      maskedKey = mask(decrypted, 4);
+    }
+
+    res.json({ hasTriggerKey: hasKey, triggerApiKey: maskedKey });
+  } catch (error) {
+    console.error('Get trigger key error:', error);
+    res.status(500).json({ error: 'Failed to fetch trigger key status' });
+  }
+};
+
+module.exports = { getVapiKeys, updateVapiKeys, getAccountVapiPublicKey, generateTriggerKey, getTriggerKey };

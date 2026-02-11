@@ -140,6 +140,16 @@ const extractCustomerNumber = (call) => {
  */
 const handleEvent = async (req, res) => {
   try {
+    // Verify VAPI webhook secret if configured
+    const expectedSecret = process.env.VAPI_WEBHOOK_SECRET;
+    if (expectedSecret) {
+      const receivedSecret = req.headers['x-vapi-secret'];
+      if (receivedSecret !== expectedSecret) {
+        console.warn('[VAPI Webhook] Invalid or missing x-vapi-secret header');
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+
     const payload = req.body;
     const messageType = payload.message?.type;
 

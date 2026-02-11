@@ -14,4 +14,10 @@ router.put('/vapi-keys', accountSettingsController.updateVapiKeys);
 // GET /api/account-settings/vapi-public-key - Get decrypted VAPI public key (with fallback)
 router.get('/vapi-public-key', accountSettingsController.getAccountVapiPublicKey);
 
+// GET /api/account-settings/trigger-key - Check if trigger key exists (masked)
+router.get('/trigger-key', accountSettingsController.getTriggerKey);
+
+// POST /api/account-settings/generate-trigger-key - Generate a new trigger API key
+router.post('/generate-trigger-key', accountSettingsController.generateTriggerKey);
+
 module.exports = router;

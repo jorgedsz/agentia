@@ -44,7 +44,9 @@
     "saveChanges": "Guardar cambios",
     "accessAccount": "Acceder a cuenta",
     "switchBack": "Volver",
-    "logout": "Cerrar sesión"
+    "logout": "Cerrar sesión",
+    "copy": "Copiar",
+    "generating": "Generando..."
   },
   "auth": {
     "title": "Appex Innovations AI",
@@ -267,6 +269,13 @@
     "enterVapiPublicKey": "Ingresa tu clave pública de VAPI...",
     "enterOpenaiKey": "Ingresa tu clave API de OpenAI...",
     "enterElevenLabsKey": "Ingresa tu clave API de ElevenLabs...",
+    "triggerApiKey": "Clave API de Trigger",
+    "triggerApiKeyDesc": "Requerida para el endpoint /api/call/trigger. Los sistemas externos (Make.com, Zapier, GHL) deben enviar esta clave en el header x-api-key para activar llamadas salientes.",
+    "generateTriggerKey": "Generar clave API",
+    "regenerateTriggerKey": "Regenerar clave API",
+    "triggerKeyGenerated": "Clave API de trigger generada exitosamente",
+    "triggerKeyCopyWarning": "Copia esta clave ahora. No se mostrará de nuevo.",
+    "triggerKeyReplaceConfirm": "Esto reemplazará tu clave API de trigger actual. Las integraciones que usen la clave anterior dejarán de funcionar. ¿Continuar?",
     "addMember": "Agregar miembro",
     "noTeamMembersYet": "Sin miembros del equipo aún",
     "addTeamMembersDesc": "Agrega miembros del equipo para dar acceso a tu cuenta a otras personas.",

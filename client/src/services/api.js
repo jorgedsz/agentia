@@ -157,7 +157,9 @@ export const platformSettingsAPI = {
 export const accountSettingsAPI = {
   getVapiKeys: () => api.get('/account-settings/vapi-keys'),
   updateVapiKeys: (data) => api.put('/account-settings/vapi-keys', data),
-  getVapiPublicKey: () => api.get('/account-settings/vapi-public-key')
+  getVapiPublicKey: () => api.get('/account-settings/vapi-public-key'),
+  getTriggerKey: () => api.get('/account-settings/trigger-key'),
+  generateTriggerKey: () => api.post('/account-settings/generate-trigger-key')
 }
 
 // Branding API

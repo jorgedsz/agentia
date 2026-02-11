@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
@@ -28,17 +29,20 @@ const vapiWebhookRoutes = require('./routes/vapiWebhook');
 const vapiKeyPoolRoutes = require('./routes/vapiKeyPool');
 const recordingRoutes = require('./routes/recordings');
 const complianceRoutes = require('./routes/compliance');
+const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
+app.use(helmet());
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true
 }));
 app.use(express.json());
+app.use('/api/', generalLimiter);
 
 // Make prisma available in routes
 app.use((req, res, next) => {
@@ -47,7 +51,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/twilio', twilioRoutes);
@@ -76,45 +80,6 @@ app.use('/api/compliance', complianceRoutes);
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), appUrl: process.env.APP_URL || 'NOT SET' });
-});
-
-// One-time seed endpoint (remove after use)
-const bcrypt = require('bcrypt');
-const { execSync } = require('child_process');
-
-// Sync database schema
-app.get('/api/sync-db-xyz123', async (req, res) => {
-  try {
-    const output = execSync('npx prisma db push --accept-data-loss', {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-      env: { ...process.env }
-    });
-    res.json({ message: 'Database synced!', output });
-  } catch (error) {
-    res.status(500).json({ error: error.message, stderr: error.stderr });
-  }
-});
-
-app.get('/api/seed-owner-xyz123', async (req, res) => {
-  try {
-    const existing = await prisma.user.findFirst({ where: { role: 'OWNER' } });
-    if (existing) {
-      return res.json({ message: 'Owner already exists', email: existing.email });
-    }
-    const hashedPassword = await bcrypt.hash('test123', 10);
-    const owner = await prisma.user.create({
-      data: {
-        email: 'jorgedsz1504@gmail.com',
-        password: hashedPassword,
-        name: 'Jorge',
-        role: 'OWNER'
-      }
-    });
-    res.json({ message: 'Owner created!', email: owner.email });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
 // Serve frontend static files
