@@ -57,7 +57,9 @@
     "passwordPlaceholder": "••••••••",
     "signInButton": "Sign in",
     "signingIn": "Signing in...",
-    "loginFailed": "Login failed. Please try again."
+    "loginFailed": "Login failed. Please try again.",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service"
   },
   "sidebar": {
     "aiVoicePlatform": "AI Voice Platform",

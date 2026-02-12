@@ -17,6 +17,8 @@ import AccountManagement from './components/Dashboard/AccountManagement'
 import VoiceLibrary from './components/Dashboard/VoiceLibrary'
 import Analytics from './components/Dashboard/Analytics'
 import Support from './components/Dashboard/Support'
+import PrivacyPolicy from './components/Legal/PrivacyPolicy'
+import TermsOfService from './components/Legal/TermsOfService'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -86,6 +88,9 @@ function App() {
             </PublicRoute>
           }
         />
+
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
 
         {/* Dashboard with nested routes */}
         <Route

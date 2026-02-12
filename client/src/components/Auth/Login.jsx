@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
@@ -118,6 +118,16 @@ export default function Login() {
           </div>
 
         </form>
+
+        <div className="text-center text-xs text-gray-500 dark:text-gray-400 space-x-3 mt-4">
+          <Link to="/privacy" className="hover:text-primary-600 dark:hover:text-primary-400 underline">
+            {t('auth.privacyPolicy') || 'Privacy Policy'}
+          </Link>
+          <span>&middot;</span>
+          <Link to="/terms" className="hover:text-primary-600 dark:hover:text-primary-400 underline">
+            {t('auth.termsOfService') || 'Terms of Service'}
+          </Link>
+        </div>
       </div>
     </div>
   )
