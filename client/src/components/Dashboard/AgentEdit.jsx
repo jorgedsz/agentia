@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, platformSettingsAPI, voicesAPI } from '../../services/api'
+import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, platformSettingsAPI, voicesAPI, pricingAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { TRANSCRIBER_PROVIDERS, MODELS_BY_PROVIDER } from '../../constants/models'
@@ -470,6 +470,10 @@ export default function AgentEdit() {
   const [transcriberProvider, setTranscriberProvider] = useState('deepgram')
   const [transcriberLanguage, setTranscriberLanguage] = useState('multi')
 
+  // Dynamic pricing rates
+  const [modelRates, setModelRates] = useState({}) // { 'provider::model': rate }
+  const [transcriberRates, setTranscriberRates] = useState({}) // { 'provider': rate }
+
   // Prompt generator
   const [showPromptGenerator, setShowPromptGenerator] = useState(false)
   const [promptDescription, setPromptDescription] = useState('')
@@ -620,6 +624,7 @@ export default function AgentEdit() {
     fetchCredits()
     fetchGhlStatus()
     fetchCalendarIntegrations()
+    fetchPricingRates()
   }, [id])
 
   const fetchGhlStatus = async () => {
@@ -637,6 +642,34 @@ export default function AgentEdit() {
       setCalendarIntegrations(response.data.integrations || [])
     } catch (err) {
       console.error('Failed to fetch calendar integrations:', err)
+    }
+  }
+
+  const fetchPricingRates = async () => {
+    try {
+      const [modelsRes, transcribersRes] = await Promise.all([
+        pricingAPI.getModelRates(),
+        pricingAPI.getTranscriberRates()
+      ])
+      // Build lookup maps
+      const mRates = {}
+      const rates = modelsRes.data.rates || modelsRes.data.globalRates || []
+      rates.forEach(r => { mRates[`${r.provider}::${r.model}`] = r.rate })
+      // If agency scope, apply overrides on top
+      if (modelsRes.data.overrides) {
+        modelsRes.data.overrides.forEach(r => { mRates[`${r.provider}::${r.model}`] = r.rate })
+      }
+      setModelRates(mRates)
+
+      const tRates = {}
+      const tList = transcribersRes.data.rates || transcribersRes.data.globalRates || []
+      tList.forEach(r => { tRates[r.provider] = r.rate })
+      if (transcribersRes.data.overrides) {
+        transcribersRes.data.overrides.forEach(r => { tRates[r.provider] = r.rate })
+      }
+      setTranscriberRates(tRates)
+    } catch (err) {
+      console.error('Failed to fetch pricing rates:', err)
     }
   }
 
@@ -1996,6 +2029,17 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             <span className={`px-2 py-0.5 text-xs rounded-full ${agent.vapiId ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
               {agent.vapiId ? ta('connected') : ta('local')}
             </span>
+            {(() => {
+              const mRate = modelRates[`${modelProvider}::${modelName}`]
+              const tRate = transcriberRates[transcriberProvider]
+              if (mRate == null && tRate == null) return null
+              const total = (mRate || 0) + (tRate || 0)
+              return (
+                <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" title={`Model: $${(mRate || 0).toFixed(2)}/min + Transcriber: $${(tRate || 0).toFixed(2)}/min`}>
+                  ${total.toFixed(2)}/min
+                </span>
+              )
+            })()}
           </div>
           <button
             onClick={() => setShowAgentInfoModal(true)}
@@ -2070,9 +2114,10 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                 >
                   {(MODELS_BY_PROVIDER[modelProvider] || []).map(m => {
                     const lat = getModelLatency(modelProvider, m.model, voiceProvider, transcriberProvider)
+                    const mRate = modelRates[`${modelProvider}::${m.model}`]
                     return (
                       <option key={m.model} value={m.model}>
-                        {m.label} · {lat ? `~${lat.total}ms` : ''}
+                        {m.label} · {lat ? `~${lat.total}ms` : ''}{mRate != null ? ` · $${mRate.toFixed(2)}/min` : ''}
                       </option>
                     )
                   })}
@@ -2149,11 +2194,14 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   }}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer"
                 >
-                  {TRANSCRIBER_PROVIDERS.map(provider => (
-                    <option key={provider.id} value={provider.id}>
-                      {provider.label} · {STT_LATENCY[provider.id] || 800}ms
-                    </option>
-                  ))}
+                  {TRANSCRIBER_PROVIDERS.map(provider => {
+                    const tRate = transcriberRates[provider.id]
+                    return (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.label} · {STT_LATENCY[provider.id] || 800}ms{tRate != null ? ` · $${tRate.toFixed(2)}/min` : ''}
+                      </option>
+                    )
+                  })}
                 </select>
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
