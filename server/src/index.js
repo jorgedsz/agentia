@@ -41,13 +41,24 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      connectSrc: ["'self'", "https://api.vapi.ai", "wss://api.vapi.ai", "https://*.daily.co", "wss://*.daily.co", "https://*.wss.daily.co"],
-      mediaSrc: ["'self'", "https://*.daily.co", "blob:"],
+      connectSrc: ["'self'", "https://api.vapi.ai", "wss://api.vapi.ai", "https://*.daily.co", "wss://*.daily.co", "https://*.wss.daily.co", "https://*.cloudflare.com", "wss://*.livekit.cloud", "https://*.livekit.cloud"],
+      mediaSrc: ["'self'", "https://*.daily.co", "blob:", "mediastream:"],
       workerSrc: ["'self'", "blob:"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://*.daily.co"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "blob:"],
-      fontSrc: ["'self'", "data:"]
+      fontSrc: ["'self'", "data:"],
+      frameSrc: ["'self'", "https://*.daily.co"],
+      childSrc: ["'self'", "blob:", "https://*.daily.co"]
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  permissionsPolicy: {
+    features: {
+      microphone: ['self', '*'],
+      camera: ['self'],
+      autoplay: ['self']
     }
   }
 }));
