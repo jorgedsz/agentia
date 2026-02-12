@@ -3,7 +3,7 @@ const { getApiKeys } = require('../utils/getApiKeys');
 
 const generatePrompt = async (req, res) => {
   try {
-    const { description, agentType } = req.body;
+    const { description, agentType, language } = req.body;
 
     if (!description || !description.trim()) {
       return res.status(400).json({ error: 'Description is required' });
@@ -14,6 +14,7 @@ const generatePrompt = async (req, res) => {
     const prompt = await promptGeneratorService.generatePrompt(
       description.trim(),
       agentType || 'outbound',
+      language || 'en',
       openaiApiKey
     );
 
