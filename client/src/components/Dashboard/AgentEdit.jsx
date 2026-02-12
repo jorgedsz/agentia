@@ -479,6 +479,7 @@ export default function AgentEdit() {
   const [promptDescription, setPromptDescription] = useState('')
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [generatedPrompt, setGeneratedPrompt] = useState('')
+  const [generatedFirstMessage, setGeneratedFirstMessage] = useState('')
   const [promptLanguage, setPromptLanguage] = useState('en')
   const [promptDirection, setPromptDirection] = useState('outbound')
 
@@ -1801,6 +1802,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
     if (!promptDescription.trim()) return
     setGeneratingPrompt(true)
     setGeneratedPrompt('')
+    setGeneratedFirstMessage('')
     try {
       const { data } = await promptGeneratorAPI.generate({
         description: promptDescription,
@@ -1808,6 +1810,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         language: promptLanguage
       })
       setGeneratedPrompt(data.prompt)
+      setGeneratedFirstMessage(data.firstMessage || '')
     } catch (err) {
       setError('Failed to generate prompt')
       setTimeout(() => setError(''), 3000)
@@ -1818,10 +1821,14 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
   const handleUseGeneratedPrompt = () => {
     setSystemPrompt(generatedPrompt)
+    if (generatedFirstMessage) {
+      setFirstMessage(generatedFirstMessage)
+    }
     setAgentType(promptDirection)
     setShowPromptGenerator(false)
     setPromptDescription('')
     setGeneratedPrompt('')
+    setGeneratedFirstMessage('')
   }
 
   // Tool management functions

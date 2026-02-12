@@ -11,14 +11,14 @@ const generatePrompt = async (req, res) => {
 
     const { openaiApiKey } = await getApiKeys(req.prisma);
 
-    const prompt = await promptGeneratorService.generatePrompt(
+    const result = await promptGeneratorService.generatePrompt(
       description.trim(),
       agentType || 'outbound',
       language || 'en',
       openaiApiKey
     );
 
-    res.json({ prompt });
+    res.json({ prompt: result.prompt, firstMessage: result.firstMessage });
   } catch (error) {
     console.error('Generate prompt error:', error);
     res.status(500).json({ error: 'Failed to generate prompt' });

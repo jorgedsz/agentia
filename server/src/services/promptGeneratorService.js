@@ -348,15 +348,18 @@ const generatePrompt = async (description, agentType, language, apiKey) => {
   } catch (parseError) {
     // Fallback: if AI didn't return valid JSON, return raw content as-is
     console.warn('Prompt generator: AI did not return valid JSON, using raw output');
-    return rawContent;
+    return { prompt: rawContent, firstMessage: '' };
   }
 
   // Assemble the complete prompt with fixed sections
-  if (agentType === 'inbound') {
-    return assembleInboundPrompt(parts);
-  } else {
-    return assembleOutboundPrompt(parts);
-  }
+  const prompt = agentType === 'inbound'
+    ? assembleInboundPrompt(parts)
+    : assembleOutboundPrompt(parts);
+
+  return {
+    prompt,
+    firstMessage: parts.initialMessage || ''
+  };
 };
 
 module.exports = { generatePrompt };
