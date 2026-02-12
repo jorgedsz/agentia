@@ -1565,9 +1565,25 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
       setTestCallMuted(false)
       setTestCallVolume(0)
 
+      // Validate agent has a VAPI ID
+      if (!agent?.vapiId) {
+        throw new Error('Agent is not synced with VAPI. Please save the agent first and ensure VAPI API keys are configured in Settings.')
+      }
+
       // Fetch VAPI public key
-      const { data } = await accountSettingsAPI.getVapiPublicKey()
-      const publicKey = data.vapiPublicKey
+      let publicKey
+      try {
+        const { data } = await accountSettingsAPI.getVapiPublicKey()
+        publicKey = data.vapiPublicKey
+      } catch (keyErr) {
+        throw new Error('VAPI Public Key not found. Please configure your VAPI keys in Settings > API Keys.')
+      }
+
+      if (!publicKey) {
+        throw new Error('VAPI Public Key is empty. Please check your VAPI key configuration in Settings.')
+      }
+
+      console.log('Starting test call with vapiId:', agent.vapiId, 'publicKey length:', publicKey.length)
 
       // Dynamically import Vapi SDK
       const { default: Vapi } = await import('@vapi-ai/web')
@@ -1590,6 +1606,19 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         }
       })
 
+      vapi.on('call-start-failed', (event) => {
+        console.error('VAPI call-start-failed:', event)
+        setTestCallStatus('ended')
+        setTestCallTranscript(prev => [...prev, {
+          role: 'System',
+          text: `Call start failed${event?.stage ? ` at stage: ${event.stage}` : ''}: ${event?.error || 'Unknown error'}`
+        }])
+        if (testCallTimerRef.current) {
+          clearInterval(testCallTimerRef.current)
+          testCallTimerRef.current = null
+        }
+      })
+
       vapi.on('message', (msg) => {
         if (msg.type === 'transcript') {
           if (msg.transcriptType === 'final') {
@@ -1599,7 +1628,6 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             }])
           }
         } else if (msg.type === 'conversation-update' && msg.conversation) {
-          // Use conversation-update as fallback for transcript
           const messages = msg.conversation
           setTestCallTranscript(
             messages
@@ -1618,10 +1646,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
       vapi.on('error', (err) => {
         console.error('VAPI test call error:', err)
+        console.error('VAPI error details:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2))
         setTestCallStatus('ended')
+        const errorDetail = err.error?.message || err.message || err.errorMessage || 'Call failed. Check browser console for details.'
         setTestCallTranscript(prev => [...prev, {
           role: 'System',
-          text: `Error: ${err.message || 'Call failed'}`
+          text: `Error: ${errorDetail}`
         }])
         if (testCallTimerRef.current) {
           clearInterval(testCallTimerRef.current)
@@ -1629,7 +1659,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         }
       })
 
-      // Start the call with the agent's vapiId and mark as test call
+      // Start the call with the agent's vapiId
       await vapi.start(agent.vapiId)
     } catch (err) {
       console.error('Failed to start test call:', err)
