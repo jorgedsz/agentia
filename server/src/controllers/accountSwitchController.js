@@ -53,6 +53,10 @@ const getAccessibleAccounts = async (req, res) => {
           email: true,
           name: true,
           role: true,
+          agencyId: true,
+          vapiCredits: true,
+          outboundRate: true,
+          inboundRate: true,
           _count: {
             select: { agents: true }
           }
