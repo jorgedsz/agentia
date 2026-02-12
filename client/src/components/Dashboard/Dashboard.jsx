@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
-import { agentsAPI, usersAPI } from '../../services/api'
+import { agentsAPI, usersAPI, pricingAPI } from '../../services/api'
 import TestCallModal from './TestCallModal'
 import Sidebar from './Sidebar'
 import TwilioSetup from './TwilioSetup'
@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
   const [testCallAgent, setTestCallAgent] = useState(null)
+  const [pricingRates, setPricingRates] = useState({ models: {}, transcribers: {} })
 
   const handleSwitchBack = async () => {
     setSwitchingBack(true)
@@ -57,8 +58,19 @@ export default function Dashboard() {
       setStats(statsRes.data.stats)
 
       if (activeTab === 'overview' || activeTab === 'agents') {
-        const agentsRes = await agentsAPI.list()
+        const [agentsRes, modelsRes, transcribersRes] = await Promise.all([
+          agentsAPI.list(),
+          pricingAPI.getModelRates(),
+          pricingAPI.getTranscriberRates()
+        ])
         setAgents(agentsRes.data.agents)
+        const mRates = {}
+        const mList = modelsRes.data.rates || modelsRes.data.globalRates || []
+        mList.forEach(r => { mRates[`${r.provider}::${r.model}`] = r.rate })
+        const tRates = {}
+        const tList = transcribersRes.data.rates || transcribersRes.data.globalRates || []
+        tList.forEach(r => { tRates[r.provider] = r.rate })
+        setPricingRates({ models: mRates, transcribers: tRates })
       }
       if (activeTab === 'clients' && (user.role === ROLES.OWNER || user.role === ROLES.AGENCY)) {
         const clientsRes = await usersAPI.getClients()
@@ -242,7 +254,7 @@ export default function Dashboard() {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {agents.slice(0, 6).map((agent) => (
-                          <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
+                          <AgentCard key={agent.id} agent={agent} pricingRates={pricingRates} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
                         ))}
                       </div>
                     )}
@@ -257,7 +269,7 @@ export default function Dashboard() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {agents.map((agent) => (
-                        <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
+                        <AgentCard key={agent.id} agent={agent} pricingRates={pricingRates} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
                       ))}
                     </div>
                   )}
@@ -434,11 +446,20 @@ function StatCard({ title, value, icon }) {
   )
 }
 
-function AgentCard({ agent, onDelete, onEdit, onTest }) {
+function AgentCard({ agent, pricingRates, onDelete, onEdit, onTest }) {
   const type = agent.agentType || agent.config?.agentType || 'outbound'
   const hasPhone = agent.phoneNumbers && agent.phoneNumbers.length > 0
   const directionLabel = type === 'inbound' ? 'Inbound' : hasPhone ? 'Inbound & Outbound' : 'Outbound'
   const directionColor = type === 'inbound' ? 'bg-blue-500/20 text-blue-400' : hasPhone ? 'bg-purple-500/20 text-purple-400' : 'bg-green-500/20 text-green-400'
+
+  // Calculate agent price from config
+  const modelProvider = agent.config?.modelProvider
+  const modelName = agent.config?.modelName
+  const transcriberProvider = agent.config?.transcriberProvider || 'deepgram'
+  const modelRate = pricingRates?.models?.[`${modelProvider}::${modelName}`]
+  const transcriberRate = pricingRates?.transcribers?.[transcriberProvider]
+  const totalRate = modelRate != null || transcriberRate != null ? (modelRate || 0) + (transcriberRate || 0) : null
+
   return (
     <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-5 border border-gray-200 dark:border-dark-border">
       <div className="flex justify-between items-start mb-2">
@@ -454,6 +475,11 @@ function AgentCard({ agent, onDelete, onEdit, onTest }) {
         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${directionColor}`}>
           {directionLabel}
         </span>
+        {totalRate != null && (
+          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-500/20 text-amber-400" title={`Model: $${(modelRate || 0).toFixed(2)}/min + Transcriber: $${(transcriberRate || 0).toFixed(2)}/min`}>
+            ${totalRate.toFixed(2)}/min
+          </span>
+        )}
       </div>
       {agent.description && (
         <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{agent.description}</p>
