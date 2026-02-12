@@ -238,48 +238,8 @@ export default function Settings() {
 
 // Billing Tab
 function BillingTab() {
-  const { user } = useAuth()
-  const { t } = useLanguage()
-
   return (
     <div className="space-y-6">
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.billingTitle')}</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          {t('settings.billingSubtitle')}
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4">
-            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('settings.outboundRate')}</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              ${(user?.outboundRate ?? 0.10).toFixed(2)}<span className="text-sm font-normal text-gray-500">{t('settings.perMin')}</span>
-            </div>
-          </div>
-          <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4">
-            <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('settings.inboundRate')}</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              ${(user?.inboundRate ?? 0.05).toFixed(2)}<span className="text-sm font-normal text-gray-500">{t('settings.perMin')}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg">
-          <div className="flex items-start gap-3">
-            <svg className="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <div>
-              <p className="text-sm font-medium text-blue-700 dark:text-blue-400">{t('settings.billingInfoTitle')}</p>
-              <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
-                {t('settings.billingInfoDesc')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Dynamic Pricing Section */}
       <PricingSettings />
     </div>
   )
