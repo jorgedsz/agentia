@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, platformSettingsAPI, voicesAPI, pricingAPI } from '../../services/api'
+import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, accountSettingsAPI, voicesAPI, pricingAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { TRANSCRIBER_PROVIDERS, MODELS_BY_PROVIDER } from '../../constants/models'
@@ -1566,7 +1566,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
       setTestCallVolume(0)
 
       // Fetch VAPI public key
-      const { data } = await platformSettingsAPI.getVapiPublicKey()
+      const { data } = await accountSettingsAPI.getVapiPublicKey()
       const publicKey = data.vapiPublicKey
 
       // Dynamically import Vapi SDK
