@@ -1583,7 +1583,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         throw new Error('VAPI Public Key is empty. Please check your VAPI key configuration in Settings.')
       }
 
-      console.log('Starting test call with vapiId:', agent.vapiId, 'publicKey length:', publicKey.length)
+      console.log('Starting test call with vapiId:', agent.vapiId, 'publicKey length:', publicKey.length, 'publicKey prefix:', publicKey.substring(0, 8) + '...')
 
       // Dynamically import Vapi SDK
       const { default: Vapi } = await import('@vapi-ai/web')

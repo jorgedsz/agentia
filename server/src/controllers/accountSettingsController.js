@@ -114,10 +114,10 @@ const updateVapiKeys = async (req, res) => {
  */
 const getAccountVapiPublicKey = async (req, res) => {
   try {
-    // First check per-account key
+    // 1. Check per-account key on current user
     const user = await req.prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { vapiPublicKey: true }
+      select: { vapiPublicKey: true, agencyId: true }
     });
 
     if (user?.vapiPublicKey) {
@@ -127,7 +127,33 @@ const getAccountVapiPublicKey = async (req, res) => {
       }
     }
 
-    // Fall back to global PlatformSettings
+    // 2. If user has an agency parent, check the agency owner's key
+    if (user?.agencyId) {
+      const agency = await req.prisma.user.findUnique({
+        where: { id: user.agencyId },
+        select: { vapiPublicKey: true }
+      });
+      if (agency?.vapiPublicKey) {
+        const decrypted = decrypt(agency.vapiPublicKey);
+        if (decrypted) {
+          return res.json({ vapiPublicKey: decrypted });
+        }
+      }
+    }
+
+    // 3. Check the OWNER account (first user with role OWNER)
+    const owner = await req.prisma.user.findFirst({
+      where: { role: 'OWNER' },
+      select: { vapiPublicKey: true }
+    });
+    if (owner?.vapiPublicKey) {
+      const decrypted = decrypt(owner.vapiPublicKey);
+      if (decrypted) {
+        return res.json({ vapiPublicKey: decrypted });
+      }
+    }
+
+    // 4. Fall back to global PlatformSettings
     const settings = await req.prisma.platformSettings.findFirst();
     if (settings?.vapiPublicKey) {
       const decrypted = decrypt(settings.vapiPublicKey);
