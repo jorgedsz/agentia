@@ -651,22 +651,16 @@ export default function AgentEdit() {
         pricingAPI.getModelRates(),
         pricingAPI.getTranscriberRates()
       ])
-      // Build lookup maps
+      // Build lookup maps — use global rates only (agency's own cost)
+      // Overrides are for clients, not the agency's own agents
       const mRates = {}
       const rates = modelsRes.data.rates || modelsRes.data.globalRates || []
       rates.forEach(r => { mRates[`${r.provider}::${r.model}`] = r.rate })
-      // If agency scope, apply overrides on top
-      if (modelsRes.data.overrides) {
-        modelsRes.data.overrides.forEach(r => { mRates[`${r.provider}::${r.model}`] = r.rate })
-      }
       setModelRates(mRates)
 
       const tRates = {}
       const tList = transcribersRes.data.rates || transcribersRes.data.globalRates || []
       tList.forEach(r => { tRates[r.provider] = r.rate })
-      if (transcribersRes.data.overrides) {
-        transcribersRes.data.overrides.forEach(r => { tRates[r.provider] = r.rate })
-      }
       setTranscriberRates(tRates)
     } catch (err) {
       console.error('Failed to fetch pricing rates:', err)

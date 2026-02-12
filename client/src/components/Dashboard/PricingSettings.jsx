@@ -43,7 +43,7 @@ export default function PricingSettings() {
       if (mData.scope === 'agency') {
         setModelRates(mData.globalRates || [])
         setModelOverrides(mData.overrides || [])
-        // Initialize edit state with overrides or global values
+        // Initialize edit state with overrides (client pricing)
         const edits = {}
         for (const r of mData.globalRates) {
           const override = (mData.overrides || []).find(o => o.provider === r.provider && o.model === r.model)
@@ -88,7 +88,7 @@ export default function PricingSettings() {
     setSuccess('')
 
     try {
-      // Build model rates payload (only changed values for agency, all for owner)
+      // Build model rates payload
       const modelPayload = []
       for (const r of modelRates) {
         const key = `${r.provider}::${r.model}`
@@ -171,24 +171,79 @@ export default function PricingSettings() {
         </div>
       )}
 
-      {/* Info banner for agencies */}
+      {/* Agency: Your Rates (read-only) section */}
       {scope === 'agency' && (
-        <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <svg className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-sm text-blue-700 dark:text-blue-300">
-              {t('pricing.agencyInfo')}
-            </p>
+        <>
+          <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                Your rates are set by the platform owner. You can set custom rates for your clients below.
+              </p>
+            </div>
           </div>
-        </div>
+
+          {/* Your Rates - Read Only */}
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 opacity-75">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Your Rates</h3>
+              <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">Read-only</span>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">These rates apply to your own agents. Only the platform owner can change them.</p>
+
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">AI Models</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {Object.entries(grouped).map(([provider, models]) => (
+                    models.map(r => (
+                      <div key={`${r.provider}::${r.model}`} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-hover">
+                        <span className="text-xs text-gray-600 dark:text-gray-400 truncate" title={r.model}>
+                          <span className="text-gray-400">{MODEL_PROVIDER_LABELS[r.provider] || r.provider}/</span>{r.model}
+                        </span>
+                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">${r.rate.toFixed(2)}/min</span>
+                      </div>
+                    ))
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Transcribers</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {transcriberRates.map(r => {
+                    const label = TRANSCRIBER_PROVIDERS.find(tp => tp.id === r.provider)?.label || r.provider
+                    return (
+                      <div key={r.provider} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-hover">
+                        <span className="text-xs text-gray-600 dark:text-gray-400">{label}</span>
+                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">${r.rate.toFixed(2)}/min</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200 dark:border-dark-border"></div></div>
+            <div className="relative flex justify-center">
+              <span className="px-3 bg-gray-50 dark:bg-dark-bg text-sm font-medium text-gray-500 dark:text-gray-400">Client Pricing</span>
+            </div>
+          </div>
+        </>
       )}
 
-      {/* Model Rates */}
+      {/* Model Rates - Editable (OWNER: all rates, AGENCY: client overrides) */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{t('pricing.modelRates')}</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{t('pricing.modelRatesDesc')}</p>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+          {scope === 'agency' ? 'Client Model Rates' : t('pricing.modelRates')}
+        </h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          {scope === 'agency' ? 'Set custom rates your clients will be charged. Leave empty to use your rate.' : t('pricing.modelRatesDesc')}
+        </p>
 
         <div className="space-y-6">
           {Object.entries(grouped).map(([provider, models]) => (
@@ -230,8 +285,12 @@ export default function PricingSettings() {
 
       {/* Transcriber Rates */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{t('pricing.transcriberRates')}</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{t('pricing.transcriberRatesDesc')}</p>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+          {scope === 'agency' ? 'Client Transcriber Rates' : t('pricing.transcriberRates')}
+        </h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          {scope === 'agency' ? 'Set custom transcriber rates your clients will be charged. Leave empty to use your rate.' : t('pricing.transcriberRatesDesc')}
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {transcriberRates.map(r => {
