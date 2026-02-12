@@ -146,6 +146,19 @@ export default function AccountManagement() {
     }
   }
 
+  // Delete user handler
+  const handleDeleteUser = async (account) => {
+    if (!confirm(`Are you sure you want to delete "${account.name || account.email}"? This action cannot be undone.`)) return
+    try {
+      await usersAPI.delete(account.id)
+      setSuccess(`User "${account.name || account.email}" deleted successfully`)
+      setTimeout(() => setSuccess(''), 3000)
+      await fetchAccounts()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to delete user')
+    }
+  }
+
   // Create client/agency handlers
   const handleCreate = async (type) => {
     setCreating(true)
@@ -199,6 +212,11 @@ export default function AccountManagement() {
       {error && !editingUser && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
           {error}
+        </div>
+      )}
+      {success && !editingUser && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
+          {success}
         </div>
       )}
 
@@ -372,6 +390,17 @@ export default function AccountManagement() {
                             className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
                           >
                             {t('common.manageBilling')}
+                          </button>
+                        )}
+                        {account.id !== user?.id && (user?.role === ROLES.OWNER || (user?.role === ROLES.AGENCY && account.agencyId === user?.id)) && (
+                          <button
+                            onClick={() => handleDeleteUser(account)}
+                            className="px-3 py-1.5 text-red-500 text-sm rounded-lg hover:bg-red-500/10 transition-colors"
+                            title="Delete user"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
                           </button>
                         )}
                       </div>
