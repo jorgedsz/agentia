@@ -203,7 +203,7 @@ export default function DashboardLayout() {
       title: t('sidebar.sectionDashboard'),
       items: [
         { id: 'overview', path: '/dashboard', label: t('sidebar.overview'), icon: Icons.Overview, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'analytics', path: '/dashboard/analytics', label: t('sidebar.analytics'), icon: Icons.Analytics, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'analytics', path: '/dashboard/analytics', label: t('sidebar.analytics'), icon: Icons.Analytics, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     },
     {

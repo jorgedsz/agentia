@@ -87,7 +87,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
       title: 'Dashboard',
       items: [
         { id: 'overview', label: 'Overview', icon: Icons.Overview, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'analytics', label: 'Analytics', icon: Icons.Analytics, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'analytics', label: 'Analytics', icon: Icons.Analytics, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     },
     {
