@@ -270,22 +270,47 @@ const deleteUser = async (req, res) => {
     const { id } = req.params;
     const targetId = parseInt(id);
 
-    // Check permissions
-    if (req.user.role === ROLES.AGENCY) {
-      const targetUser = await req.prisma.user.findUnique({
-        where: { id: targetId }
-      });
-
-      if (!targetUser || targetUser.agencyId !== req.user.id) {
-        return res.status(403).json({ error: 'Cannot delete this client' });
-      }
+    // Cannot delete yourself
+    if (targetId === req.user.id) {
+      return res.status(403).json({ error: 'Cannot delete your own account' });
     }
+
+    const targetUser = await req.prisma.user.findUnique({
+      where: { id: targetId }
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Cannot delete an OWNER account
+    if (targetUser.role === ROLES.OWNER) {
+      return res.status(403).json({ error: 'Cannot delete an owner account' });
+    }
+
+    // AGENCY can only delete their own clients
+    if (req.user.role === ROLES.AGENCY && targetUser.agencyId !== req.user.id) {
+      return res.status(403).json({ error: 'Cannot delete this client' });
+    }
+
+    // Delete related data first to avoid foreign key constraints
+    await req.prisma.callLog.deleteMany({ where: { userId: targetId } });
+    await req.prisma.agent.deleteMany({ where: { userId: targetId } });
+    await req.prisma.calendarIntegration.deleteMany({ where: { userId: targetId } });
 
     // Release any assigned VAPI key back to the pool
     await req.prisma.vapiKeyPool.updateMany({
       where: { assignedUserId: targetId },
       data: { assignedUserId: null }
     });
+
+    // Unlink clients if deleting an agency
+    if (targetUser.role === ROLES.AGENCY) {
+      await req.prisma.user.updateMany({
+        where: { agencyId: targetId },
+        data: { agencyId: null }
+      });
+    }
 
     await req.prisma.user.delete({
       where: { id: targetId }
