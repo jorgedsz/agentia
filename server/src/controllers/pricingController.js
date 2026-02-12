@@ -1,11 +1,10 @@
 const { getEffectiveRates, seedDefaultRates } = require('../utils/pricingUtils');
 
 /**
- * GET /api/pricing/models
+ * GET /api/pricing/models?forUserId=X
  * Returns model rates. Role-aware:
- * - OWNER sees global defaults
- * - AGENCY sees global + own overrides
- * - CLIENT sees effective resolved rates (read-only)
+ * - No forUserId: OWNER sees global defaults, AGENCY/CLIENT sees own effective rates
+ * - With forUserId: returns global + per-account overrides (OWNER for any user, AGENCY for their clients)
  */
 const getModelRates = async (req, res) => {
   try {
@@ -13,23 +12,47 @@ const getModelRates = async (req, res) => {
 
     const role = req.user.role;
     const userId = req.user.id;
+    const forUserId = req.query.forUserId ? parseInt(req.query.forUserId) : null;
 
-    // Global defaults
+    // Global defaults (always needed)
     const globalRates = await req.prisma.modelRate.findMany({
       where: { setById: 0 },
       orderBy: [{ provider: 'asc' }, { model: 'asc' }]
     });
 
+    // Per-account mode: return global + account overrides
+    if (forUserId) {
+      // Permission check
+      if (role === 'AGENCY') {
+        const targetUser = await req.prisma.user.findUnique({ where: { id: forUserId }, select: { id: true, agencyId: true } });
+        if (!targetUser || targetUser.agencyId !== userId) {
+          return res.status(403).json({ error: 'You can only view rates for your own clients' });
+        }
+      } else if (role !== 'OWNER') {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+
+      const accountRates = await req.prisma.modelRate.findMany({
+        where: { setById: forUserId },
+        orderBy: [{ provider: 'asc' }, { model: 'asc' }]
+      });
+
+      const forUser = await req.prisma.user.findUnique({
+        where: { id: forUserId },
+        select: { id: true, name: true, email: true, role: true }
+      });
+
+      return res.json({ globalRates, accountRates, forUser, scope: 'account' });
+    }
+
+    // No forUserId — standard role-based response
     if (role === 'OWNER') {
       return res.json({ rates: globalRates, scope: 'global' });
     }
 
     if (role === 'AGENCY') {
-      const overrides = await req.prisma.modelRate.findMany({
-        where: { setById: userId },
-        orderBy: [{ provider: 'asc' }, { model: 'asc' }]
-      });
-      return res.json({ globalRates, overrides, scope: 'agency' });
+      // Agency sees global rates (their own rates = global since per-account replaces agency-wide)
+      return res.json({ rates: globalRates, scope: 'agency' });
     }
 
     // CLIENT: return resolved effective rates
@@ -46,8 +69,8 @@ const getModelRates = async (req, res) => {
 };
 
 /**
- * GET /api/pricing/transcribers
- * Returns transcriber rates. Role-aware (same pattern as models).
+ * GET /api/pricing/transcribers?forUserId=X
+ * Returns transcriber rates. Same pattern as models.
  */
 const getTranscriberRates = async (req, res) => {
   try {
@@ -55,22 +78,44 @@ const getTranscriberRates = async (req, res) => {
 
     const role = req.user.role;
     const userId = req.user.id;
+    const forUserId = req.query.forUserId ? parseInt(req.query.forUserId) : null;
 
     const globalRates = await req.prisma.transcriberRate.findMany({
       where: { setById: 0 },
       orderBy: { provider: 'asc' }
     });
 
+    // Per-account mode
+    if (forUserId) {
+      if (role === 'AGENCY') {
+        const targetUser = await req.prisma.user.findUnique({ where: { id: forUserId }, select: { id: true, agencyId: true } });
+        if (!targetUser || targetUser.agencyId !== userId) {
+          return res.status(403).json({ error: 'You can only view rates for your own clients' });
+        }
+      } else if (role !== 'OWNER') {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+
+      const accountRates = await req.prisma.transcriberRate.findMany({
+        where: { setById: forUserId },
+        orderBy: { provider: 'asc' }
+      });
+
+      const forUser = await req.prisma.user.findUnique({
+        where: { id: forUserId },
+        select: { id: true, name: true, email: true, role: true }
+      });
+
+      return res.json({ globalRates, accountRates, forUser, scope: 'account' });
+    }
+
+    // Standard role-based
     if (role === 'OWNER') {
       return res.json({ rates: globalRates, scope: 'global' });
     }
 
     if (role === 'AGENCY') {
-      const overrides = await req.prisma.transcriberRate.findMany({
-        where: { setById: userId },
-        orderBy: { provider: 'asc' }
-      });
-      return res.json({ globalRates, overrides, scope: 'agency' });
+      return res.json({ rates: globalRates, scope: 'agency' });
     }
 
     // CLIENT
@@ -89,9 +134,10 @@ const getTranscriberRates = async (req, res) => {
 /**
  * PUT /api/pricing/models
  * Upsert model rates.
- * OWNER: updates global (setById=0)
- * AGENCY: updates own overrides (setById=agencyUserId)
- * Body: { rates: [{ provider, model, rate }] }
+ * Body: { rates: [{ provider, model, rate }], forUserId?: number }
+ * - No forUserId: OWNER updates global (setById=0)
+ * - With forUserId: OWNER or AGENCY updates per-account rates (setById=forUserId)
+ * AGENCY rates cannot go below OWNER base price.
  */
 const updateModelRates = async (req, res) => {
   try {
@@ -100,12 +146,57 @@ const updateModelRates = async (req, res) => {
       return res.status(403).json({ error: 'Only OWNER or AGENCY can update rates' });
     }
 
-    const { rates } = req.body;
+    const { rates, forUserId } = req.body;
     if (!Array.isArray(rates)) {
       return res.status(400).json({ error: 'rates must be an array' });
     }
 
-    const setById = role === 'OWNER' ? 0 : req.user.id;
+    let setById;
+
+    if (forUserId) {
+      const targetId = parseInt(forUserId);
+
+      // Permission check
+      if (role === 'AGENCY') {
+        const targetUser = await req.prisma.user.findUnique({ where: { id: targetId }, select: { id: true, agencyId: true } });
+        if (!targetUser || targetUser.agencyId !== req.user.id) {
+          return res.status(403).json({ error: 'You can only set rates for your own clients' });
+        }
+      } else if (role !== 'OWNER') {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+
+      setById = targetId;
+    } else {
+      // No forUserId: only OWNER can update global base rates
+      if (role !== 'OWNER') {
+        return res.status(403).json({ error: 'Only OWNER can update base rates' });
+      }
+      setById = 0;
+    }
+
+    // AGENCY: enforce minimum pricing — cannot go below OWNER's base rates
+    if (role === 'AGENCY' && forUserId) {
+      const globalRates = await req.prisma.modelRate.findMany({ where: { setById: 0 } });
+      const globalMap = {};
+      for (const g of globalRates) {
+        globalMap[`${g.provider}::${g.model}`] = g.rate;
+      }
+
+      const violations = [];
+      for (const { provider, model, rate } of rates) {
+        const baseRate = globalMap[`${provider}::${model}`];
+        if (baseRate !== undefined && rate < baseRate) {
+          violations.push(`${provider}/${model}: $${rate}/min is below minimum $${baseRate}/min`);
+        }
+      }
+      if (violations.length > 0) {
+        return res.status(400).json({
+          error: 'Rates cannot be lower than the platform base price',
+          violations
+        });
+      }
+    }
 
     for (const { provider, model, rate } of rates) {
       if (!provider || !model || typeof rate !== 'number' || rate < 0) {
@@ -131,7 +222,8 @@ const updateModelRates = async (req, res) => {
 /**
  * PUT /api/pricing/transcribers
  * Upsert transcriber rates.
- * Body: { rates: [{ provider, rate }] }
+ * Body: { rates: [{ provider, rate }], forUserId?: number }
+ * Same permission/validation logic as models.
  */
 const updateTranscriberRates = async (req, res) => {
   try {
@@ -140,12 +232,55 @@ const updateTranscriberRates = async (req, res) => {
       return res.status(403).json({ error: 'Only OWNER or AGENCY can update rates' });
     }
 
-    const { rates } = req.body;
+    const { rates, forUserId } = req.body;
     if (!Array.isArray(rates)) {
       return res.status(400).json({ error: 'rates must be an array' });
     }
 
-    const setById = role === 'OWNER' ? 0 : req.user.id;
+    let setById;
+
+    if (forUserId) {
+      const targetId = parseInt(forUserId);
+
+      if (role === 'AGENCY') {
+        const targetUser = await req.prisma.user.findUnique({ where: { id: targetId }, select: { id: true, agencyId: true } });
+        if (!targetUser || targetUser.agencyId !== req.user.id) {
+          return res.status(403).json({ error: 'You can only set rates for your own clients' });
+        }
+      } else if (role !== 'OWNER') {
+        return res.status(403).json({ error: 'Not authorized' });
+      }
+
+      setById = targetId;
+    } else {
+      if (role !== 'OWNER') {
+        return res.status(403).json({ error: 'Only OWNER can update base rates' });
+      }
+      setById = 0;
+    }
+
+    // AGENCY: enforce minimum pricing
+    if (role === 'AGENCY' && forUserId) {
+      const globalRates = await req.prisma.transcriberRate.findMany({ where: { setById: 0 } });
+      const globalMap = {};
+      for (const g of globalRates) {
+        globalMap[g.provider] = g.rate;
+      }
+
+      const violations = [];
+      for (const { provider, rate } of rates) {
+        const baseRate = globalMap[provider];
+        if (baseRate !== undefined && rate < baseRate) {
+          violations.push(`${provider}: $${rate}/min is below minimum $${baseRate}/min`);
+        }
+      }
+      if (violations.length > 0) {
+        return res.status(400).json({
+          error: 'Rates cannot be lower than the platform base price',
+          violations
+        });
+      }
+    }
 
     for (const { provider, rate } of rates) {
       if (!provider || typeof rate !== 'number' || rate < 0) {

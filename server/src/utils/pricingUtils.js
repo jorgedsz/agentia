@@ -10,47 +10,32 @@ const DEFAULT_TRANSCRIBER_RATE = 0.02; // $/min
 
 /**
  * Get effective model & transcriber rates for a user.
- * If the user belongs to an agency and the agency has overrides, those win.
- * Otherwise, global defaults (setById=0) are used.
+ * Resolution: per-account rates (setById=userId) > global defaults (setById=0).
  */
 async function getEffectiveRates(prisma, userId) {
-  // Determine if this user has an agency override
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { agencyId: true, role: true }
-  });
-
-  // The override setById: if user is a CLIENT under an agency, use agencyId
-  // If user IS an agency, use their own id for their clients' overrides
-  const overrideId = user?.agencyId || 0;
-
   // Fetch global defaults (setById=0)
   const globalModels = await prisma.modelRate.findMany({ where: { setById: 0 } });
   const globalTranscribers = await prisma.transcriberRate.findMany({ where: { setById: 0 } });
 
-  // Fetch agency overrides if applicable
-  let agencyModels = [];
-  let agencyTranscribers = [];
-  if (overrideId > 0) {
-    agencyModels = await prisma.modelRate.findMany({ where: { setById: overrideId } });
-    agencyTranscribers = await prisma.transcriberRate.findMany({ where: { setById: overrideId } });
-  }
+  // Fetch per-account overrides (setById=userId)
+  const accountModels = await prisma.modelRate.findMany({ where: { setById: userId } });
+  const accountTranscribers = await prisma.transcriberRate.findMany({ where: { setById: userId } });
 
-  // Build lookup maps: agency override > global
+  // Build lookup maps: per-account > global
   const modelRates = {};
   for (const r of globalModels) {
     modelRates[`${r.provider}::${r.model}`] = r.rate;
   }
-  for (const r of agencyModels) {
-    modelRates[`${r.provider}::${r.model}`] = r.rate; // override
+  for (const r of accountModels) {
+    modelRates[`${r.provider}::${r.model}`] = r.rate; // per-account override
   }
 
   const transcriberRates = {};
   for (const r of globalTranscribers) {
     transcriberRates[r.provider] = r.rate;
   }
-  for (const r of agencyTranscribers) {
-    transcriberRates[r.provider] = r.rate; // override
+  for (const r of accountTranscribers) {
+    transcriberRates[r.provider] = r.rate; // per-account override
   }
 
   return { modelRates, transcriberRates };

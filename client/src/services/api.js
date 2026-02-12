@@ -190,10 +190,10 @@ export const ticketsAPI = {
 
 // Pricing API (dynamic per-model/transcriber rates)
 export const pricingAPI = {
-  getModelRates: () => api.get('/pricing/models'),
-  getTranscriberRates: () => api.get('/pricing/transcribers'),
-  updateModelRates: (rates) => api.put('/pricing/models', { rates }),
-  updateTranscriberRates: (rates) => api.put('/pricing/transcribers', { rates })
+  getModelRates: (forUserId) => api.get('/pricing/models', { params: forUserId ? { forUserId } : {} }),
+  getTranscriberRates: (forUserId) => api.get('/pricing/transcribers', { params: forUserId ? { forUserId } : {} }),
+  updateModelRates: (rates, forUserId) => api.put('/pricing/models', { rates, ...(forUserId ? { forUserId } : {}) }),
+  updateTranscriberRates: (rates, forUserId) => api.put('/pricing/transcribers', { rates, ...(forUserId ? { forUserId } : {}) })
 }
 
 // Compliance API
