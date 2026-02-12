@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { pricingAPI, usersAPI } from '../../services/api'
@@ -46,11 +46,10 @@ export default function PricingSettings() {
     try {
       if (role === 'OWNER') {
         const res = await usersAPI.getAll()
-        // Show all non-OWNER users
-        setUsers((res.data || []).filter(u => u.role !== 'OWNER'))
+        setUsers((res.data?.users || []).filter(u => u.role !== 'OWNER'))
       } else if (role === 'AGENCY') {
         const res = await usersAPI.getClients()
-        setUsers(res.data || [])
+        setUsers(res.data?.clients || [])
       }
     } catch (err) {
       console.error('Failed to fetch users:', err)
