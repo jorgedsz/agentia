@@ -52,6 +52,7 @@ export const agentsAPI = {
 // Users/Clients API (for OWNER and AGENCY)
 export const usersAPI = {
   getStats: () => api.get('/users/stats'),
+  getOverview: () => api.get('/users/overview'),
   getAll: () => api.get('/users'),
   getAgencies: () => api.get('/users/agencies'),
   createAgency: (data) => api.post('/users/agencies', data),

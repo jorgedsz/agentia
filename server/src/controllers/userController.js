@@ -435,6 +435,204 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+// Get dashboard overview data (all roles)
+const getDashboardOverview = async (req, res) => {
+  try {
+    const { role, id } = req.user;
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    const weekAgo = new Date(todayStart);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const monthAgo = new Date(todayStart);
+    monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+    // Build user filter for calls based on role
+    let callUserFilter = {};
+    let agentFilter = {};
+    let clientFilter = {};
+
+    if (role === ROLES.OWNER) {
+      // Owner sees everything
+      callUserFilter = {};
+      agentFilter = {};
+      clientFilter = { role: ROLES.CLIENT };
+    } else if (role === ROLES.AGENCY) {
+      // Agency sees own + their clients' data
+      const clientIds = await req.prisma.user.findMany({
+        where: { agencyId: id },
+        select: { id: true }
+      });
+      const userIds = [id, ...clientIds.map(c => c.id)];
+      callUserFilter = { userId: { in: userIds } };
+      agentFilter = { userId: { in: userIds } };
+      clientFilter = { agencyId: id };
+    } else {
+      // Client sees only own data
+      callUserFilter = { userId: id };
+      agentFilter = { userId: id };
+    }
+
+    // Run all queries in parallel
+    const [
+      callsToday,
+      callsYesterday,
+      currentUser,
+      totalAgents,
+      newAgentsThisWeek,
+      totalClients,
+      newClientsThisMonth,
+      dailyCalls,
+      summaryAgg,
+      topAgentsRaw
+    ] = await Promise.all([
+      // Calls today
+      req.prisma.callLog.count({
+        where: { ...callUserFilter, createdAt: { gte: todayStart } }
+      }),
+      // Calls yesterday
+      req.prisma.callLog.count({
+        where: { ...callUserFilter, createdAt: { gte: yesterdayStart, lt: todayStart } }
+      }),
+      // Current user for balance
+      req.prisma.user.findUnique({
+        where: { id },
+        select: { vapiCredits: true }
+      }),
+      // Total agents
+      req.prisma.agent.count({ where: agentFilter }),
+      // New agents this week
+      req.prisma.agent.count({
+        where: { ...agentFilter, createdAt: { gte: weekAgo } }
+      }),
+      // Total clients (OWNER/AGENCY only)
+      (role === ROLES.OWNER || role === ROLES.AGENCY)
+        ? req.prisma.user.count({ where: clientFilter })
+        : Promise.resolve(0),
+      // New clients this month (OWNER/AGENCY only)
+      (role === ROLES.OWNER || role === ROLES.AGENCY)
+        ? req.prisma.user.count({ where: { ...clientFilter, createdAt: { gte: monthAgo } } })
+        : Promise.resolve(0),
+      // Daily calls for last 7 days
+      req.prisma.callLog.groupBy({
+        by: ['createdAt'],
+        where: { ...callUserFilter, createdAt: { gte: weekAgo } },
+        _count: { id: true },
+        orderBy: { createdAt: 'asc' }
+      }),
+      // Summary aggregates
+      req.prisma.callLog.aggregate({
+        where: { ...callUserFilter, createdAt: { gte: weekAgo } },
+        _count: { id: true },
+        _sum: { durationSeconds: true, costCharged: true }
+      }),
+      // Top agents by call count
+      req.prisma.callLog.groupBy({
+        by: ['agentId'],
+        where: { ...callUserFilter, agentId: { not: null } },
+        _count: { id: true },
+        _sum: { costCharged: true, durationSeconds: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 5
+      })
+    ]);
+
+    // Process daily calls into date buckets
+    const dailyMap = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(todayStart);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      dailyMap[key] = 0;
+    }
+    dailyCalls.forEach(row => {
+      const key = new Date(row.createdAt).toISOString().split('T')[0];
+      if (dailyMap[key] !== undefined) {
+        dailyMap[key] += row._count.id;
+      }
+    });
+    const dailyCallsFormatted = Object.entries(dailyMap).map(([date, count]) => ({ date, count }));
+
+    // Fetch agent names for top agents
+    const agentIds = topAgentsRaw.filter(a => a.agentId).map(a => a.agentId);
+    const agentNames = agentIds.length > 0
+      ? await req.prisma.agent.findMany({
+          where: { id: { in: agentIds } },
+          select: { id: true, name: true }
+        })
+      : [];
+    const agentNameMap = {};
+    agentNames.forEach(a => { agentNameMap[a.id] = a.name; });
+
+    const topAgents = topAgentsRaw.map(a => ({
+      id: a.agentId,
+      name: agentNameMap[a.agentId] || `Agent #${a.agentId}`,
+      calls: a._count.id,
+      cost: a._sum.costCharged || 0,
+      duration: a._sum.durationSeconds || 0
+    }));
+
+    // Top clients (OWNER/AGENCY only)
+    let topClients = [];
+    if (role === ROLES.OWNER || role === ROLES.AGENCY) {
+      const clientUserFilter = role === ROLES.OWNER
+        ? {}
+        : { userId: { in: (await req.prisma.user.findMany({ where: { agencyId: id }, select: { id: true } })).map(c => c.id) } };
+
+      const topClientsRaw = await req.prisma.callLog.groupBy({
+        by: ['userId'],
+        where: clientUserFilter,
+        _count: { id: true },
+        _sum: { costCharged: true, durationSeconds: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 5
+      });
+
+      if (topClientsRaw.length > 0) {
+        const clientUserIds = topClientsRaw.map(c => c.userId);
+        const clientUsers = await req.prisma.user.findMany({
+          where: { id: { in: clientUserIds } },
+          select: { id: true, name: true, email: true }
+        });
+        const clientMap = {};
+        clientUsers.forEach(u => { clientMap[u.id] = u; });
+
+        topClients = topClientsRaw.map(c => ({
+          id: c.userId,
+          name: clientMap[c.userId]?.name || clientMap[c.userId]?.email || `User #${c.userId}`,
+          email: clientMap[c.userId]?.email || '',
+          calls: c._count.id,
+          cost: c._sum.costCharged || 0,
+          duration: c._sum.durationSeconds || 0
+        }));
+      }
+    }
+
+    res.json({
+      callsToday,
+      callsYesterday,
+      totalBalance: currentUser?.vapiCredits || 0,
+      totalAgents,
+      newAgentsThisWeek,
+      totalClients,
+      newClientsThisMonth,
+      dailyCalls: dailyCallsFormatted,
+      summary: {
+        totalCalls: summaryAgg._count.id || 0,
+        totalDuration: summaryAgg._sum.durationSeconds || 0,
+        totalCost: summaryAgg._sum.costCharged || 0
+      },
+      topAgents,
+      topClients
+    });
+  } catch (error) {
+    console.error('Get dashboard overview error:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard overview' });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getAllAgencies,
@@ -444,5 +642,6 @@ module.exports = {
   updateUserRole,
   updateUserBilling,
   deleteUser,
-  getDashboardStats
+  getDashboardStats,
+  getDashboardOverview
 };

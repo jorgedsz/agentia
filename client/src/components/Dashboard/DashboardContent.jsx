@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { agentsAPI, usersAPI } from '../../services/api'
 import TestCallModal from './TestCallModal'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -162,6 +163,7 @@ export default function DashboardContent({ tab }) {
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
   const [testCallAgent, setTestCallAgent] = useState(null)
+  const [overviewData, setOverviewData] = useState(null)
 
   // Auto-open creation modal from URL params (?create=outbound or ?create=inbound)
   useEffect(() => {
@@ -189,7 +191,14 @@ export default function DashboardContent({ tab }) {
       const statsRes = await usersAPI.getStats()
       setStats(statsRes.data.stats)
 
-      if (tab === 'overview' || tab === 'agents') {
+      if (tab === 'overview') {
+        const [agentsRes, overviewRes] = await Promise.all([
+          agentsAPI.list(),
+          usersAPI.getOverview()
+        ])
+        setAgents(agentsRes.data.agents)
+        setOverviewData(overviewRes.data)
+      } else if (tab === 'agents') {
         const agentsRes = await agentsAPI.list()
         setAgents(agentsRes.data.agents)
       }
@@ -355,31 +364,16 @@ export default function DashboardContent({ tab }) {
         ) : (
           <>
             {tab === 'overview' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <StatCard title={t('dashboardContent.totalAgents')} value={stats.totalAgents || 0} icon="agents" />
-                  {(user?.role === ROLES.OWNER || user?.role === ROLES.AGENCY) && (
-                    <StatCard title={t('dashboardContent.totalClients')} value={stats.totalClients || 0} icon="users" />
-                  )}
-                  {user?.role === ROLES.OWNER && (
-                    <StatCard title={t('dashboardContent.totalAgencies')} value={stats.totalAgencies || 0} icon="agency" />
-                  )}
-                  <StatCard title={t('dashboardContent.activeCalls')} value="0" icon="phone" />
-                </div>
-
-                <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('dashboardContent.recentAgents')}</h2>
-                  {agents.length === 0 ? (
-                    <EmptyState type="agents" onCreate={() => { setShowModal('agent'); setFormData({}); }} />
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {agents.slice(0, 6).map((agent) => (
-                        <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <OverviewDashboard
+                overviewData={overviewData}
+                user={user}
+                agents={agents}
+                navigate={navigate}
+                setTestCallAgent={setTestCallAgent}
+                handleDelete={handleDelete}
+                setShowModal={setShowModal}
+                setFormData={setFormData}
+              />
             )}
 
             {tab === 'agents' && (
@@ -534,24 +528,253 @@ export default function DashboardContent({ tab }) {
   )
 }
 
-function StatCard({ title, value, icon }) {
-  const icons = {
-    agents: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
-    users: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />,
-    agency: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />,
-    phone: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />,
+function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAgent, handleDelete, setShowModal, setFormData }) {
+  const { t } = useLanguage()
+  const data = overviewData || {}
+
+  const callsChange = data.callsYesterday > 0
+    ? Math.round(((data.callsToday - data.callsYesterday) / data.callsYesterday) * 100)
+    : data.callsToday > 0 ? 100 : 0
+
+  const formatDuration = (seconds) => {
+    if (!seconds) return '0m'
+    const mins = Math.floor(seconds / 60)
+    if (mins < 60) return `${mins}m`
+    const hrs = Math.floor(mins / 60)
+    return `${hrs}h ${mins % 60}m`
   }
-  return (
-    <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{value}</p>
+
+  const AVATAR_COLORS = ['bg-teal-500', 'bg-purple-500', 'bg-amber-500', 'bg-blue-500', 'bg-rose-500', 'bg-emerald-500', 'bg-indigo-500']
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2 shadow-lg">
+          <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">{payload[0].value} {t('overview.calls')}</p>
         </div>
-        <div className="w-12 h-12 bg-primary-500/10 rounded-lg flex items-center justify-center">
-          <svg className="w-6 h-6 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {icons[icon]}
-          </svg>
+      )
+    }
+    return null
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Row 1: Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Calls Today */}
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('overview.callsToday')}</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{data.callsToday || 0}</p>
+              <p className="text-xs mt-1">
+                <span className={callsChange >= 0 ? 'text-green-500' : 'text-red-500'}>
+                  {callsChange >= 0 ? '+' : ''}{callsChange}%
+                </span>
+                <span className="text-gray-400 dark:text-gray-500 ml-1">{t('overview.vsYesterday')}</span>
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-teal-500/10 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Active Agents */}
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('overview.activeAgents')}</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{data.totalAgents || 0}</p>
+              <p className="text-xs mt-1">
+                <span className="text-green-500">+{data.newAgentsThisWeek || 0}</span>
+                <span className="text-gray-400 dark:text-gray-500 ml-1">{t('overview.thisWeek')}</span>
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Total Balance */}
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('overview.totalBalance')}</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">${(data.totalBalance || 0).toFixed(2)}</p>
+              <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">{t('settings.creditsBalance')}</p>
+            </div>
+            <div className="w-12 h-12 bg-amber-500/10 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Active Clients (OWNER/AGENCY) or Total Calls (CLIENT) */}
+        {(user?.role === ROLES.OWNER || user?.role === ROLES.AGENCY) ? (
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('overview.activeClients')}</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{data.totalClients || 0}</p>
+                <p className="text-xs mt-1">
+                  <span className="text-green-500">+{data.newClientsThisMonth || 0}</span>
+                  <span className="text-gray-400 dark:text-gray-500 ml-1">{t('overview.thisMonth')}</span>
+                </p>
+              </div>
+              <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('overview.totalCalls')}</p>
+                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{data.summary?.totalCalls || 0}</p>
+                <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">{t('overview.thisWeek')}</p>
+              </div>
+              <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Row 2: Chart + Agents */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* Left: Calls Overview Chart */}
+        <div className="lg:col-span-3 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('overview.callsOverview')}</h2>
+          {data.dailyCalls && data.dailyCalls.length > 0 ? (
+            <>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data.dailyCalls} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6b7280" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#6b7280" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:opacity-20" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 12, fill: '#9ca3af' }}
+                      tickFormatter={(v) => {
+                        const d = new Date(v + 'T00:00:00')
+                        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                      }}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area type="monotone" dataKey="count" stroke="#6b7280" fill="url(#colorCalls)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-dark-border">
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('overview.totalCalls')}</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{data.summary?.totalCalls || 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('overview.totalDuration')}</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatDuration(data.summary?.totalDuration)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('overview.totalCost')}</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">${(data.summary?.totalCost || 0).toFixed(2)}</p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-400 dark:text-gray-500">
+              {t('overview.noDataYet')}
+            </div>
+          )}
+        </div>
+
+        {/* Right: Agents List + Top Clients */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Agents */}
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('overview.agents')}</h2>
+              <button onClick={() => navigate('/dashboard/agents')} className="text-sm text-primary-500 hover:text-primary-400">
+                {t('overview.viewAll')} &gt;
+              </button>
+            </div>
+            {data.topAgents && data.topAgents.length > 0 ? (
+              <div className="space-y-3">
+                {data.topAgents.map((agent, idx) => (
+                  <div key={agent.id} className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full ${AVATAR_COLORS[idx % AVATAR_COLORS.length]} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0`}>
+                      {(agent.name || '?')[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{agent.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {agent.calls} {t('overview.calls')} &middot; ${agent.cost.toFixed(2)} &middot; {Math.round(agent.duration / 60)}{t('overview.min')}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{agent.calls}</p>
+                      <p className="text-xs text-gray-400">${agent.cost.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">{t('overview.noDataYet')}</p>
+            )}
+          </div>
+
+          {/* Top Clients (OWNER/AGENCY only) */}
+          {(user?.role === ROLES.OWNER || user?.role === ROLES.AGENCY) && (
+            <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('overview.topClients')}</h2>
+                <button onClick={() => navigate('/dashboard/clients')} className="text-sm text-primary-500 hover:text-primary-400">
+                  {t('overview.viewAll')} &gt;
+                </button>
+              </div>
+              {data.topClients && data.topClients.length > 0 ? (
+                <div className="space-y-3">
+                  {data.topClients.map((client, idx) => (
+                    <div key={client.id} className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full ${AVATAR_COLORS[(idx + 3) % AVATAR_COLORS.length]} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0`}>
+                        {(client.name || '?')[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{client.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{client.calls} {t('overview.calls')}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{client.calls}</p>
+                        <p className="text-xs text-gray-400">{Math.round(client.duration / 60)}{t('overview.min')} &middot; ${client.cost.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">{t('overview.noDataYet')}</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

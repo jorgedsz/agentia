@@ -129,6 +129,26 @@
     "inbound": "Inbound",
     "outbound": "Outbound"
   },
+  "overview": {
+    "callsToday": "Calls Today",
+    "activeAgents": "Active Agents",
+    "totalBalance": "Total Balance",
+    "activeClients": "Active Clients",
+    "totalCalls": "Total Calls",
+    "callsOverview": "Calls Overview",
+    "callsPerDay": "Calls per day",
+    "totalDuration": "Total Duration",
+    "totalCost": "Total Cost",
+    "agents": "Agents",
+    "topClients": "Top Clients",
+    "viewAll": "View all",
+    "vsYesterday": "vs yesterday",
+    "thisWeek": "this week",
+    "thisMonth": "this month",
+    "calls": "calls",
+    "min": "min",
+    "noDataYet": "No data yet"
+  },
   "analytics": {
     "title": "Analytics",
     "subtitle": "Call performance and outcomes",

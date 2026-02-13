@@ -10,6 +10,9 @@ router.use(authMiddleware);
 // Dashboard stats (all roles)
 router.get('/stats', userController.getDashboardStats);
 
+// Dashboard overview (all roles)
+router.get('/overview', userController.getDashboardOverview);
+
 // Get all users (OWNER only)
 router.get('/', requireRole(ROLES.OWNER), userController.getAllUsers);
 

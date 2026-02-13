@@ -129,6 +129,26 @@
     "inbound": "Entrante",
     "outbound": "Saliente"
   },
+  "overview": {
+    "callsToday": "Llamadas hoy",
+    "activeAgents": "Agentes activos",
+    "totalBalance": "Saldo total",
+    "activeClients": "Clientes activos",
+    "totalCalls": "Total llamadas",
+    "callsOverview": "Resumen de llamadas",
+    "callsPerDay": "Llamadas por dia",
+    "totalDuration": "Duracion total",
+    "totalCost": "Costo total",
+    "agents": "Agentes",
+    "topClients": "Top clientes",
+    "viewAll": "Ver todos",
+    "vsYesterday": "vs ayer",
+    "thisWeek": "esta semana",
+    "thisMonth": "este mes",
+    "calls": "llamadas",
+    "min": "min",
+    "noDataYet": "Sin datos aun"
+  },
   "analytics": {
     "title": "Analíticas",
     "subtitle": "Rendimiento y resultados de llamadas",
