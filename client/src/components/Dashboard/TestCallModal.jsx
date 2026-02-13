@@ -150,65 +150,93 @@ export default function TestCallModal({ agent, onClose }) {
     return `${mins}:${secs}`
   }
 
+  // Generate waveform bars for visualization
+  const waveformBars = Array.from({ length: 48 }, (_, i) => {
+    if (status === 'active') {
+      // Animate based on volume when call is active
+      const baseHeight = Math.sin(i * 0.3 + Date.now() * 0.003) * 0.5 + 0.5
+      return Math.max(0.1, baseHeight * volume * 3)
+    }
+    // Static waveform pattern when idle
+    const center = 24
+    const dist = Math.abs(i - center) / center
+    const base = Math.sin(i * 0.5) * 0.3 + 0.4
+    return Math.max(0.05, base * (1 - dist * 0.6))
+  })
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('testCall.title')} — {agent.name}</h3>
-          <button onClick={handleClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#1e2024] rounded-xl w-full max-w-md shadow-2xl border border-gray-700/50">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700/50">
+          <h3 className="text-base font-semibold text-gray-200">{t('testCall.title')}</h3>
+          <button onClick={handleClose} className="text-gray-500 hover:text-gray-300 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
-          {/* Call Status & Volume Indicator */}
+        <div className="p-6 space-y-6">
+          {/* Microphone Icon & Status */}
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
-              <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
+              {/* Glow ring */}
+              <div className={`absolute -inset-1 rounded-full transition-all duration-500 ${
                 status === 'active'
-                  ? 'bg-green-100 dark:bg-green-900/30'
+                  ? 'bg-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.3)]'
                   : status === 'connecting'
-                  ? 'bg-yellow-100 dark:bg-yellow-900/30'
-                  : 'bg-gray-100 dark:bg-gray-800'
+                  ? 'bg-yellow-500/20 shadow-[0_0_20px_rgba(234,179,8,0.3)]'
+                  : 'bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+              }`} />
+              {/* Volume pulse ring */}
+              {status === 'active' && (
+                <div
+                  className="absolute -inset-3 rounded-full border border-green-400/40 animate-ping"
+                  style={{ opacity: Math.min(volume * 2, 0.5), animationDuration: '1.5s' }}
+                />
+              )}
+              {/* Mic circle */}
+              <div className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
+                status === 'active'
+                  ? 'bg-[#1a2e1a] border-2 border-green-500/40'
+                  : status === 'connecting'
+                  ? 'bg-[#2e2a1a] border-2 border-yellow-500/40'
+                  : 'bg-[#1a1d22] border-2 border-gray-600/50'
               }`}>
-                {status === 'active' && (
-                  <div
-                    className="absolute inset-0 rounded-full border-2 border-green-400 animate-ping"
-                    style={{ opacity: Math.min(volume * 2, 0.6) }}
-                  />
-                )}
-                <svg className={`w-8 h-8 ${
-                  status === 'active' ? 'text-green-600 dark:text-green-400'
-                    : status === 'connecting' ? 'text-yellow-600 dark:text-yellow-400'
-                    : 'text-gray-400'
+                <svg className={`w-8 h-8 transition-colors duration-300 ${
+                  status === 'active' ? 'text-green-400'
+                    : status === 'connecting' ? 'text-yellow-400'
+                    : 'text-gray-500'
                 }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                 </svg>
               </div>
             </div>
-            <span className={`text-sm font-medium ${
-              status === 'active' ? 'text-green-600 dark:text-green-400'
-                : status === 'connecting' ? 'text-yellow-600 dark:text-yellow-400'
-                : 'text-gray-500 dark:text-gray-400'
-            }`}>
+            {/* Status text */}
+            <span className="text-sm text-gray-400">
               {status === 'idle' && t('testCall.readyToCall')}
               {status === 'connecting' && t('testCall.connecting')}
               {status === 'active' && t('testCall.callActive')}
               {status === 'ended' && t('testCall.callEnded')}
             </span>
+            {/* Timer */}
+            {(status === 'active' || status === 'ended') && elapsed > 0 && (
+              <span className="text-xs font-mono text-gray-500">
+                {formatElapsed(elapsed)} {t('testCall.elapsed')}
+              </span>
+            )}
           </div>
 
-          {/* Controls */}
+          {/* Call Controls */}
           <div className="flex items-center justify-center gap-4">
             {status === 'active' && (
               <button
                 onClick={toggleMute}
-                className={`p-3 rounded-full transition-colors ${
+                className={`p-3 rounded-xl transition-all duration-200 ${
                   muted
-                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
+                    : 'bg-[#2a2d33] text-gray-400 border border-gray-600/30 hover:bg-[#33363d] hover:text-gray-300'
                 }`}
                 title={muted ? t('testCall.unmute') : t('testCall.mute')}
               >
@@ -228,7 +256,7 @@ export default function TestCallModal({ agent, onClose }) {
             {(status === 'idle' || status === 'ended') ? (
               <button
                 onClick={startCall}
-                className="p-4 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors shadow-lg"
+                className="p-4 rounded-2xl bg-green-600 text-white hover:bg-green-500 transition-all duration-200 shadow-lg shadow-green-600/20 hover:shadow-green-500/30"
                 title={t('testCall.startCall')}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -238,14 +266,14 @@ export default function TestCallModal({ agent, onClose }) {
             ) : status === 'connecting' ? (
               <button
                 disabled
-                className="p-4 rounded-full bg-yellow-500 text-white cursor-not-allowed shadow-lg"
+                className="p-4 rounded-2xl bg-yellow-600/80 text-white cursor-not-allowed shadow-lg"
               >
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
               </button>
             ) : (
               <button
                 onClick={stopCall}
-                className="p-4 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors shadow-lg"
+                className="p-4 rounded-2xl bg-red-600 text-white hover:bg-red-500 transition-all duration-200 shadow-lg shadow-red-600/20"
                 title={t('testCall.endCall')}
               >
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
@@ -255,26 +283,42 @@ export default function TestCallModal({ agent, onClose }) {
             )}
           </div>
 
-          {/* Transcript */}
-          <div className="bg-gray-50 dark:bg-dark-hover rounded-lg border border-gray-200 dark:border-dark-border">
-            <div className="px-3 py-2 border-b border-gray-200 dark:border-dark-border">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t('testCall.transcript')}</span>
+          {/* Transcript Section */}
+          <div className="rounded-xl border border-cyan-500/30 bg-[#16181d] overflow-hidden shadow-[0_0_15px_rgba(6,182,212,0.08)]">
+            <div className="px-4 py-2.5 border-b border-cyan-500/20 bg-[#13151a]">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{t('testCall.transcript')}</span>
             </div>
-            <div className="h-48 overflow-y-auto p-3 space-y-2">
+            <div className="h-48 overflow-y-auto p-4 space-y-2.5">
               {transcript.length === 0 ? (
-                <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
-                  {status === 'idle' || status === 'ended'
-                    ? t('testCall.startCallPrompt')
-                    : t('testCall.waitingForConversation')}
-                </p>
+                <div className="flex flex-col items-center justify-center h-full gap-4">
+                  <p className="text-sm text-gray-500 text-center">
+                    {status === 'idle' || status === 'ended'
+                      ? t('testCall.startCallPrompt')
+                      : t('testCall.waitingForConversation')}
+                  </p>
+                  {/* Waveform visualization */}
+                  <div className="flex items-center justify-center gap-[2px] h-12 w-full max-w-[280px]">
+                    {waveformBars.map((height, i) => (
+                      <div
+                        key={i}
+                        className={`w-[3px] rounded-full transition-all duration-150 ${
+                          status === 'active'
+                            ? 'bg-cyan-400'
+                            : 'bg-cyan-500/40'
+                        }`}
+                        style={{ height: `${Math.max(2, height * 48)}px` }}
+                      />
+                    ))}
+                  </div>
+                </div>
               ) : (
                 transcript.map((entry, i) => (
                   <div key={i} className={`text-sm ${
                     entry.role === 'Agent'
-                      ? 'text-blue-700 dark:text-blue-400'
+                      ? 'text-cyan-400'
                       : entry.role === 'System'
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-700 dark:text-gray-300'
+                      ? 'text-red-400'
+                      : 'text-gray-400'
                   }`}>
                     <span className="font-medium">{entry.role}:</span> {entry.text}
                   </div>
@@ -283,15 +327,6 @@ export default function TestCallModal({ agent, onClose }) {
               <div ref={transcriptEndRef} />
             </div>
           </div>
-
-          {/* Timer */}
-          {(status === 'active' || status === 'ended') && elapsed > 0 && (
-            <div className="text-center">
-              <span className="text-sm font-mono text-gray-500 dark:text-gray-400">
-                {formatElapsed(elapsed)} {t('testCall.elapsed')}
-              </span>
-            </div>
-          )}
         </div>
       </div>
     </div>
