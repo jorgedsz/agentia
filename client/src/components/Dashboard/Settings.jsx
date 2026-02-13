@@ -1793,6 +1793,10 @@ function APIKeysTab() {
     }
   }
 
+  // Accordion state
+  const [openSections, setOpenSections] = useState({})
+  const toggleSection = (id) => setOpenSections(prev => ({ ...prev, [id]: !prev[id] }))
+
   const showLoading = (canEditVapiKeys && acctLoading) || (isOwner && platLoading)
 
   if (showLoading) {
@@ -1812,262 +1816,221 @@ function APIKeysTab() {
     )
   }
 
-  return (
-    <div className="space-y-6">
-      {/* ===== Account VAPI Keys Section (OWNER only) ===== */}
-      {isOwner && (<>
-      {acctError && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
-          {acctError}
+  // Reusable key row component
+  const KeyRow = ({ title, description, hasKey, masked, inputValue, onInputChange, onSave, onRemove, saving, placeholder, statusLabel = 'Connected' }) => (
+    <div className="border-t border-gray-100 dark:border-gray-700/30">
+      <div className="px-5 py-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{title}</span>
+            {hasKey && (
+              <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-500/15 text-green-400">
+                {statusLabel}
+              </span>
+            )}
+          </div>
         </div>
-      )}
-      {acctSuccess && (
-        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
-          {acctSuccess}
-        </div>
-      )}
-
-      {/* Account VAPI Header */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.accountVapiKeys')}</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {t('settings.accountVapiKeysDesc')}
-        </p>
-      </div>
-
-      {/* Account VAPI API Key */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white">{t('settings.vapiApiKey')}</h3>
-          {acctHasVapi && (
-            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
-              Connected
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          {t('settings.vapiApiKeyDesc')}
-        </p>
-        {acctHasVapi && (
-          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{acctMaskedVapi}</span>
-            <button onClick={() => handleAcctRemove('vapi')} disabled={acctSaving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
-              {t('common.remove')}
-            </button>
+        <p className="text-xs text-gray-500 dark:text-gray-500">{description}</p>
+        {hasKey && masked && (
+          <div className="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-[#16181c] rounded-lg border border-gray-200 dark:border-gray-700/30">
+            <span className="text-xs font-mono text-gray-500 dark:text-gray-500 truncate">{masked}</span>
+            {onRemove && (
+              <button onClick={onRemove} disabled={saving} className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 flex-shrink-0 ml-2">
+                {t('common.remove')}
+              </button>
+            )}
           </div>
         )}
-        <div className="flex gap-3">
-          <input
-            type="password"
-            value={acctVapiApiKey}
-            onChange={(e) => setAcctVapiApiKey(e.target.value)}
-            placeholder={acctHasVapi ? t('settings.enterNewKey') : t('settings.enterVapiKey')}
-            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
-          />
-          <button
-            onClick={() => handleAcctSave('vapi')}
-            disabled={acctSaving || !acctVapiApiKey.trim()}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
-          >
-            {acctSaving ? t('common.saving') : acctHasVapi ? t('common.update') : t('common.save')}
-          </button>
-        </div>
-      </div>
-
-      {/* Account VAPI Public Key */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white">{t('settings.vapiPublicKey')}</h3>
-          {acctHasVapiPublic && (
-            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
-              Connected
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          {t('settings.vapiPublicKeyDesc')}
-        </p>
-        {acctHasVapiPublic && (
-          <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-            <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{acctMaskedVapiPublic}</span>
-            <button onClick={() => handleAcctRemove('vapiPublic')} disabled={acctSaving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
-              {t('common.remove')}
-            </button>
-          </div>
-        )}
-        <div className="flex gap-3">
-          <input
-            type="password"
-            value={acctVapiPublicKey}
-            onChange={(e) => setAcctVapiPublicKey(e.target.value)}
-            placeholder={acctHasVapiPublic ? t('settings.enterNewKey') : t('settings.enterVapiPublicKey')}
-            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
-          />
-          <button
-            onClick={() => handleAcctSave('vapiPublic')}
-            disabled={acctSaving || !acctVapiPublicKey.trim()}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
-          >
-            {acctSaving ? t('common.saving') : acctHasVapiPublic ? t('common.update') : t('common.save')}
-          </button>
-        </div>
-      </div>
-      </>)}
-
-      {/* ===== Trigger API Key Section ===== */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white">{t('settings.triggerApiKey')}</h3>
-          {hasTriggerKey && !newTriggerKey && (
-            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
-              Active
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-          {t('settings.triggerApiKeyDesc')}
-        </p>
-
-        {triggerLoading ? (
-          <div className="flex justify-center py-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-          </div>
-        ) : (
-          <>
-            {hasTriggerKey && !newTriggerKey && maskedTriggerKey && (
-              <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-                <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedTriggerKey}</span>
-              </div>
-            )}
-
-            {newTriggerKey && (
-              <div className="mb-4 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                <p className="text-sm font-medium text-amber-400 mb-2">{t('settings.triggerKeyCopyWarning')}</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-dark-bg px-3 py-2 rounded break-all select-all">
-                    {newTriggerKey}
-                  </code>
-                  <button
-                    onClick={() => { navigator.clipboard.writeText(newTriggerKey) }}
-                    className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium flex-shrink-0"
-                  >
-                    {t('common.copy')}
-                  </button>
-                </div>
-              </div>
-            )}
-
+        {onInputChange && (
+          <div className="flex gap-2">
+            <input
+              type="password"
+              value={inputValue}
+              onChange={onInputChange}
+              placeholder={placeholder}
+              className="flex-1 px-3 py-2 bg-gray-50 dark:bg-[#16181c] border border-gray-200 dark:border-gray-700/30 rounded-lg text-gray-900 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-500 font-mono text-sm placeholder:text-gray-400 dark:placeholder:text-gray-600"
+            />
             <button
-              onClick={handleGenerateTriggerKey}
-              disabled={triggerGenerating}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+              onClick={onSave}
+              disabled={saving || !inputValue?.trim()}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 disabled:opacity-30 text-sm font-medium transition-colors"
             >
-              {triggerGenerating ? t('common.generating') : hasTriggerKey ? t('settings.regenerateTriggerKey') : t('settings.generateTriggerKey')}
+              {saving ? t('common.saving') : hasKey ? t('common.update') : t('common.save')}
             </button>
-          </>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="space-y-4">
+      {(acctError || platError) && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+          {acctError || platError}
+        </div>
+      )}
+      {(acctSuccess || platSuccess) && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
+          {acctSuccess || platSuccess}
+        </div>
+      )}
+
+      {/* ===== Account VAPI Keys Dropdown ===== */}
+      {isOwner && (
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden">
+          <button
+            onClick={() => toggleSection('acctVapi')}
+            className="w-full flex items-center justify-between px-5 py-4 bg-white dark:bg-[#1e2024] hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors"
+          >
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 text-left">{t('settings.accountVapiKeys')}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5 text-left">{t('settings.accountVapiKeysDesc')}</p>
+            </div>
+            <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0 ml-4 ${openSections.acctVapi ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {openSections.acctVapi && (
+            <>
+              <KeyRow
+                title={t('settings.vapiApiKey')}
+                description={t('settings.vapiApiKeyDesc')}
+                hasKey={acctHasVapi}
+                masked={acctMaskedVapi}
+                inputValue={acctVapiApiKey}
+                onInputChange={(e) => setAcctVapiApiKey(e.target.value)}
+                onSave={() => handleAcctSave('vapi')}
+                onRemove={() => handleAcctRemove('vapi')}
+                saving={acctSaving}
+                placeholder={acctHasVapi ? t('settings.enterNewKey') : t('settings.enterVapiKey')}
+              />
+              <KeyRow
+                title={t('settings.vapiPublicKey')}
+                description={t('settings.vapiPublicKeyDesc')}
+                hasKey={acctHasVapiPublic}
+                masked={acctMaskedVapiPublic}
+                inputValue={acctVapiPublicKey}
+                onInputChange={(e) => setAcctVapiPublicKey(e.target.value)}
+                onSave={() => handleAcctSave('vapiPublic')}
+                onRemove={() => handleAcctRemove('vapiPublic')}
+                saving={acctSaving}
+                placeholder={acctHasVapiPublic ? t('settings.enterNewKey') : t('settings.enterVapiPublicKey')}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ===== Trigger API Key Dropdown ===== */}
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden">
+        <button
+          onClick={() => toggleSection('trigger')}
+          className="w-full flex items-center justify-between px-5 py-4 bg-white dark:bg-[#1e2024] hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 text-left">{t('settings.triggerApiKey')}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5 text-left">{t('settings.triggerApiKeyDesc')}</p>
+            </div>
+            {hasTriggerKey && !newTriggerKey && (
+              <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-500/15 text-green-400">
+                Active
+              </span>
+            )}
+          </div>
+          <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0 ml-4 ${openSections.trigger ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {openSections.trigger && (
+          <div className="border-t border-gray-100 dark:border-gray-700/30 px-5 py-4 space-y-3 bg-white dark:bg-[#16181c]">
+            {triggerLoading ? (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-500"></div>
+              </div>
+            ) : (
+              <>
+                {hasTriggerKey && !newTriggerKey && maskedTriggerKey && (
+                  <div className="p-2.5 bg-gray-50 dark:bg-[#1a1c20] rounded-lg border border-gray-200 dark:border-gray-700/30">
+                    <span className="text-xs font-mono text-gray-500 dark:text-gray-500">{maskedTriggerKey}</span>
+                  </div>
+                )}
+
+                {newTriggerKey && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                    <p className="text-xs font-medium text-amber-400 mb-2">{t('settings.triggerKeyCopyWarning')}</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs font-mono text-gray-300 bg-[#1a1c20] px-3 py-2 rounded break-all select-all">
+                        {newTriggerKey}
+                      </code>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(newTriggerKey) }}
+                        className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 text-xs font-medium flex-shrink-0"
+                      >
+                        {t('common.copy')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleGenerateTriggerKey}
+                  disabled={triggerGenerating}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 disabled:opacity-50 text-sm font-medium transition-colors"
+                >
+                  {triggerGenerating ? t('common.generating') : hasTriggerKey ? t('settings.regenerateTriggerKey') : t('settings.generateTriggerKey')}
+                </button>
+              </>
+            )}
+          </div>
         )}
       </div>
 
-      {/* ===== Platform API Keys Section (OWNER only) ===== */}
+      {/* ===== Platform API Keys Dropdown (OWNER only) ===== */}
       {isOwner && (
-        <>
-          {platError && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
-              {platError}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden">
+          <button
+            onClick={() => toggleSection('platform')}
+            className="w-full flex items-center justify-between px-5 py-4 bg-white dark:bg-[#1e2024] hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors"
+          >
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 text-left">{t('settings.platformApiKeys')}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5 text-left">{t('settings.platformApiKeysDesc')}</p>
             </div>
-          )}
-          {platSuccess && (
-            <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
-              {platSuccess}
-            </div>
-          )}
-
-          {/* Platform Keys Header */}
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 mt-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.platformApiKeys')}</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {t('settings.platformApiKeysDesc')}
-            </p>
-          </div>
-
-          {/* OpenAI API Key */}
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <h3 className="text-md font-semibold text-gray-900 dark:text-white">{t('settings.openaiApiKey')}</h3>
-              {hasOpenai && (
-                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
-                  Connected
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              {t('settings.openaiApiKeyDesc')}
-            </p>
-            {hasOpenai && (
-              <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-                <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedOpenai}</span>
-                <button onClick={() => handlePlatRemove('openai')} disabled={platSaving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
-                  {t('common.remove')}
-                </button>
-              </div>
-            )}
-            <div className="flex gap-3">
-              <input
-                type="password"
-                value={openaiApiKey}
-                onChange={(e) => setOpenaiApiKey(e.target.value)}
+            <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0 ml-4 ${openSections.platform ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {openSections.platform && (
+            <>
+              <KeyRow
+                title={t('settings.openaiApiKey')}
+                description={t('settings.openaiApiKeyDesc')}
+                hasKey={hasOpenai}
+                masked={maskedOpenai}
+                inputValue={openaiApiKey}
+                onInputChange={(e) => setOpenaiApiKey(e.target.value)}
+                onSave={() => handlePlatSave('openai')}
+                onRemove={() => handlePlatRemove('openai')}
+                saving={platSaving}
                 placeholder={hasOpenai ? t('settings.enterNewKey') : t('settings.enterOpenaiKey')}
-                className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
               />
-              <button
-                onClick={() => handlePlatSave('openai')}
-                disabled={platSaving || !openaiApiKey.trim()}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
-              >
-                {platSaving ? t('common.saving') : hasOpenai ? t('common.update') : t('common.save')}
-              </button>
-            </div>
-          </div>
-
-          {/* ElevenLabs API Key */}
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <h3 className="text-md font-semibold text-gray-900 dark:text-white">{t('settings.elevenLabsApiKey')}</h3>
-              {hasElevenLabs && (
-                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">
-                  Connected
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              {t('settings.elevenLabsApiKeyDesc')}
-            </p>
-            {hasElevenLabs && (
-              <div className="flex items-center gap-3 mb-4 p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
-                <span className="text-sm font-mono text-gray-600 dark:text-gray-400">{maskedElevenLabs}</span>
-                <button onClick={() => handlePlatRemove('elevenLabs')} disabled={platSaving} className="ml-auto text-xs text-red-500 hover:text-red-600 disabled:opacity-50">
-                  {t('common.remove')}
-                </button>
-              </div>
-            )}
-            <div className="flex gap-3">
-              <input
-                type="password"
-                value={elevenLabsApiKey}
-                onChange={(e) => setElevenLabsApiKey(e.target.value)}
+              <KeyRow
+                title={t('settings.elevenLabsApiKey')}
+                description={t('settings.elevenLabsApiKeyDesc')}
+                hasKey={hasElevenLabs}
+                masked={maskedElevenLabs}
+                inputValue={elevenLabsApiKey}
+                onInputChange={(e) => setElevenLabsApiKey(e.target.value)}
+                onSave={() => handlePlatSave('elevenLabs')}
+                onRemove={() => handlePlatRemove('elevenLabs')}
+                saving={platSaving}
                 placeholder={hasElevenLabs ? t('settings.enterNewKey') : t('settings.enterElevenLabsKey')}
-                className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
               />
-              <button
-                onClick={() => handlePlatSave('elevenLabs')}
-                disabled={platSaving || !elevenLabsApiKey.trim()}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
-              >
-                {platSaving ? t('common.saving') : hasElevenLabs ? t('common.update') : t('common.save')}
-              </button>
-            </div>
-          </div>
-        </>
+            </>
+          )}
+        </div>
       )}
     </div>
   )
