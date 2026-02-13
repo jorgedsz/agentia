@@ -22,8 +22,6 @@ export default function AllUsers() {
   const [billingForm, setBillingForm] = useState({
     credits: '',
     creditOperation: 'add',
-    outboundRate: '',
-    inboundRate: ''
   })
   const [saving, setSaving] = useState(false)
 
@@ -64,8 +62,6 @@ export default function AllUsers() {
     setBillingForm({
       credits: '',
       creditOperation: 'add',
-      outboundRate: targetUser.outboundRate?.toString() || '0.10',
-      inboundRate: targetUser.inboundRate?.toString() || '0.05'
     })
     setError('')
     setSuccess('')
@@ -76,8 +72,6 @@ export default function AllUsers() {
     setBillingForm({
       credits: '',
       creditOperation: 'add',
-      outboundRate: '',
-      inboundRate: ''
     })
   }
 
@@ -93,14 +87,6 @@ export default function AllUsers() {
       if (billingForm.credits && billingForm.credits !== '') {
         data.credits = parseFloat(billingForm.credits)
         data.creditOperation = billingForm.creditOperation
-      }
-
-      if (billingForm.outboundRate !== '') {
-        data.outboundRate = parseFloat(billingForm.outboundRate)
-      }
-
-      if (billingForm.inboundRate !== '') {
-        data.inboundRate = parseFloat(billingForm.inboundRate)
       }
 
       if (Object.keys(data).length === 0) {
@@ -213,8 +199,6 @@ export default function AllUsers() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('credits.user')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('common.role')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('credits.title')}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('allUsers.outboundRate')}</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('allUsers.inboundRate')}</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('credits.agency')}</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('common.actions')}</th>
               </tr>
@@ -244,16 +228,6 @@ export default function AllUsers() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="font-medium text-gray-900 dark:text-white">
                       ${(u.vapiCredits || 0).toFixed(2)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-gray-600 dark:text-gray-300">
-                      ${(u.outboundRate || 0.10).toFixed(2)}/min
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-gray-600 dark:text-gray-300">
-                      ${(u.inboundRate || 0.05).toFixed(2)}/min
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -357,42 +331,6 @@ export default function AllUsers() {
                       value={billingForm.credits}
                       onChange={(e) => setBillingForm({ ...billingForm, credits: e.target.value })}
                       placeholder="0.00"
-                      className="w-full pl-7 pr-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Rates Section */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {t('allUsers.outboundRateLabel')}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={billingForm.outboundRate}
-                      onChange={(e) => setBillingForm({ ...billingForm, outboundRate: e.target.value })}
-                      className="w-full pl-7 pr-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    {t('allUsers.inboundRateLabel')}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={billingForm.inboundRate}
-                      onChange={(e) => setBillingForm({ ...billingForm, inboundRate: e.target.value })}
                       className="w-full pl-7 pr-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
