@@ -222,7 +222,7 @@ const handleEvent = async (req, res) => {
         fs.unlinkSync(tempPath); // remove plaintext file
 
         const baseUrl = getPublicBaseUrl();
-        localRecordingUrl = `${baseUrl}/api/recordings/${encFilename}`;
+        localRecordingUrl = `${baseUrl}/api/recordings/public/${vapiCallId}`;
         console.log(`[VAPI Webhook] Encrypted recording saved: ${localRecordingUrl}`);
       } catch (dlError) {
         console.error(`[VAPI Webhook] Recording download failed:`, dlError.message);
