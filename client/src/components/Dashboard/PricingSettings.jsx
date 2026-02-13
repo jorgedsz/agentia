@@ -29,6 +29,8 @@ export default function PricingSettings() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [viewMode, setViewMode] = useState('base') // 'base' or 'account' (OWNER only)
+  const [openProviders, setOpenProviders] = useState({})
+  const [pricingOpen, setPricingOpen] = useState(true)
 
   // Fetch users for the selector (OWNER and AGENCY)
   useEffect(() => {
@@ -215,10 +217,6 @@ export default function PricingSettings() {
       </div>
     )
   }
-
-  // Accordion state for providers
-  const [openProviders, setOpenProviders] = useState({})
-  const [pricingOpen, setPricingOpen] = useState(true)
 
   const toggleProvider = (provider) => {
     setOpenProviders(prev => ({ ...prev, [provider]: !prev[provider] }))
