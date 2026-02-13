@@ -377,11 +377,18 @@ export default function DashboardContent({ tab }) {
             )}
 
             {tab === 'agents' && (
-              <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+              <div>
                 {agents.length === 0 ? (
-                  <EmptyState type="agents" onCreate={() => { setShowModal('agent'); setFormData({}); }} />
+                  <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+                    <EmptyState type="agents" onCreate={() => { setShowModal('agent'); setFormData({}); }} />
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="px-3 py-1 text-sm font-medium text-gray-300 bg-[#1e2024] border border-gray-700/50 rounded-lg">
+                        {agents.length} {agents.length === 1 ? 'agent' : 'agents'}
+                      </span>
+                    </div>
                     {agents.map((agent) => (
                       <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
                     ))}
@@ -785,38 +792,87 @@ function AgentCard({ agent, onDelete, onEdit, onTest }) {
   const { t } = useLanguage()
   const type = agent.agentType || agent.config?.agentType || 'outbound'
   const hasPhone = agent.phoneNumbers && agent.phoneNumbers.length > 0
-  const directionLabel = type === 'inbound' ? t('dashboardContent.inbound') : hasPhone ? 'Inbound & Outbound' : t('dashboardContent.outbound')
-  const directionColor = type === 'inbound' ? 'bg-blue-500/20 text-blue-400' : hasPhone ? 'bg-purple-500/20 text-purple-400' : 'bg-green-500/20 text-green-400'
+
+  const badges = []
+  if (type === 'inbound' || hasPhone) badges.push({ label: t('dashboardContent.inbound'), color: 'border-blue-500/30 text-blue-400' })
+  if (type === 'outbound' || hasPhone) badges.push({ label: t('dashboardContent.outbound'), color: 'border-green-500/30 text-green-400' })
+
+  const promptPreview = agent.config?.systemPrompt || agent.description || ''
+
   return (
-    <div className="bg-gray-50 dark:bg-transparent rounded-lg p-5 border border-gray-200 dark:border-primary-500">
-      <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white">{agent.name}</h3>
-          <span className="px-1.5 py-0.5 text-xs font-medium rounded-full bg-gray-500/20 text-gray-400">ID: {agent.id}</span>
+    <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1e2024] overflow-hidden">
+      <div className="p-5 space-y-3">
+        {/* Row 1: Name + Status */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">{agent.name}</h3>
+            <span className="w-6 h-6 rounded-md bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center text-[10px] font-medium text-gray-400">
+              {(agent.config?.modelProvider || 'o')[0].toLowerCase()}
+            </span>
+          </div>
+          <span className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border ${
+            agent.vapiId
+              ? 'border-green-500/30 text-green-400 bg-green-500/10'
+              : 'border-gray-600/30 text-gray-500 bg-gray-500/10'
+          }`}>
+            {agent.vapiId && <span className="w-2 h-2 rounded-full bg-green-400" />}
+            {agent.vapiId ? t('common.connected') : t('common.local')}
+          </span>
         </div>
-        <span className={`px-2 py-0.5 text-xs rounded-full flex-shrink-0 ${agent.vapiId ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-          {agent.vapiId ? t('common.connected') : t('common.local')}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 mb-3">
-        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${directionColor}`}>
-          {directionLabel}
-        </span>
-      </div>
-      {agent.description && (
-        <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{agent.description}</p>
-      )}
-      {agent.config?.systemPrompt && (
-        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4">{agent.config.systemPrompt}</p>
-      )}
-      <div className="flex gap-2">
-        <button onClick={onEdit} className="flex-1 px-3 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium">{t('common.edit')}</button>
-        <button onClick={onTest} disabled={!agent.vapiId} className="px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50" title={agent.vapiId ? 'Test Agent' : 'Agent not connected to VAPI'}>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-          </svg>
-        </button>
-        <button onClick={onDelete} className="px-3 py-2 text-red-500 text-sm rounded-lg hover:bg-red-500/10">{t('common.delete')}</button>
+
+        {/* Row 2: ID + Direction badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-mono text-gray-500 dark:text-gray-500">
+            ID: {agent.vapiId || agent.id}
+          </span>
+          {badges.map((b, i) => (
+            <span key={i} className={`px-2 py-0.5 text-[10px] font-medium rounded border ${b.color}`}>
+              {b.label}
+            </span>
+          ))}
+        </div>
+
+        {/* Row 3: Description/Prompt preview */}
+        {promptPreview && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
+            {promptPreview}
+          </p>
+        )}
+
+        {/* Row 4: Actions */}
+        <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onEdit}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-600/40 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              {t('common.edit')}
+            </button>
+            <button
+              onClick={onTest}
+              disabled={!agent.vapiId}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-600/40 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title={agent.vapiId ? 'Test Agent' : 'Agent not connected to VAPI'}
+            >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              Test
+            </button>
+          </div>
+          <button
+            onClick={onDelete}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            {t('common.delete')}
+          </button>
+        </div>
       </div>
     </div>
   )
