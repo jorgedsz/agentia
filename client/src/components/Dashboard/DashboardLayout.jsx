@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { twilioAPI, creditsAPI } from '../../services/api'
+import { twilioAPI, creditsAPI, agentsAPI } from '../../services/api'
 import ChatAssistant from './ChatAssistant'
 
 const ROLES = {
@@ -115,26 +115,10 @@ export default function DashboardLayout() {
   const [switchingBack, setSwitchingBack] = useState(false)
   const [balances, setBalances] = useState({ twilio: null, vapi: null })
   const [userCredits, setUserCredits] = useState(null)
-  const [showCreateMenu, setShowCreateMenu] = useState(false)
-  const createMenuRef = useRef(null)
-
   useEffect(() => {
     fetchBalances()
     fetchCredits()
   }, [location.pathname])
-
-  // Close create menu on click outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (createMenuRef.current && !createMenuRef.current.contains(e.target)) {
-        setShowCreateMenu(false)
-      }
-    }
-    if (showCreateMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showCreateMenu])
 
   // Listen for credits update event
   useEffect(() => {
@@ -317,48 +301,31 @@ export default function DashboardLayout() {
 
                     if (item.isAction) {
                       return (
-                        <li key={item.id} className="relative" ref={createMenuRef}>
+                        <li key={item.id}>
                           <button
-                            onClick={() => setShowCreateMenu(!showCreateMenu)}
+                            onClick={async () => {
+                              try {
+                                const response = await agentsAPI.create({
+                                  name: 'New Agent',
+                                  agentType: 'outbound',
+                                  config: {
+                                    agentType: 'outbound',
+                                    modelProvider: 'openai',
+                                    modelName: 'gpt-4o',
+                                    voiceProvider: '11labs',
+                                    voiceId: 'pFZP5JQG7iQjIQuC4Bku',
+                                  }
+                                })
+                                navigate(`/dashboard/agent/${response.data.agent.id}`)
+                              } catch (err) {
+                                console.error('Failed to create agent:', err)
+                              }
+                            }}
                             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover"
                           >
                             <Icon />
                             {item.label}
                           </button>
-                          {showCreateMenu && (
-                            <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg z-50 overflow-hidden">
-                              <button
-                                onClick={() => {
-                                  setShowCreateMenu(false)
-                                  navigate('/dashboard/agents?create=outbound')
-                                }}
-                                className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors border-b border-gray-100 dark:border-dark-border"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-                                  </svg>
-                                  <span className="text-sm font-medium text-gray-900 dark:text-white">Outbound Agent</span>
-                                </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 ml-6">For making calls</p>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setShowCreateMenu(false)
-                                  navigate('/dashboard/agents?create=inbound')
-                                }}
-                                className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6" />
-                                  </svg>
-                                  <span className="text-sm font-medium text-gray-900 dark:text-white">Inbound Agent</span>
-                                </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 ml-6">For receiving calls</p>
-                              </button>
-                            </div>
-                          )}
                         </li>
                       )
                     }
