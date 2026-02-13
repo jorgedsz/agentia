@@ -216,6 +216,14 @@ export default function PricingSettings() {
     )
   }
 
+  // Accordion state for providers
+  const [openProviders, setOpenProviders] = useState({})
+  const [pricingOpen, setPricingOpen] = useState(true)
+
+  const toggleProvider = (provider) => {
+    setOpenProviders(prev => ({ ...prev, [provider]: !prev[provider] }))
+  }
+
   return (
     <div className="space-y-6">
       {error && (
@@ -232,7 +240,7 @@ export default function PricingSettings() {
       {/* OWNER: View mode toggle + account selector */}
       {role === 'OWNER' && (
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="inline-flex rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
+          <div className="inline-flex rounded-lg border border-gray-700/50 overflow-hidden">
             <button
               onClick={() => { setViewMode('base'); setSelectedUserId(null) }}
               className={`px-4 py-2 text-sm font-medium transition-colors ${viewMode === 'base' ? 'bg-primary-600 text-white' : 'bg-white dark:bg-dark-card text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
@@ -251,7 +259,7 @@ export default function PricingSettings() {
             <select
               value={selectedUserId || ''}
               onChange={e => setSelectedUserId(e.target.value ? parseInt(e.target.value) : null)}
-              className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-primary-500 min-w-[250px]"
+              className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700/50 bg-white dark:bg-dark-card text-gray-900 dark:text-gray-300 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 min-w-[250px]"
             >
               <option value="">Select an account...</option>
               {users.map(u => (
@@ -274,11 +282,11 @@ export default function PricingSettings() {
             <span className="text-sm text-blue-700 dark:text-blue-300">Base prices set by platform. Select a client to customize.</span>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Client:</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Client:</label>
             <select
               value={selectedUserId || ''}
               onChange={e => setSelectedUserId(e.target.value ? parseInt(e.target.value) : null)}
-              className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-primary-500 min-w-[250px]"
+              className="px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700/50 bg-white dark:bg-dark-card text-gray-900 dark:text-gray-300 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 min-w-[250px]"
             >
               <option value="">All clients (base rates)</option>
               {users.map(u => (
@@ -299,10 +307,10 @@ export default function PricingSettings() {
               {(selectedUser.name || selectedUser.email || '?')[0].toUpperCase()}
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-200">
                 Editing rates for: {selectedUser.name || selectedUser.email}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500 dark:text-gray-500">
                 {selectedUser.email} &middot; {selectedUser.role} &middot; ID #{selectedUser.id}
               </p>
             </div>
@@ -310,19 +318,12 @@ export default function PricingSettings() {
         </div>
       )}
 
-      {/* Model Rates — ALWAYS visible */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {t('pricing.modelRates')}
-          </h3>
-          {isReadOnly && !isEditingBase && role !== 'OWNER' && (
-            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
-              {isPerAccount ? 'Editing' : 'Base Rates'}
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      {/* Model Rates Section */}
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-200 mb-1">
+          {t('pricing.modelRates')}
+        </h3>
+        <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
           {isPerAccount
             ? 'Set custom rates for this account. Leave empty to keep the base rate.'
             : isEditingBase
@@ -330,67 +331,112 @@ export default function PricingSettings() {
               : 'Default rates set by the platform owner. All accounts use these unless overridden.'}
         </p>
 
-        <div className="space-y-6">
-          {Object.entries(grouped).map(([provider, models]) => (
-            <div key={provider}>
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">
-                {MODEL_PROVIDER_LABELS[provider] || provider}
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {models.map(r => {
-                  const key = `${r.provider}::${r.model}`
-                  const currentVal = editModels[key]
-                  const hasOverride = isPerAccount && accountRates.some(o => o.provider === r.provider && o.model === r.model)
-                  const isBelowMin = isPerAccount && role === 'AGENCY' && currentVal !== '' && currentVal !== undefined && parseFloat(currentVal) < r.rate
-                  return (
-                    <div key={key} className={`p-3 rounded-lg border ${isBelowMin ? 'border-red-400 dark:border-red-500 bg-red-50/50 dark:bg-red-900/10' : hasOverride ? 'border-primary-300 dark:border-primary-600 bg-primary-50/50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-hover'}`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm text-gray-700 dark:text-gray-300 truncate" title={r.model}>
-                          {r.model}
-                        </span>
-                        {canEdit ? (
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <span className="text-xs text-gray-400">$</span>
-                            <input
-                              type="number"
-                              step="0.01"
-                              min={isPerAccount && role === 'AGENCY' ? r.rate : 0}
-                              value={currentVal ?? ''}
-                              onChange={e => setEditModels(prev => ({ ...prev, [key]: e.target.value }))}
-                              placeholder={isPerAccount ? r.rate.toFixed(2) : '0.00'}
-                              className={`w-20 px-2 py-1 text-sm text-right rounded border ${isBelowMin ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-dark-border'} bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-primary-500`}
-                            />
-                            <span className="text-xs text-gray-400">/min</span>
-                          </div>
-                        ) : (
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">
-                            ${r.rate.toFixed(2)}/min
-                          </span>
-                        )}
-                      </div>
-                      {isPerAccount && (
-                        <div className="mt-1 flex items-center justify-between">
-                          <span className="text-[10px] text-gray-400">base: ${r.rate.toFixed(2)}/min</span>
-                          {isBelowMin && <span className="text-[10px] text-red-500 font-medium">Below minimum</span>}
-                        </div>
-                      )}
+        {/* Pricing per minute accordion */}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden">
+          {/* Main header */}
+          <button
+            onClick={() => setPricingOpen(!pricingOpen)}
+            className="w-full flex items-center justify-between px-5 py-3.5 bg-white dark:bg-[#1e2024] hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors"
+          >
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Pricing per minute</span>
+            <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${pricingOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {pricingOpen && (
+            <div className="border-t border-gray-200 dark:border-gray-700/50">
+              {Object.entries(grouped).map(([provider, models], providerIdx) => (
+                <div key={provider}>
+                  {/* Provider accordion header */}
+                  <button
+                    onClick={() => toggleProvider(provider)}
+                    className="w-full flex items-center justify-between px-5 py-3 bg-white dark:bg-[#1a1c20] hover:bg-gray-50 dark:hover:bg-[#22242a] transition-colors border-t border-gray-100 dark:border-gray-700/30"
+                  >
+                    <div className="flex items-center gap-2">
+                      <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${openProviders[provider] ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                        {MODEL_PROVIDER_LABELS[provider] || provider}
+                      </span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        ({models.length} {models.length === 1 ? 'model' : 'models'})
+                      </span>
                     </div>
-                  )
-                })}
-              </div>
+                    <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 ${openProviders[provider] ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+
+                  {/* Provider models list */}
+                  {openProviders[provider] && (
+                    <div>
+                      {models.map((r, modelIdx) => {
+                        const key = `${r.provider}::${r.model}`
+                        const currentVal = editModels[key]
+                        const hasOverride = isPerAccount && accountRates.some(o => o.provider === r.provider && o.model === r.model)
+                        const isBelowMin = isPerAccount && role === 'AGENCY' && currentVal !== '' && currentVal !== undefined && parseFloat(currentVal) < r.rate
+                        return (
+                          <div
+                            key={key}
+                            className={`flex items-center justify-between px-5 py-3 border-t transition-colors ${
+                              isBelowMin
+                                ? 'border-red-500/30 bg-red-500/5'
+                                : hasOverride
+                                ? 'border-primary-500/20 bg-primary-500/5'
+                                : 'border-gray-100 dark:border-gray-700/30 bg-white dark:bg-[#16181c] hover:bg-gray-50 dark:hover:bg-[#1a1c22]'
+                            }`}
+                          >
+                            <span className="text-sm text-gray-600 dark:text-gray-400 pl-6">
+                              {r.model}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {canEdit ? (
+                                <div className={`flex items-center rounded-lg border px-2.5 py-1 ${
+                                  isBelowMin ? 'border-red-500/50 bg-red-500/10' : 'border-gray-200 dark:border-gray-600/40 bg-gray-50 dark:bg-[#1e2024]'
+                                }`}>
+                                  <span className="text-xs text-gray-400 mr-1">$</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min={isPerAccount && role === 'AGENCY' ? r.rate : 0}
+                                    value={currentVal ?? ''}
+                                    onChange={e => setEditModels(prev => ({ ...prev, [key]: e.target.value }))}
+                                    placeholder={isPerAccount ? r.rate.toFixed(2) : '0.00'}
+                                    className="w-16 text-sm text-right bg-transparent text-gray-700 dark:text-gray-300 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  />
+                                  <span className="text-xs text-gray-400 ml-1">/min</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-600/40 bg-gray-50 dark:bg-[#1e2024] px-2.5 py-1">
+                                  <span className="text-xs text-gray-400 mr-1">$</span>
+                                  <span className="text-sm text-gray-700 dark:text-gray-300 w-16 text-right">{r.rate.toFixed(2)}</span>
+                                  <span className="text-xs text-gray-400 ml-1">/min</span>
+                                </div>
+                              )}
+                              {isPerAccount && isBelowMin && (
+                                <span className="text-[10px] text-red-400 ml-1">min ${r.rate.toFixed(2)}</span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
 
-      {/* Transcriber Rates — ALWAYS visible */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {t('pricing.transcriberRates')}
-          </h3>
-        </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+      {/* Transcriber Rates Section */}
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-200 mb-1">
+          {t('pricing.transcriberRates')}
+        </h3>
+        <p className="text-sm text-gray-500 dark:text-gray-500 mb-4">
           {isPerAccount
             ? 'Set custom transcriber rates for this account. Leave empty to keep the base rate.'
             : isEditingBase
@@ -398,44 +444,56 @@ export default function PricingSettings() {
               : 'Default transcriber rates set by the platform owner.'}
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {globalTranscribers.map(r => {
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden">
+          {globalTranscribers.map((r, idx) => {
             const label = TRANSCRIBER_PROVIDERS.find(tp => tp.id === r.provider)?.label || r.provider
             const currentVal = editTranscribers[r.provider]
             const hasOverride = isPerAccount && accountTranscribers.some(o => o.provider === r.provider)
             const isBelowMin = isPerAccount && role === 'AGENCY' && currentVal !== '' && currentVal !== undefined && parseFloat(currentVal) < r.rate
             return (
-              <div key={r.provider} className={`p-3 rounded-lg border ${isBelowMin ? 'border-red-400 dark:border-red-500 bg-red-50/50 dark:bg-red-900/10' : hasOverride ? 'border-primary-300 dark:border-primary-600 bg-primary-50/50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-hover'}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">
-                    {label}
-                  </span>
+              <div
+                key={r.provider}
+                className={`flex items-center justify-between px-5 py-3 transition-colors ${
+                  idx > 0 ? 'border-t' : ''
+                } ${
+                  isBelowMin
+                    ? 'border-red-500/30 bg-red-500/5'
+                    : hasOverride
+                    ? 'border-primary-500/20 bg-primary-500/5'
+                    : 'border-gray-100 dark:border-gray-700/30 bg-white dark:bg-[#16181c] hover:bg-gray-50 dark:hover:bg-[#1a1c22]'
+                }`}
+              >
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {label}
+                </span>
+                <div className="flex items-center gap-1">
                   {canEdit ? (
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <span className="text-xs text-gray-400">$</span>
+                    <div className={`flex items-center rounded-lg border px-2.5 py-1 ${
+                      isBelowMin ? 'border-red-500/50 bg-red-500/10' : 'border-gray-200 dark:border-gray-600/40 bg-gray-50 dark:bg-[#1e2024]'
+                    }`}>
+                      <span className="text-xs text-gray-400 mr-1">$</span>
                       <input
                         type="number"
-                        step="0.01"
+                        step="0.001"
                         min={isPerAccount && role === 'AGENCY' ? r.rate : 0}
                         value={currentVal ?? ''}
                         onChange={e => setEditTranscribers(prev => ({ ...prev, [r.provider]: e.target.value }))}
-                        placeholder={isPerAccount ? r.rate.toFixed(2) : '0.00'}
-                        className={`w-20 px-2 py-1 text-sm text-right rounded border ${isBelowMin ? 'border-red-400 dark:border-red-500' : 'border-gray-300 dark:border-dark-border'} bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-primary-500`}
+                        placeholder={isPerAccount ? r.rate.toFixed(3) : '0.000'}
+                        className="w-16 text-sm text-right bg-transparent text-gray-700 dark:text-gray-300 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
-                      <span className="text-xs text-gray-400">/min</span>
+                      <span className="text-xs text-gray-400 ml-1">/min</span>
                     </div>
                   ) : (
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">
-                      ${r.rate.toFixed(2)}/min
-                    </span>
+                    <div className="flex items-center rounded-lg border border-gray-200 dark:border-gray-600/40 bg-gray-50 dark:bg-[#1e2024] px-2.5 py-1">
+                      <span className="text-xs text-gray-400 mr-1">$</span>
+                      <span className="text-sm text-gray-700 dark:text-gray-300 w-16 text-right">{r.rate.toFixed(3)}</span>
+                      <span className="text-xs text-gray-400 ml-1">/min</span>
+                    </div>
+                  )}
+                  {isPerAccount && isBelowMin && (
+                    <span className="text-[10px] text-red-400 ml-1">min ${r.rate.toFixed(3)}</span>
                   )}
                 </div>
-                {isPerAccount && (
-                  <div className="mt-1 flex items-center justify-between">
-                    <span className="text-[10px] text-gray-400">base: ${r.rate.toFixed(2)}/min</span>
-                    {isBelowMin && <span className="text-[10px] text-red-500 font-medium">Below minimum</span>}
-                  </div>
-                )}
               </div>
             )
           })}
@@ -443,14 +501,14 @@ export default function PricingSettings() {
       </div>
 
       {/* Info box */}
-      <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
+      <div className="bg-gray-50 dark:bg-[#16181c] border border-gray-200 dark:border-gray-700/50 rounded-xl p-4">
         <div className="flex items-start gap-3">
-          <svg className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <div>
-            <p className="text-sm font-medium text-blue-700 dark:text-blue-400">{t('pricing.howItWorks')}</p>
-            <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('pricing.howItWorks')}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
               {isPerAccount
                 ? 'Per-account rates override the base pricing for this specific user. Leave a field empty to use the base rate. Agencies cannot set rates below the platform base price.'
                 : role === 'AGENCY'
