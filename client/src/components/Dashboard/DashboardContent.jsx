@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { agentsAPI, usersAPI } from '../../services/api'
+import { agentsAPI, usersAPI, callsAPI, phoneNumbersAPI } from '../../services/api'
 import TestCallModal from './TestCallModal'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -163,6 +163,7 @@ export default function DashboardContent({ tab }) {
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
   const [testCallAgent, setTestCallAgent] = useState(null)
+  const [phoneCallAgent, setPhoneCallAgent] = useState(null)
   const [overviewData, setOverviewData] = useState(null)
 
   // Auto-open creation modal from URL params (?create=outbound or ?create=inbound)
@@ -390,7 +391,7 @@ export default function DashboardContent({ tab }) {
                       </span>
                     </div>
                     {agents.map((agent) => (
-                      <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
+                      <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} />
                     ))}
                   </div>
                 )}
@@ -530,6 +531,10 @@ export default function DashboardContent({ tab }) {
 
       {testCallAgent && (
         <TestCallModal agent={testCallAgent} onClose={() => setTestCallAgent(null)} />
+      )}
+
+      {phoneCallAgent && (
+        <PhoneCallModal agent={phoneCallAgent} onClose={() => setPhoneCallAgent(null)} />
       )}
     </>
   )
@@ -788,8 +793,9 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
   )
 }
 
-function AgentCard({ agent, onDelete, onEdit, onTest }) {
+function AgentCard({ agent, onDelete, onEdit, onTest, onPhoneCall }) {
   const { t } = useLanguage()
+  const [copied, setCopied] = useState(false)
   const type = agent.agentType || agent.config?.agentType || 'outbound'
   const hasPhone = agent.phoneNumbers && agent.phoneNumbers.length > 0
 
@@ -797,7 +803,12 @@ function AgentCard({ agent, onDelete, onEdit, onTest }) {
   if (type === 'inbound' || hasPhone) badges.push({ label: t('dashboardContent.inbound'), color: 'border-blue-500/30 text-blue-400' })
   if (type === 'outbound' || hasPhone) badges.push({ label: t('dashboardContent.outbound'), color: 'border-green-500/30 text-green-400' })
 
-  const promptPreview = agent.config?.systemPrompt || agent.description || ''
+  const displayId = agent.vapiId || agent.id
+  const copyId = () => {
+    navigator.clipboard.writeText(String(displayId))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1e2024] overflow-hidden">
@@ -820,11 +831,26 @@ function AgentCard({ agent, onDelete, onEdit, onTest }) {
           </span>
         </div>
 
-        {/* Row 2: ID + Direction badges */}
+        {/* Row 2: ID + Copy + Direction badges */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-mono text-gray-500 dark:text-gray-500">
-            ID: {agent.vapiId || agent.id}
+            ID: {displayId}
           </span>
+          <button
+            onClick={copyId}
+            className="p-0.5 text-gray-500 hover:text-gray-300 transition-colors"
+            title="Copy ID"
+          >
+            {copied ? (
+              <svg className="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            )}
+          </button>
           {badges.map((b, i) => (
             <span key={i} className={`px-2 py-0.5 text-[10px] font-medium rounded border ${b.color}`}>
               {b.label}
@@ -832,10 +858,10 @@ function AgentCard({ agent, onDelete, onEdit, onTest }) {
           ))}
         </div>
 
-        {/* Row 3: Description/Prompt preview */}
-        {promptPreview && (
+        {/* Row 3: Description */}
+        {agent.description && (
           <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-3">
-            {promptPreview}
+            {agent.description}
           </p>
         )}
 
@@ -855,12 +881,23 @@ function AgentCard({ agent, onDelete, onEdit, onTest }) {
               onClick={onTest}
               disabled={!agent.vapiId}
               className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-600/40 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              title={agent.vapiId ? 'Test Agent' : 'Agent not connected to VAPI'}
+              title={agent.vapiId ? 'Web Call' : 'Agent not connected to VAPI'}
             >
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
-              Test
+              Web Call
+            </button>
+            <button
+              onClick={onPhoneCall}
+              disabled={!agent.vapiId}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-600/40 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title={agent.vapiId ? 'Phone Call' : 'Agent not connected to VAPI'}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              Phone Call
             </button>
           </div>
           <button
@@ -872,6 +909,155 @@ function AgentCard({ agent, onDelete, onEdit, onTest }) {
             </svg>
             {t('common.delete')}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PhoneCallModal({ agent, onClose }) {
+  const { t } = useLanguage()
+  const [phoneNumbers, setPhoneNumbers] = useState([])
+  const [selectedPhoneId, setSelectedPhoneId] = useState('')
+  const [customerNumber, setCustomerNumber] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [calling, setCalling] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    phoneNumbersAPI.list().then(({ data }) => {
+      const nums = data.phoneNumbers || []
+      setPhoneNumbers(nums)
+      if (nums.length > 0) setSelectedPhoneId(nums[0].id)
+      setLoading(false)
+    }).catch(() => {
+      setError('Failed to load phone numbers')
+      setLoading(false)
+    })
+  }, [])
+
+  const handleCall = async () => {
+    if (!selectedPhoneId || !customerNumber) return
+    setCalling(true)
+    setError('')
+    setResult(null)
+    try {
+      const { data } = await callsAPI.create({
+        agentId: agent.id,
+        phoneNumberId: selectedPhoneId,
+        customerNumber,
+        customerName: customerName || undefined
+      })
+      setResult(data)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to initiate call')
+    } finally {
+      setCalling(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#1e2024] rounded-xl w-full max-w-md shadow-2xl border border-gray-700/50">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700/50">
+          <div>
+            <h3 className="text-base font-semibold text-gray-200">Phone Call</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{agent.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400" />
+            </div>
+          ) : (
+            <>
+              {/* From number */}
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">From Number</label>
+                {phoneNumbers.length === 0 ? (
+                  <p className="text-sm text-red-400">No phone numbers available. Import one first.</p>
+                ) : (
+                  <select
+                    value={selectedPhoneId}
+                    onChange={(e) => setSelectedPhoneId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-[#16181c] border border-gray-700/50 text-sm text-gray-200 focus:outline-none focus:border-gray-500"
+                  >
+                    {phoneNumbers.map((pn) => (
+                      <option key={pn.id} value={pn.id}>{pn.number || pn.phoneNumber}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Customer number */}
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Customer Phone Number *</label>
+                <input
+                  type="tel"
+                  value={customerNumber}
+                  onChange={(e) => setCustomerNumber(e.target.value)}
+                  placeholder="+1234567890"
+                  className="w-full px-3 py-2 rounded-lg bg-[#16181c] border border-gray-700/50 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500"
+                />
+              </div>
+
+              {/* Customer name (optional) */}
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Customer Name (optional)</label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="John Doe"
+                  className="w-full px-3 py-2 rounded-lg bg-[#16181c] border border-gray-700/50 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-gray-500"
+                />
+              </div>
+
+              {error && (
+                <p className="text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-lg">{error}</p>
+              )}
+
+              {result && (
+                <div className="text-sm text-green-400 bg-green-500/10 px-3 py-2 rounded-lg">
+                  Call initiated successfully! ID: {result.callId || result.id}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={onClose}
+                  className="flex-1 px-4 py-2 text-sm font-medium rounded-lg border border-gray-600/40 text-gray-300 hover:bg-[#252830] transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={handleCall}
+                  disabled={calling || !selectedPhoneId || !customerNumber || phoneNumbers.length === 0}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {calling ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  )}
+                  {calling ? 'Calling...' : 'Start Call'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
