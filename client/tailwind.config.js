@@ -9,11 +9,11 @@ export default {
     extend: {
       colors: {
         dark: {
-          bg: '#25282A',        // PANTONE 426 C - main background
-          sidebar: '#1E2022',   // Darker variant for sidebar
-          card: '#2D3033',      // Lighter variant for cards
-          hover: '#593D3B',     // PANTONE 438 C - hover/secondary
-          border: '#3D4043',    // Border color
+          bg: '#1a1c20',        // Main background - deep gray
+          sidebar: '#16181c',   // Darker variant for sidebar
+          card: '#22242a',      // Lighter variant for cards
+          hover: '#2a2d33',     // Hover/secondary - neutral gray
+          border: '#33363d',    // Border color
         },
         accent: {
           red: '#B07878',       // Dusty terracotta
@@ -21,28 +21,28 @@ export default {
           gray: '#D7D2CB',      // PANTONE Warm Gray 1 C
         },
         primary: {
-          50: '#FBF5F5',
-          100: '#F7E8E8',
-          200: '#F0D2D2',
-          300: '#E0AFAF',
-          400: '#CC8F8F',
-          500: '#B07878',       // Dusty terracotta - main
-          600: '#9A6666',
-          700: '#805555',
-          800: '#6A4747',
-          900: '#583C3C',
+          50: '#f5f7fa',
+          100: '#e4e7ec',
+          200: '#c8cdd7',
+          300: '#a3abb8',
+          400: '#7d8694',
+          500: '#636c7a',
+          600: '#515868',
+          700: '#434956',
+          800: '#3a3f4a',
+          900: '#333740',
         },
         red: {
-          50: '#FBF5F5',
-          100: '#F7E8E8',
-          200: '#F0D2D2',
-          300: '#E0AFAF',
-          400: '#CC8F8F',
-          500: '#B07878',
-          600: '#9A6666',
-          700: '#805555',
-          800: '#6A4747',
-          900: '#583C3C',
+          50: '#fef2f2',
+          100: '#fee2e2',
+          200: '#fecaca',
+          300: '#fca5a5',
+          400: '#f87171',
+          500: '#ef4444',
+          600: '#dc2626',
+          700: '#b91c1c',
+          800: '#991b1b',
+          900: '#7f1d1d',
         }
       }
     },
