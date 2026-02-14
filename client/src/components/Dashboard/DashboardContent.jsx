@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { agentsAPI, usersAPI, callsAPI, phoneNumbersAPI } from '../../services/api'
+import { agentsAPI, usersAPI, callsAPI, phoneNumbersAPI, pricingAPI } from '../../services/api'
 import TestCallModal from './TestCallModal'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -165,6 +165,8 @@ export default function DashboardContent({ tab }) {
   const [testCallAgent, setTestCallAgent] = useState(null)
   const [phoneCallAgent, setPhoneCallAgent] = useState(null)
   const [overviewData, setOverviewData] = useState(null)
+  const [modelRates, setModelRates] = useState({})
+  const [transcriberRates, setTranscriberRates] = useState({})
 
   const quickCreateAgent = async (agentType = 'outbound') => {
     try {
@@ -219,8 +221,18 @@ export default function DashboardContent({ tab }) {
         setAgents(agentsRes.data.agents)
         setOverviewData(overviewRes.data)
       } else if (tab === 'agents') {
-        const agentsRes = await agentsAPI.list()
+        const [agentsRes, modelsRes, transcribersRes] = await Promise.all([
+          agentsAPI.list(),
+          pricingAPI.getModelRates(),
+          pricingAPI.getTranscriberRates()
+        ])
         setAgents(agentsRes.data.agents)
+        const mRates = {}
+        ;(modelsRes.data.rates || []).forEach(r => { mRates[`${r.provider}::${r.model}`] = r.rate })
+        setModelRates(mRates)
+        const tRates = {}
+        ;(transcribersRes.data.rates || []).forEach(r => { tRates[r.provider] = r.rate })
+        setTranscriberRates(tRates)
       }
       if (tab === 'clients' && (user.role === ROLES.OWNER || user.role === ROLES.AGENCY)) {
         const clientsRes = await usersAPI.getClients()
@@ -415,7 +427,7 @@ export default function DashboardContent({ tab }) {
                       </span>
                     </div>
                     {agents.map((agent) => (
-                      <AgentCard key={agent.id} agent={agent} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} />
+                      <AgentCard key={agent.id} agent={agent} modelRates={modelRates} transcriberRates={transcriberRates} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} />
                     ))}
                   </div>
                 )}
@@ -797,7 +809,7 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
   )
 }
 
-function AgentCard({ agent, onDelete, onEdit, onTest, onPhoneCall }) {
+function AgentCard({ agent, modelRates, transcriberRates, onDelete, onEdit, onTest, onPhoneCall }) {
   const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
   const type = agent.agentType || agent.config?.agentType || 'outbound'
@@ -806,6 +818,15 @@ function AgentCard({ agent, onDelete, onEdit, onTest, onPhoneCall }) {
   const badges = []
   if (type === 'inbound' || hasPhone) badges.push({ label: t('dashboardContent.inbound'), color: 'border-blue-500/30 text-blue-400' })
   if (type === 'outbound' || hasPhone) badges.push({ label: t('dashboardContent.outbound'), color: 'border-green-500/30 text-green-400' })
+
+  // Compute pricing from agent config
+  const modelKey = agent.config?.modelProvider && agent.config?.modelName
+    ? `${agent.config.modelProvider}::${agent.config.modelName}` : null
+  const modelRate = modelKey && modelRates ? modelRates[modelKey] : null
+  const transcriberRate = agent.config?.transcriberProvider && transcriberRates
+    ? transcriberRates[agent.config.transcriberProvider] : null
+  const totalRate = (modelRate || 0) + (transcriberRate || 0)
+  const hasRate = modelRate != null || transcriberRate != null
 
   const displayId = agent.vapiId || agent.id
   const copyId = () => {
@@ -825,14 +846,27 @@ function AgentCard({ agent, onDelete, onEdit, onTest, onPhoneCall }) {
               {(agent.config?.modelProvider || 'o')[0].toLowerCase()}
             </span>
           </div>
-          <span className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border ${
-            agent.vapiId
-              ? 'border-green-500/30 text-green-400 bg-green-500/10'
-              : 'border-gray-600/30 text-gray-500 bg-gray-500/10'
-          }`}>
-            {agent.vapiId && <span className="w-2 h-2 rounded-full bg-green-400" />}
-            {agent.vapiId ? t('common.connected') : t('common.local')}
-          </span>
+          <div className="flex items-center gap-2">
+            {hasRate && (
+              <span
+                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-amber-500/30 text-amber-400 bg-amber-500/10"
+                title={`Model: $${(modelRate || 0).toFixed(4)}/min${transcriberRate ? ` + Transcriber: $${transcriberRate.toFixed(4)}/min` : ''}`}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                ${totalRate.toFixed(4)}/min
+              </span>
+            )}
+            <span className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border ${
+              agent.vapiId
+                ? 'border-green-500/30 text-green-400 bg-green-500/10'
+                : 'border-gray-600/30 text-gray-500 bg-gray-500/10'
+            }`}>
+              {agent.vapiId && <span className="w-2 h-2 rounded-full bg-green-400" />}
+              {agent.vapiId ? t('common.connected') : t('common.local')}
+            </span>
+          </div>
         </div>
 
         {/* Row 2: ID + Copy + Direction badges */}
