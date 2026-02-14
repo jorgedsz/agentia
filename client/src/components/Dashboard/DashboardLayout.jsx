@@ -120,6 +120,12 @@ export default function DashboardLayout() {
     fetchCredits()
   }, [location.pathname])
 
+  // Poll credits every 30s so sidebar stays up to date after calls
+  useEffect(() => {
+    const interval = setInterval(fetchCredits, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
   // Listen for credits update event
   useEffect(() => {
     const handleCreditsUpdate = () => {
