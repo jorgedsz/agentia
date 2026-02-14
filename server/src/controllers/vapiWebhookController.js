@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const { getApiKeys } = require('../utils/getApiKeys');
 const { encryptPHI, encryptFile } = require('../utils/phiEncryption');
+const { getAgentRate } = require('../utils/pricingUtils');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -243,12 +244,20 @@ const handleEvent = async (req, res) => {
       durationSeconds = (new Date(call.endedAt).getTime() - new Date(call.startedAt).getTime()) / 1000;
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { outboundRate: true, inboundRate: true }
-    });
+    // Try dynamic per-agent pricing first, fallback to legacy per-user rates
+    let rate;
+    const dynamicRate = agent ? await getAgentRate(prisma, agent, userId) : null;
 
-    const rate = isOutbound ? (user?.outboundRate ?? 0.10) : (user?.inboundRate ?? 0.05);
+    if (dynamicRate) {
+      rate = dynamicRate.totalRate;
+    } else {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { outboundRate: true, inboundRate: true }
+      });
+      rate = isOutbound ? (user?.outboundRate ?? 0.10) : (user?.inboundRate ?? 0.05);
+    }
+
     const durationMinutes = durationSeconds / 60;
     const cost = durationMinutes * rate;
     const outcome = categorizeOutcome(call);
