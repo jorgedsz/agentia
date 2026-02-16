@@ -131,7 +131,10 @@ class VapiService {
     }
 
     // Flat apiRequest format — wrap into function + server
-    const toolUrl = tool.url || tool.server?.url;
+    const toolUrl = tool.url || tool.server?.url || tool.webhookUrl;
+    if (!toolUrl) {
+      console.error('Tool has no URL:', JSON.stringify(tool));
+    }
     const params = this._wrapParameters(tool.body);
 
     // Convert flat headers schema to plain key-value
