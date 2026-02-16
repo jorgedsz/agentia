@@ -1764,7 +1764,25 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
       let body = {}
       try {
-        body = toolForm.httpBody ? JSON.parse(toolForm.httpBody) : {}
+        const parsed = toolForm.httpBody ? JSON.parse(toolForm.httpBody) : {}
+        // Auto-convert simplified formats to JSON Schema
+        if (parsed.type === 'object' && parsed.properties) {
+          // Already JSON Schema — normalize string values like "string" → { type: "string" }
+          const props = {}
+          Object.entries(parsed.properties).forEach(([k, v]) => {
+            props[k] = typeof v === 'string' ? { type: v } : v
+          })
+          body = { type: 'object', properties: props, ...(parsed.required ? { required: parsed.required } : {}) }
+        } else if (typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0 && !parsed.type) {
+          // Simplified format: { "estado": "string" } or { "estado": { "type": "string" } }
+          const props = {}
+          Object.entries(parsed).forEach(([k, v]) => {
+            props[k] = typeof v === 'string' ? { type: v } : v
+          })
+          body = { type: 'object', properties: props }
+        } else {
+          body = parsed
+        }
       } catch (e) {
         setError('Invalid JSON in request body field')
         return

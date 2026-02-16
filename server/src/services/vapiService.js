@@ -170,6 +170,7 @@ class VapiService {
 
   /**
    * Ensure parameters are in proper JSON Schema format: { type: 'object', properties: {...} }
+   * Handles simplified formats like { "estado": "string" } or { "estado": {...}, "municipio": {...} }
    */
   _wrapParameters(params) {
     if (!params || typeof params !== 'object') {
@@ -177,16 +178,23 @@ class VapiService {
     }
     // Already valid JSON Schema format
     if (params.type === 'object' && params.properties && typeof params.properties === 'object') {
-      return params;
+      // Normalize property values inside properties too
+      const normalized = {};
+      for (const [key, val] of Object.entries(params.properties)) {
+        normalized[key] = typeof val === 'string' ? { type: val } : val;
+      }
+      return { type: 'object', properties: normalized, ...(params.required ? { required: params.required } : {}) };
     }
-    // Properties were passed directly without wrapper — wrap them
+    // Properties passed directly without wrapper (e.g. { estado: "string", municipio: "string" })
     const { type, properties, required, ...rest } = params;
     const hasDirectProps = Object.keys(rest).length > 0;
     if (hasDirectProps) {
-      // The params object has direct property definitions (e.g. { estado: {...}, municipio: {...} })
-      return { type: 'object', properties: rest, ...(required ? { required } : {}) };
+      const normalized = {};
+      for (const [key, val] of Object.entries(rest)) {
+        normalized[key] = typeof val === 'string' ? { type: val } : val;
+      }
+      return { type: 'object', properties: normalized, ...(required ? { required } : {}) };
     }
-    // Fallback: return as-is or wrap empty
     return { type: 'object', properties: properties || {} };
   }
 
