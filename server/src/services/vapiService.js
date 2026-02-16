@@ -103,65 +103,47 @@ class VapiService {
    */
   /**
    * Convert any tool format to VAPI /tool endpoint format.
-   * Handles: flat apiRequest, old function type, and already-wrapped formats.
+   * apiRequest type uses FLAT format: url, method, name, headers, body at top level.
+   * function type uses WRAPPED format: function + server objects.
    */
   formatToolForVapi(tool) {
     // endCall, transferCall, dtmf — pass through as-is
     if (tool.type !== 'apiRequest' && tool.type !== 'function') return tool;
 
-    // Old 'function' type or already-wrapped apiRequest — normalize to apiRequest
-    if (tool.function && tool.server) {
-      // Ensure parameters are properly wrapped
-      const params = this._wrapParameters(tool.function.parameters);
-      return {
-        type: 'apiRequest',
-        method: tool.method || 'POST',
-        function: {
-          name: tool.function.name || tool.name,
-          description: tool.function.description || tool.description || '',
-          parameters: params
-        },
-        server: {
-          url: tool.server.url,
-          timeoutSeconds: tool.server.timeoutSeconds || tool.timeoutSeconds || 20,
-          ...(tool.server.headers ? { headers: tool.server.headers } : {})
-        },
-        ...(tool.messages ? { messages: tool.messages } : {})
-      };
+    // Extract fields from any format (flat or wrapped)
+    const name = tool.name || tool.function?.name;
+    const description = tool.description || tool.function?.description || '';
+    const url = tool.url || tool.server?.url;
+    const method = tool.method || 'POST';
+    const timeout = tool.timeoutSeconds || tool.server?.timeoutSeconds || 20;
+    const body = this._wrapParameters(tool.body || tool.function?.parameters);
+
+    // Build headers in VAPI schema format { type:'object', properties: { Key: { type:'string', value:'val' } } }
+    let headers = tool.headers;
+    if (!headers || !headers.properties) {
+      // Convert plain key-value headers from server.headers to schema format
+      if (tool.server?.headers && typeof tool.server.headers === 'object') {
+        const props = {};
+        Object.entries(tool.server.headers).forEach(([k, v]) => {
+          props[k] = { type: 'string', value: String(v) };
+        });
+        headers = { type: 'object', properties: props };
+      }
     }
 
-    // Flat apiRequest format — wrap into function + server
-    const toolUrl = tool.url || tool.server?.url || tool.webhookUrl;
-    if (!toolUrl) {
-      console.error('Tool has no URL:', JSON.stringify(tool));
-    }
-    const params = this._wrapParameters(tool.body);
-
-    // Convert flat headers schema to plain key-value
-    let serverHeaders;
-    if (tool.headers?.properties && Object.keys(tool.headers.properties).length > 0) {
-      serverHeaders = {};
-      Object.entries(tool.headers.properties).forEach(([key, val]) => {
-        serverHeaders[key] = val.value || val.description || '';
-      });
-    }
-
+    // apiRequest uses FLAT format for VAPI /tool endpoint
     const vapiTool = {
       type: 'apiRequest',
-      method: tool.method || 'POST',
-      function: {
-        name: tool.name || tool.function?.name,
-        description: tool.description || tool.function?.description || '',
-        parameters: params
-      },
-      server: {
-        url: toolUrl,
-        timeoutSeconds: tool.timeoutSeconds || 20
-      }
+      method,
+      url,
+      name,
+      description,
+      body,
+      timeoutSeconds: timeout
     };
 
-    if (serverHeaders) {
-      vapiTool.server.headers = serverHeaders;
+    if (headers?.properties && Object.keys(headers.properties).length > 0) {
+      vapiTool.headers = headers;
     }
 
     if (tool.messages) {
