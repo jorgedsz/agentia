@@ -102,18 +102,39 @@ class VapiService {
    * Returns array of VAPI tool IDs.
    */
   /**
-   * Convert flat apiRequest tool format to VAPI /tool endpoint format.
-   * The frontend stores tools in flat format (name, url, body, headers at top level),
-   * but VAPI's /tool POST endpoint requires function + server wrappers.
+   * Convert any tool format to VAPI /tool endpoint format.
+   * Handles: flat apiRequest, old function type, and already-wrapped formats.
    */
   formatToolForVapi(tool) {
-    if (tool.type !== 'apiRequest') return tool;
+    // endCall, transferCall, dtmf — pass through as-is
+    if (tool.type !== 'apiRequest' && tool.type !== 'function') return tool;
 
-    // Already in wrapped format (has function/server objects)
-    if (tool.function && tool.server) return tool;
+    // Old 'function' type or already-wrapped apiRequest — normalize to apiRequest
+    if (tool.function && tool.server) {
+      // Ensure parameters are properly wrapped
+      const params = this._wrapParameters(tool.function.parameters);
+      return {
+        type: 'apiRequest',
+        method: tool.method || 'POST',
+        function: {
+          name: tool.function.name || tool.name,
+          description: tool.function.description || tool.description || '',
+          parameters: params
+        },
+        server: {
+          url: tool.server.url,
+          timeoutSeconds: tool.server.timeoutSeconds || tool.timeoutSeconds || 20,
+          ...(tool.server.headers ? { headers: tool.server.headers } : {})
+        },
+        ...(tool.messages ? { messages: tool.messages } : {})
+      };
+    }
 
-    // Convert flat headers schema { type:'object', properties: { Key: { type:'string', value:'val' } } }
-    // to plain key-value { Key: 'val' }
+    // Flat apiRequest format — wrap into function + server
+    const toolUrl = tool.url || tool.server?.url;
+    const params = this._wrapParameters(tool.body);
+
+    // Convert flat headers schema to plain key-value
     let serverHeaders;
     if (tool.headers?.properties && Object.keys(tool.headers.properties).length > 0) {
       serverHeaders = {};
@@ -126,12 +147,12 @@ class VapiService {
       type: 'apiRequest',
       method: tool.method || 'POST',
       function: {
-        name: tool.name,
-        description: tool.description || '',
-        parameters: tool.body || { type: 'object', properties: {} }
+        name: tool.name || tool.function?.name,
+        description: tool.description || tool.function?.description || '',
+        parameters: params
       },
       server: {
-        url: tool.url,
+        url: toolUrl,
         timeoutSeconds: tool.timeoutSeconds || 20
       }
     };
@@ -145,6 +166,28 @@ class VapiService {
     }
 
     return vapiTool;
+  }
+
+  /**
+   * Ensure parameters are in proper JSON Schema format: { type: 'object', properties: {...} }
+   */
+  _wrapParameters(params) {
+    if (!params || typeof params !== 'object') {
+      return { type: 'object', properties: {} };
+    }
+    // Already valid JSON Schema format
+    if (params.type === 'object' && params.properties && typeof params.properties === 'object') {
+      return params;
+    }
+    // Properties were passed directly without wrapper — wrap them
+    const { type, properties, required, ...rest } = params;
+    const hasDirectProps = Object.keys(rest).length > 0;
+    if (hasDirectProps) {
+      // The params object has direct property definitions (e.g. { estado: {...}, municipio: {...} })
+      return { type: 'object', properties: rest, ...(required ? { required } : {}) };
+    }
+    // Fallback: return as-is or wrap empty
+    return { type: 'object', properties: properties || {} };
   }
 
   async syncTools(tools) {
