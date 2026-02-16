@@ -1792,10 +1792,10 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         description: toolForm.functionDescription,
         method: toolForm.httpMethod || 'POST',
         url: toolForm.webhookUrl,
+        headers: headers || { type: 'object', properties: {} },
         body,
         timeoutSeconds: 20
       }
-      if (headers) newTool.headers = headers
     } else if (toolForm.type === 'endCall') {
       newTool = { type: 'endCall' }
       if (toolForm.endCallMessage) {
