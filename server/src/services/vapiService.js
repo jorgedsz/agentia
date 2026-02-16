@@ -101,18 +101,66 @@ class VapiService {
    * Create or update VAPI tools via /tool endpoint.
    * Returns array of VAPI tool IDs.
    */
+  /**
+   * Convert flat apiRequest tool format to VAPI /tool endpoint format.
+   * The frontend stores tools in flat format (name, url, body, headers at top level),
+   * but VAPI's /tool POST endpoint requires function + server wrappers.
+   */
+  formatToolForVapi(tool) {
+    if (tool.type !== 'apiRequest') return tool;
+
+    // Already in wrapped format (has function/server objects)
+    if (tool.function && tool.server) return tool;
+
+    // Convert flat headers schema { type:'object', properties: { Key: { type:'string', value:'val' } } }
+    // to plain key-value { Key: 'val' }
+    let serverHeaders;
+    if (tool.headers?.properties && Object.keys(tool.headers.properties).length > 0) {
+      serverHeaders = {};
+      Object.entries(tool.headers.properties).forEach(([key, val]) => {
+        serverHeaders[key] = val.value || val.description || '';
+      });
+    }
+
+    const vapiTool = {
+      type: 'apiRequest',
+      method: tool.method || 'POST',
+      function: {
+        name: tool.name,
+        description: tool.description || '',
+        parameters: tool.body || { type: 'object', properties: {} }
+      },
+      server: {
+        url: tool.url,
+        timeoutSeconds: tool.timeoutSeconds || 20
+      }
+    };
+
+    if (serverHeaders) {
+      vapiTool.server.headers = serverHeaders;
+    }
+
+    if (tool.messages) {
+      vapiTool.messages = tool.messages;
+    }
+
+    return vapiTool;
+  }
+
   async syncTools(tools) {
     if (!tools || !Array.isArray(tools) || tools.length === 0) return [];
 
     // Create all tools in parallel for speed
     const results = await Promise.allSettled(
-      tools.map(tool =>
-        this.makeRequest('/tool', 'POST', tool)
+      tools.map(tool => {
+        const vapiTool = this.formatToolForVapi(tool);
+        console.log('=== Sending tool to VAPI /tool ===', tool.name || tool.function?.name || tool.type);
+        return this.makeRequest('/tool', 'POST', vapiTool)
           .then(created => {
             console.log('Created VAPI tool:', created.id, '-', tool.name || tool.function?.name || tool.type);
             return created.id;
-          })
-      )
+          });
+      })
     );
 
     const toolIds = [];
@@ -120,7 +168,8 @@ class VapiService {
       if (r.status === 'fulfilled') {
         toolIds.push(r.value);
       } else {
-        console.error('Failed to create VAPI tool:', tools[i].name || tools[i].function?.name || tools[i].type, r.reason?.message);
+        console.error('Failed to create VAPI tool:', tools[i].name || tools[i].function?.name || tools[i].type);
+        console.error('VAPI error detail:', r.reason?.message);
       }
     });
     return toolIds;
