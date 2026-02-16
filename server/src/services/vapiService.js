@@ -148,16 +148,19 @@ class VapiService {
   }
 
   async syncTools(tools) {
-    if (!tools || !Array.isArray(tools) || tools.length === 0) return [];
+    if (!tools || !Array.isArray(tools) || tools.length === 0) return { toolIds: [], errors: [] };
+
+    const errors = [];
 
     // Create all tools in parallel for speed
     const results = await Promise.allSettled(
       tools.map(tool => {
         const vapiTool = this.formatToolForVapi(tool);
-        console.log('=== Sending tool to VAPI /tool ===', tool.name || tool.function?.name || tool.type);
+        const toolName = tool.name || tool.function?.name || tool.type;
+        console.log('=== Sending tool to VAPI /tool ===', toolName, JSON.stringify(vapiTool));
         return this.makeRequest('/tool', 'POST', vapiTool)
           .then(created => {
-            console.log('Created VAPI tool:', created.id, '-', tool.name || tool.function?.name || tool.type);
+            console.log('Created VAPI tool:', created.id, '-', toolName);
             return created.id;
           });
       })
@@ -165,14 +168,16 @@ class VapiService {
 
     const toolIds = [];
     results.forEach((r, i) => {
+      const toolName = tools[i].name || tools[i].function?.name || tools[i].type;
       if (r.status === 'fulfilled') {
         toolIds.push(r.value);
       } else {
-        console.error('Failed to create VAPI tool:', tools[i].name || tools[i].function?.name || tools[i].type);
-        console.error('VAPI error detail:', r.reason?.message);
+        const errorMsg = r.reason?.message || 'Unknown error';
+        console.error('Failed to create VAPI tool:', toolName, errorMsg);
+        errors.push(`${toolName}: ${errorMsg}`);
       }
     });
-    return toolIds;
+    return { toolIds, errors };
   }
 
   /**
@@ -189,8 +194,9 @@ class VapiService {
     console.log('Creating VAPI agent:', config.name, '| Tools:', config.tools?.length || 0);
 
     // First create tools separately via /tool endpoint
-    const toolIds = await this.syncTools(config.tools);
+    const { toolIds, errors: toolErrors } = await this.syncTools(config.tools);
     console.log('Created tool IDs:', toolIds);
+    if (toolErrors.length > 0) console.error('Tool creation errors:', toolErrors);
 
     const modelConfig = {
       provider: config.modelProvider || 'openai',
@@ -428,9 +434,10 @@ class VapiService {
     }
 
     // Create new tools via /tool endpoint
-    const newToolIds = await this.syncTools(config.tools);
+    const { toolIds: newToolIds, errors: toolErrors } = await this.syncTools(config.tools);
     console.log('Old tool IDs:', oldToolIds);
     console.log('New tool IDs:', newToolIds);
+    if (toolErrors.length > 0) console.error('Tool creation errors:', toolErrors);
 
     // Build update payload with toolIds instead of inline tools
     const updateData = {
@@ -543,6 +550,8 @@ class VapiService {
       this.deleteTools(toDelete).catch(err => console.error('Background tool cleanup error:', err.message));
     }
 
+    // Attach tool errors to result for controller to surface
+    result._toolErrors = toolErrors;
     return result;
   }
 

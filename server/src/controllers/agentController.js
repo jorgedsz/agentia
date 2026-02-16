@@ -208,10 +208,12 @@ const updateAgent = async (req, res) => {
         };
 
         // Verify tools were actually saved
+        const toolErrors = vapiResult._toolErrors || [];
+        const toolErrorDetail = toolErrors.length > 0 ? ` Errors: ${toolErrors.join('; ')}` : '';
         if (sentToolCount > 0 && returnedToolCount === 0) {
-          vapiWarning = `VAPI update succeeded but 0 tools saved (sent ${sentToolCount}: ${sentToolNames}). Tool creation may have failed.`;
+          vapiWarning = `VAPI: 0 of ${sentToolCount} tools saved.${toolErrorDetail}`;
         } else if (sentToolCount !== returnedToolCount) {
-          vapiWarning = `VAPI saved ${returnedToolCount} of ${sentToolCount} tools. Some may have been rejected.`;
+          vapiWarning = `VAPI saved ${returnedToolCount} of ${sentToolCount} tools.${toolErrorDetail}`;
         }
       } catch (vapiError) {
         console.error('=== VAPI FAILED ===');
