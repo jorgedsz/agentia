@@ -982,18 +982,19 @@ export default function AgentEdit() {
       const isCalendarTool = (toolName) => toolName && (toolName.startsWith('check_calendar_availability') || toolName.startsWith('book_appointment'))
       const isTransferTool = (tool) => tool.type === 'transferCall'
       const rawTools = (agentData.config?.tools || []).filter(t => !isCalendarTool(t.function?.name || t.name || '') && !isTransferTool(t))
-      // Normalize old 'function' type tools to flat apiRequest format
+      // Normalize all tools to flat apiRequest format
       const savedTools = rawTools.map(t => {
-        if (t.type === 'function' && t.function) {
+        if (t.type === 'function' || (t.type === 'apiRequest' && (t.function || t.server || !t.url))) {
+          // Extract fields from any format: flat, function+server, or hybrid
           return {
             type: 'apiRequest',
-            name: t.function.name || '',
-            description: t.function.description || '',
+            name: t.name || t.function?.name || '',
+            description: t.description || t.function?.description || '',
             method: t.method || 'POST',
-            url: t.server?.url || '',
-            headers: { type: 'object', properties: {} },
-            body: t.function.parameters || { type: 'object', properties: {} },
-            timeoutSeconds: t.server?.timeoutSeconds || 20,
+            url: t.url || t.server?.url || '',
+            headers: t.headers || { type: 'object', properties: {} },
+            body: t.body || t.function?.parameters || { type: 'object', properties: {} },
+            timeoutSeconds: t.timeoutSeconds || t.server?.timeoutSeconds || 20,
             ...(t.messages ? { messages: t.messages } : {})
           }
         }
