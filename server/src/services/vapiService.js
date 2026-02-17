@@ -209,10 +209,8 @@ class VapiService {
         toolIds.push(r.value);
       } else {
         const errorMsg = r.reason?.message || 'Unknown error';
-        const vapiTool = this.formatToolForVapi(tools[i]);
-        const debugInfo = `server.url=${vapiTool.server?.url}, input.url=${tools[i].url}, input.server.url=${tools[i].server?.url}, input.type=${tools[i].type}, keys=${Object.keys(tools[i]).join(',')}`;
-        console.error('Failed to create VAPI tool:', toolName, errorMsg, debugInfo);
-        errors.push(`${toolName}: ${errorMsg} [DEBUG: ${debugInfo}]`);
+        console.error('Failed to create VAPI tool:', toolName, errorMsg);
+        errors.push(`${toolName}: ${errorMsg}`);
       }
     });
     return { toolIds, errors };
