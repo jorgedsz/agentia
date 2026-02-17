@@ -21,8 +21,19 @@ export default function TestCallModal({ agent, onClose }) {
       setMuted(false)
       setVolume(0)
 
-      const { data } = await accountSettingsAPI.getVapiPublicKey()
-      const publicKey = data.vapiPublicKey
+      let publicKeyData
+      try {
+        const { data } = await accountSettingsAPI.getVapiPublicKey()
+        publicKeyData = data
+      } catch (err) {
+        if (err.response?.data?.code === 'INSUFFICIENT_CREDITS') {
+          setStatus('ended')
+          setTranscript([{ role: 'System', text: err.response.data.error }])
+          return
+        }
+        throw err
+      }
+      const publicKey = publicKeyData.vapiPublicKey
 
       const { default: Vapi } = await import('@vapi-ai/web')
       const vapi = new Vapi(publicKey)

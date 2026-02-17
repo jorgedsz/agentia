@@ -100,6 +100,21 @@ const updateSettings = async (req, res) => {
 
 const getVapiPublicKey = async (req, res) => {
   try {
+    // Block if user has no credits
+    if (req.user?.id) {
+      const creditCheck = await req.prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { vapiCredits: true }
+      });
+      if (!creditCheck || creditCheck.vapiCredits <= 0) {
+        return res.status(403).json({
+          error: 'Insufficient credits. Please add credits to make calls.',
+          code: 'INSUFFICIENT_CREDITS',
+          credits: creditCheck?.vapiCredits || 0
+        });
+      }
+    }
+
     // Check per-account key first
     if (req.user?.id) {
       const user = await req.prisma.user.findUnique({
