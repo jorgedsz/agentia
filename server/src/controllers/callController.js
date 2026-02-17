@@ -382,11 +382,7 @@ const syncCallBilling = async (prisma, vapiCalls) => {
       continue;
     }
 
-    // Skip webCall type (test calls)
-    if (call.type === 'webCall') {
-      console.log(`Skipping call ${call.id}: webCall (test call)`);
-      continue;
-    }
+    // Bill all call types including webCall (test calls)
 
     // Check if already billed
     const existingLog = await prisma.callLog.findUnique({
