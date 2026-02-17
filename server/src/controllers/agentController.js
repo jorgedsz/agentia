@@ -204,7 +204,8 @@ const updateAgent = async (req, res) => {
           savedTools: returnedToolCount,
           sentPromptLength: vapiPayload.systemPrompt?.length || 0,
           savedPromptLength: returnedPromptLength,
-          vapiId: existingAgent.vapiId
+          vapiId: existingAgent.vapiId,
+          webhookUrl: vapiResult.serverUrl || vapiResult.server?.url || 'NOT SET'
         };
 
         // Verify tools were actually saved

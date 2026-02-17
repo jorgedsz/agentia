@@ -578,6 +578,8 @@ class VapiService {
     console.log('=== VAPI PATCH payload ===');
     console.log('Keys:', Object.keys(updateData).join(', '));
     console.log('Model toolIds:', newToolIds);
+    console.log('Server URL for webhooks:', updateData.serverUrl || 'NOT SET');
+    console.log('Server messages:', updateData.serverMessages);
 
     const result = await this.makeRequest(`/assistant/${agentId}`, 'PATCH', updateData);
 

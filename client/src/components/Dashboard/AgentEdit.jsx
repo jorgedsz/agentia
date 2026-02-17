@@ -1517,8 +1517,9 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         setError(response.data.vapiWarning)
         setTimeout(() => setError(''), 10000)
       } else if (syncInfo) {
-        setSuccess(`Agent saved — VAPI synced (${syncInfo.savedTools} tools, prompt: ${syncInfo.savedPromptLength} chars)`)
-        setTimeout(() => setSuccess(''), 5000)
+        const webhookStatus = syncInfo.webhookUrl && syncInfo.webhookUrl !== 'NOT SET' ? '' : ' | Webhook: NOT SET (billing disabled!)'
+        setSuccess(`Agent saved — VAPI synced (${syncInfo.savedTools} tools, prompt: ${syncInfo.savedPromptLength} chars${webhookStatus})`)
+        setTimeout(() => setSuccess(''), 8000)
       } else {
         setSuccess('Agent saved successfully')
         setTimeout(() => setSuccess(''), 3000)
