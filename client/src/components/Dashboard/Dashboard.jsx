@@ -244,7 +244,7 @@ export default function Dashboard() {
                     {user?.role === ROLES.OWNER && (
                       <StatCard title="Total Agencies" value={stats.totalAgencies || 0} icon="agency" />
                     )}
-                    <StatCard title="Active Calls" value="0" icon="phone" />
+                    <StatCard title="Total Calls" value={stats.totalCalls || 0} icon="phone" />
                   </div>
 
                   <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">

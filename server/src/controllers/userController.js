@@ -407,25 +407,34 @@ const getDashboardStats = async (req, res) => {
     let stats = {};
 
     if (role === ROLES.OWNER) {
-      const [totalClients, totalAgencies, totalAgents] = await Promise.all([
+      const [totalClients, totalAgencies, totalAgents, totalCalls] = await Promise.all([
         req.prisma.user.count({ where: { role: ROLES.CLIENT } }),
         req.prisma.user.count({ where: { role: ROLES.AGENCY } }),
-        req.prisma.agent.count()
+        req.prisma.agent.count(),
+        req.prisma.callLog.count()
       ]);
-      stats = { totalClients, totalAgencies, totalAgents };
+      stats = { totalClients, totalAgencies, totalAgents, totalCalls };
     } else if (role === ROLES.AGENCY) {
-      const [totalClients, totalAgents] = await Promise.all([
+      const [totalClients, totalAgents, totalCalls] = await Promise.all([
         req.prisma.user.count({ where: { agencyId: id } }),
         req.prisma.agent.count({
           where: {
             user: { OR: [{ id }, { agencyId: id }] }
           }
+        }),
+        req.prisma.callLog.count({
+          where: {
+            user: { OR: [{ id }, { agencyId: id }] }
+          }
         })
       ]);
-      stats = { totalClients, totalAgents };
+      stats = { totalClients, totalAgents, totalCalls };
     } else {
-      const totalAgents = await req.prisma.agent.count({ where: { userId: id } });
-      stats = { totalAgents };
+      const [totalAgents, totalCalls] = await Promise.all([
+        req.prisma.agent.count({ where: { userId: id } }),
+        req.prisma.callLog.count({ where: { userId: id } })
+      ]);
+      stats = { totalAgents, totalCalls };
     }
 
     res.json({ stats });
