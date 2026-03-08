@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { MODELS_BY_PROVIDER } from '../../constants/models'
 
+const CHATBOT_MODELS = MODELS_BY_PROVIDER['openai'].filter(m => m.model.startsWith('gpt-'))
+
 const LANGUAGES = [
   { id: 'en', label: 'English' },
   { id: 'es', label: 'Spanish' },
@@ -41,7 +43,6 @@ export default function ChatbotEdit() {
   const [chatbotType, setChatbotType] = useState('standard')
   const [language, setLanguage] = useState('en')
   const [systemPrompt, setSystemPrompt] = useState('')
-  const [modelProvider, setModelProvider] = useState('openai')
   const [modelName, setModelName] = useState('gpt-4o')
 
   // Output configuration
@@ -70,12 +71,6 @@ export default function ChatbotEdit() {
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [generatedPrompt, setGeneratedPrompt] = useState('')
 
-  // Advanced settings
-  const [showAdvancedModal, setShowAdvancedModal] = useState(false)
-  const [serverUrl, setServerUrl] = useState('')
-  const [maxDurationSeconds, setMaxDurationSeconds] = useState(1800)
-  const [silenceTimeoutSeconds, setSilenceTimeoutSeconds] = useState(30)
-
   // Load chatbot data
   useEffect(() => {
     fetchChatbot()
@@ -97,12 +92,8 @@ export default function ChatbotEdit() {
       const config = cb.config || {}
       setLanguage(config.language || 'en')
       setSystemPrompt(config.systemPromptBase || config.systemPrompt || '')
-      setModelProvider(config.modelProvider || 'openai')
       setModelName(config.modelName || 'gpt-4o')
       setTools(config.tools || [])
-      setServerUrl(config.serverUrl || '')
-      setMaxDurationSeconds(config.maxDurationSeconds || 1800)
-      setSilenceTimeoutSeconds(config.silenceTimeoutSeconds || 30)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load chatbot')
     } finally {
@@ -126,12 +117,9 @@ export default function ChatbotEdit() {
           systemPrompt,
           systemPromptBase: systemPrompt,
           language,
-          modelProvider,
+          modelProvider: 'openai',
           modelName,
           tools,
-          serverUrl,
-          maxDurationSeconds,
-          silenceTimeoutSeconds,
           outputType,
           outputUrl: outputType !== 'respond_to_webhook' ? outputUrl : '',
         }
@@ -242,8 +230,6 @@ export default function ChatbotEdit() {
       </div>
     )
   }
-
-  const availableModels = MODELS_BY_PROVIDER[modelProvider] || []
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -370,36 +356,15 @@ export default function ChatbotEdit() {
           {/* Model Selection */}
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Model</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Provider</label>
-                <select
-                  value={modelProvider}
-                  onChange={(e) => {
-                    setModelProvider(e.target.value)
-                    const models = MODELS_BY_PROVIDER[e.target.value] || []
-                    if (models.length > 0) setModelName(models[0].model)
-                  }}
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  {Object.keys(MODELS_BY_PROVIDER).map(p => (
-                    <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model</label>
-                <select
-                  value={modelName}
-                  onChange={(e) => setModelName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  {availableModels.map(m => (
-                    <option key={m.model} value={m.model}>{m.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <select
+              value={modelName}
+              onChange={(e) => setModelName(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              {CHATBOT_MODELS.map(m => (
+                <option key={m.model} value={m.model}>{m.label}</option>
+              ))}
+            </select>
           </div>
 
           {/* Language */}
@@ -461,53 +426,6 @@ export default function ChatbotEdit() {
           )}
         </div>
 
-        {/* Advanced Settings */}
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <button
-            onClick={() => setShowAdvancedModal(!showAdvancedModal)}
-            className="flex items-center justify-between w-full"
-          >
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Advanced Settings</h3>
-            <svg className={`w-5 h-5 text-gray-400 transition-transform ${showAdvancedModal ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {showAdvancedModal && (
-            <div className="mt-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Webhook Server URL</label>
-                <input
-                  type="url"
-                  value={serverUrl}
-                  onChange={(e) => setServerUrl(e.target.value)}
-                  placeholder="https://your-server.com/webhook"
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Duration (seconds)</label>
-                  <input
-                    type="number"
-                    value={maxDurationSeconds}
-                    onChange={(e) => setMaxDurationSeconds(parseInt(e.target.value) || 1800)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Silence Timeout (seconds)</label>
-                  <input
-                    type="number"
-                    value={silenceTimeoutSeconds}
-                    onChange={(e) => setSilenceTimeoutSeconds(parseInt(e.target.value) || 30)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Tool Modal */}
