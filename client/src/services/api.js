@@ -55,7 +55,6 @@ export const chatbotsAPI = {
   get: (id) => api.get(`/chatbots/${id}`),
   create: (data) => api.post('/chatbots', data),
   update: (id, data) => api.put(`/chatbots/${id}`, data),
-  delete: (id) => api.delete(`/chatbots/${id}`),
   toggle: (id) => api.post(`/chatbots/${id}/toggle`)
 }
 
@@ -161,8 +160,7 @@ export const promptGeneratorAPI = {
 export const platformSettingsAPI = {
   get: () => api.get('/platform-settings'),
   update: (data) => api.put('/platform-settings', data),
-  getVapiPublicKey: () => api.get('/platform-settings/vapi-public-key'),
-  testN8nConnection: (data) => api.post('/platform-settings/test-n8n', data)
+  getVapiPublicKey: () => api.get('/platform-settings/vapi-public-key')
 }
 
 // Account Settings API (per-account VAPI keys)

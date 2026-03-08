@@ -18,9 +18,6 @@ router.post('/', chatbotController.createChatbot);
 // PUT /api/chatbots/:id - Update chatbot
 router.put('/:id', chatbotController.updateChatbot);
 
-// DELETE /api/chatbots/:id - Delete chatbot
-router.delete('/:id', chatbotController.deleteChatbot);
-
 // POST /api/chatbots/:id/toggle - Activate/deactivate chatbot
 router.post('/:id/toggle', chatbotController.toggleChatbot);
 

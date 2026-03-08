@@ -39,23 +39,12 @@ export default function ChatbotList() {
         config: {
           modelProvider: 'openai',
           modelName: 'gpt-4o',
-          systemPrompt: 'You are a helpful assistant.',
-          firstMessage: 'Hello! How can I help you today?'
+          systemPrompt: 'You are a helpful assistant.'
         }
       })
       navigate(`/dashboard/chatbot/${data.chatbot.id}`)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create chatbot')
-    }
-  }
-
-  const handleDelete = async (id, name) => {
-    if (!confirm(`Are you sure you want to delete "${name}"?`)) return
-    try {
-      await chatbotsAPI.delete(id)
-      setChatbots(chatbots.filter(c => c.id !== id))
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to delete chatbot')
     }
   }
 
@@ -89,7 +78,7 @@ export default function ChatbotList() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Chatbots</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Manage your chatbot workflows powered by n8n
+            Manage your chatbots
           </p>
         </div>
         <button
@@ -119,7 +108,7 @@ export default function ChatbotList() {
             </svg>
           </div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No chatbots yet</h3>
-          <p className="text-gray-500 dark:text-gray-400 mb-6">Create your first chatbot to get started with n8n workflows.</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">Create your first chatbot to get started.</p>
           <button
             onClick={handleCreate}
             className="px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
@@ -140,11 +129,6 @@ export default function ChatbotList() {
                   <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate">
                     {chatbot.name}
                   </h3>
-                  {chatbot.description && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
-                      {chatbot.description}
-                    </p>
-                  )}
                 </div>
                 <button
                   onClick={() => handleToggle(chatbot.id)}
@@ -163,14 +147,6 @@ export default function ChatbotList() {
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                   {outputTypeLabels[chatbot.outputType] || chatbot.outputType}
                 </span>
-                {chatbot.n8nWorkflowId && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    n8n
-                  </span>
-                )}
                 {chatbot.config?.modelProvider && (
                   <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md bg-gray-100 text-gray-600 dark:bg-dark-hover dark:text-gray-400">
                     {chatbot.config.modelName || chatbot.config.modelProvider}
@@ -188,15 +164,6 @@ export default function ChatbotList() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(chatbot.id, chatbot.name)}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete
                 </button>
               </div>
             </div>
