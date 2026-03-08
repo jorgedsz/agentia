@@ -2,23 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { chatbotsAPI, promptGeneratorAPI, calendarAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import { useLanguage } from '../../context/LanguageContext'
 import { MODELS_BY_PROVIDER } from '../../constants/models'
 
 const CHATBOT_MODELS = MODELS_BY_PROVIDER['openai'].filter(m => m.model.startsWith('gpt-'))
-
-const LANGUAGES = [
-  { id: 'en', label: 'English' },
-  { id: 'es', label: 'Spanish' },
-  { id: 'fr', label: 'French' },
-  { id: 'de', label: 'German' },
-  { id: 'it', label: 'Italian' },
-  { id: 'pt', label: 'Portuguese' },
-  { id: 'nl', label: 'Dutch' },
-  { id: 'ja', label: 'Japanese' },
-  { id: 'ko', label: 'Korean' },
-  { id: 'zh', label: 'Chinese' },
-]
 
 const OUTPUT_TYPES = [
   { id: 'respond_to_webhook', label: 'Respond to Webhook', description: 'Responds directly to the incoming webhook request' },
@@ -82,7 +68,6 @@ export default function ChatbotEdit() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { t } = useLanguage()
 
   const [chatbot, setChatbot] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -93,7 +78,6 @@ export default function ChatbotEdit() {
   // Form fields
   const [name, setName] = useState('')
   const [chatbotType, setChatbotType] = useState('standard')
-  const [language, setLanguage] = useState('en')
   const [systemPrompt, setSystemPrompt] = useState('')
   const [modelName, setModelName] = useState('gpt-4o')
 
@@ -123,6 +107,9 @@ export default function ChatbotEdit() {
   const [promptDescription, setPromptDescription] = useState('')
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [generatedPrompt, setGeneratedPrompt] = useState('')
+
+  // Model modal
+  const [showModelModal, setShowModelModal] = useState(false)
 
   // Calendar settings
   const [showCalendarModal, setShowCalendarModal] = useState(false)
@@ -163,7 +150,6 @@ export default function ChatbotEdit() {
       setIsActive(cb.isActive !== false)
 
       const config = cb.config || {}
-      setLanguage(config.language || 'en')
       setSystemPrompt(config.systemPromptBase || config.systemPrompt || '')
       setModelName(config.modelName || 'gpt-4o')
       setTools(config.tools || [])
@@ -406,7 +392,6 @@ export default function ChatbotEdit() {
         config: {
           systemPrompt,
           systemPromptBase: systemPrompt,
-          language,
           modelProvider: 'openai',
           modelName,
           tools: allTools,
@@ -443,7 +428,6 @@ export default function ChatbotEdit() {
     try {
       const { data } = await promptGeneratorAPI.generate({
         description: promptDescription,
-        language: language,
         direction: 'chatbot'
       })
       setGeneratedPrompt(data.systemPrompt || '')
@@ -626,8 +610,22 @@ export default function ChatbotEdit() {
           </div>
         </div>
 
-        {/* Calendar & Tools Icon Buttons */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Model, Calendar & Tools Icon Buttons */}
+        <div className="grid grid-cols-3 gap-4">
+          {/* Model Button */}
+          <button
+            onClick={() => setShowModelModal(true)}
+            className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600 transition-all"
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Model
+            </span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-full">{CHATBOT_MODELS.find(m => m.model === modelName)?.label || modelName}</span>
+          </button>
+
           {/* Calendar Button */}
           <button
             onClick={handleOpenCalendarModal}
@@ -638,7 +636,7 @@ export default function ChatbotEdit() {
             }`}
           >
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Calendar Options {calendarConfig.enabled && configuredCalendars > 0 && (
+              Calendar {calendarConfig.enabled && configuredCalendars > 0 && (
                 <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{configuredCalendars}</span>
               )}
             </span>
@@ -689,35 +687,45 @@ export default function ChatbotEdit() {
           <p className="text-xs text-gray-400 mt-2">{systemPrompt.length} characters</p>
         </div>
 
-        {/* Model & Language */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Model</h3>
-            <select
-              value={modelName}
-              onChange={(e) => setModelName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              {CHATBOT_MODELS.map(m => (
-                <option key={m.model} value={m.model}>{m.label}</option>
-              ))}
-            </select>
-          </div>
+      </div>
 
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Language</h3>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              {LANGUAGES.map(l => (
-                <option key={l.id} value={l.id}>{l.label}</option>
+      {/* ===== MODEL MODAL ===== */}
+      {showModelModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Select Model</h3>
+              <button onClick={() => setShowModelModal(false)} className="text-gray-500 hover:text-gray-700">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-1">
+              {CHATBOT_MODELS.map(m => (
+                <button
+                  key={m.model}
+                  onClick={() => { setModelName(m.model); setShowModelModal(false) }}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-left transition-colors ${
+                    modelName === m.model
+                      ? 'bg-primary-50 dark:bg-primary-900/20 border border-primary-500'
+                      : 'hover:bg-gray-50 dark:hover:bg-dark-hover border border-transparent'
+                  }`}
+                >
+                  <span className={`text-sm font-medium ${modelName === m.model ? 'text-primary-700 dark:text-primary-400' : 'text-gray-900 dark:text-white'}`}>
+                    {m.label}
+                  </span>
+                  {modelName === m.model && (
+                    <svg className="w-4 h-4 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ===== CALENDAR MODAL ===== */}
       {showCalendarModal && (() => {
