@@ -96,6 +96,17 @@ const SETTINGS_ITEMS = [
     roles: [ROLES.OWNER]
   },
   {
+    id: 'n8n',
+    label: 'n8n Integration',
+    description: 'Configure self-hosted n8n instance for chatbot workflows',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    ),
+    roles: [ROLES.OWNER]
+  },
+  {
     id: 'compliance',
     label: 'settings.compliance',
     description: 'settings.complianceDesc',
@@ -229,6 +240,7 @@ export default function Settings() {
         {activeTab === 'branding' && <BrandingTab />}
         {activeTab === 'vapi-pool' && isOwner && <VapiKeyPoolTab />}
         {activeTab === 'slack' && isOwner && <SlackTab />}
+        {activeTab === 'n8n' && isOwner && <N8nTab />}
         {activeTab === 'compliance' && <ComplianceTab />}
         {activeTab === 'account' && <AccountTab />}
       </div>
@@ -2849,6 +2861,224 @@ function ComplianceTab() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// n8n Integration Tab
+function N8nTab() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [n8nUrl, setN8nUrl] = useState('')
+  const [n8nApiKey, setN8nApiKey] = useState('')
+  const [hasN8n, setHasN8n] = useState(false)
+  const [currentUrl, setCurrentUrl] = useState('')
+  const [maskedApiKey, setMaskedApiKey] = useState('')
+
+  useEffect(() => {
+    fetchSettings()
+  }, [])
+
+  const fetchSettings = async () => {
+    setLoading(true)
+    try {
+      const { data } = await platformSettingsAPI.get()
+      setHasN8n(data.hasN8n)
+      setCurrentUrl(data.n8nUrl || '')
+      setMaskedApiKey(data.n8nApiKey || '')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load settings')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSave = async () => {
+    setError('')
+    setSuccess('')
+    setSaving(true)
+    try {
+      const updateData = {}
+      if (n8nUrl) updateData.n8nUrl = n8nUrl
+      if (n8nApiKey) updateData.n8nApiKey = n8nApiKey
+      const { data } = await platformSettingsAPI.update(updateData)
+      setHasN8n(data.hasN8n)
+      setCurrentUrl(data.n8nUrl || '')
+      setMaskedApiKey(data.n8nApiKey || '')
+      setN8nUrl('')
+      setN8nApiKey('')
+      setSuccess('n8n settings saved successfully')
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleTest = async () => {
+    setError('')
+    setSuccess('')
+    setTesting(true)
+    try {
+      const testUrl = n8nUrl || currentUrl
+      const testKey = n8nApiKey || ''
+      if (!testUrl) {
+        setError('n8n URL is required to test connection')
+        setTesting(false)
+        return
+      }
+      if (!testKey && !hasN8n) {
+        setError('n8n API Key is required to test connection')
+        setTesting(false)
+        return
+      }
+      // If no new key entered, we need to save first and use stored key
+      if (!testKey && hasN8n) {
+        setError('Please enter the API Key to test connection')
+        setTesting(false)
+        return
+      }
+      const { data } = await platformSettingsAPI.testN8nConnection({ n8nUrl: testUrl, n8nApiKey: testKey })
+      setSuccess(data.message || 'Successfully connected to n8n')
+      setTimeout(() => setSuccess(''), 5000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Connection test failed')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const handleRemove = async () => {
+    if (!confirm('Are you sure you want to remove the n8n connection?')) return
+    setError('')
+    setSuccess('')
+    setSaving(true)
+    try {
+      const { data } = await platformSettingsAPI.update({ n8nUrl: '', n8nApiKey: '' })
+      setHasN8n(data.hasN8n)
+      setCurrentUrl('')
+      setMaskedApiKey('')
+      setSuccess('n8n connection removed')
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to remove connection')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
+          {success}
+        </div>
+      )}
+
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">n8n Integration</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          Connect your self-hosted n8n instance to automatically create and manage chatbot workflows.
+        </p>
+
+        {/* Connection Status */}
+        <div className="flex items-center gap-2 mb-6">
+          <div className={`w-2.5 h-2.5 rounded-full ${hasN8n ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+          <span className={`text-sm font-medium ${hasN8n ? 'text-green-500' : 'text-gray-500 dark:text-gray-400'}`}>
+            {hasN8n ? 'Connected' : 'Not configured'}
+          </span>
+          {hasN8n && currentUrl && (
+            <span className="text-xs text-gray-400 ml-2">{currentUrl}</span>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          {/* n8n URL */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              n8n Instance URL
+            </label>
+            <input
+              type="text"
+              value={n8nUrl}
+              onChange={(e) => setN8nUrl(e.target.value)}
+              placeholder={currentUrl || 'https://your-n8n-instance.com'}
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {currentUrl && !n8nUrl && (
+              <p className="text-xs text-gray-400 mt-1">Current: {currentUrl}</p>
+            )}
+          </div>
+
+          {/* n8n API Key */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              n8n API Key
+            </label>
+            <input
+              type="password"
+              value={n8nApiKey}
+              onChange={(e) => setN8nApiKey(e.target.value)}
+              placeholder={maskedApiKey || 'Enter n8n API key'}
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
+            {maskedApiKey && !n8nApiKey && (
+              <p className="text-xs text-gray-400 mt-1">Current: {maskedApiKey}</p>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={handleTest}
+              disabled={testing}
+              className="px-4 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg hover:bg-primary-100 dark:hover:bg-primary-900/30 disabled:opacity-50"
+            >
+              {testing ? 'Testing...' : 'Test Connection'}
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || (!n8nUrl && !n8nApiKey)}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+            {hasN8n && (
+              <button
+                onClick={handleRemove}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+        <p className="text-sm text-blue-700 dark:text-blue-300">
+          <strong>How it works:</strong> When you create or update a chatbot, a workflow is automatically created in your n8n instance with a Webhook trigger, AI Agent node, and your configured output. The workflow is activated immediately and processes incoming messages.
+        </p>
+      </div>
     </div>
   )
 }

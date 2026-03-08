@@ -17,6 +17,8 @@ import AccountManagement from './components/Dashboard/AccountManagement'
 import VoiceLibrary from './components/Dashboard/VoiceLibrary'
 import Analytics from './components/Dashboard/Analytics'
 import Support from './components/Dashboard/Support'
+import ChatbotList from './components/Dashboard/ChatbotList'
+import ChatbotEdit from './components/Dashboard/ChatbotEdit'
 import PrivacyPolicy from './components/Legal/PrivacyPolicy'
 import TermsOfService from './components/Legal/TermsOfService'
 
@@ -117,6 +119,8 @@ function App() {
           <Route path="call-logs" element={<CallLogs />} />
           <Route path="rates" element={<RatesSettings />} />
           <Route path="voice-library" element={<VoiceLibrary />} />
+          <Route path="chatbots" element={<ChatbotList />} />
+          <Route path="chatbot/:id" element={<ChatbotEdit />} />
           <Route path="support" element={<Support />} />
         </Route>
 

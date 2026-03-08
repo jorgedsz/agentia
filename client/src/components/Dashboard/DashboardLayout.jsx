@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { twilioAPI, creditsAPI, agentsAPI } from '../../services/api'
+import { twilioAPI, creditsAPI, agentsAPI, chatbotsAPI } from '../../services/api'
 import ChatAssistant from './ChatAssistant'
 
 const ROLES = {
@@ -104,6 +104,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
     </svg>
   ),
+  Chatbot: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+  ),
 }
 
 export default function DashboardLayout() {
@@ -182,6 +187,7 @@ export default function DashboardLayout() {
     const path = location.pathname
     if (path === '/dashboard') return 'overview'
     if (path.startsWith('/dashboard/agent/')) return 'agents'
+    if (path.startsWith('/dashboard/chatbot/')) return 'chatbots'
     const tab = path.replace('/dashboard/', '')
     return tab || 'overview'
   }
@@ -202,6 +208,13 @@ export default function DashboardLayout() {
         { id: 'agents', path: '/dashboard/agents', label: t('sidebar.myAgents'), icon: Icons.Agents, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'voice-library', path: '/dashboard/voice-library', label: t('sidebar.voiceLibrary'), icon: Icons.Voice, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'create-agent', label: t('sidebar.createAgent'), icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT], isAction: true },
+      ]
+    },
+    {
+      title: t('sidebar.sectionChatbots') || 'Chatbots',
+      items: [
+        { id: 'chatbots', path: '/dashboard/chatbots', label: t('sidebar.myChatbots') || 'My Chatbots', icon: Icons.Chatbot, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'create-chatbot', label: t('sidebar.createChatbot') || 'Create Chatbot', icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT], isAction: true, actionType: 'chatbot' },
       ]
     },
     {
@@ -311,20 +324,35 @@ export default function DashboardLayout() {
                           <button
                             onClick={async () => {
                               try {
-                                const response = await agentsAPI.create({
-                                  name: 'New Agent',
-                                  agentType: 'outbound',
-                                  config: {
+                                if (item.actionType === 'chatbot') {
+                                  const response = await chatbotsAPI.create({
+                                    name: 'New Chatbot',
+                                    chatbotType: 'standard',
+                                    outputType: 'respond_to_webhook',
+                                    config: {
+                                      modelProvider: 'openai',
+                                      modelName: 'gpt-4o',
+                                      systemPrompt: 'You are a helpful assistant.',
+                                      firstMessage: 'Hello! How can I help you today?'
+                                    }
+                                  })
+                                  navigate(`/dashboard/chatbot/${response.data.chatbot.id}`)
+                                } else {
+                                  const response = await agentsAPI.create({
+                                    name: 'New Agent',
                                     agentType: 'outbound',
-                                    modelProvider: 'openai',
-                                    modelName: 'gpt-4o',
-                                    voiceProvider: '11labs',
-                                    voiceId: 'pFZP5JQG7iQjIQuC4Bku',
-                                  }
-                                })
-                                navigate(`/dashboard/agent/${response.data.agent.id}`)
+                                    config: {
+                                      agentType: 'outbound',
+                                      modelProvider: 'openai',
+                                      modelName: 'gpt-4o',
+                                      voiceProvider: '11labs',
+                                      voiceId: 'pFZP5JQG7iQjIQuC4Bku',
+                                    }
+                                  })
+                                  navigate(`/dashboard/agent/${response.data.agent.id}`)
+                                }
                               } catch (err) {
-                                console.error('Failed to create agent:', err)
+                                console.error('Failed to create:', err)
                               }
                             }}
                             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover"

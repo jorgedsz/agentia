@@ -38,6 +38,7 @@ model User {
   ticketReplies        TicketReply[]
   vapiKeyPoolEntry     VapiKeyPool?
   complianceSetting    ComplianceSetting?
+  chatbots             Chatbot[]
 }
 
 model VapiKeyPool {
@@ -112,6 +113,23 @@ model Agent {
   phoneNumbers PhoneNumber[]
 }
 
+model Chatbot {
+  id              Int      @id @default(autoincrement())
+  name            String
+  description     String?
+  chatbotType     String   @default("standard")
+  n8nWorkflowId   String?  // n8n workflow ID
+  n8nWebhookUrl   String?  // Generated n8n webhook URL
+  outputType      String   @default("respond_to_webhook") // "external_webhook", "respond_to_webhook", "http_request"
+  outputUrl       String?  // Encrypted - destination URL for external_webhook/http_request
+  config          String?  // JSON string (prompt, model, voice, tools, etc.)
+  isActive        Boolean  @default(true)
+  userId          Int
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
 model TwilioCredentials {
   id           Int           @id @default(autoincrement())
   accountSid   String        // Encrypted
@@ -131,6 +149,8 @@ model PlatformSettings {
   openaiApiKey       String?  // Encrypted
   elevenLabsApiKey   String?  // Encrypted - ElevenLabs API Key for voice library
   slackWebhookUrl    String?  // Encrypted - Slack incoming webhook URL
+  n8nUrl             String?  // Encrypted - Self-hosted n8n instance URL
+  n8nApiKey          String?  // Encrypted - n8n API key
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

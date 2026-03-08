@@ -49,6 +49,16 @@ export const agentsAPI = {
   delete: (id) => api.delete(`/agents/${id}`)
 }
 
+// Chatbots API
+export const chatbotsAPI = {
+  list: () => api.get('/chatbots'),
+  get: (id) => api.get(`/chatbots/${id}`),
+  create: (data) => api.post('/chatbots', data),
+  update: (id, data) => api.put(`/chatbots/${id}`, data),
+  delete: (id) => api.delete(`/chatbots/${id}`),
+  toggle: (id) => api.post(`/chatbots/${id}/toggle`)
+}
+
 // Users/Clients API (for OWNER and AGENCY)
 export const usersAPI = {
   getStats: () => api.get('/users/stats'),
@@ -151,7 +161,8 @@ export const promptGeneratorAPI = {
 export const platformSettingsAPI = {
   get: () => api.get('/platform-settings'),
   update: (data) => api.put('/platform-settings', data),
-  getVapiPublicKey: () => api.get('/platform-settings/vapi-public-key')
+  getVapiPublicKey: () => api.get('/platform-settings/vapi-public-key'),
+  testN8nConnection: (data) => api.post('/platform-settings/test-n8n', data)
 }
 
 // Account Settings API (per-account VAPI keys)

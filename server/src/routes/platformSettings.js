@@ -14,4 +14,7 @@ router.get('/vapi-public-key', platformSettingsController.getVapiPublicKey);
 // PUT /api/platform-settings - Update settings
 router.put('/', platformSettingsController.updateSettings);
 
+// POST /api/platform-settings/test-n8n - Test n8n connection
+router.post('/test-n8n', platformSettingsController.testN8nConnection);
+
 module.exports = router;
