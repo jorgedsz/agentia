@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { chatbotsAPI, promptGeneratorAPI } from '../../services/api'
+import { chatbotsAPI, promptGeneratorAPI, calendarAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { MODELS_BY_PROVIDER } from '../../constants/models'
@@ -25,6 +25,58 @@ const OUTPUT_TYPES = [
   { id: 'external_webhook', label: 'External Webhook', description: 'Send the response to an external webhook URL' },
   { id: 'http_request', label: 'HTTP Request', description: 'Send the response via HTTP request to a custom URL' },
 ]
+
+const TIMEZONES = [
+  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+  'America/Anchorage', 'Pacific/Honolulu', 'America/Phoenix',
+  'America/Toronto', 'America/Vancouver', 'America/Mexico_City',
+  'America/Bogota', 'America/Sao_Paulo', 'America/Argentina/Buenos_Aires',
+  'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid', 'Europe/Rome',
+  'Asia/Dubai', 'Asia/Kolkata', 'Asia/Shanghai', 'Asia/Tokyo', 'Asia/Seoul',
+  'Australia/Sydney', 'Pacific/Auckland'
+]
+
+const PROVIDER_ICONS = {
+  ghl: (
+    <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="4" fill="#FF6B35"/>
+      <path d="M7 8h10v2H7V8zm0 3h7v2H7v-2zm0 3h10v2H7v-2z" fill="white"/>
+    </svg>
+  ),
+  google: (
+    <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+    </svg>
+  ),
+  calendly: (
+    <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="11" fill="#006BFF"/>
+      <path d="M15.9 9.2c-.4-.7-1-1.2-1.7-1.5-.7-.3-1.5-.4-2.3-.2-.8.1-1.5.5-2 1.1-.6.6-.9 1.3-1 2.1-.1.8.1 1.6.4 2.3.4.7 1 1.2 1.7 1.5.7.3 1.5.4 2.3.2.5-.1 1-.3 1.4-.6l1.3 1.3c-.7.5-1.4.9-2.3 1.1-1.1.2-2.2.1-3.2-.4s-1.8-1.2-2.3-2.2c-.5-1-.7-2.1-.5-3.2.2-1.1.7-2 1.5-2.8.8-.8 1.7-1.3 2.8-1.5 1.1-.2 2.2 0 3.2.5s1.7 1.3 2.2 2.3l-1.5.7z" fill="white"/>
+    </svg>
+  ),
+  hubspot: (
+    <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+      <path d="M17.5 8.2V5.8c.6-.3 1-.9 1-1.6 0-1-.8-1.8-1.8-1.8s-1.8.8-1.8 1.8c0 .7.4 1.3 1 1.6v2.4c-.9.2-1.7.6-2.3 1.2L7.5 5.3c0-.1.1-.3.1-.4 0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2c.4 0 .7-.1 1-.3l5.9 4c-.4.7-.6 1.5-.6 2.4 0 1.1.4 2.2 1.1 3l-1.3 1.3c-.2-.1-.4-.1-.6-.1-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5 1.5-.7 1.5-1.5c0-.2 0-.4-.1-.6l1.3-1.3c.8.7 1.9 1.1 3 1.1 2.6 0 4.7-2.1 4.7-4.7 0-2.3-1.7-4.2-3.9-4.6zm-.7 7.5c-1.6 0-2.9-1.3-2.9-2.9s1.3-2.9 2.9-2.9 2.9 1.3 2.9 2.9-1.3 2.9-2.9 2.9z" fill="#FF7A59"/>
+    </svg>
+  ),
+  calcom: (
+    <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+      <rect width="24" height="24" rx="4" fill="#111827"/>
+      <path d="M6 9.5C6 7.01 8.01 5 10.5 5h3C15.99 5 18 7.01 18 9.5v5c0 2.49-2.01 4.5-4.5 4.5h-3C8.01 19 6 16.99 6 14.5v-5z" stroke="white" strokeWidth="2"/>
+    </svg>
+  )
+}
+
+const PROVIDER_NAMES = {
+  ghl: 'GoHighLevel',
+  google: 'Google Calendar',
+  calendly: 'Calendly',
+  hubspot: 'HubSpot',
+  calcom: 'Cal.com'
+}
 
 export default function ChatbotEdit() {
   const { id } = useParams()
@@ -52,7 +104,8 @@ export default function ChatbotEdit() {
 
   // Tools
   const [tools, setTools] = useState([])
-  const [showToolModal, setShowToolModal] = useState(false)
+  const [showToolsModal, setShowToolsModal] = useState(false)
+  const [showToolEditModal, setShowToolEditModal] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState(null)
   const [toolForm, setToolForm] = useState({
     type: 'apiRequest',
@@ -71,9 +124,29 @@ export default function ChatbotEdit() {
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [generatedPrompt, setGeneratedPrompt] = useState('')
 
+  // Calendar settings
+  const [showCalendarModal, setShowCalendarModal] = useState(false)
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false)
+  const [calendarConfig, setCalendarConfig] = useState({
+    enabled: false,
+    provider: '',
+    integrationId: '',
+    calendarId: '',
+    timezone: 'America/New_York',
+    appointmentDuration: 30,
+    calendars: []
+  })
+  const [calendarIntegrations, setCalendarIntegrations] = useState([])
+  const [providerCalendars, setProviderCalendars] = useState([])
+  const [providerCalendarsLoading, setProviderCalendarsLoading] = useState(false)
+  const [providerError, setProviderError] = useState('')
+  const [providerCalendarsMap, setProviderCalendarsMap] = useState({})
+  const [expandedCalendarEntry, setExpandedCalendarEntry] = useState(null)
+
   // Load chatbot data
   useEffect(() => {
     fetchChatbot()
+    fetchCalendarIntegrations()
   }, [id])
 
   const fetchChatbot = async () => {
@@ -94,11 +167,222 @@ export default function ChatbotEdit() {
       setSystemPrompt(config.systemPromptBase || config.systemPrompt || '')
       setModelName(config.modelName || 'gpt-4o')
       setTools(config.tools || [])
+
+      if (config.calendarConfig) {
+        setCalendarConfig(config.calendarConfig)
+      }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load chatbot')
     } finally {
       setLoading(false)
     }
+  }
+
+  // Calendar functions
+  const fetchCalendarIntegrations = async () => {
+    try {
+      const response = await calendarAPI.listIntegrations()
+      setCalendarIntegrations(response.data.integrations || [])
+    } catch (err) {
+      console.error('Failed to fetch calendar integrations:', err)
+    }
+  }
+
+  const fetchProviderCalendars = async (integrationId) => {
+    setProviderCalendarsLoading(true)
+    setProviderError('')
+    try {
+      const response = await calendarAPI.getCalendars(integrationId)
+      setProviderCalendars(response.data.calendars || [])
+    } catch (err) {
+      setProviderError(err.response?.data?.error || 'Failed to fetch calendars')
+      setProviderCalendars([])
+    } finally {
+      setProviderCalendarsLoading(false)
+    }
+  }
+
+  const fetchCalendarsForEntry = async (entryId, integrationId) => {
+    setProviderCalendarsMap(prev => ({
+      ...prev,
+      [entryId]: { calendars: prev[entryId]?.calendars || [], loading: true, error: '' }
+    }))
+    try {
+      const response = await calendarAPI.getCalendars(integrationId)
+      setProviderCalendarsMap(prev => ({
+        ...prev,
+        [entryId]: { calendars: response.data.calendars || [], loading: false, error: '' }
+      }))
+    } catch (err) {
+      setProviderCalendarsMap(prev => ({
+        ...prev,
+        [entryId]: { calendars: [], loading: false, error: err.response?.data?.error || 'Failed to fetch calendars' }
+      }))
+    }
+  }
+
+  const handleOpenCalendarModal = () => {
+    setShowCalendarModal(true)
+    if (calendarConfig.calendars && calendarConfig.calendars.length >= 2) {
+      calendarConfig.calendars.forEach(entry => {
+        if (entry.integrationId) {
+          fetchCalendarsForEntry(entry.id, entry.integrationId)
+        }
+      })
+    } else if (calendarConfig.integrationId) {
+      fetchProviderCalendars(calendarConfig.integrationId)
+    }
+  }
+
+  const getActiveCalendars = () => {
+    if (calendarConfig.calendars && calendarConfig.calendars.length >= 2) {
+      return calendarConfig.calendars
+    }
+    return [{
+      id: 'single',
+      name: '',
+      scenario: '',
+      provider: calendarConfig.provider,
+      integrationId: calendarConfig.integrationId,
+      calendarId: calendarConfig.calendarId,
+      timezone: calendarConfig.timezone,
+      appointmentDuration: calendarConfig.appointmentDuration
+    }]
+  }
+
+  const updateCalendarEntry = (entryId, updates) => {
+    setCalendarConfig(prev => ({
+      ...prev,
+      calendars: prev.calendars.map(c => c.id === entryId ? { ...c, ...updates } : c)
+    }))
+  }
+
+  const removeCalendarEntry = (entryId) => {
+    setCalendarConfig(prev => {
+      const remaining = prev.calendars.filter(c => c.id !== entryId)
+      if (remaining.length <= 1) {
+        const single = remaining[0] || {}
+        return {
+          ...prev,
+          provider: single.provider || '',
+          integrationId: single.integrationId || '',
+          calendarId: single.calendarId || '',
+          timezone: single.timezone || 'America/New_York',
+          appointmentDuration: single.appointmentDuration || 30,
+          calendars: []
+        }
+      }
+      return { ...prev, calendars: remaining }
+    })
+  }
+
+  const addCalendarEntry = () => {
+    const newId = `cal_${Date.now()}`
+    if (!calendarConfig.calendars || calendarConfig.calendars.length < 2) {
+      const firstEntry = {
+        id: `cal_${Date.now() - 1}`,
+        name: '',
+        scenario: '',
+        provider: calendarConfig.provider || '',
+        integrationId: calendarConfig.integrationId || '',
+        calendarId: calendarConfig.calendarId || '',
+        timezone: calendarConfig.timezone || 'America/New_York',
+        appointmentDuration: calendarConfig.appointmentDuration || 30
+      }
+      if (providerCalendars.length > 0) {
+        setProviderCalendarsMap(prev => ({
+          ...prev,
+          [firstEntry.id]: { calendars: providerCalendars, loading: false, error: '' }
+        }))
+      }
+      setCalendarConfig(prev => ({
+        ...prev,
+        calendars: [
+          firstEntry,
+          { id: newId, name: '', scenario: '', provider: '', integrationId: '', calendarId: '', timezone: 'America/New_York', appointmentDuration: 30 }
+        ]
+      }))
+      setExpandedCalendarEntry(newId)
+    } else {
+      setCalendarConfig(prev => ({
+        ...prev,
+        calendars: [
+          ...prev.calendars,
+          { id: newId, name: '', scenario: '', provider: '', integrationId: '', calendarId: '', timezone: 'America/New_York', appointmentDuration: 30 }
+        ]
+      }))
+      setExpandedCalendarEntry(newId)
+    }
+  }
+
+  // Build calendar tools for saving
+  const buildCalendarTools = () => {
+    const calendarTools = []
+    const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+    const safeName = name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+
+    if (calendarConfig.enabled) {
+      const activeCalendars = getActiveCalendars().filter(c => c.calendarId)
+      const isMultiCalendar = activeCalendars.length >= 2
+
+      activeCalendars.forEach((cal, idx) => {
+        const queryParamsObj = {
+          calendarId: cal.calendarId,
+          timezone: cal.timezone || 'America/New_York',
+          userId: user?.id?.toString() || '',
+          duration: (cal.appointmentDuration || 30).toString(),
+          provider: cal.provider
+        }
+        if (cal.integrationId) {
+          queryParamsObj.integrationId = cal.integrationId
+        }
+
+        const queryParams = new URLSearchParams(queryParamsObj).toString()
+        const checkUrl = `${apiBaseUrl}/calendar/check-availability?${queryParams}`
+        const bookUrl = `${apiBaseUrl}/calendar/book-appointment?${queryParams}`
+
+        const toolSuffix = isMultiCalendar ? `${safeName}_${idx + 1}` : safeName
+        const descPrefix = isMultiCalendar && cal.name ? `[${cal.name}] ` : ''
+
+        calendarTools.push({
+          type: 'apiRequest',
+          method: 'POST',
+          url: checkUrl,
+          name: `check_calendar_availability_${toolSuffix}`,
+          description: `${descPrefix}Check available appointment slots on a specific date. You MUST call this BEFORE booking to see what times are open.`,
+          body: {
+            type: 'object',
+            properties: {
+              date: { type: 'string', description: 'The date to check availability for in YYYY-MM-DD format' }
+            },
+            required: ['date']
+          },
+          timeoutSeconds: 30
+        })
+
+        calendarTools.push({
+          type: 'apiRequest',
+          method: 'POST',
+          url: bookUrl,
+          name: `book_appointment_${toolSuffix}`,
+          description: `${descPrefix}Book an appointment for the customer. Use this after confirming the date, time, and collecting customer contact information.`,
+          body: {
+            type: 'object',
+            properties: {
+              startTime: { type: 'string', description: 'The appointment start time in ISO 8601 format (e.g., 2026-02-08T10:00:00)' },
+              endTime: { type: 'string', description: 'The appointment end time in ISO 8601 format. Defaults to duration after startTime if not provided.' },
+              contactName: { type: 'string', description: "The customer's full name" },
+              contactEmail: { type: 'string', description: "The customer's email address" },
+              contactPhone: { type: 'string', description: "The customer's phone number (optional)" },
+              notes: { type: 'string', description: 'Any additional notes for the appointment (optional)' }
+            },
+            required: ['startTime', 'contactName', 'contactEmail']
+          },
+          timeoutSeconds: 30
+        })
+      })
+    }
+    return calendarTools
   }
 
   const handleSave = async (e) => {
@@ -108,6 +392,12 @@ export default function ChatbotEdit() {
     setSuccess('')
 
     try {
+      // Merge manual tools with auto-generated calendar tools
+      const calendarTools = buildCalendarTools()
+      // Filter out old calendar tools from manual tools list
+      const manualTools = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_'))
+      const allTools = [...manualTools, ...calendarTools]
+
       await chatbotsAPI.update(id, {
         name,
         chatbotType,
@@ -119,7 +409,8 @@ export default function ChatbotEdit() {
           language,
           modelProvider: 'openai',
           modelName,
-          tools,
+          tools: allTools,
+          calendarConfig,
           outputType,
           outputUrl: outputType !== 'respond_to_webhook' ? outputUrl : '',
         }
@@ -187,7 +478,7 @@ export default function ChatbotEdit() {
     } else {
       setTools([...tools, newTool])
     }
-    setShowToolModal(false)
+    setShowToolEditModal(false)
     setEditingToolIndex(null)
     setToolForm({ type: 'apiRequest', name: '', description: '', method: 'POST', url: '', headers: '', body: '', timeoutSeconds: 20 })
   }
@@ -205,7 +496,7 @@ export default function ChatbotEdit() {
       timeoutSeconds: tool.timeoutSeconds || 20
     })
     setEditingToolIndex(index)
-    setShowToolModal(true)
+    setShowToolEditModal(true)
   }
 
   const handleDeleteTool = (index) => {
@@ -230,6 +521,11 @@ export default function ChatbotEdit() {
       </div>
     )
   }
+
+  // Count configured calendars
+  const configuredCalendars = calendarConfig.enabled
+    ? getActiveCalendars().filter(c => c.calendarId).length
+    : 0
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -330,6 +626,48 @@ export default function ChatbotEdit() {
           </div>
         </div>
 
+        {/* Calendar & Tools Icon Buttons */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Calendar Button */}
+          <button
+            onClick={handleOpenCalendarModal}
+            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
+              calendarConfig.enabled && configuredCalendars > 0
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Calendar Options {calendarConfig.enabled && configuredCalendars > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{configuredCalendars}</span>
+              )}
+            </span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+
+          {/* Tools Button */}
+          <button
+            onClick={() => setShowToolsModal(true)}
+            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
+              tools.length > 0
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Tools {tools.length > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{tools.length}</span>
+              )}
+            </span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+        </div>
+
         {/* System Prompt */}
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <div className="flex items-center justify-between mb-4">
@@ -353,7 +691,6 @@ export default function ChatbotEdit() {
 
         {/* Model & Language */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Model Selection */}
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Model</h3>
             <select
@@ -367,7 +704,6 @@ export default function ChatbotEdit() {
             </select>
           </div>
 
-          {/* Language */}
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Language</h3>
             <select
@@ -381,62 +717,504 @@ export default function ChatbotEdit() {
             </select>
           </div>
         </div>
-
-        {/* Tools */}
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Tools</h3>
-            <button
-              onClick={() => {
-                setToolForm({ type: 'apiRequest', name: '', description: '', method: 'POST', url: '', headers: '', body: '', timeoutSeconds: 20 })
-                setEditingToolIndex(null)
-                setShowToolModal(true)
-              }}
-              className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium"
-            >
-              + Add Tool
-            </button>
-          </div>
-
-          {tools.length === 0 ? (
-            <p className="text-sm text-gray-400">No tools configured. Add API request tools for your chatbot to call.</p>
-          ) : (
-            <div className="space-y-2">
-              {tools.map((tool, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-bg rounded-lg">
-                  <div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">{tool.name || tool.type}</span>
-                    <span className="text-xs text-gray-400 ml-2">{tool.method} {tool.url?.substring(0, 40)}{tool.url?.length > 40 ? '...' : ''}</span>
-                  </div>
-                  <div className="flex gap-1">
-                    <button onClick={() => handleEditTool(i)} className="p-1.5 text-gray-400 hover:text-primary-600 rounded">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => handleDeleteTool(i)} className="p-1.5 text-gray-400 hover:text-red-600 rounded">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
       </div>
 
-      {/* Tool Modal */}
-      {showToolModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      {/* ===== CALENDAR MODAL ===== */}
+      {showCalendarModal && (() => {
+        const connectedAccounts = []
+        calendarIntegrations.filter(i => i.isConnected).forEach(i => {
+          connectedAccounts.push({
+            key: `${i.provider}:${i.id}`,
+            provider: i.provider,
+            integrationId: String(i.id),
+            icon: PROVIDER_ICONS[i.provider],
+            label: PROVIDER_NAMES[i.provider] || i.provider,
+            sublabel: i.accountLabel || '',
+            connected: true
+          })
+        })
+        const connectedProviderSet = new Set(connectedAccounts.map(a => a.provider))
+        const allProviders = ['ghl', 'google', 'calendly', 'hubspot', 'calcom']
+        const notConnectedProviders = allProviders.filter(p => !connectedProviderSet.has(p))
+        const isMultiCalendarMode = calendarConfig.calendars && calendarConfig.calendars.length >= 2
+
+        const renderProviderDropdown = (currentProvider, currentIntegrationId, onSelect, dropdownId) => {
+          const currentKey = currentIntegrationId ? `${currentProvider}:${currentIntegrationId}` : ''
+          const currentAccount = connectedAccounts.find(a => a.key === currentKey)
+          const currentNotConnected = !currentAccount && currentProvider ? (notConnectedProviders.includes(currentProvider) ? currentProvider : null) : null
+
+          return (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowProviderDropdown(showProviderDropdown === dropdownId ? false : dropdownId)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-left"
+              >
+                {currentAccount ? (
+                  <>
+                    {currentAccount.icon}
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-gray-900 dark:text-white">{currentAccount.label}</span>
+                      {currentAccount.sublabel && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-1.5">- {currentAccount.sublabel}</span>
+                      )}
+                    </div>
+                  </>
+                ) : currentNotConnected ? (
+                  <>
+                    {PROVIDER_ICONS[currentNotConnected]}
+                    <span className="text-sm text-gray-900 dark:text-white">{PROVIDER_NAMES[currentNotConnected]}</span>
+                    <span className="text-xs text-red-400 ml-auto">Not connected</span>
+                  </>
+                ) : (
+                  <span className="text-sm text-gray-400">Select a provider</span>
+                )}
+                <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 ml-auto transition-transform ${showProviderDropdown === dropdownId ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              <div className={`${showProviderDropdown === dropdownId ? '' : 'hidden'} mt-1 w-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg max-h-64 overflow-y-auto`}>
+                {connectedAccounts.length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">Connected</div>
+                    {connectedAccounts.map(account => (
+                      <button
+                        key={account.key}
+                        type="button"
+                        onClick={() => {
+                          onSelect(account.provider, account.integrationId)
+                          setShowProviderDropdown(false)
+                        }}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-hover text-left ${currentKey === account.key ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`}
+                      >
+                        {account.icon}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-gray-900 dark:text-white">{account.label}</span>
+                          {account.sublabel && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 block truncate">{account.sublabel}</span>
+                          )}
+                        </div>
+                        {currentKey === account.key && (
+                          <svg className="w-4 h-4 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {notConnectedProviders.length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide border-t border-gray-100 dark:border-dark-border mt-1">Not Connected</div>
+                    {notConnectedProviders.map(providerId => (
+                      <button
+                        key={providerId}
+                        type="button"
+                        onClick={() => {
+                          onSelect(providerId, '')
+                          setShowProviderDropdown(false)
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-dark-hover text-left opacity-60"
+                      >
+                        {PROVIDER_ICONS[providerId]}
+                        <span className="text-sm text-gray-900 dark:text-white">{PROVIDER_NAMES[providerId]}</span>
+                        <span className="text-xs text-gray-400 ml-auto">Setup required</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        }
+
+        const renderCalendarDropdown = (entryProvider, entryIntegrationId, entryCalendarId, entryTimezone, onCalendarSelect, entryId) => {
+          if (!entryProvider || !entryIntegrationId) return null
+          const isConnected = connectedProviderSet.has(entryProvider)
+          if (!isConnected) return null
+
+          let calendars, ldg, err
+          if (isMultiCalendarMode && entryId !== 'single') {
+            const mapData = providerCalendarsMap[entryId]
+            calendars = mapData?.calendars || []; ldg = mapData?.loading || false; err = mapData?.error || ''
+          } else {
+            calendars = providerCalendars; ldg = providerCalendarsLoading; err = providerError
+          }
+
+          return (
+            <div>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar *</label>
+              {err && (
+                <div className="p-2 mb-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                  <p className="text-xs text-red-600 dark:text-red-400">{err}</p>
+                </div>
+              )}
+              {ldg ? (
+                <div className="flex items-center gap-2 py-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                  <span className="text-sm text-gray-500">Loading calendars...</span>
+                </div>
+              ) : calendars.length > 0 ? (
+                <select
+                  value={entryCalendarId}
+                  onChange={(e) => {
+                    const selectedCal = calendars.find(c => c.id === e.target.value)
+                    onCalendarSelect(e.target.value, selectedCal?.timezone || entryTimezone)
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                >
+                  <option value="">Select a calendar</option>
+                  {calendars.map(cal => (
+                    <option key={cal.id} value={cal.id}>{cal.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-gray-500 py-2">No calendars found for this account.</div>
+              )}
+            </div>
+          )
+        }
+
+        const renderNotConnectedWarning = (entryProvider, entryIntegrationId) => {
+          if (!entryProvider) return null
+          const isConnected = entryIntegrationId || connectedProviderSet.has(entryProvider)
+          if (isConnected) return null
+          return (
+            <div className="flex items-center gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <svg className="w-5 h-5 text-yellow-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">This provider is not connected yet.</p>
+              </div>
+              <button
+                onClick={() => { setShowCalendarModal(false); navigate('/dashboard/settings?tab=calendars') }}
+                className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-xs font-medium whitespace-nowrap"
+              >
+                Go to Settings
+              </button>
+            </div>
+          )
+        }
+
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border z-10">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Calendar Options</h3>
+                <button onClick={() => setShowCalendarModal(false)} className="text-gray-500 hover:text-gray-700">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                {/* Enable toggle */}
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Calendar Integration</label>
+                  <button
+                    onClick={() => setCalendarConfig({ ...calendarConfig, enabled: !calendarConfig.enabled })}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${calendarConfig.enabled ? 'bg-green-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${calendarConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {calendarConfig.enabled && (
+                  <>
+                    {/* Single calendar mode */}
+                    {!isMultiCalendarMode && (
+                      <>
+                        <div className="border-t border-gray-200 dark:border-dark-border pt-4">
+                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar Provider *</label>
+                          {renderProviderDropdown(
+                            calendarConfig.provider,
+                            calendarConfig.integrationId,
+                            (provider, integrationId) => {
+                              setCalendarConfig({ ...calendarConfig, provider, integrationId, calendarId: '' })
+                              setProviderCalendars([])
+                              setProviderError('')
+                              if (integrationId) {
+                                fetchProviderCalendars(integrationId)
+                              }
+                            },
+                            'single'
+                          )}
+                        </div>
+
+                        {renderNotConnectedWarning(calendarConfig.provider, calendarConfig.integrationId)}
+
+                        {renderCalendarDropdown(
+                          calendarConfig.provider,
+                          calendarConfig.integrationId,
+                          calendarConfig.calendarId,
+                          calendarConfig.timezone,
+                          (calendarId, timezone) => setCalendarConfig({ ...calendarConfig, calendarId, timezone }),
+                          'single'
+                        )}
+
+                        {calendarConfig.provider && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
+                              <select
+                                value={calendarConfig.timezone}
+                                onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                              >
+                                {TIMEZONES.map(tz => (
+                                  <option key={tz} value={tz}>{tz}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Appointment Duration</label>
+                              <select
+                                value={calendarConfig.appointmentDuration || 30}
+                                onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                              >
+                                <option value={10}>10 minutes</option>
+                                <option value={15}>15 minutes</option>
+                                <option value={30}>30 minutes</option>
+                                <option value={45}>45 minutes</option>
+                                <option value={60}>60 minutes</option>
+                                <option value={90}>90 minutes</option>
+                              </select>
+                            </div>
+                          </>
+                        )}
+
+                        {calendarConfig.provider && calendarConfig.calendarId && (
+                          <button
+                            type="button"
+                            onClick={addCalendarEntry}
+                            className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                          >
+                            + Add another calendar
+                          </button>
+                        )}
+                      </>
+                    )}
+
+                    {/* Multi calendar mode */}
+                    {isMultiCalendarMode && (
+                      <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-4">
+                        {calendarConfig.calendars.map((entry, idx) => {
+                          const isExpanded = expandedCalendarEntry === entry.id
+                          const providerLabel = PROVIDER_NAMES[entry.provider] || ''
+                          const subtitle = entry.name || `Calendar ${idx + 1}`
+
+                          return (
+                            <div key={entry.id} className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedCalendarEntry(isExpanded ? null : entry.id)}
+                                className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-dark-hover text-left hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
+                              >
+                                <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{subtitle}</span>
+                                  {providerLabel && <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{providerLabel}</span>}
+                                </div>
+                                {entry.calendarId && <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />}
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); removeCalendarEntry(entry.id) }}
+                                  className="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </button>
+
+                              {isExpanded && (
+                                <div className="p-4 space-y-3 border-t border-gray-200 dark:border-dark-border">
+                                  <div>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Name *</label>
+                                    <input
+                                      type="text"
+                                      value={entry.name}
+                                      onChange={(e) => updateCalendarEntry(entry.id, { name: e.target.value })}
+                                      placeholder="e.g., Sales Consultation"
+                                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Scenario *</label>
+                                    <textarea
+                                      value={entry.scenario}
+                                      onChange={(e) => updateCalendarEntry(entry.id, { scenario: e.target.value })}
+                                      placeholder="e.g., Use when customer wants a sales demo"
+                                      rows={2}
+                                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Provider *</label>
+                                    {renderProviderDropdown(
+                                      entry.provider,
+                                      entry.integrationId,
+                                      (provider, integrationId) => {
+                                        updateCalendarEntry(entry.id, { provider, integrationId, calendarId: '' })
+                                        if (integrationId) {
+                                          fetchCalendarsForEntry(entry.id, integrationId)
+                                        }
+                                      },
+                                      `multi-${entry.id}`
+                                    )}
+                                  </div>
+
+                                  {renderNotConnectedWarning(entry.provider, entry.integrationId)}
+
+                                  {renderCalendarDropdown(
+                                    entry.provider,
+                                    entry.integrationId,
+                                    entry.calendarId,
+                                    entry.timezone,
+                                    (calendarId, timezone) => updateCalendarEntry(entry.id, { calendarId, timezone }),
+                                    entry.id
+                                  )}
+
+                                  {entry.provider && (
+                                    <>
+                                      <div>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
+                                        <select
+                                          value={entry.timezone}
+                                          onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
+                                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                        >
+                                          {TIMEZONES.map(tz => (
+                                            <option key={tz} value={tz}>{tz}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Duration</label>
+                                        <select
+                                          value={entry.appointmentDuration || 30}
+                                          onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
+                                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                        >
+                                          <option value={10}>10 minutes</option>
+                                          <option value={15}>15 minutes</option>
+                                          <option value={30}>30 minutes</option>
+                                          <option value={45}>45 minutes</option>
+                                          <option value={60}>60 minutes</option>
+                                          <option value={90}>90 minutes</option>
+                                        </select>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+
+                        <button
+                          type="button"
+                          onClick={addCalendarEntry}
+                          className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                        >
+                          + Add Calendar
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
+                <button
+                  onClick={() => setShowCalendarModal(false)}
+                  className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ===== TOOLS MODAL ===== */}
+      {showToolsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border z-10">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tools</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setToolForm({ type: 'apiRequest', name: '', description: '', method: 'POST', url: '', headers: '', body: '', timeoutSeconds: 20 })
+                    setEditingToolIndex(null)
+                    setShowToolEditModal(true)
+                  }}
+                  className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium"
+                >
+                  + Add Tool
+                </button>
+                <button onClick={() => setShowToolsModal(false)} className="text-gray-500 hover:text-gray-700">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              {tools.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No tools configured. Add API request tools for your chatbot to call.</p>
+              ) : (
+                <div className="space-y-2">
+                  {tools.map((tool, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-bg rounded-lg">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{tool.name || tool.type}</span>
+                        <span className="text-xs text-gray-400 ml-2">{tool.method} {tool.url?.substring(0, 30)}{tool.url?.length > 30 ? '...' : ''}</span>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button onClick={() => handleEditTool(i)} className="p-1.5 text-gray-400 hover:text-primary-600 rounded">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button onClick={() => handleDeleteTool(i)} className="p-1.5 text-gray-400 hover:text-red-600 rounded">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end p-4 border-t border-gray-200 dark:border-dark-border">
+              <button
+                onClick={() => setShowToolsModal(false)}
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tool Add/Edit Modal */}
+      {showToolEditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingToolIndex !== null ? 'Edit Tool' : 'Add Tool'}
               </h3>
-              <button onClick={() => setShowToolModal(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded">
+              <button onClick={() => setShowToolEditModal(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -500,7 +1278,7 @@ export default function ChatbotEdit() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button
-                  onClick={() => setShowToolModal(false)}
+                  onClick={() => setShowToolEditModal(false)}
                   className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg"
                 >
                   Cancel
