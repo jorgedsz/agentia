@@ -1326,8 +1326,8 @@ export default function ChatbotEdit() {
 
       {/* Prompt Generator Modal */}
       {showPromptGenerator && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-lg p-6">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate Prompt with AI</h3>
               <button onClick={() => setShowPromptGenerator(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded">
@@ -1341,7 +1341,7 @@ export default function ChatbotEdit() {
                 value={promptDescription}
                 onChange={(e) => setPromptDescription(e.target.value)}
                 placeholder="Describe what your chatbot should do. Example: A customer support chatbot for a SaaS company that helps with billing questions and password resets."
-                rows={4}
+                rows={5}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none text-sm"
               />
               <button
@@ -1358,7 +1358,7 @@ export default function ChatbotEdit() {
                     <textarea
                       value={generatedPrompt}
                       onChange={(e) => setGeneratedPrompt(e.target.value)}
-                      rows={6}
+                      rows={12}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono"
                     />
                   </div>
