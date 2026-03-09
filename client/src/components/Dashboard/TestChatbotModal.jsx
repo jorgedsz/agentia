@@ -50,10 +50,20 @@ export default function TestChatbotModal({ chatbot, onClose }) {
       })
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Request failed' }))
+        let errorMsg = `HTTP ${res.status}`
+        try {
+          const contentType = res.headers.get('content-type') || ''
+          if (contentType.includes('application/json')) {
+            const err = await res.json()
+            errorMsg = err.error || err.message || errorMsg
+          } else {
+            const text = await res.text()
+            errorMsg = text.substring(0, 200) || errorMsg
+          }
+        } catch {}
         setMessages(prev => {
           const copy = [...prev]
-          copy[assistantIdx] = { role: 'assistant', content: `Error: ${err.error || 'Request failed'}` }
+          copy[assistantIdx] = { role: 'assistant', content: `Error: ${errorMsg}` }
           return copy
         })
         setIsStreaming(false)
