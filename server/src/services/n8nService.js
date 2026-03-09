@@ -269,10 +269,10 @@ class N8nService {
       ai_languageModel: [[{ node: 'AI Chat Agent', type: 'ai_languageModel', index: 0 }]]
     };
 
-    // Tool nodes connected as ai_tool to AI Agent
-    toolNodes.forEach((toolNode, idx) => {
+    // Tool nodes connected as ai_tool to AI Agent (all use index 0)
+    toolNodes.forEach((toolNode) => {
       connections[toolNode.name] = {
-        ai_tool: [[{ node: 'AI Chat Agent', type: 'ai_tool', index: idx }]]
+        ai_tool: [[{ node: 'AI Chat Agent', type: 'ai_tool', index: 0 }]]
       };
     });
 
