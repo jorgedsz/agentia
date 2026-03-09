@@ -74,7 +74,6 @@ class N8nService {
   buildWorkflowTemplate(chatbot, n8nCredentials = []) {
     const config = typeof chatbot.config === 'string' ? JSON.parse(chatbot.config || '{}') : (chatbot.config || {});
     const workflowName = `Chatbot: ${chatbot.name} (ID: ${chatbot.id})`;
-    const outputType = chatbot.outputType || config.outputType || 'respond_to_webhook';
     const outputUrl = chatbot.outputUrl || config.outputUrl || '';
 
     const nodes = [];
@@ -90,7 +89,7 @@ class N8nService {
       parameters: {
         path: `chatbot-${chatbot.id}`,
         httpMethod: 'POST',
-        responseMode: outputType === 'respond_to_webhook' ? 'responseNode' : 'onReceived',
+        responseMode: 'responseNode',
         options: {}
       },
       webhookId: `chatbot-${chatbot.id}`
@@ -301,41 +300,40 @@ return [{ json: { ...$input.first().json, _isTest: isTest } }];`
     };
     nodes.push(testRespondNode);
 
-    // 8. Production Output node based on outputType
-    if (outputType === 'respond_to_webhook') {
-      const respondNode = {
-        id: 'respond-webhook',
-        name: 'Respond to Webhook',
-        type: 'n8n-nodes-base.respondToWebhook',
-        typeVersion: 1.1,
-        position: [1200, 400],
-        parameters: {
-          respondWith: 'json',
-          responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: ${chatbot.id} }) }}`
-        }
-      };
-      nodes.push(respondNode);
-    } else if (outputType === 'external_webhook' && outputUrl) {
+    // 8. Always create Respond to Webhook node (direct response to caller)
+    const respondNode = {
+      id: 'respond-webhook',
+      name: 'Respond to Webhook',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1200, 400],
+      parameters: {
+        respondWith: 'json',
+        responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: ${chatbot.id} }) }}`
+      }
+    };
+    nodes.push(respondNode);
+
+    // 9. Optionally forward to external webhook (chained after respond node)
+    if (outputUrl) {
       const httpNode = {
         id: 'http-output',
         name: 'Send to External Webhook',
         type: 'n8n-nodes-base.httpRequest',
         typeVersion: 4.2,
-        position: [1200, 400],
+        position: [1450, 400],
         parameters: {
           url: outputUrl,
           method: 'POST',
           sendBody: true,
           specifyBody: 'json',
-          jsonBody: `={{ JSON.stringify({ response: $json.output, chatbotId: ${chatbot.id} }) }}`
+          jsonBody: `={{ JSON.stringify({ message: $json.output, sessionId: $('Webhook Trigger').first().json.body.sessionId || "default", chatbotId: ${chatbot.id} }) }}`
         }
       };
       nodes.push(httpNode);
     }
 
     // Build connections
-    const productionOutputNodeName = nodes[nodes.length - 1].name;
-
     // Both webhooks feed into AI Agent
     connections['Webhook Trigger'] = {
       main: [[{ node: 'AI Chat Agent', type: 'main', index: 0 }]]
@@ -352,13 +350,20 @@ return [{ json: { ...$input.first().json, _isTest: isTest } }];`
       main: [[{ node: 'Is Test?', type: 'main', index: 0 }]]
     };
 
-    // IF true (test) -> Test Response, IF false (production) -> Production Output
+    // IF true (test) -> Test Response, IF false (production) -> Respond to Webhook
     connections['Is Test?'] = {
       main: [
         [{ node: 'Test Response', type: 'main', index: 0 }],
-        [{ node: productionOutputNodeName, type: 'main', index: 0 }]
+        [{ node: 'Respond to Webhook', type: 'main', index: 0 }]
       ]
     };
+
+    // If external webhook configured, chain it after the respond node
+    if (outputUrl) {
+      connections['Respond to Webhook'] = {
+        main: [[{ node: 'Send to External Webhook', type: 'main', index: 0 }]]
+      };
+    }
 
     // LLM connected as ai_languageModel to AI Agent
     connections['LLM Model'] = {

@@ -7,11 +7,6 @@ import TestChatbotModal from './TestChatbotModal'
 
 const CHATBOT_MODELS = MODELS_BY_PROVIDER['openai'].filter(m => m.model.startsWith('gpt-'))
 
-const OUTPUT_TYPES = [
-  { id: 'respond_to_webhook', label: 'Respond to Webhook', description: 'Responds directly to the incoming webhook request' },
-  { id: 'external_webhook', label: 'External Webhook', description: 'Send the response to an external webhook URL' },
-]
-
 const TIMEZONES = [
   'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
   'America/Anchorage', 'Pacific/Honolulu', 'America/Phoenix',
@@ -82,7 +77,6 @@ export default function ChatbotEdit() {
   const [modelName, setModelName] = useState('gpt-4o')
 
   // Output configuration
-  const [outputType, setOutputType] = useState('respond_to_webhook')
   const [outputUrl, setOutputUrl] = useState('')
   const [isActive, setIsActive] = useState(true)
 
@@ -148,7 +142,6 @@ export default function ChatbotEdit() {
 
       setName(cb.name || '')
       setChatbotType(cb.chatbotType || 'standard')
-      setOutputType(cb.outputType || 'respond_to_webhook')
       setOutputUrl(cb.outputUrl || '')
       setIsActive(cb.isActive !== false)
 
@@ -390,8 +383,8 @@ export default function ChatbotEdit() {
       await chatbotsAPI.update(id, {
         name,
         chatbotType,
-        outputType,
-        outputUrl: outputType !== 'respond_to_webhook' ? outputUrl : '',
+        outputType: 'respond_to_webhook',
+        outputUrl: outputUrl || '',
         config: {
           systemPrompt,
           systemPromptBase: systemPrompt,
@@ -399,8 +392,8 @@ export default function ChatbotEdit() {
           modelName,
           tools: allTools,
           calendarConfig,
-          outputType,
-          outputUrl: outputType !== 'respond_to_webhook' ? outputUrl : '',
+          outputType: 'respond_to_webhook',
+          outputUrl: outputUrl || '',
         }
       })
 
@@ -581,44 +574,24 @@ export default function ChatbotEdit() {
       )}
 
       <div className="space-y-6">
-        {/* Output Configuration */}
+        {/* Webhook Forwarding (Optional) */}
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Output Configuration</h3>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Webhook Forwarding</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            The chatbot always responds directly to the caller. Optionally, also forward the response to an external webhook.
+          </p>
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {OUTPUT_TYPES.map((type) => (
-                <button
-                  key={type.id}
-                  onClick={() => setOutputType(type.id)}
-                  className={`p-3 rounded-lg border text-center transition-colors ${
-                    outputType === type.id
-                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                      : 'border-gray-200 dark:border-dark-border hover:border-gray-300'
-                  }`}
-                >
-                  <div className={`text-sm font-medium ${outputType === type.id ? 'text-primary-700 dark:text-primary-400' : 'text-gray-900 dark:text-white'}`}>
-                    {type.label}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{type.description}</div>
-                </button>
-              ))}
-            </div>
-
-            {outputType !== 'respond_to_webhook' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Destination URL
-                </label>
-                <input
-                  type="url"
-                  value={outputUrl}
-                  onChange={(e) => setOutputUrl(e.target.value)}
-                  placeholder="https://your-endpoint.com/webhook"
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-            )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Webhook URL <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="url"
+              value={outputUrl}
+              onChange={(e) => setOutputUrl(e.target.value)}
+              placeholder="https://your-endpoint.com/webhook"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
           </div>
         </div>
 
