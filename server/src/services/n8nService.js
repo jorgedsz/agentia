@@ -126,87 +126,79 @@ class N8nService {
     };
     nodes.push(llmNode);
 
-    // 4. Tool nodes from config.tools (using toolCode for broad n8n compatibility)
+    // 4. HTTP Request Tool nodes from config.tools
     const toolNodes = [];
     if (Array.isArray(config.tools) && config.tools.length > 0) {
       config.tools.forEach((tool, idx) => {
         const toolNodeName = `Tool: ${tool.name || `tool_${idx + 1}`}`;
 
-        // Parse body schema to extract parameter descriptions for the tool
+        // Parse body schema - convert JSON Schema format to n8n {placeholder} format
         let bodyObj = null;
         if (tool.body) {
           bodyObj = typeof tool.body === 'string' ? (() => { try { return JSON.parse(tool.body); } catch { return null; } })() : tool.body;
         }
 
-        // Build input schema description from JSON Schema properties
-        let inputDescription = tool.description || '';
-        const paramNames = [];
+        // Build placeholder body and definitions from JSON Schema properties
+        const placeholderBody = {};
+        const placeholderDefs = [];
         if (bodyObj && bodyObj.type === 'object' && bodyObj.properties) {
-          const paramDescs = Object.entries(bodyObj.properties).map(([name, def]) => {
-            paramNames.push(name);
-            const req = (bodyObj.required || []).includes(name) ? ' (required)' : ' (optional)';
-            return `- ${name}${req}: ${def.description || def.type || 'string'}`;
-          });
-          inputDescription += `\n\nInput is a JSON string with these fields:\n${paramDescs.join('\n')}`;
+          for (const [propName, propDef] of Object.entries(bodyObj.properties)) {
+            placeholderBody[propName] = `{${propName}}`;
+            placeholderDefs.push({
+              name: propName,
+              description: propDef.description || propName,
+              type: propDef.type || 'string'
+            });
+          }
+        } else if (bodyObj && !bodyObj.type) {
+          for (const [key, val] of Object.entries(bodyObj)) {
+            placeholderBody[key] = val;
+          }
         }
 
-        // Build headers object for the code
-        let headersCode = '{}';
-        if (tool.headers && typeof tool.headers === 'object') {
-          headersCode = JSON.stringify(tool.headers);
-        }
-
-        // Generate JavaScript code that makes the HTTP request
-        const jsCode = `
-const url = ${JSON.stringify(tool.url || '')};
-const method = ${JSON.stringify(tool.method || 'POST')};
-const headers = ${headersCode};
-headers['Content-Type'] = 'application/json';
-const timeout = ${(tool.timeoutSeconds || 20) * 1000};
-
-let body = undefined;
-try {
-  const input = typeof $input === 'string' ? JSON.parse($input) : ($input || {});
-  if (method !== 'GET') {
-    body = JSON.stringify(input);
-  }
-} catch(e) {
-  if (method !== 'GET' && $input) {
-    body = JSON.stringify({ query: $input });
-  }
-}
-
-const controller = new AbortController();
-const timer = setTimeout(() => controller.abort(), timeout);
-
-try {
-  const response = await fetch(url, {
-    method,
-    headers,
-    body,
-    signal: controller.signal
-  });
-  clearTimeout(timer);
-  const text = await response.text();
-  try { return JSON.parse(text); } catch { return text; }
-} catch(e) {
-  clearTimeout(timer);
-  return { error: e.message };
-}`;
+        const hasPlaceholders = placeholderDefs.length > 0;
+        const sendBody = hasPlaceholders || !!(tool.body);
 
         const toolNode = {
           id: `tool-${idx}`,
           name: toolNodeName,
-          type: '@n8n/n8n-nodes-langchain.toolCode',
+          type: '@n8n/n8n-nodes-langchain.toolHttpRequest',
           typeVersion: 1,
           position: [300 + (idx * 200), 550],
           parameters: {
             name: tool.name || `tool_${idx + 1}`,
-            description: inputDescription,
-            language: 'javaScript',
-            jsCode
+            description: tool.description || '',
+            url: tool.url || '',
+            method: tool.method || 'POST',
+            authentication: 'none',
+            sendBody,
+            options: {
+              timeout: (tool.timeoutSeconds || 20) * 1000
+            }
           }
         };
+
+        if (sendBody) {
+          toolNode.parameters.specifyBody = 'json';
+          toolNode.parameters.jsonBody = hasPlaceholders
+            ? JSON.stringify(placeholderBody)
+            : (typeof tool.body === 'string' ? tool.body : JSON.stringify(tool.body || {}));
+        }
+
+        // Add placeholder definitions so n8n AI knows what to fill
+        if (placeholderDefs.length > 0) {
+          toolNode.parameters.placeholderDefinitions = {
+            values: placeholderDefs
+          };
+        }
+
+        // Add headers if present
+        if (tool.headers && typeof tool.headers === 'object') {
+          toolNode.parameters.sendHeaders = true;
+          toolNode.parameters.headerParameters = {
+            parameters: Object.entries(tool.headers).map(([name, value]) => ({ name, value }))
+          };
+        }
 
         nodes.push(toolNode);
         toolNodes.push(toolNode);
