@@ -128,7 +128,30 @@ class GHLCalendarProvider extends CalendarProvider {
       token
     );
 
-    const slots = (slotsData.slots || slotsData || []).map(slot => {
+    console.log('GHL free-slots response:', JSON.stringify(slotsData).substring(0, 500));
+
+    // GHL returns slots in various formats:
+    // - { "YYYY-MM-DD": { "slots": [ { "startTime": "...", "endTime": "..." } ] } }
+    // - { "slots": [ ... ] }
+    // - or directly an array
+    let rawSlots = [];
+    if (Array.isArray(slotsData)) {
+      rawSlots = slotsData;
+    } else if (slotsData.slots && Array.isArray(slotsData.slots)) {
+      rawSlots = slotsData.slots;
+    } else if (typeof slotsData === 'object') {
+      // Keyed by date: { "2026-03-08": { "slots": [...] } } or { "2026-03-08": [...] }
+      for (const key of Object.keys(slotsData)) {
+        const dayData = slotsData[key];
+        if (Array.isArray(dayData)) {
+          rawSlots.push(...dayData);
+        } else if (dayData && Array.isArray(dayData.slots)) {
+          rawSlots.push(...dayData.slots);
+        }
+      }
+    }
+
+    const slots = rawSlots.map(slot => {
       if (typeof slot === 'string') return slot;
       return slot.startTime || slot.start || slot;
     });
