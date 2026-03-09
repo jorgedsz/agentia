@@ -131,6 +131,39 @@ class N8nService {
     if (Array.isArray(config.tools) && config.tools.length > 0) {
       config.tools.forEach((tool, idx) => {
         const toolNodeName = `Tool: ${tool.name || `tool_${idx + 1}`}`;
+
+        // Parse body schema - convert JSON Schema format to n8n {placeholder} format
+        let bodyObj = null;
+        if (tool.body) {
+          bodyObj = typeof tool.body === 'string' ? (() => { try { return JSON.parse(tool.body); } catch { return null; } })() : tool.body;
+        }
+
+        // Build placeholder body and definitions from JSON Schema properties
+        const placeholderBody = {};
+        const placeholderDefs = [];
+        if (bodyObj && bodyObj.type === 'object' && bodyObj.properties) {
+          for (const [propName, propDef] of Object.entries(bodyObj.properties)) {
+            placeholderBody[propName] = `{${propName}}`;
+            placeholderDefs.push({
+              name: propName,
+              description: propDef.description || propName,
+              type: propDef.type || 'string'
+            });
+          }
+        } else if (bodyObj && !bodyObj.type) {
+          // Plain body object (not JSON Schema) - use as-is with placeholders for string values
+          for (const [key, val] of Object.entries(bodyObj)) {
+            if (typeof val === 'string' && !val.startsWith('{')) {
+              placeholderBody[key] = val; // static value
+            } else {
+              placeholderBody[key] = val;
+            }
+          }
+        }
+
+        const hasPlaceholders = placeholderDefs.length > 0;
+        const sendBody = hasPlaceholders || !!(tool.body);
+
         const toolNode = {
           id: `tool-${idx}`,
           name: toolNodeName,
@@ -143,14 +176,26 @@ class N8nService {
             url: tool.url || '',
             method: tool.method || 'POST',
             authentication: 'none',
-            sendBody: !!(tool.body),
-            specifyBody: 'json',
-            jsonBody: tool.body ? (typeof tool.body === 'string' ? tool.body : JSON.stringify(tool.body)) : '{}',
+            sendBody,
             options: {
               timeout: (tool.timeoutSeconds || 20) * 1000
             }
           }
         };
+
+        if (sendBody) {
+          toolNode.parameters.specifyBody = 'json';
+          toolNode.parameters.jsonBody = hasPlaceholders
+            ? JSON.stringify(placeholderBody)
+            : (typeof tool.body === 'string' ? tool.body : JSON.stringify(tool.body || {}));
+        }
+
+        // Add placeholder definitions so n8n AI knows what to fill
+        if (placeholderDefs.length > 0) {
+          toolNode.parameters.placeholderDefinitions = {
+            values: placeholderDefs
+          };
+        }
 
         // Add headers if present
         if (tool.headers && typeof tool.headers === 'object') {
