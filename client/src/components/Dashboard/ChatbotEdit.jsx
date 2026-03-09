@@ -586,7 +586,7 @@ export default function ChatbotEdit() {
           <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Output Configuration</h3>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-lg mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {OUTPUT_TYPES.map((type) => (
                 <button
                   key={type.id}
