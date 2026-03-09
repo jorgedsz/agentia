@@ -316,11 +316,62 @@ const testChatbot = async (req, res) => {
   }
 };
 
+const webhookProxy = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message, sessionId } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+
+    const chatbot = await req.prisma.chatbot.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!chatbot) {
+      return res.status(404).json({ error: 'Chatbot not found' });
+    }
+
+    if (!chatbot.isActive) {
+      return res.status(422).json({ error: 'Chatbot is not active' });
+    }
+
+    if (!chatbot.n8nWebhookUrl) {
+      return res.status(422).json({ error: 'Chatbot has no workflow configured' });
+    }
+
+    const n8nResponse = await fetch(chatbot.n8nWebhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, sessionId: sessionId || 'default' }),
+      signal: AbortSignal.timeout(60000)
+    });
+
+    if (!n8nResponse.ok) {
+      const errorText = await n8nResponse.text().catch(() => '');
+      return res.status(502).json({ error: `Upstream error (${n8nResponse.status}): ${errorText.substring(0, 200) || 'No response'}` });
+    }
+
+    const data = await n8nResponse.json().catch(async () => {
+      const text = await n8nResponse.text().catch(() => '');
+      return { response: text };
+    });
+
+    res.json(data);
+  } catch (error) {
+    const msg = error?.message || 'Unknown error';
+    console.error('Webhook proxy error:', msg);
+    res.status(500).json({ error: msg });
+  }
+};
+
 module.exports = {
   getChatbots,
   getChatbot,
   createChatbot,
   updateChatbot,
   toggleChatbot,
-  testChatbot
+  testChatbot,
+  webhookProxy
 };

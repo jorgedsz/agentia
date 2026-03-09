@@ -575,25 +575,39 @@ export default function ChatbotEdit() {
 
       <div className="space-y-6">
         {/* Webhook Endpoint */}
-        {chatbot?.n8nWebhookUrl && (
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Webhook Endpoint</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-              Send a POST request with <code className="px-1 py-0.5 bg-gray-100 dark:bg-dark-hover rounded text-[11px]">{"{ \"message\": \"...\", \"sessionId\": \"...\" }"}</code>
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg text-sm text-gray-800 dark:text-gray-200 truncate select-all">
-                {chatbot.n8nWebhookUrl}
-              </code>
-              <button
-                onClick={() => { navigator.clipboard.writeText(chatbot.n8nWebhookUrl); setSuccess('Copied!'); setTimeout(() => setSuccess(''), 1500) }}
-                className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors flex-shrink-0"
-              >
-                Copy
-              </button>
+        {chatbot?.n8nWebhookUrl && (() => {
+          const apiBase = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+          const proxyUrl = `${apiBase}/chatbots/${id}/webhook`
+          const curlExample = `curl -X POST ${proxyUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"message": "Hello!", "sessionId": "user-123"}'`
+          return (
+            <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Webhook Endpoint</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Send a POST request with <code className="px-1 py-0.5 bg-gray-100 dark:bg-dark-hover rounded text-[11px]">{"{ \"message\": \"...\", \"sessionId\": \"...\" }"}</code>
+              </p>
+              <div className="flex items-center gap-2 mb-4">
+                <code className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg text-sm text-gray-800 dark:text-gray-200 truncate select-all">
+                  {proxyUrl}
+                </code>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(proxyUrl); setSuccess('Copied!'); setTimeout(() => setSuccess(''), 1500) }}
+                  className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors flex-shrink-0"
+                >
+                  Copy
+                </button>
+              </div>
+              <div className="relative">
+                <pre className="px-3 py-2.5 bg-gray-900 text-gray-100 rounded-lg text-xs font-mono overflow-x-auto whitespace-pre">{curlExample}</pre>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(curlExample); setSuccess('Curl copied!'); setTimeout(() => setSuccess(''), 1500) }}
+                  className="absolute top-2 right-2 px-2 py-1 text-[10px] font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+                >
+                  Copy
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Webhook Forwarding (Optional) */}
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
