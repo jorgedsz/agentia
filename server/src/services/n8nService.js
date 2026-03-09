@@ -163,11 +163,11 @@ class N8nService {
           id: `tool-${idx}`,
           name: toolNodeName,
           type: '@n8n/n8n-nodes-langchain.toolHttpRequest',
-          typeVersion: 1,
+          typeVersion: 1.1,
           position: [300 + (idx * 200), 550],
           parameters: {
             name: tool.name || `tool_${idx + 1}`,
-            description: tool.description || '',
+            toolDescription: tool.description || '',
             url: tool.url || '',
             method: tool.method || 'POST',
             authentication: 'none',
@@ -269,7 +269,7 @@ class N8nService {
       ai_languageModel: [[{ node: 'AI Chat Agent', type: 'ai_languageModel', index: 0 }]]
     };
 
-    // Tool nodes connected as ai_tool to AI Agent (all use index 0)
+    // Tool nodes connected as ai_tool to AI Agent
     toolNodes.forEach((toolNode) => {
       connections[toolNode.name] = {
         ai_tool: [[{ node: 'AI Chat Agent', type: 'ai_tool', index: 0 }]]
