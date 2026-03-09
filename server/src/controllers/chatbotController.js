@@ -291,25 +291,33 @@ const testChatbot = async (req, res) => {
       return res.status(500).json({ error: 'OpenAI API key not configured' });
     }
 
+    const openai = new OpenAI({ apiKey: openaiApiKey });
+
+    // Validate the call works before switching to SSE
+    let stream;
+    try {
+      stream = await openai.chat.completions.create({
+        model: modelName,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages.map(m => ({ role: m.role, content: m.content }))
+        ],
+        stream: true,
+        temperature: 0.7,
+        max_tokens: 2048
+      });
+    } catch (apiError) {
+      const msg = apiError?.error?.message || apiError?.message || 'OpenAI API call failed';
+      console.error('Test chatbot OpenAI error:', msg);
+      return res.status(502).json({ error: msg });
+    }
+
     // SSE streaming
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
-
-    const openai = new OpenAI({ apiKey: openaiApiKey });
-
-    const stream = await openai.chat.completions.create({
-      model: modelName,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages.map(m => ({ role: m.role, content: m.content }))
-      ],
-      stream: true,
-      temperature: 0.7,
-      max_tokens: 2048
-    });
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content;
@@ -321,12 +329,13 @@ const testChatbot = async (req, res) => {
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (error) {
-    console.error('Test chatbot error:', error);
+    const msg = error?.error?.message || error?.message || 'Unknown error';
+    console.error('Test chatbot error:', msg, error);
     if (res.headersSent) {
-      res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: msg })}\n\n`);
       res.end();
     } else {
-      res.status(500).json({ error: 'Failed to test chatbot' });
+      res.status(500).json({ error: msg });
     }
   }
 };
