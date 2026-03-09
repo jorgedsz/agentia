@@ -242,71 +242,13 @@ class N8nService {
     };
     nodes.push(memoryNode);
 
-    // 6. Route Code node - detects if triggered by test webhook
-    const routeNode = {
-      id: 'route-check',
-      name: 'Check Source',
-      type: 'n8n-nodes-base.code',
-      typeVersion: 2,
-      position: [750, 300],
-      parameters: {
-        jsCode: `let isTest = false;
-try {
-  const testData = $('Test Webhook').first();
-  if (testData) isTest = true;
-} catch (e) {
-  isTest = false;
-}
-return [{ json: { ...$input.first().json, _isTest: isTest } }];`
-      }
-    };
-    nodes.push(routeNode);
-
-    // 6. IF node - routes test vs production
-    const ifNode = {
-      id: 'if-test',
-      name: 'Is Test?',
-      type: 'n8n-nodes-base.if',
-      typeVersion: 2.2,
-      position: [950, 300],
-      parameters: {
-        conditions: {
-          options: { caseSensitive: true, leftValue: '' },
-          combinator: 'and',
-          conditions: [
-            {
-              id: 'test-condition',
-              leftValue: '={{ $json._isTest }}',
-              rightValue: true,
-              operator: { type: 'boolean', operation: 'true' }
-            }
-          ]
-        }
-      }
-    };
-    nodes.push(ifNode);
-
-    // 7. Test Response node (always responds to test webhook)
-    const testRespondNode = {
-      id: 'test-respond',
-      name: 'Test Response',
-      type: 'n8n-nodes-base.respondToWebhook',
-      typeVersion: 1.1,
-      position: [1200, 200],
-      parameters: {
-        respondWith: 'json',
-        responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: ${chatbot.id} }) }}`
-      }
-    };
-    nodes.push(testRespondNode);
-
-    // 8. Always create Respond to Webhook node (direct response to caller)
+    // 6. Single Respond to Webhook node (used by both production and test triggers)
     const respondNode = {
       id: 'respond-webhook',
       name: 'Respond to Webhook',
       type: 'n8n-nodes-base.respondToWebhook',
       typeVersion: 1.1,
-      position: [1200, 400],
+      position: [750, 300],
       parameters: {
         respondWith: 'json',
         responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: ${chatbot.id} }) }}`
@@ -314,14 +256,14 @@ return [{ json: { ...$input.first().json, _isTest: isTest } }];`
     };
     nodes.push(respondNode);
 
-    // 9. Optionally forward to external webhook (chained after respond node)
+    // 7. Optionally forward to external webhook (chained after respond node)
     if (outputUrl) {
       const httpNode = {
         id: 'http-output',
         name: 'Send to External Webhook',
         type: 'n8n-nodes-base.httpRequest',
         typeVersion: 4.2,
-        position: [1450, 400],
+        position: [1000, 300],
         parameters: {
           url: outputUrl,
           method: 'POST',
@@ -342,20 +284,9 @@ return [{ json: { ...$input.first().json, _isTest: isTest } }];`
       main: [[{ node: 'AI Chat Agent', type: 'main', index: 0 }]]
     };
 
-    // AI Agent -> Route Check -> IF
+    // AI Agent -> Respond to Webhook
     connections['AI Chat Agent'] = {
-      main: [[{ node: 'Check Source', type: 'main', index: 0 }]]
-    };
-    connections['Check Source'] = {
-      main: [[{ node: 'Is Test?', type: 'main', index: 0 }]]
-    };
-
-    // IF true (test) -> Test Response, IF false (production) -> Respond to Webhook
-    connections['Is Test?'] = {
-      main: [
-        [{ node: 'Test Response', type: 'main', index: 0 }],
-        [{ node: 'Respond to Webhook', type: 'main', index: 0 }]
-      ]
+      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]]
     };
 
     // If external webhook configured, chain it after the respond node
