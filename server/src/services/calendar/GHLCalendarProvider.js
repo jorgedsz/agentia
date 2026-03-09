@@ -124,7 +124,7 @@ class GHLCalendarProvider extends CalendarProvider {
     endDate.setHours(23, 59, 59, 999);
 
     const slotsData = await this._ghlRequest(
-      `/calendars/${calendarId}/free-slots?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}${timezone ? `&timezone=${timezone}` : ''}`,
+      `/calendars/${calendarId}/free-slots?startDate=${startDate.getTime()}&endDate=${endDate.getTime()}${timezone ? `&timezone=${timezone}` : ''}`,
       token
     );
 
