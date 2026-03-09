@@ -1,5 +1,7 @@
 const { encrypt, decrypt } = require('../utils/encryption');
 const { logAudit } = require('../utils/auditLog');
+const n8nService = require('../services/n8nService');
+const { getN8nConfig } = require('../utils/getN8nConfig');
 
 const parseConfig = (config) => {
   if (!config) return null;
@@ -75,6 +77,30 @@ const createChatbot = async (req, res) => {
       }
     });
 
+    // Create n8n workflow if n8n is configured
+    let n8nWorkflowId = null;
+    let n8nWebhookUrl = null;
+    try {
+      const n8nConfig = await getN8nConfig(req.prisma);
+      if (n8nConfig) {
+        n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+        const chatbotWithDecryptedUrl = { ...chatbot, outputUrl: outputUrl || null, config: config || {} };
+        const workflow = await n8nService.createWorkflow(chatbotWithDecryptedUrl);
+        n8nWorkflowId = workflow.id;
+        n8nWebhookUrl = `${n8nConfig.url}/webhook/chatbot-${chatbot.id}`;
+
+        await req.prisma.chatbot.update({
+          where: { id: chatbot.id },
+          data: { n8nWorkflowId: String(workflow.id), n8nWebhookUrl: n8nWebhookUrl }
+        });
+
+        // Activate the workflow
+        await n8nService.activateWorkflow(workflow.id);
+      }
+    } catch (n8nError) {
+      console.error('n8n workflow creation failed (chatbot saved without workflow):', n8nError.message);
+    }
+
     logAudit(req.prisma, {
       userId: req.user.id,
       actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
@@ -92,7 +118,9 @@ const createChatbot = async (req, res) => {
       chatbot: {
         ...chatbot,
         config: parseConfig(chatbot.config),
-        outputUrl: outputUrl || null
+        outputUrl: outputUrl || null,
+        n8nWorkflowId,
+        n8nWebhookUrl
       }
     });
   } catch (error) {
@@ -127,6 +155,37 @@ const updateChatbot = async (req, res) => {
       where: { id: parseInt(id) },
       data: updateData
     });
+
+    // Update n8n workflow if n8n is configured
+    try {
+      const n8nConfig = await getN8nConfig(req.prisma);
+      if (n8nConfig) {
+        n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+        const decryptedOutputUrl = chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null;
+        const chatbotForN8n = {
+          ...chatbot,
+          outputUrl: decryptedOutputUrl,
+          config: config || parseConfig(chatbot.config) || {}
+        };
+
+        if (existingChatbot.n8nWorkflowId) {
+          // Update existing workflow
+          await n8nService.updateWorkflow(existingChatbot.n8nWorkflowId, chatbotForN8n);
+          await n8nService.activateWorkflow(existingChatbot.n8nWorkflowId);
+        } else {
+          // Create new workflow if one doesn't exist yet
+          const workflow = await n8nService.createWorkflow(chatbotForN8n);
+          const n8nWebhookUrl = `${n8nConfig.url}/webhook/chatbot-${chatbot.id}`;
+          await req.prisma.chatbot.update({
+            where: { id: chatbot.id },
+            data: { n8nWorkflowId: String(workflow.id), n8nWebhookUrl }
+          });
+          await n8nService.activateWorkflow(workflow.id);
+        }
+      }
+    } catch (n8nError) {
+      console.error('n8n workflow update failed:', n8nError.message);
+    }
 
     logAudit(req.prisma, {
       userId: req.user.id,
@@ -172,6 +231,23 @@ const toggleChatbot = async (req, res) => {
       where: { id: parseInt(id) },
       data: { isActive: newActive }
     });
+
+    // Activate/deactivate n8n workflow
+    if (chatbot.n8nWorkflowId) {
+      try {
+        const n8nConfig = await getN8nConfig(req.prisma);
+        if (n8nConfig) {
+          n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+          if (newActive) {
+            await n8nService.activateWorkflow(chatbot.n8nWorkflowId);
+          } else {
+            await n8nService.deactivateWorkflow(chatbot.n8nWorkflowId);
+          }
+        }
+      } catch (n8nError) {
+        console.error('n8n workflow toggle failed:', n8nError.message);
+      }
+    }
 
     res.json({
       message: `Chatbot ${newActive ? 'activated' : 'deactivated'} successfully`,

@@ -126,7 +126,46 @@ class N8nService {
     };
     nodes.push(llmNode);
 
-    // 4. Output node based on outputType
+    // 4. HTTP Request Tool nodes from config.tools
+    const toolNodes = [];
+    if (Array.isArray(config.tools) && config.tools.length > 0) {
+      config.tools.forEach((tool, idx) => {
+        const toolNodeName = `Tool: ${tool.name || `tool_${idx + 1}`}`;
+        const toolNode = {
+          id: `tool-${idx}`,
+          name: toolNodeName,
+          type: '@n8n/n8n-nodes-langchain.toolHttpRequest',
+          typeVersion: 1.1,
+          position: [300 + (idx * 200), 550],
+          parameters: {
+            name: tool.name || `tool_${idx + 1}`,
+            description: tool.description || '',
+            url: tool.url || '',
+            method: tool.method || 'POST',
+            authentication: 'none',
+            sendBody: !!(tool.body),
+            specifyBody: 'json',
+            jsonBody: tool.body ? (typeof tool.body === 'string' ? tool.body : JSON.stringify(tool.body)) : '{}',
+            options: {
+              timeout: (tool.timeoutSeconds || 20) * 1000
+            }
+          }
+        };
+
+        // Add headers if present
+        if (tool.headers && typeof tool.headers === 'object') {
+          toolNode.parameters.sendHeaders = true;
+          toolNode.parameters.headerParameters = {
+            parameters: Object.entries(tool.headers).map(([name, value]) => ({ name, value }))
+          };
+        }
+
+        nodes.push(toolNode);
+        toolNodes.push(toolNode);
+      });
+    }
+
+    // 5. Output node based on outputType
     if (outputType === 'respond_to_webhook') {
       const respondNode = {
         id: 'respond-webhook',
@@ -189,6 +228,13 @@ class N8nService {
     connections['LLM Model'] = {
       ai_languageModel: [[{ node: 'AI Chat Agent', type: 'ai_languageModel', index: 0 }]]
     };
+
+    // Tool nodes connected as ai_tool to AI Agent
+    toolNodes.forEach((toolNode, idx) => {
+      connections[toolNode.name] = {
+        ai_tool: [[{ node: 'AI Chat Agent', type: 'ai_tool', index: idx }]]
+      };
+    });
 
     return {
       name: workflowName,
