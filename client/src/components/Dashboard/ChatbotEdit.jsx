@@ -108,6 +108,13 @@ export default function ChatbotEdit() {
   // Test chatbot modal
   const [showTestModal, setShowTestModal] = useState(false)
 
+  // Collapsible sections
+  const [expandedSection, setExpandedSection] = useState(null)
+
+  const toggleSection = (section) => {
+    setExpandedSection(prev => prev === section ? null : section)
+  }
+
   // Webhook variables
   const [variables, setVariables] = useState([])
   const [newVarName, setNewVarName] = useState('')
@@ -582,164 +589,7 @@ export default function ChatbotEdit() {
       )}
 
       <div className="space-y-6">
-        {/* Webhook Endpoint */}
-        {chatbot?.n8nWebhookUrl && (() => {
-          const apiBase = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
-          const proxyUrl = `${apiBase}/chatbots/${id}/webhook`
-          const curlBody = { message: 'Hello!', sessionId: 'user-123' }
-          if (variables.length > 0) {
-            curlBody.variables = {}
-            variables.forEach(v => { curlBody.variables[v.name] = v.defaultValue || `<${v.name}>` })
-          }
-          const curlExample = `curl -X POST ${proxyUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(curlBody)}'`
-          return (
-            <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Webhook Endpoint</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Send a POST request with <code className="px-1 py-0.5 bg-gray-100 dark:bg-dark-hover rounded text-[11px]">{"{ \"message\": \"...\", \"sessionId\": \"...\" }"}</code>
-              </p>
-              <div className="flex items-center gap-2 mb-4">
-                <code className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg text-sm text-gray-800 dark:text-gray-200 truncate select-all">
-                  {proxyUrl}
-                </code>
-                <button
-                  onClick={() => { navigator.clipboard.writeText(proxyUrl); setSuccess('Copied!'); setTimeout(() => setSuccess(''), 1500) }}
-                  className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors flex-shrink-0"
-                >
-                  Copy
-                </button>
-              </div>
-              <div className="relative">
-                <pre className="px-3 py-2.5 bg-gray-900 text-gray-100 rounded-lg text-xs font-mono overflow-x-auto whitespace-pre">{curlExample}</pre>
-                <button
-                  onClick={() => { navigator.clipboard.writeText(curlExample); setSuccess('Curl copied!'); setTimeout(() => setSuccess(''), 1500) }}
-                  className="absolute top-2 right-2 px-2 py-1 text-[10px] font-medium rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
-                >
-                  Copy
-                </button>
-              </div>
-
-              {/* Variables Section */}
-              <div className="mt-5 pt-5 border-t border-gray-200 dark:border-dark-border">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Variables</h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      Define variables to use as <code className="px-1 py-0.5 bg-gray-100 dark:bg-dark-hover rounded text-[11px]">{'{{variable_name}}'}</code> placeholders in your system prompt.
-                    </p>
-                  </div>
-                </div>
-
-                {variables.length > 0 && (
-                  <div className="space-y-2 mb-3">
-                    {variables.map((v, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <code className="px-2 py-1.5 bg-gray-100 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded text-xs font-mono text-gray-800 dark:text-gray-200 min-w-[120px]">
-                          {`{{${v.name}}}`}
-                        </code>
-                        <input
-                          type="text"
-                          value={v.defaultValue}
-                          onChange={(e) => {
-                            const updated = [...variables]
-                            updated[i] = { ...updated[i], defaultValue: e.target.value }
-                            setVariables(updated)
-                          }}
-                          placeholder="Default value (optional)"
-                          className="flex-1 px-2 py-1.5 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
-                        />
-                        <button
-                          onClick={() => setVariables(variables.filter((_, idx) => idx !== i))}
-                          className="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newVarName}
-                    onChange={(e) => setNewVarName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
-                    placeholder="variable_name"
-                    className="flex-1 px-2 py-1.5 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newVarName.trim()) {
-                        e.preventDefault()
-                        if (!variables.some(v => v.name === newVarName.trim())) {
-                          setVariables([...variables, { name: newVarName.trim(), defaultValue: newVarDefault }])
-                          setNewVarName('')
-                          setNewVarDefault('')
-                        }
-                      }
-                    }}
-                  />
-                  <input
-                    type="text"
-                    value={newVarDefault}
-                    onChange={(e) => setNewVarDefault(e.target.value)}
-                    placeholder="Default value"
-                    className="flex-1 px-2 py-1.5 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newVarName.trim()) {
-                        e.preventDefault()
-                        if (!variables.some(v => v.name === newVarName.trim())) {
-                          setVariables([...variables, { name: newVarName.trim(), defaultValue: newVarDefault }])
-                          setNewVarName('')
-                          setNewVarDefault('')
-                        }
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={() => {
-                      if (newVarName.trim() && !variables.some(v => v.name === newVarName.trim())) {
-                        setVariables([...variables, { name: newVarName.trim(), defaultValue: newVarDefault }])
-                        setNewVarName('')
-                        setNewVarDefault('')
-                      }
-                    }}
-                    disabled={!newVarName.trim() || variables.some(v => v.name === newVarName.trim())}
-                    className="px-3 py-1.5 text-xs font-medium rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                  >
-                    + Add
-                  </button>
-                </div>
-                {newVarName.trim() && variables.some(v => v.name === newVarName.trim()) && (
-                  <p className="text-xs text-red-500 mt-1">Variable name already exists</p>
-                )}
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* Webhook Forwarding (Optional) */}
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Webhook Forwarding</h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-            The chatbot always responds directly to the caller. Optionally, also forward the response to an external webhook.
-          </p>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Webhook URL <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <input
-              type="url"
-              value={outputUrl}
-              onChange={(e) => setOutputUrl(e.target.value)}
-              placeholder="https://your-endpoint.com/webhook"
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
-        </div>
-
-        {/* Model, Calendar & Tools Icon Buttons */}
+        {/* Icon Button Grid */}
         <div className="grid grid-cols-3 gap-4">
           {/* Model Button */}
           <button
@@ -793,6 +643,189 @@ export default function ChatbotEdit() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
+        </div>
+
+        {/* Collapsible Sections */}
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden divide-y divide-gray-200 dark:divide-dark-border">
+
+          {/* Webhook URL Section */}
+          <div>
+            <button
+              type="button"
+              onClick={() => toggleSection('webhook')}
+              className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+            >
+              <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedSection === 'webhook' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Webhook URL</span>
+              {chatbot?.n8nWebhookUrl ? (
+                <span className="text-xs text-green-600 dark:text-green-400 font-medium">Configured</span>
+              ) : (
+                <span className="text-xs text-gray-400">Not set</span>
+              )}
+            </button>
+            {expandedSection === 'webhook' && (
+              <div className="px-5 pb-4 space-y-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400">This is the endpoint URL for your chatbot. Send messages to this URL to interact with the chatbot.</p>
+                {chatbot?.n8nWebhookUrl ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={chatbot.n8nWebhookUrl}
+                      readOnly
+                      className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-700 dark:text-gray-300 text-sm font-mono"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(chatbot.n8nWebhookUrl)
+                        setSuccess('Webhook URL copied!')
+                        setTimeout(() => setSuccess(''), 2000)
+                      }}
+                      className="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-600 dark:text-gray-300 text-sm flex-shrink-0"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="px-3 py-3 rounded-lg bg-gray-50 dark:bg-dark-bg text-sm text-gray-400 dark:text-gray-500">
+                    No webhook URL generated yet. Save the chatbot to generate one.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Variables Section */}
+          <div>
+            <button
+              type="button"
+              onClick={() => toggleSection('variables')}
+              className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+            >
+              <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedSection === 'variables' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9l.879 2.121z" />
+              </svg>
+              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Variables</span>
+              {variables.length > 0 && (
+                <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded-full bg-green-500 text-white">{variables.length}</span>
+              )}
+            </button>
+            {expandedSection === 'variables' && (
+              <div className="px-5 pb-4 space-y-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Define variables that can be passed via the webhook and used as placeholders in the system prompt with <code className="px-1 py-0.5 bg-gray-100 dark:bg-dark-bg rounded text-[11px]">{'{{variableName}}'}</code> syntax.</p>
+                {variables.length > 0 && (
+                  <div className="space-y-2">
+                    {variables.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-dark-bg rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white font-mono">{`{{${v.name}}}`}</span>
+                          {v.defaultValue && (
+                            <span className="text-xs text-gray-400 ml-2">default: {v.defaultValue}</span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setVariables(variables.filter((_, idx) => idx !== i))}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={newVarName}
+                      onChange={(e) => setNewVarName(e.target.value)}
+                      placeholder="e.g. customerName"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Default value</label>
+                    <input
+                      type="text"
+                      value={newVarDefault}
+                      onChange={(e) => setNewVarDefault(e.target.value)}
+                      placeholder="optional"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (newVarName.trim()) {
+                        setVariables([...variables, { name: newVarName.trim(), defaultValue: newVarDefault.trim() }])
+                        setNewVarName('')
+                        setNewVarDefault('')
+                      }
+                    }}
+                    disabled={!newVarName.trim()}
+                    className="px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 text-sm font-medium flex-shrink-0"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Webhook Forwarding Section */}
+          <div>
+            <button
+              type="button"
+              onClick={() => toggleSection('forwarding')}
+              className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+            >
+              <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedSection === 'forwarding' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Webhook Forwarding</span>
+              {outputUrl ? (
+                <span className="text-xs text-green-600 dark:text-green-400 font-medium">Active</span>
+              ) : (
+                <span className="text-xs text-gray-400">Not set</span>
+              )}
+            </button>
+            {expandedSection === 'forwarding' && (
+              <div className="px-5 pb-4 space-y-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Forward the chatbot's response to an external webhook URL. The response will be sent as a POST request to this URL.</p>
+                <input
+                  type="url"
+                  value={outputUrl}
+                  onChange={(e) => setOutputUrl(e.target.value)}
+                  placeholder="https://your-webhook-url.com/endpoint"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                />
+                {outputUrl && (
+                  <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Responses will be forwarded to this URL
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* System Prompt */}
