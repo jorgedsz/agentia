@@ -10,7 +10,6 @@ const CHATBOT_MODELS = MODELS_BY_PROVIDER['openai'].filter(m => m.model.startsWi
 const OUTPUT_TYPES = [
   { id: 'respond_to_webhook', label: 'Respond to Webhook', description: 'Responds directly to the incoming webhook request' },
   { id: 'external_webhook', label: 'External Webhook', description: 'Send the response to an external webhook URL' },
-  { id: 'http_request', label: 'HTTP Request', description: 'Send the response via HTTP request to a custom URL' },
 ]
 
 const TIMEZONES = [

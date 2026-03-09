@@ -331,22 +331,6 @@ return [{ json: { ...$input.first().json, _isTest: isTest } }];`
         }
       };
       nodes.push(httpNode);
-    } else if (outputType === 'http_request' && outputUrl) {
-      const httpNode = {
-        id: 'http-request',
-        name: 'HTTP Request',
-        type: 'n8n-nodes-base.httpRequest',
-        typeVersion: 4.2,
-        position: [1200, 400],
-        parameters: {
-          url: outputUrl,
-          method: 'POST',
-          sendBody: true,
-          specifyBody: 'json',
-          jsonBody: `={{ JSON.stringify({ response: $json.output, chatbotId: ${chatbot.id}, metadata: $json }) }}`
-        }
-      };
-      nodes.push(httpNode);
     }
 
     // Build connections
