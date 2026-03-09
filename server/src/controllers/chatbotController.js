@@ -341,6 +341,8 @@ const webhookProxy = async (req, res) => {
       return res.status(422).json({ error: 'Chatbot has no workflow configured' });
     }
 
+    console.log(`Webhook proxy: chatbot ${id} -> ${chatbot.n8nWebhookUrl}`);
+
     const n8nResponse = await fetch(chatbot.n8nWebhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -348,15 +350,19 @@ const webhookProxy = async (req, res) => {
       signal: AbortSignal.timeout(60000)
     });
 
+    const responseText = await n8nResponse.text().catch(() => '');
+
     if (!n8nResponse.ok) {
-      const errorText = await n8nResponse.text().catch(() => '');
-      return res.status(502).json({ error: `Upstream error (${n8nResponse.status}): ${errorText.substring(0, 200) || 'No response'}` });
+      console.error(`Webhook proxy upstream error ${n8nResponse.status}:`, responseText.substring(0, 500));
+      return res.status(502).json({ error: `Upstream error (${n8nResponse.status}): ${responseText.substring(0, 200) || 'No response'}` });
     }
 
-    const data = await n8nResponse.json().catch(async () => {
-      const text = await n8nResponse.text().catch(() => '');
-      return { response: text };
-    });
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = { response: responseText };
+    }
 
     res.json(data);
   } catch (error) {
