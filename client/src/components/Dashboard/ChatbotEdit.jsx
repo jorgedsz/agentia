@@ -662,42 +662,71 @@ export default function ChatbotEdit() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
               <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Webhook URL</span>
-              {chatbot?.n8nWebhookUrl ? (
-                <span className="text-xs text-green-600 dark:text-green-400 font-medium">Configured</span>
-              ) : (
-                <span className="text-xs text-gray-400">Not set</span>
-              )}
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium">Ready</span>
             </button>
-            {expandedSection === 'webhook' && (
-              <div className="px-5 pb-4 space-y-3">
-                <p className="text-xs text-gray-500 dark:text-gray-400">This is the endpoint URL for your chatbot. Send messages to this URL to interact with the chatbot.</p>
-                {chatbot?.n8nWebhookUrl ? (
+            {expandedSection === 'webhook' && (() => {
+              const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+              const webhookUrl = `${apiBaseUrl}/chatbots/${id}/webhook`
+              const curlExample = `curl -X POST ${webhookUrl} \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "message": "Hello!",
+    "sessionId": "user-123"${variables.length > 0 ? `,
+    "variables": {
+${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}
+    }` : ''}
+  }'`
+
+              return (
+                <div className="px-5 pb-4 space-y-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Send a POST request to this endpoint to interact with your chatbot.</p>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      value={chatbot.n8nWebhookUrl}
+                      value={webhookUrl}
                       readOnly
                       className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-700 dark:text-gray-300 text-sm font-mono"
                     />
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(chatbot.n8nWebhookUrl)
+                        navigator.clipboard.writeText(webhookUrl)
                         setSuccess('Webhook URL copied!')
                         setTimeout(() => setSuccess(''), 2000)
                       }}
                       className="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-600 dark:text-gray-300 text-sm flex-shrink-0"
+                      title="Copy URL"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
                     </button>
                   </div>
-                ) : (
-                  <div className="px-3 py-3 rounded-lg bg-gray-50 dark:bg-dark-bg text-sm text-gray-400 dark:text-gray-500">
-                    No webhook URL generated yet. Save the chatbot to generate one.
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">cURL Example</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(curlExample)
+                          setSuccess('cURL copied!')
+                          setTimeout(() => setSuccess(''), 2000)
+                        }}
+                        className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <pre className="px-3 py-3 rounded-lg bg-gray-900 text-green-400 text-xs font-mono overflow-x-auto whitespace-pre">{curlExample}</pre>
                   </div>
-                )}
-              </div>
+                  <div className="text-xs text-gray-400 dark:text-gray-500 space-y-1">
+                    <p><strong className="text-gray-500 dark:text-gray-400">message</strong> (required) — The user's message</p>
+                    <p><strong className="text-gray-500 dark:text-gray-400">sessionId</strong> (optional) — Unique session ID for conversation memory</p>
+                    {variables.length > 0 && (
+                      <p><strong className="text-gray-500 dark:text-gray-400">variables</strong> (optional) — Dynamic variables to inject into the prompt</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
             )}
           </div>
 
