@@ -308,8 +308,8 @@ const testChatbot = async (req, res) => {
       });
     } catch (apiError) {
       const msg = apiError?.error?.message || apiError?.message || 'OpenAI API call failed';
-      console.error('Test chatbot OpenAI error:', msg);
-      return res.status(502).json({ error: msg });
+      console.error('Test chatbot OpenAI error:', msg, apiError);
+      return res.status(422).json({ error: msg });
     }
 
     // SSE streaming
