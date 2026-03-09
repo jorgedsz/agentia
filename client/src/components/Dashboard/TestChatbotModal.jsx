@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-
-const API_URL = import.meta.env.VITE_API_URL || '/api'
+import { chatbotsAPI } from '../../services/api'
 
 export default function TestChatbotModal({ chatbot, onClose }) {
   const [messages, setMessages] = useState([])
@@ -8,7 +7,7 @@ export default function TestChatbotModal({ chatbot, onClose }) {
   const [isStreaming, setIsStreaming] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
-  const abortRef = useRef(null)
+  const streamingRef = useRef(false)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -27,115 +26,51 @@ export default function TestChatbotModal({ chatbot, onClose }) {
     setMessages(updatedMessages)
     setInput('')
     setIsStreaming(true)
+    streamingRef.current = true
 
-    // Add placeholder for assistant response
     const assistantIdx = updatedMessages.length
     setMessages(prev => [...prev, { role: 'assistant', content: '' }])
 
-    try {
-      const token = localStorage.getItem('token')
-      const controller = new AbortController()
-      abortRef.current = controller
-
-      const res = await fetch(`${API_URL}/chatbots/${chatbot.id}/test`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          messages: updatedMessages.map(m => ({ role: m.role, content: m.content }))
-        }),
-        signal: controller.signal
-      })
-
-      if (!res.ok) {
-        let errorMsg = `HTTP ${res.status}`
-        try {
-          const contentType = res.headers.get('content-type') || ''
-          if (contentType.includes('application/json')) {
-            const err = await res.json()
-            errorMsg = err.error || err.message || errorMsg
-          } else {
-            const text = await res.text()
-            errorMsg = text.substring(0, 200) || errorMsg
-          }
-        } catch {}
+    await chatbotsAPI.test(
+      chatbot.id,
+      updatedMessages.map(m => ({ role: m.role, content: m.content })),
+      // onChunk
+      (content) => {
+        if (!streamingRef.current) return
         setMessages(prev => {
           const copy = [...prev]
-          copy[assistantIdx] = { role: 'assistant', content: `Error: ${errorMsg}` }
+          copy[assistantIdx] = {
+            ...copy[assistantIdx],
+            content: copy[assistantIdx].content + content
+          }
+          return copy
+        })
+      },
+      // onDone
+      () => {
+        setIsStreaming(false)
+        streamingRef.current = false
+      },
+      // onError
+      (errorMsg) => {
+        setMessages(prev => {
+          const copy = [...prev]
+          const existing = copy[assistantIdx]?.content || ''
+          copy[assistantIdx] = {
+            role: 'assistant',
+            content: existing ? `${existing}\n\n[Error: ${errorMsg}]` : `Error: ${errorMsg}`
+          }
           return copy
         })
         setIsStreaming(false)
-        return
+        streamingRef.current = false
       }
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const data = line.slice(6)
-          if (data === '[DONE]') break
-
-          try {
-            const parsed = JSON.parse(data)
-            if (parsed.content) {
-              setMessages(prev => {
-                const copy = [...prev]
-                copy[assistantIdx] = {
-                  ...copy[assistantIdx],
-                  content: copy[assistantIdx].content + parsed.content
-                }
-                return copy
-              })
-            }
-            if (parsed.error) {
-              setMessages(prev => {
-                const copy = [...prev]
-                copy[assistantIdx] = {
-                  ...copy[assistantIdx],
-                  content: copy[assistantIdx].content + `\n[Error: ${parsed.error}]`
-                }
-                return copy
-              })
-            }
-          } catch {}
-        }
-      }
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        setMessages(prev => {
-          const copy = [...prev]
-          copy[assistantIdx] = { role: 'assistant', content: 'Error: Failed to connect' }
-          return copy
-        })
-      }
-    } finally {
-      setIsStreaming(false)
-      abortRef.current = null
-    }
-  }
-
-  const handleStop = () => {
-    if (abortRef.current) {
-      abortRef.current.abort()
-      abortRef.current = null
-    }
-    setIsStreaming(false)
+    )
   }
 
   const handleClear = () => {
-    if (isStreaming) handleStop()
+    streamingRef.current = false
+    setIsStreaming(false)
     setMessages([])
   }
 
@@ -242,7 +177,7 @@ export default function TestChatbotModal({ chatbot, onClose }) {
             />
             {isStreaming ? (
               <button
-                onClick={handleStop}
+                onClick={handleClear}
                 className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors flex-shrink-0"
                 title="Stop"
               >

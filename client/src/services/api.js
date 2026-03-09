@@ -55,7 +55,70 @@ export const chatbotsAPI = {
   get: (id) => api.get(`/chatbots/${id}`),
   create: (data) => api.post('/chatbots', data),
   update: (id, data) => api.put(`/chatbots/${id}`, data),
-  toggle: (id) => api.post(`/chatbots/${id}/toggle`)
+  toggle: (id) => api.post(`/chatbots/${id}/toggle`),
+  test: async (id, messages, onChunk, onDone, onError) => {
+    try {
+      const token = localStorage.getItem('token')
+      const baseURL = import.meta.env.VITE_API_URL || '/api'
+      const response = await fetch(`${baseURL}/chatbots/${id}/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ messages })
+      })
+
+      if (!response.ok) {
+        let errorMsg = `HTTP ${response.status}`
+        try {
+          const ct = response.headers.get('content-type') || ''
+          if (ct.includes('application/json')) {
+            const err = await response.json()
+            errorMsg = err.error || err.message || errorMsg
+          } else {
+            const text = await response.text()
+            if (text.includes('<!DOCTYPE')) {
+              errorMsg = `Server unavailable (${response.status})`
+            } else {
+              errorMsg = text.substring(0, 200) || errorMsg
+            }
+          }
+        } catch {}
+        onError(errorMsg)
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const data = line.slice(6)
+          if (data === '[DONE]') { onDone(); return }
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.content) onChunk(parsed.content)
+            if (parsed.error) onError(parsed.error)
+          } catch {}
+        }
+      }
+      onDone()
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        onError(err.message || 'Failed to connect')
+      }
+    }
+  }
 }
 
 // Users/Clients API (for OWNER and AGENCY)
