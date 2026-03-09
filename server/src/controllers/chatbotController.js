@@ -304,7 +304,7 @@ const testChatbot = async (req, res) => {
         ],
         stream: true,
         temperature: 0.7,
-        max_tokens: 2048
+        max_completion_tokens: 2048
       });
     } catch (apiError) {
       const msg = apiError?.error?.message || apiError?.message || 'OpenAI API call failed';
