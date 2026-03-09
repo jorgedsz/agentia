@@ -68,8 +68,10 @@ class N8nService {
 
   /**
    * Build n8n workflow JSON from chatbot configuration
+   * @param {Object} chatbot
+   * @param {Array} n8nCredentials - credentials list from n8n API
    */
-  buildWorkflowTemplate(chatbot) {
+  buildWorkflowTemplate(chatbot, n8nCredentials = []) {
     const config = typeof chatbot.config === 'string' ? JSON.parse(chatbot.config || '{}') : (chatbot.config || {});
     const workflowName = `Chatbot: ${chatbot.name} (ID: ${chatbot.id})`;
     const outputType = chatbot.outputType || config.outputType || 'respond_to_webhook';
@@ -113,6 +115,7 @@ class N8nService {
 
     // 3. LLM Model sub-node
     const llmType = this._getLLMNodeType(config.modelProvider);
+    const llmCredType = this._getLLMCredentialType(config.modelProvider);
     const llmNode = {
       id: 'llm-model',
       name: 'LLM Model',
@@ -124,6 +127,18 @@ class N8nService {
         options: {}
       }
     };
+
+    // Attach credentials if available in n8n
+    const matchingCred = n8nCredentials.find(c => c.type === llmCredType);
+    if (matchingCred) {
+      llmNode.credentials = {
+        [llmCredType]: {
+          id: String(matchingCred.id),
+          name: matchingCred.name
+        }
+      };
+    }
+
     nodes.push(llmNode);
 
     // 4. HTTP Request Tool nodes from config.tools
@@ -298,8 +313,30 @@ class N8nService {
     return providerMap[provider] || providerMap['openai'];
   }
 
+  // Map provider to n8n credential type name
+  _getLLMCredentialType(provider) {
+    const credMap = {
+      'openai': 'openAiApi',
+      'anthropic': 'anthropicApi',
+      'google': 'googleGeminiApi',
+      'groq': 'groqApi',
+      'mistral': 'mistralCloudApi'
+    };
+    return credMap[provider] || credMap['openai'];
+  }
+
+  async getCredentials() {
+    return this.makeRequest('/credentials');
+  }
+
   async createWorkflow(chatbot) {
-    const workflowData = this.buildWorkflowTemplate(chatbot);
+    let creds = [];
+    try {
+      const credsResponse = await this.getCredentials();
+      creds = Array.isArray(credsResponse) ? credsResponse : (credsResponse.data || []);
+    } catch { creds = []; }
+
+    const workflowData = this.buildWorkflowTemplate(chatbot, creds);
     console.log('Creating n8n workflow:', workflowData.name);
     const result = await this.makeRequest('/workflows', 'POST', workflowData);
     console.log('Created n8n workflow ID:', result.id);
@@ -307,7 +344,13 @@ class N8nService {
   }
 
   async updateWorkflow(workflowId, chatbot) {
-    const workflowData = this.buildWorkflowTemplate(chatbot);
+    let creds = [];
+    try {
+      const credsResponse = await this.getCredentials();
+      creds = Array.isArray(credsResponse) ? credsResponse : (credsResponse.data || []);
+    } catch { creds = []; }
+
+    const workflowData = this.buildWorkflowTemplate(chatbot, creds);
     console.log('Updating n8n workflow:', workflowId);
 
     // n8n requires deactivating before updating, then reactivating
