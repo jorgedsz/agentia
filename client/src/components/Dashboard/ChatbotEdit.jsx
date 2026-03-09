@@ -586,12 +586,12 @@ export default function ChatbotEdit() {
           <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Output Configuration</h3>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-lg mx-auto">
               {OUTPUT_TYPES.map((type) => (
                 <button
                   key={type.id}
                   onClick={() => setOutputType(type.id)}
-                  className={`p-3 rounded-lg border text-left transition-colors ${
+                  className={`p-3 rounded-lg border text-center transition-colors ${
                     outputType === type.id
                       ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                       : 'border-gray-200 dark:border-dark-border hover:border-gray-300'

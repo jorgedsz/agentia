@@ -1,5 +1,4 @@
 const { encrypt, decrypt, mask } = require('../utils/encryption');
-const n8nService = require('../services/n8nService');
 
 const getSettings = async (req, res) => {
   try {
@@ -10,7 +9,7 @@ const getSettings = async (req, res) => {
     const settings = await req.prisma.platformSettings.findFirst();
 
     if (!settings) {
-      return res.json({ vapiApiKey: '', openaiApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', n8nUrl: '', n8nApiKey: '', hasVapi: false, hasOpenai: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasN8n: false });
+      return res.json({ vapiApiKey: '', openaiApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', hasVapi: false, hasOpenai: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false });
     }
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
@@ -18,8 +17,6 @@ const getSettings = async (req, res) => {
     const decryptedVapiPublic = settings.vapiPublicKey ? decrypt(settings.vapiPublicKey) : '';
     const decryptedElevenLabs = settings.elevenLabsApiKey ? decrypt(settings.elevenLabsApiKey) : '';
     const decryptedSlackWebhook = settings.slackWebhookUrl ? decrypt(settings.slackWebhookUrl) : '';
-    const decryptedN8nUrl = settings.n8nUrl ? decrypt(settings.n8nUrl) : '';
-    const decryptedN8nApiKey = settings.n8nApiKey ? decrypt(settings.n8nApiKey) : '';
 
     res.json({
       vapiApiKey: decryptedVapi ? mask(decryptedVapi, 4) : '',
@@ -27,14 +24,11 @@ const getSettings = async (req, res) => {
       vapiPublicKey: decryptedVapiPublic ? mask(decryptedVapiPublic, 4) : '',
       elevenLabsApiKey: decryptedElevenLabs ? mask(decryptedElevenLabs, 4) : '',
       slackWebhookUrl: decryptedSlackWebhook ? mask(decryptedSlackWebhook, 4) : '',
-      n8nUrl: decryptedN8nUrl || '',
-      n8nApiKey: decryptedN8nApiKey ? mask(decryptedN8nApiKey, 4) : '',
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
       hasVapiPublicKey: !!decryptedVapiPublic,
       hasElevenLabs: !!decryptedElevenLabs,
-      hasSlackWebhook: !!decryptedSlackWebhook,
-      hasN8n: !!(decryptedN8nUrl && decryptedN8nApiKey)
+      hasSlackWebhook: !!decryptedSlackWebhook
     });
   } catch (error) {
     console.error('Get platform settings error:', error);
@@ -48,7 +42,7 @@ const updateSettings = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can update platform settings' });
     }
 
-    const { vapiApiKey, openaiApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, n8nUrl, n8nApiKey } = req.body;
+    const { vapiApiKey, openaiApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl } = req.body;
 
     const existing = await req.prisma.platformSettings.findFirst();
 
@@ -68,12 +62,6 @@ const updateSettings = async (req, res) => {
     if (slackWebhookUrl !== undefined) {
       data.slackWebhookUrl = slackWebhookUrl ? encrypt(slackWebhookUrl) : null;
     }
-    if (n8nUrl !== undefined) {
-      data.n8nUrl = n8nUrl ? encrypt(n8nUrl) : null;
-    }
-    if (n8nApiKey !== undefined) {
-      data.n8nApiKey = n8nApiKey ? encrypt(n8nApiKey) : null;
-    }
 
     let settings;
     if (existing) {
@@ -90,8 +78,6 @@ const updateSettings = async (req, res) => {
     const decryptedVapiPublic = settings.vapiPublicKey ? decrypt(settings.vapiPublicKey) : '';
     const decryptedElevenLabs = settings.elevenLabsApiKey ? decrypt(settings.elevenLabsApiKey) : '';
     const decryptedSlackWebhook = settings.slackWebhookUrl ? decrypt(settings.slackWebhookUrl) : '';
-    const updatedN8nUrl = settings.n8nUrl ? decrypt(settings.n8nUrl) : '';
-    const updatedN8nApiKey = settings.n8nApiKey ? decrypt(settings.n8nApiKey) : '';
 
     res.json({
       message: 'Platform settings updated',
@@ -100,14 +86,11 @@ const updateSettings = async (req, res) => {
       vapiPublicKey: decryptedVapiPublic ? mask(decryptedVapiPublic, 4) : '',
       elevenLabsApiKey: decryptedElevenLabs ? mask(decryptedElevenLabs, 4) : '',
       slackWebhookUrl: decryptedSlackWebhook ? mask(decryptedSlackWebhook, 4) : '',
-      n8nUrl: updatedN8nUrl || '',
-      n8nApiKey: updatedN8nApiKey ? mask(updatedN8nApiKey, 4) : '',
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
       hasVapiPublicKey: !!decryptedVapiPublic,
       hasElevenLabs: !!decryptedElevenLabs,
-      hasSlackWebhook: !!decryptedSlackWebhook,
-      hasN8n: !!(updatedN8nUrl && updatedN8nApiKey)
+      hasSlackWebhook: !!decryptedSlackWebhook
     });
   } catch (error) {
     console.error('Update platform settings error:', error);
@@ -165,26 +148,4 @@ const getVapiPublicKey = async (req, res) => {
   }
 };
 
-const testN8nConnection = async (req, res) => {
-  try {
-    if (req.user.role !== 'OWNER') {
-      return res.status(403).json({ error: 'Only the owner can test n8n connection' });
-    }
-
-    const { n8nUrl, n8nApiKey } = req.body;
-
-    if (!n8nUrl || !n8nApiKey) {
-      return res.status(400).json({ error: 'n8n URL and API key are required' });
-    }
-
-    n8nService.setConfig(n8nUrl, n8nApiKey);
-    await n8nService.testConnection();
-
-    res.json({ success: true, message: 'Successfully connected to n8n' });
-  } catch (error) {
-    console.error('n8n connection test failed:', error.message);
-    res.status(400).json({ success: false, error: `Connection failed: ${error.message}` });
-  }
-};
-
-module.exports = { getSettings, updateSettings, getVapiPublicKey, testN8nConnection };
+module.exports = { getSettings, updateSettings, getVapiPublicKey };
