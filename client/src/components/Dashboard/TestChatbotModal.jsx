@@ -4,10 +4,9 @@ import { chatbotsAPI } from '../../services/api'
 export default function TestChatbotModal({ chatbot, onClose }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
+  const [loading, setLoading] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
-  const streamingRef = useRef(false)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -19,58 +18,25 @@ export default function TestChatbotModal({ chatbot, onClose }) {
 
   const handleSend = async () => {
     const text = input.trim()
-    if (!text || isStreaming) return
+    if (!text || loading) return
 
     const userMsg = { role: 'user', content: text }
-    const updatedMessages = [...messages, userMsg]
-    setMessages(updatedMessages)
+    setMessages(prev => [...prev, userMsg])
     setInput('')
-    setIsStreaming(true)
-    streamingRef.current = true
+    setLoading(true)
 
-    const assistantIdx = updatedMessages.length
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }])
-
-    await chatbotsAPI.test(
-      chatbot.id,
-      updatedMessages.map(m => ({ role: m.role, content: m.content })),
-      // onChunk
-      (content) => {
-        if (!streamingRef.current) return
-        setMessages(prev => {
-          const copy = [...prev]
-          copy[assistantIdx] = {
-            ...copy[assistantIdx],
-            content: copy[assistantIdx].content + content
-          }
-          return copy
-        })
-      },
-      // onDone
-      () => {
-        setIsStreaming(false)
-        streamingRef.current = false
-      },
-      // onError
-      (errorMsg) => {
-        setMessages(prev => {
-          const copy = [...prev]
-          const existing = copy[assistantIdx]?.content || ''
-          copy[assistantIdx] = {
-            role: 'assistant',
-            content: existing ? `${existing}\n\n[Error: ${errorMsg}]` : `Error: ${errorMsg}`
-          }
-          return copy
-        })
-        setIsStreaming(false)
-        streamingRef.current = false
-      }
-    )
+    try {
+      const { data } = await chatbotsAPI.test(chatbot.id, text)
+      setMessages(prev => [...prev, { role: 'assistant', content: data.response }])
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to get response'
+      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${errorMsg}`, isError: true }])
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleClear = () => {
-    streamingRef.current = false
-    setIsStreaming(false)
     setMessages([])
   }
 
@@ -123,7 +89,7 @@ export default function TestChatbotModal({ chatbot, onClose }) {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {messages.length === 0 && (
+          {messages.length === 0 && !loading && (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mb-4">
                 <svg className="w-8 h-8 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -131,7 +97,7 @@ export default function TestChatbotModal({ chatbot, onClose }) {
                 </svg>
               </div>
               <p className="text-gray-400 text-sm">Send a message to test your chatbot</p>
-              <p className="text-gray-500 text-xs mt-1">Uses your configured system prompt and model</p>
+              <p className="text-gray-500 text-xs mt-1">Runs through your n8n workflow with all tools</p>
             </div>
           )}
 
@@ -141,20 +107,27 @@ export default function TestChatbotModal({ chatbot, onClose }) {
                 className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
                   msg.role === 'user'
                     ? 'bg-cyan-600 text-white rounded-br-md'
-                    : 'bg-gray-800 text-gray-100 rounded-bl-md'
+                    : msg.isError
+                      ? 'bg-red-900/40 text-red-300 rounded-bl-md'
+                      : 'bg-gray-800 text-gray-100 rounded-bl-md'
                 }`}
               >
                 {msg.content}
-                {msg.role === 'assistant' && msg.content === '' && isStreaming && (
-                  <span className="inline-flex gap-1 ml-1">
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </span>
-                )}
               </div>
             </div>
           ))}
+
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-800 rounded-2xl rounded-bl-md px-4 py-3">
+                <span className="inline-flex gap-1">
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
@@ -168,35 +141,24 @@ export default function TestChatbotModal({ chatbot, onClose }) {
               onKeyDown={handleKeyDown}
               placeholder="Type a message..."
               rows={1}
-              className="flex-1 px-4 py-2.5 bg-gray-800 border border-gray-600/50 rounded-xl text-white text-sm placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 max-h-32 overflow-y-auto"
+              disabled={loading}
+              className="flex-1 px-4 py-2.5 bg-gray-800 border border-gray-600/50 rounded-xl text-white text-sm placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50 max-h-32 overflow-y-auto disabled:opacity-50"
               style={{ minHeight: '42px' }}
               onInput={(e) => {
                 e.target.style.height = 'auto'
                 e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px'
               }}
             />
-            {isStreaming ? (
-              <button
-                onClick={handleClear}
-                className="p-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors flex-shrink-0"
-                title="Stop"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <rect x="6" y="6" width="12" height="12" rx="2" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                onClick={handleSend}
-                disabled={!input.trim()}
-                className="p-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl transition-colors flex-shrink-0"
-                title="Send"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V5m0 0l-7 7m7-7l7 7" />
-                </svg>
-              </button>
-            )}
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || loading}
+              className="p-2.5 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl transition-colors flex-shrink-0"
+              title="Send"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19V5m0 0l-7 7m7-7l7 7" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>

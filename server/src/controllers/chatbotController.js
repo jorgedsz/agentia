@@ -1,7 +1,5 @@
-const OpenAI = require('openai');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { logAudit } = require('../utils/auditLog');
-const { getApiKeys } = require('../utils/getApiKeys');
 const n8nService = require('../services/n8nService');
 const { getN8nConfig } = require('../utils/getN8nConfig');
 
@@ -268,10 +266,10 @@ const toggleChatbot = async (req, res) => {
 const testChatbot = async (req, res) => {
   try {
     const { id } = req.params;
-    const { messages } = req.body;
+    const { message } = req.body;
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return res.status(400).json({ error: 'messages array is required' });
+    if (!message) {
+      return res.status(400).json({ error: 'message is required' });
     }
 
     const chatbot = await req.prisma.chatbot.findFirst({
@@ -282,61 +280,36 @@ const testChatbot = async (req, res) => {
       return res.status(404).json({ error: 'Chatbot not found' });
     }
 
-    const config = parseConfig(chatbot.config) || {};
-    const systemPrompt = config.systemPromptBase || config.systemPrompt || 'You are a helpful assistant.';
-    const modelName = config.modelName || 'gpt-4o';
-
-    const { openaiApiKey } = await getApiKeys(req.prisma);
-    if (!openaiApiKey) {
-      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    if (!chatbot.n8nWebhookUrl) {
+      return res.status(422).json({ error: 'Chatbot has no n8n workflow configured. Save the chatbot first.' });
     }
 
-    const openai = new OpenAI({ apiKey: openaiApiKey });
+    // Send message to n8n webhook
+    const n8nResponse = await fetch(chatbot.n8nWebhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+      signal: AbortSignal.timeout(60000)
+    });
 
-    // Validate the call works before switching to SSE
-    let stream;
-    try {
-      stream = await openai.chat.completions.create({
-        model: modelName,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages.map(m => ({ role: m.role, content: m.content }))
-        ],
-        stream: true,
-        temperature: 0.7,
-        max_completion_tokens: 2048
-      });
-    } catch (apiError) {
-      const msg = apiError?.error?.message || apiError?.message || 'OpenAI API call failed';
-      console.error('Test chatbot OpenAI error:', msg, apiError);
-      return res.status(422).json({ error: msg });
+    if (!n8nResponse.ok) {
+      const errorText = await n8nResponse.text().catch(() => '');
+      console.error('n8n webhook error:', n8nResponse.status, errorText);
+      return res.status(422).json({ error: `n8n workflow error (${n8nResponse.status}): ${errorText.substring(0, 200) || 'No response'}` });
     }
 
-    // SSE streaming
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
+    const data = await n8nResponse.json().catch(async () => {
+      const text = await n8nResponse.text().catch(() => '');
+      return { response: text };
+    });
 
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        res.write(`data: ${JSON.stringify({ content })}\n\n`);
-      }
-    }
-
-    res.write('data: [DONE]\n\n');
-    res.end();
+    res.json({
+      response: data.response || data.output || data.text || JSON.stringify(data)
+    });
   } catch (error) {
-    const msg = error?.error?.message || error?.message || 'Unknown error';
+    const msg = error?.message || 'Unknown error';
     console.error('Test chatbot error:', msg, error);
-    if (res.headersSent) {
-      res.write(`data: ${JSON.stringify({ error: msg })}\n\n`);
-      res.end();
-    } else {
-      res.status(500).json({ error: msg });
-    }
+    res.status(500).json({ error: msg });
   }
 };
 
