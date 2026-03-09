@@ -80,7 +80,7 @@ class N8nService {
     const nodes = [];
     const connections = {};
 
-    // 1. Webhook Trigger node
+    // 1. Production Webhook Trigger
     const webhookNode = {
       id: 'webhook-trigger',
       name: 'Webhook Trigger',
@@ -97,7 +97,24 @@ class N8nService {
     };
     nodes.push(webhookNode);
 
-    // 2. AI Agent node
+    // 2. Test Webhook Trigger (always responds with result)
+    const testWebhookNode = {
+      id: 'test-webhook',
+      name: 'Test Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [250, 500],
+      parameters: {
+        path: `chatbot-${chatbot.id}-test`,
+        httpMethod: 'POST',
+        responseMode: 'responseNode',
+        options: {}
+      },
+      webhookId: `chatbot-${chatbot.id}-test`
+    };
+    nodes.push(testWebhookNode);
+
+    // 3. AI Agent node
     const aiAgentNode = {
       id: 'ai-agent',
       name: 'AI Chat Agent',
@@ -105,6 +122,7 @@ class N8nService {
       typeVersion: 1.7,
       position: [500, 300],
       parameters: {
+        promptType: 'define',
         text: '={{ $json.body.message || $json.body.text || "" }}',
         options: {
           systemMessage: config.systemPrompt || 'You are a helpful assistant.'
@@ -209,14 +227,72 @@ class N8nService {
       });
     }
 
-    // 5. Output node based on outputType
+    // 5. Route Code node - detects if triggered by test webhook
+    const routeNode = {
+      id: 'route-check',
+      name: 'Check Source',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [750, 300],
+      parameters: {
+        jsCode: `let isTest = false;
+try {
+  const testData = $('Test Webhook').first();
+  if (testData) isTest = true;
+} catch (e) {
+  isTest = false;
+}
+return [{ json: { ...$input.first().json, _isTest: isTest } }];`
+      }
+    };
+    nodes.push(routeNode);
+
+    // 6. IF node - routes test vs production
+    const ifNode = {
+      id: 'if-test',
+      name: 'Is Test?',
+      type: 'n8n-nodes-base.if',
+      typeVersion: 2.2,
+      position: [950, 300],
+      parameters: {
+        conditions: {
+          options: { caseSensitive: true, leftValue: '' },
+          combinator: 'and',
+          conditions: [
+            {
+              id: 'test-condition',
+              leftValue: '={{ $json._isTest }}',
+              rightValue: true,
+              operator: { type: 'boolean', operation: 'true' }
+            }
+          ]
+        }
+      }
+    };
+    nodes.push(ifNode);
+
+    // 7. Test Response node (always responds to test webhook)
+    const testRespondNode = {
+      id: 'test-respond',
+      name: 'Test Response',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [1200, 200],
+      parameters: {
+        respondWith: 'json',
+        responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: ${chatbot.id} }) }}`
+      }
+    };
+    nodes.push(testRespondNode);
+
+    // 8. Production Output node based on outputType
     if (outputType === 'respond_to_webhook') {
       const respondNode = {
         id: 'respond-webhook',
         name: 'Respond to Webhook',
         type: 'n8n-nodes-base.respondToWebhook',
         typeVersion: 1.1,
-        position: [750, 300],
+        position: [1200, 400],
         parameters: {
           respondWith: 'json',
           responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: ${chatbot.id} }) }}`
@@ -229,7 +305,7 @@ class N8nService {
         name: 'Send to External Webhook',
         type: 'n8n-nodes-base.httpRequest',
         typeVersion: 4.2,
-        position: [750, 300],
+        position: [1200, 400],
         parameters: {
           url: outputUrl,
           method: 'POST',
@@ -245,7 +321,7 @@ class N8nService {
         name: 'HTTP Request',
         type: 'n8n-nodes-base.httpRequest',
         typeVersion: 4.2,
-        position: [750, 300],
+        position: [1200, 400],
         parameters: {
           url: outputUrl,
           method: 'POST',
@@ -258,14 +334,30 @@ class N8nService {
     }
 
     // Build connections
-    const outputNodeName = nodes[nodes.length - 1].name;
+    const productionOutputNodeName = nodes[nodes.length - 1].name;
 
+    // Both webhooks feed into AI Agent
     connections['Webhook Trigger'] = {
       main: [[{ node: 'AI Chat Agent', type: 'main', index: 0 }]]
     };
+    connections['Test Webhook'] = {
+      main: [[{ node: 'AI Chat Agent', type: 'main', index: 0 }]]
+    };
 
+    // AI Agent -> Route Check -> IF
     connections['AI Chat Agent'] = {
-      main: [[{ node: outputNodeName, type: 'main', index: 0 }]]
+      main: [[{ node: 'Check Source', type: 'main', index: 0 }]]
+    };
+    connections['Check Source'] = {
+      main: [[{ node: 'Is Test?', type: 'main', index: 0 }]]
+    };
+
+    // IF true (test) -> Test Response, IF false (production) -> Production Output
+    connections['Is Test?'] = {
+      main: [
+        [{ node: 'Test Response', type: 'main', index: 0 }],
+        [{ node: productionOutputNodeName, type: 'main', index: 0 }]
+      ]
     };
 
     // LLM connected as ai_languageModel to AI Agent

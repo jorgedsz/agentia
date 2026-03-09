@@ -284,8 +284,11 @@ const testChatbot = async (req, res) => {
       return res.status(422).json({ error: 'Chatbot has no n8n workflow configured. Save the chatbot first.' });
     }
 
-    // Send message to n8n webhook
-    const n8nResponse = await fetch(chatbot.n8nWebhookUrl, {
+    // Use the test webhook URL (appends -test to the production webhook path)
+    const testWebhookUrl = chatbot.n8nWebhookUrl.replace(/\/chatbot-(\d+)$/, '/chatbot-$1-test');
+
+    // Send message to n8n test webhook
+    const n8nResponse = await fetch(testWebhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message }),
