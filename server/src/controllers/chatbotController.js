@@ -266,7 +266,7 @@ const toggleChatbot = async (req, res) => {
 const testChatbot = async (req, res) => {
   try {
     const { id } = req.params;
-    const { message } = req.body;
+    const { message, sessionId } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: 'message is required' });
@@ -291,7 +291,7 @@ const testChatbot = async (req, res) => {
     const n8nResponse = await fetch(testWebhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, sessionId: sessionId || 'default' }),
       signal: AbortSignal.timeout(60000)
     });
 

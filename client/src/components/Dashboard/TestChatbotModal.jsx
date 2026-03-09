@@ -5,6 +5,7 @@ export default function TestChatbotModal({ chatbot, onClose }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID())
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -26,7 +27,7 @@ export default function TestChatbotModal({ chatbot, onClose }) {
     setLoading(true)
 
     try {
-      const { data } = await chatbotsAPI.test(chatbot.id, text)
+      const { data } = await chatbotsAPI.test(chatbot.id, text, sessionId)
       setMessages(prev => [...prev, { role: 'assistant', content: data.response }])
     } catch (err) {
       const errorMsg = err.response?.data?.error || err.message || 'Failed to get response'
@@ -38,6 +39,7 @@ export default function TestChatbotModal({ chatbot, onClose }) {
 
   const handleClear = () => {
     setMessages([])
+    setSessionId(crypto.randomUUID())
   }
 
   const handleKeyDown = (e) => {

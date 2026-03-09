@@ -227,7 +227,23 @@ class N8nService {
       });
     }
 
-    // 5. Route Code node - detects if triggered by test webhook
+    // 5. Memory Buffer Window sub-node for conversation context
+    const memoryNode = {
+      id: 'memory-buffer',
+      name: 'Memory Buffer',
+      type: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
+      typeVersion: 1.3,
+      position: [500, 700],
+      parameters: {
+        sessionKey: 'sessionId',
+        contextWindowLength: 10,
+        sessionIdType: 'customKey',
+        sessionId: '={{ $json.body.sessionId || "default" }}'
+      }
+    };
+    nodes.push(memoryNode);
+
+    // 6. Route Code node - detects if triggered by test webhook
     const routeNode = {
       id: 'route-check',
       name: 'Check Source',
@@ -371,6 +387,11 @@ return [{ json: { ...$input.first().json, _isTest: isTest } }];`
         ai_tool: [[{ node: 'AI Chat Agent', type: 'ai_tool', index: 0 }]]
       };
     });
+
+    // Memory sub-node connected to AI Agent via ai_memory
+    connections['Memory Buffer'] = {
+      ai_memory: [[{ node: 'AI Chat Agent', type: 'ai_memory', index: 0 }]]
+    };
 
     return {
       name: workflowName,
