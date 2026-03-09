@@ -113,18 +113,32 @@ class N8nService {
     };
     nodes.push(testWebhookNode);
 
-    // 3. AI Agent node
+    // 3. Resolve Variables Code node (replaces {{placeholders}} in the system prompt)
+    const systemPromptText = (config.systemPrompt || 'You are a helpful assistant.').replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    const resolveVarsNode = {
+      id: 'resolve-variables',
+      name: 'Resolve Variables',
+      type: 'n8n-nodes-base.code',
+      typeVersion: 2,
+      position: [400, 300],
+      parameters: {
+        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default" } }];`
+      }
+    };
+    nodes.push(resolveVarsNode);
+
+    // 4. AI Agent node
     const aiAgentNode = {
       id: 'ai-agent',
       name: 'AI Chat Agent',
       type: '@n8n/n8n-nodes-langchain.agent',
       typeVersion: 1.7,
-      position: [500, 300],
+      position: [650, 300],
       parameters: {
         promptType: 'define',
-        text: '={{ $json.body.message || $json.body.text || "" }}',
+        text: '={{ $json.message }}',
         options: {
-          systemMessage: config.systemPrompt || 'You are a helpful assistant.'
+          systemMessage: '={{ $json.resolvedSystemPrompt }}'
         }
       }
     };
@@ -226,29 +240,29 @@ class N8nService {
       });
     }
 
-    // 5. Memory Buffer Window sub-node for conversation context
+    // 6. Memory Buffer Window sub-node for conversation context
     const memoryNode = {
       id: 'memory-buffer',
       name: 'Memory Buffer',
       type: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
       typeVersion: 1.3,
-      position: [500, 700],
+      position: [650, 700],
       parameters: {
         sessionKey: 'sessionId',
         contextWindowLength: 10,
         sessionIdType: 'customKey',
-        sessionId: '={{ $json.body.sessionId || "default" }}'
+        sessionId: '={{ $json.sessionId || "default" }}'
       }
     };
     nodes.push(memoryNode);
 
-    // 6. Single Respond to Webhook node (used by both production and test triggers)
+    // 7. Single Respond to Webhook node (used by both production and test triggers)
     const respondNode = {
       id: 'respond-webhook',
       name: 'Respond to Webhook',
       type: 'n8n-nodes-base.respondToWebhook',
       typeVersion: 1.1,
-      position: [750, 300],
+      position: [900, 300],
       parameters: {
         respondWith: 'json',
         responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: ${chatbot.id} }) }}`
@@ -256,31 +270,36 @@ class N8nService {
     };
     nodes.push(respondNode);
 
-    // 7. Optionally forward to external webhook (chained after respond node)
+    // 8. Optionally forward to external webhook (chained after respond node)
     if (outputUrl) {
       const httpNode = {
         id: 'http-output',
         name: 'Send to External Webhook',
         type: 'n8n-nodes-base.httpRequest',
         typeVersion: 4.2,
-        position: [1000, 300],
+        position: [1150, 300],
         parameters: {
           url: outputUrl,
           method: 'POST',
           sendBody: true,
           specifyBody: 'json',
-          jsonBody: `={{ JSON.stringify({ message: $json.output, sessionId: $('Webhook Trigger').first().json.body.sessionId || "default", chatbotId: ${chatbot.id} }) }}`
+          jsonBody: `={{ JSON.stringify({ message: $json.output, sessionId: $('Resolve Variables').first().json.sessionId || "default", chatbotId: ${chatbot.id} }) }}`
         }
       };
       nodes.push(httpNode);
     }
 
     // Build connections
-    // Both webhooks feed into AI Agent
+    // Both webhooks feed into Resolve Variables
     connections['Webhook Trigger'] = {
-      main: [[{ node: 'AI Chat Agent', type: 'main', index: 0 }]]
+      main: [[{ node: 'Resolve Variables', type: 'main', index: 0 }]]
     };
     connections['Test Webhook'] = {
+      main: [[{ node: 'Resolve Variables', type: 'main', index: 0 }]]
+    };
+
+    // Resolve Variables -> AI Agent
+    connections['Resolve Variables'] = {
       main: [[{ node: 'AI Chat Agent', type: 'main', index: 0 }]]
     };
 

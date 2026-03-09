@@ -319,7 +319,7 @@ const testChatbot = async (req, res) => {
 const webhookProxy = async (req, res) => {
   try {
     const { id } = req.params;
-    const { message, sessionId } = req.body;
+    const { message, sessionId, variables } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: 'message is required' });
@@ -343,10 +343,15 @@ const webhookProxy = async (req, res) => {
 
     console.log(`Webhook proxy: chatbot ${id} -> ${chatbot.n8nWebhookUrl}`);
 
+    const forwardBody = { message, sessionId: sessionId || 'default' };
+    if (variables && typeof variables === 'object') {
+      forwardBody.variables = variables;
+    }
+
     const n8nResponse = await fetch(chatbot.n8nWebhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, sessionId: sessionId || 'default' }),
+      body: JSON.stringify(forwardBody),
       signal: AbortSignal.timeout(60000)
     });
 

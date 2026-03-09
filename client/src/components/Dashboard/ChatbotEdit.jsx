@@ -108,6 +108,11 @@ export default function ChatbotEdit() {
   // Test chatbot modal
   const [showTestModal, setShowTestModal] = useState(false)
 
+  // Webhook variables
+  const [variables, setVariables] = useState([])
+  const [newVarName, setNewVarName] = useState('')
+  const [newVarDefault, setNewVarDefault] = useState('')
+
   // Calendar settings
   const [showCalendarModal, setShowCalendarModal] = useState(false)
   const [showProviderDropdown, setShowProviderDropdown] = useState(false)
@@ -149,6 +154,8 @@ export default function ChatbotEdit() {
       setSystemPrompt(config.systemPromptBase || config.systemPrompt || '')
       setModelName(config.modelName || 'gpt-4o')
       setTools(config.tools || [])
+
+      setVariables(config.variables || [])
 
       if (config.calendarConfig) {
         setCalendarConfig(config.calendarConfig)
@@ -391,6 +398,7 @@ export default function ChatbotEdit() {
           modelProvider: 'openai',
           modelName,
           tools: allTools,
+          variables,
           calendarConfig,
           outputType: 'respond_to_webhook',
           outputUrl: outputUrl || '',
@@ -578,7 +586,12 @@ export default function ChatbotEdit() {
         {chatbot?.n8nWebhookUrl && (() => {
           const apiBase = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
           const proxyUrl = `${apiBase}/chatbots/${id}/webhook`
-          const curlExample = `curl -X POST ${proxyUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '{"message": "Hello!", "sessionId": "user-123"}'`
+          const curlBody = { message: 'Hello!', sessionId: 'user-123' }
+          if (variables.length > 0) {
+            curlBody.variables = {}
+            variables.forEach(v => { curlBody.variables[v.name] = v.defaultValue || `<${v.name}>` })
+          }
+          const curlExample = `curl -X POST ${proxyUrl} \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(curlBody)}'`
           return (
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
               <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Webhook Endpoint</h3>
@@ -604,6 +617,102 @@ export default function ChatbotEdit() {
                 >
                   Copy
                 </button>
+              </div>
+
+              {/* Variables Section */}
+              <div className="mt-5 pt-5 border-t border-gray-200 dark:border-dark-border">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Variables</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      Define variables to use as <code className="px-1 py-0.5 bg-gray-100 dark:bg-dark-hover rounded text-[11px]">{'{{variable_name}}'}</code> placeholders in your system prompt.
+                    </p>
+                  </div>
+                </div>
+
+                {variables.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {variables.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <code className="px-2 py-1.5 bg-gray-100 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded text-xs font-mono text-gray-800 dark:text-gray-200 min-w-[120px]">
+                          {`{{${v.name}}}`}
+                        </code>
+                        <input
+                          type="text"
+                          value={v.defaultValue}
+                          onChange={(e) => {
+                            const updated = [...variables]
+                            updated[i] = { ...updated[i], defaultValue: e.target.value }
+                            setVariables(updated)
+                          }}
+                          placeholder="Default value (optional)"
+                          className="flex-1 px-2 py-1.5 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
+                        />
+                        <button
+                          onClick={() => setVariables(variables.filter((_, idx) => idx !== i))}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newVarName}
+                    onChange={(e) => setNewVarName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+                    placeholder="variable_name"
+                    className="flex-1 px-2 py-1.5 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newVarName.trim()) {
+                        e.preventDefault()
+                        if (!variables.some(v => v.name === newVarName.trim())) {
+                          setVariables([...variables, { name: newVarName.trim(), defaultValue: newVarDefault }])
+                          setNewVarName('')
+                          setNewVarDefault('')
+                        }
+                      }
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={newVarDefault}
+                    onChange={(e) => setNewVarDefault(e.target.value)}
+                    placeholder="Default value"
+                    className="flex-1 px-2 py-1.5 rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-1 focus:ring-primary-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newVarName.trim()) {
+                        e.preventDefault()
+                        if (!variables.some(v => v.name === newVarName.trim())) {
+                          setVariables([...variables, { name: newVarName.trim(), defaultValue: newVarDefault }])
+                          setNewVarName('')
+                          setNewVarDefault('')
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (newVarName.trim() && !variables.some(v => v.name === newVarName.trim())) {
+                        setVariables([...variables, { name: newVarName.trim(), defaultValue: newVarDefault }])
+                        setNewVarName('')
+                        setNewVarDefault('')
+                      }
+                    }}
+                    disabled={!newVarName.trim() || variables.some(v => v.name === newVarName.trim())}
+                    className="px-3 py-1.5 text-xs font-medium rounded bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                  >
+                    + Add
+                  </button>
+                </div>
+                {newVarName.trim() && variables.some(v => v.name === newVarName.trim()) && (
+                  <p className="text-xs text-red-500 mt-1">Variable name already exists</p>
+                )}
               </div>
             </div>
           )
@@ -705,6 +814,15 @@ export default function ChatbotEdit() {
             className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y font-mono text-sm"
           />
           <p className="text-xs text-gray-400 mt-2">{systemPrompt.length} characters</p>
+          {variables.length > 0 && (
+            <div className="mt-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                Available placeholders: {variables.map(v => (
+                  <code key={v.name} className="mx-0.5 px-1 py-0.5 bg-blue-100 dark:bg-blue-900/40 rounded text-[11px] font-mono">{`{{${v.name}}}`}</code>
+                ))}
+              </p>
+            </div>
+          )}
         </div>
 
       </div>
