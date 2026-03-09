@@ -141,71 +141,54 @@ class N8nService {
 
     nodes.push(llmNode);
 
-    // 4. HTTP Request Tool nodes from config.tools
+    // 4. HTTP Request nodes used as AI tools (n8n 2.x usableAsTool approach)
+    // Uses n8n-nodes-base.httpRequest with fromAI() expressions for dynamic params
     const toolNodes = [];
     if (Array.isArray(config.tools) && config.tools.length > 0) {
       config.tools.forEach((tool, idx) => {
         const toolNodeName = `Tool: ${tool.name || `tool_${idx + 1}`}`;
 
-        // Parse body schema - convert JSON Schema format to n8n {placeholder} format
+        // Parse body schema to build fromAI() body expressions
         let bodyObj = null;
         if (tool.body) {
           bodyObj = typeof tool.body === 'string' ? (() => { try { return JSON.parse(tool.body); } catch { return null; } })() : tool.body;
         }
 
-        // Build placeholder body and definitions from JSON Schema properties
-        const placeholderBody = {};
-        const placeholderDefs = [];
+        // Build JSON body with fromAI() expressions for each property
+        const fromAiBody = {};
         if (bodyObj && bodyObj.type === 'object' && bodyObj.properties) {
           for (const [propName, propDef] of Object.entries(bodyObj.properties)) {
-            placeholderBody[propName] = `{${propName}}`;
-            placeholderDefs.push({
-              name: propName,
-              description: propDef.description || propName,
-              type: propDef.type || 'string'
-            });
-          }
-        } else if (bodyObj && !bodyObj.type) {
-          for (const [key, val] of Object.entries(bodyObj)) {
-            placeholderBody[key] = val;
+            const desc = (propDef.description || propName).replace(/'/g, "\\'");
+            fromAiBody[propName] = `{{ $fromAI('${propName}', '${desc}', 'string') }}`;
           }
         }
 
-        const hasPlaceholders = placeholderDefs.length > 0;
-        const sendBody = hasPlaceholders || !!(tool.body);
+        const hasBody = Object.keys(fromAiBody).length > 0 || !!(tool.body);
 
         const toolNode = {
           id: `tool-${idx}`,
           name: toolNodeName,
-          type: '@n8n/n8n-nodes-langchain.toolHttpRequest',
-          typeVersion: 1.1,
+          type: 'n8n-nodes-base.httpRequest',
+          typeVersion: 4.2,
           position: [300 + (idx * 200), 550],
           parameters: {
-            name: tool.name || `tool_${idx + 1}`,
-            toolDescription: tool.description || '',
             url: tool.url || '',
             method: tool.method || 'POST',
             authentication: 'none',
-            sendBody,
+            sendBody: hasBody,
+            contentType: 'json',
+            specifyBody: 'json',
+            jsonBody: Object.keys(fromAiBody).length > 0
+              ? `=${JSON.stringify(fromAiBody).replace(/"\{\{/g, '{{').replace(/\}\}"/g, '}}')}`
+              : (typeof tool.body === 'string' ? tool.body : JSON.stringify(tool.body || '{}')),
             options: {
               timeout: (tool.timeoutSeconds || 20) * 1000
             }
-          }
+          },
+          // Mark this HTTP Request node as usable as an AI tool
+          extendsCredential: undefined,
+          onError: 'continueRegularOutput'
         };
-
-        if (sendBody) {
-          toolNode.parameters.specifyBody = 'json';
-          toolNode.parameters.jsonBody = hasPlaceholders
-            ? JSON.stringify(placeholderBody)
-            : (typeof tool.body === 'string' ? tool.body : JSON.stringify(tool.body || {}));
-        }
-
-        // Add placeholder definitions so n8n AI knows what to fill
-        if (placeholderDefs.length > 0) {
-          toolNode.parameters.placeholderDefinitions = {
-            values: placeholderDefs
-          };
-        }
 
         // Add headers if present
         if (tool.headers && typeof tool.headers === 'object') {
@@ -284,10 +267,10 @@ class N8nService {
       ai_languageModel: [[{ node: 'AI Chat Agent', type: 'ai_languageModel', index: 0 }]]
     };
 
-    // Tool nodes connected as ai_tool to AI Agent
+    // HTTP Request tool nodes connected to AI Agent's ai_tool input
     toolNodes.forEach((toolNode) => {
       connections[toolNode.name] = {
-        ai_tool: [[{ node: 'AI Chat Agent', type: 'ai_tool', index: 0 }]]
+        main: [[{ node: 'AI Chat Agent', type: 'ai_tool', index: 0 }]]
       };
     });
 
