@@ -1,5 +1,7 @@
+const OpenAI = require('openai');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { logAudit } = require('../utils/auditLog');
+const { getApiKeys } = require('../utils/getApiKeys');
 const n8nService = require('../services/n8nService');
 const { getN8nConfig } = require('../utils/getN8nConfig');
 
@@ -263,10 +265,77 @@ const toggleChatbot = async (req, res) => {
   }
 };
 
+const testChatbot = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { messages } = req.body;
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'messages array is required' });
+    }
+
+    const chatbot = await req.prisma.chatbot.findFirst({
+      where: { id: parseInt(id), userId: req.user.id }
+    });
+
+    if (!chatbot) {
+      return res.status(404).json({ error: 'Chatbot not found' });
+    }
+
+    const config = parseConfig(chatbot.config) || {};
+    const systemPrompt = config.systemPromptBase || config.systemPrompt || 'You are a helpful assistant.';
+    const modelName = config.modelName || 'gpt-4o';
+
+    const { openaiApiKey } = await getApiKeys(req.prisma);
+    if (!openaiApiKey) {
+      return res.status(500).json({ error: 'OpenAI API key not configured' });
+    }
+
+    // SSE streaming
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    const openai = new OpenAI({ apiKey: openaiApiKey });
+
+    const stream = await openai.chat.completions.create({
+      model: modelName,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages.map(m => ({ role: m.role, content: m.content }))
+      ],
+      stream: true,
+      temperature: 0.7,
+      max_tokens: 2048
+    });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      }
+    }
+
+    res.write('data: [DONE]\n\n');
+    res.end();
+  } catch (error) {
+    console.error('Test chatbot error:', error);
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ error: 'Stream error' })}\n\n`);
+      res.end();
+    } else {
+      res.status(500).json({ error: 'Failed to test chatbot' });
+    }
+  }
+};
+
 module.exports = {
   getChatbots,
   getChatbot,
   createChatbot,
   updateChatbot,
-  toggleChatbot
+  toggleChatbot,
+  testChatbot
 };

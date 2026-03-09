@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { chatbotsAPI, promptGeneratorAPI, calendarAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { MODELS_BY_PROVIDER } from '../../constants/models'
+import TestChatbotModal from './TestChatbotModal'
 
 const CHATBOT_MODELS = MODELS_BY_PROVIDER['openai'].filter(m => m.model.startsWith('gpt-'))
 
@@ -110,6 +111,9 @@ export default function ChatbotEdit() {
 
   // Model modal
   const [showModelModal, setShowModelModal] = useState(false)
+
+  // Test chatbot modal
+  const [showTestModal, setShowTestModal] = useState(false)
 
   // Calendar settings
   const [showCalendarModal, setShowCalendarModal] = useState(false)
@@ -540,6 +544,15 @@ export default function ChatbotEdit() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowTestModal(true)}
+            className="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 flex items-center gap-1.5"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+            Test
+          </button>
           <button
             onClick={handleToggle}
             className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${isActive ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100' : 'text-green-600 bg-green-50 dark:bg-green-900/20 hover:bg-green-100'}`}
@@ -1302,6 +1315,14 @@ export default function ChatbotEdit() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Test Chatbot Modal */}
+      {showTestModal && (
+        <TestChatbotModal
+          chatbot={{ id, name, config: { modelName, systemPrompt } }}
+          onClose={() => setShowTestModal(false)}
+        />
       )}
 
       {/* Prompt Generator Modal */}

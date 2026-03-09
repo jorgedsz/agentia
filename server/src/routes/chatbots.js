@@ -21,4 +21,7 @@ router.put('/:id', chatbotController.updateChatbot);
 // POST /api/chatbots/:id/toggle - Activate/deactivate chatbot
 router.post('/:id/toggle', chatbotController.toggleChatbot);
 
+// POST /api/chatbots/:id/test - Test chatbot with streaming chat
+router.post('/:id/test', chatbotController.testChatbot);
+
 module.exports = router;
