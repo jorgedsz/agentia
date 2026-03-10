@@ -37,7 +37,7 @@ const getChatbot = async (req, res) => {
     const { id } = req.params;
 
     const chatbot = await req.prisma.chatbot.findFirst({
-      where: { id: parseInt(id), userId: req.user.id }
+      where: { id: id, userId: req.user.id }
     });
 
     if (!chatbot) {
@@ -135,7 +135,7 @@ const updateChatbot = async (req, res) => {
     const { name, description, config, chatbotType, outputType, outputUrl } = req.body;
 
     const existingChatbot = await req.prisma.chatbot.findFirst({
-      where: { id: parseInt(id), userId: req.user.id }
+      where: { id: id, userId: req.user.id }
     });
 
     if (!existingChatbot) {
@@ -152,7 +152,7 @@ const updateChatbot = async (req, res) => {
     if (chatbotType) updateData.chatbotType = chatbotType;
 
     const chatbot = await req.prisma.chatbot.update({
-      where: { id: parseInt(id) },
+      where: { id: id },
       data: updateData
     });
 
@@ -218,7 +218,7 @@ const toggleChatbot = async (req, res) => {
     const { id } = req.params;
 
     const chatbot = await req.prisma.chatbot.findFirst({
-      where: { id: parseInt(id), userId: req.user.id }
+      where: { id: id, userId: req.user.id }
     });
 
     if (!chatbot) {
@@ -228,7 +228,7 @@ const toggleChatbot = async (req, res) => {
     const newActive = !chatbot.isActive;
 
     const updated = await req.prisma.chatbot.update({
-      where: { id: parseInt(id) },
+      where: { id: id },
       data: { isActive: newActive }
     });
 
@@ -273,7 +273,7 @@ const testChatbot = async (req, res) => {
     }
 
     const chatbot = await req.prisma.chatbot.findFirst({
-      where: { id: parseInt(id), userId: req.user.id }
+      where: { id: id, userId: req.user.id }
     });
 
     if (!chatbot) {
@@ -285,7 +285,7 @@ const testChatbot = async (req, res) => {
     }
 
     // Use the test webhook URL (appends -test to the production webhook path)
-    const testWebhookUrl = chatbot.n8nWebhookUrl.replace(/\/chatbot-(\d+)$/, '/chatbot-$1-test');
+    const testWebhookUrl = chatbot.n8nWebhookUrl.replace(/\/chatbot-([^/]+)$/, '/chatbot-$1-test');
 
     // Send message to n8n test webhook
     const n8nResponse = await fetch(testWebhookUrl, {
@@ -326,7 +326,7 @@ const webhookProxy = async (req, res) => {
     }
 
     const chatbot = await req.prisma.chatbot.findUnique({
-      where: { id: parseInt(id) }
+      where: { id: id }
     });
 
     if (!chatbot) {
