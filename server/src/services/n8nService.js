@@ -122,7 +122,7 @@ class N8nService {
       typeVersion: 2,
       position: [400, 300],
       parameters: {
-        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default" } }];`
+        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: $json.body?.contactId || "" } }];`
       }
     };
     nodes.push(resolveVarsNode);
@@ -199,6 +199,12 @@ class N8nService {
 
         const hasBody = placeholderDefs.length > 0 || !!(tool.body);
 
+        // For GHL book-appointment tools, inject contactId from webhook body via n8n expression
+        let toolUrl = tool.url || '';
+        if (tool.name?.startsWith('book_appointment') && toolUrl.includes('provider=ghl')) {
+          toolUrl = `={{ "${toolUrl}" + ($('Resolve Variables').first().json.contactId ? "&contactId=" + encodeURIComponent($('Resolve Variables').first().json.contactId) : "") }}`;
+        }
+
         const toolNode = {
           id: `tool-${idx}`,
           name: toolNodeName,
@@ -207,7 +213,7 @@ class N8nService {
           position: [300 + (idx * 200), 550],
           parameters: {
             toolDescription: tool.description || '',
-            url: tool.url || '',
+            url: toolUrl,
             method: tool.method || 'POST',
             authentication: 'none',
             sendBody: hasBody,
@@ -265,7 +271,7 @@ class N8nService {
       position: [900, 300],
       parameters: {
         respondWith: 'json',
-        responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: ${chatbot.id} }) }}`
+        responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: "${chatbot.id}" }) }}`
       }
     };
     nodes.push(respondNode);
@@ -283,7 +289,7 @@ class N8nService {
           method: 'POST',
           sendBody: true,
           specifyBody: 'json',
-          jsonBody: `={{ JSON.stringify({ message: $json.output, sessionId: $('Resolve Variables').first().json.sessionId || "default", chatbotId: ${chatbot.id} }) }}`
+          jsonBody: `={{ JSON.stringify({ message: $json.output, sessionId: $('Resolve Variables').first().json.sessionId || "default", chatbotId: "${chatbot.id}" }) }}`
         }
       };
       nodes.push(httpNode);

@@ -726,11 +726,12 @@ const bookAppointment = async (req, res) => {
     const userId = req.query.userId || functionArgs.userId;
 
     const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes } = functionArgs;
+    const contactId = req.query.contactId || functionArgs.contactId || null;
 
-    console.log('Book appointment - provider:', provider, 'integrationId:', integrationId, 'calendarId:', calendarId, 'contactEmail:', contactEmail);
+    console.log('Book appointment - provider:', provider, 'integrationId:', integrationId, 'calendarId:', calendarId, 'contactEmail:', contactEmail, 'contactId:', contactId);
 
-    if (!calendarId || !startTime || !contactEmail) {
-      return res.json({ results: [{ error: 'calendarId, startTime, and contactEmail are required' }] });
+    if (!calendarId || !startTime || (!contactEmail && !contactId)) {
+      return res.json({ results: [{ error: 'calendarId, startTime, and contactEmail (or contactId) are required' }] });
     }
     if (!userId) {
       return res.json({ results: [{ error: 'userId is required' }] });
@@ -764,7 +765,7 @@ const bookAppointment = async (req, res) => {
     const duration = parseInt(req.query.duration) || 30;
     const calendarProvider = createCalendarProvider(integration, req.prisma);
     const result = await calendarProvider.bookAppointment(calendarId, {
-      startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration
+      startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration, contactId
     });
 
     res.json({ results: [result] });

@@ -287,11 +287,21 @@ const testChatbot = async (req, res) => {
     // Use the test webhook URL (appends -test to the production webhook path)
     const testWebhookUrl = chatbot.n8nWebhookUrl.replace(/\/chatbot-([^/]+)$/, '/chatbot-$1-test');
 
+    // For GHL calendar testing, include the test contact ID from calendarConfig
+    const config = chatbot.config ? JSON.parse(chatbot.config) : {};
+    const calendarConfig = config.calendarConfig || {};
+    const ghlTestContactId = calendarConfig.ghlTestContactId || '';
+
+    const testBody = { message, sessionId: sessionId || 'default' };
+    if (ghlTestContactId) {
+      testBody.contactId = ghlTestContactId;
+    }
+
     // Send message to n8n test webhook
     const n8nResponse = await fetch(testWebhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, sessionId: sessionId || 'default' }),
+      body: JSON.stringify(testBody),
       signal: AbortSignal.timeout(60000)
     });
 
@@ -343,7 +353,7 @@ const webhookProxy = async (req, res) => {
 
     console.log(`Webhook proxy: chatbot ${id} -> ${chatbot.n8nWebhookUrl}`);
 
-    const forwardBody = { message, sessionId: sessionId || 'default' };
+    const forwardBody = { message, sessionId: sessionId || 'default', contactId: sessionId || '' };
     if (variables && typeof variables === 'object') {
       forwardBody.variables = variables;
     }

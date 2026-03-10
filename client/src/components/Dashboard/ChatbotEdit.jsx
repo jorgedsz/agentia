@@ -1194,6 +1194,20 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                           </>
                         )}
 
+                        {calendarConfig.provider === 'ghl' && calendarConfig.calendarId && (
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">GHL Test Contact ID</label>
+                            <input
+                              type="text"
+                              value={calendarConfig.ghlTestContactId || ''}
+                              onChange={(e) => setCalendarConfig({ ...calendarConfig, ghlTestContactId: e.target.value })}
+                              placeholder="e.g., abc123DEFxyz..."
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                            />
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">GHL Contact ID used when testing the chatbot. In production, the session ID is used as the contact ID.</p>
+                          </div>
+                        )}
+
                         {calendarConfig.provider && calendarConfig.calendarId && (
                           <button
                             type="button"
@@ -1332,6 +1346,20 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                         >
                           + Add Calendar
                         </button>
+
+                        {calendarConfig.calendars.some(c => c.provider === 'ghl' && c.calendarId) && (
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">GHL Test Contact ID</label>
+                            <input
+                              type="text"
+                              value={calendarConfig.ghlTestContactId || ''}
+                              onChange={(e) => setCalendarConfig({ ...calendarConfig, ghlTestContactId: e.target.value })}
+                              placeholder="e.g., abc123DEFxyz..."
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                            />
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">GHL Contact ID used when testing the chatbot. In production, the session ID is used as the contact ID.</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </>

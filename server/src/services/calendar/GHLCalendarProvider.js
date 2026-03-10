@@ -166,29 +166,32 @@ class GHLCalendarProvider extends CalendarProvider {
 
   async bookAppointment(calendarId, params) {
     const token = await this.getValidToken();
-    const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration } = params;
+    const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration, contactId: providedContactId } = params;
     const appointmentDuration = duration || 30;
 
-    // Find or create contact
-    let contactId;
-    const searchResponse = await this._ghlRequest(
-      `/contacts/search?locationId=${this.locationId}&query=${encodeURIComponent(contactEmail)}`,
-      token
-    );
+    // Use provided contactId (from sessionId in production, or test config) or find/create by email
+    let contactId = providedContactId || null;
 
-    if (searchResponse.contacts && searchResponse.contacts.length > 0) {
-      contactId = searchResponse.contacts[0].id;
-    } else {
-      const createContactResponse = await this._ghlRequest('/contacts', token, {
-        method: 'POST',
-        body: JSON.stringify({
-          locationId: this.locationId,
-          email: contactEmail,
-          name: contactName || '',
-          phone: contactPhone || ''
-        })
-      });
-      contactId = createContactResponse.contact?.id;
+    if (!contactId) {
+      const searchResponse = await this._ghlRequest(
+        `/contacts/search?locationId=${this.locationId}&query=${encodeURIComponent(contactEmail)}`,
+        token
+      );
+
+      if (searchResponse.contacts && searchResponse.contacts.length > 0) {
+        contactId = searchResponse.contacts[0].id;
+      } else {
+        const createContactResponse = await this._ghlRequest('/contacts', token, {
+          method: 'POST',
+          body: JSON.stringify({
+            locationId: this.locationId,
+            email: contactEmail,
+            name: contactName || '',
+            phone: contactPhone || ''
+          })
+        });
+        contactId = createContactResponse.contact?.id;
+      }
     }
 
     if (!contactId) {
