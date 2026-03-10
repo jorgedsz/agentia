@@ -726,12 +726,17 @@ const bookAppointment = async (req, res) => {
     const userId = req.query.userId || functionArgs.userId;
 
     const { startTime, endTime, contactEmail, contactPhone, notes } = functionArgs;
-    const contactName = functionArgs.contactName || req.query.contactName || null;
+    let contactName = functionArgs.contactName || null;
+    if (!contactName && req.query.contactName) {
+      try { contactName = decodeURIComponent(req.query.contactName); } catch { contactName = req.query.contactName; }
+    }
     const contactId = req.query.contactId || functionArgs.contactId || null;
 
     // Resolve {{variable}} placeholders in the title template
     let title = functionArgs.title || req.query.title || null;
     if (title) {
+      // Decode URL-encoded braces (URLSearchParams encodes {{ to %7B%7B)
+      try { title = decodeURIComponent(title); } catch {}
       const vars = { contactName, contactEmail, contactPhone, contactId };
       title = title.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || '');
     }
