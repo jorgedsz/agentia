@@ -1201,9 +1201,10 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                                 type="text"
                                 value={calendarConfig.appointmentTitle || ''}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentTitle: e.target.value })}
-                                placeholder="e.g., Sales Consultation"
+                                placeholder="e.g., {{contactName}} - Consultation"
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                               />
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Variables: {'{{contactName}}'}, {'{{contactEmail}}'}, {'{{contactPhone}}'}</p>
                             </div>
                           </>
                         )}
@@ -1289,7 +1290,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                                       type="text"
                                       value={entry.name}
                                       onChange={(e) => updateCalendarEntry(entry.id, { name: e.target.value })}
-                                      placeholder="e.g., Sales Consultation"
+                                      placeholder="e.g., {{contactName}} - Consultation"
                                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                                     />
                                   </div>
@@ -1364,9 +1365,10 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                                           type="text"
                                           value={entry.appointmentTitle || ''}
                                           onChange={(e) => updateCalendarEntry(entry.id, { appointmentTitle: e.target.value })}
-                                          placeholder="e.g., Sales Consultation"
+                                          placeholder="e.g., {{contactName}} - Consultation"
                                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                                         />
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Variables: {'{{contactName}}'}, {'{{contactEmail}}'}, {'{{contactPhone}}'}</p>
                                       </div>
                                     </>
                                   )}

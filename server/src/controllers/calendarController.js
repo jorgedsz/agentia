@@ -726,9 +726,15 @@ const bookAppointment = async (req, res) => {
     const userId = req.query.userId || functionArgs.userId;
 
     const { startTime, endTime, contactEmail, contactPhone, notes } = functionArgs;
-    const title = functionArgs.title || req.query.title || null;
     const contactName = functionArgs.contactName || req.query.contactName || null;
     const contactId = req.query.contactId || functionArgs.contactId || null;
+
+    // Resolve {{variable}} placeholders in the title template
+    let title = functionArgs.title || req.query.title || null;
+    if (title) {
+      const vars = { contactName, contactEmail, contactPhone, contactId };
+      title = title.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || '');
+    }
 
     console.log('Book appointment - provider:', provider, 'integrationId:', integrationId, 'calendarId:', calendarId, 'contactEmail:', contactEmail, 'contactId:', contactId);
 
