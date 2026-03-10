@@ -291,10 +291,14 @@ const testChatbot = async (req, res) => {
     const config = chatbot.config ? JSON.parse(chatbot.config) : {};
     const calendarConfig = config.calendarConfig || {};
     const ghlTestContactId = calendarConfig.ghlTestContactId || '';
+    const ghlTestContactName = calendarConfig.ghlTestContactName || '';
 
     const testBody = { message, sessionId: sessionId || 'default' };
     if (ghlTestContactId) {
       testBody.contactId = ghlTestContactId;
+    }
+    if (ghlTestContactName) {
+      testBody.contactName = ghlTestContactName;
     }
 
     // Send message to n8n test webhook

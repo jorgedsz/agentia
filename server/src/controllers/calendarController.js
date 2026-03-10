@@ -725,7 +725,9 @@ const bookAppointment = async (req, res) => {
     const timezone = req.query.timezone || functionArgs.timezone;
     const userId = req.query.userId || functionArgs.userId;
 
-    const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes } = functionArgs;
+    const { startTime, endTime, contactEmail, contactPhone, notes } = functionArgs;
+    const title = functionArgs.title || req.query.title || null;
+    const contactName = functionArgs.contactName || req.query.contactName || null;
     const contactId = req.query.contactId || functionArgs.contactId || null;
 
     console.log('Book appointment - provider:', provider, 'integrationId:', integrationId, 'calendarId:', calendarId, 'contactEmail:', contactEmail, 'contactId:', contactId);

@@ -122,7 +122,7 @@ class N8nService {
       typeVersion: 2,
       position: [400, 300],
       parameters: {
-        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: $json.body?.contactId || "" } }];`
+        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: $json.body?.contactId || "", contactName: $json.body?.contactName || "" } }];`
       }
     };
     nodes.push(resolveVarsNode);
@@ -199,10 +199,10 @@ class N8nService {
 
         const hasBody = placeholderDefs.length > 0 || !!(tool.body);
 
-        // For GHL book-appointment tools, inject contactId from webhook body via n8n expression
+        // For GHL book-appointment tools, inject contactId and contactName from webhook body via n8n expression
         let toolUrl = tool.url || '';
         if (tool.name?.startsWith('book_appointment') && toolUrl.includes('provider=ghl')) {
-          toolUrl = `={{ "${toolUrl}" + ($('Resolve Variables').first().json.contactId ? "&contactId=" + encodeURIComponent($('Resolve Variables').first().json.contactId) : "") }}`;
+          toolUrl = `={{ "${toolUrl}" + ($('Resolve Variables').first().json.contactId ? "&contactId=" + encodeURIComponent($('Resolve Variables').first().json.contactId) : "") + ($('Resolve Variables').first().json.contactName ? "&contactName=" + encodeURIComponent($('Resolve Variables').first().json.contactName) : "") }}`;
         }
 
         const toolNode = {
