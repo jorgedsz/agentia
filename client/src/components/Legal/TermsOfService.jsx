@@ -42,13 +42,13 @@ export default function TermsOfService() {
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Terms of Service</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Last updated: {lastUpdated}</p>
 
-              <p>Welcome to Appex Innovations. By accessing or using our platform (the "Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Service.</p>
+              <p>Welcome to Flex Innovations. By accessing or using our platform (the "Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Service.</p>
 
               <h2>1. Acceptance of Terms</h2>
               <p>By creating an account or using the Service, you confirm that you are at least 18 years old and have the legal authority to enter into these Terms. If you are using the Service on behalf of an organization, you represent that you have the authority to bind that organization to these Terms.</p>
 
               <h2>2. Description of Service</h2>
-              <p>Appex Innovations provides an AI-powered voice agent platform that enables users to:</p>
+              <p>Flex Innovations provides an AI-powered voice agent platform that enables users to:</p>
               <ul>
                 <li>Create and configure AI voice agents for inbound and outbound calls</li>
                 <li>Manage phone numbers and telephony integrations</li>
@@ -99,7 +99,7 @@ export default function TermsOfService() {
 
               <h2>7. Intellectual Property</h2>
               <ul>
-                <li>The Service, including its design, code, and branding, is owned by Appex Innovations</li>
+                <li>The Service, including its design, code, and branding, is owned by Flex Innovations</li>
                 <li>You retain ownership of your content (agent configurations, custom prompts, uploaded data)</li>
                 <li>You grant us a limited license to use your content solely to provide the Service</li>
                 <li>AI-generated outputs (call responses, transcriptions) are provided "as-is" and may not be fully accurate</li>
@@ -115,7 +115,7 @@ export default function TermsOfService() {
               <p>If you intend to use the Service with Protected Health Information (PHI), you must:</p>
               <ul>
                 <li>Enable HIPAA compliance features in your account settings</li>
-                <li>Execute a Business Associate Agreement (BAA) with Appex Innovations</li>
+                <li>Execute a Business Associate Agreement (BAA) with Flex Innovations</li>
                 <li>Ensure your use of the Service complies with all applicable healthcare regulations</li>
               </ul>
 
@@ -132,7 +132,7 @@ export default function TermsOfService() {
               </ul>
 
               <h2>13. Indemnification</h2>
-              <p>You agree to indemnify and hold harmless Appex Innovations, its officers, directors, employees, and agents from any claims, damages, losses, or expenses arising from your use of the Service, violation of these Terms, or infringement of any third-party rights.</p>
+              <p>You agree to indemnify and hold harmless Flex Innovations, its officers, directors, employees, and agents from any claims, damages, losses, or expenses arising from your use of the Service, violation of these Terms, or infringement of any third-party rights.</p>
 
               <h2>14. Termination</h2>
               <ul>
@@ -146,24 +146,24 @@ export default function TermsOfService() {
               <p>We reserve the right to modify these Terms at any time. Material changes will be communicated through the Service or via email. Continued use after changes constitutes acceptance of the updated Terms.</p>
 
               <h2>16. Governing Law</h2>
-              <p>These Terms shall be governed by and construed in accordance with the laws of the jurisdiction where Appex Innovations is incorporated, without regard to conflict of law provisions.</p>
+              <p>These Terms shall be governed by and construed in accordance with the laws of the jurisdiction where Flex Innovations is incorporated, without regard to conflict of law provisions.</p>
 
               <h2>17. Contact Us</h2>
               <p>For questions about these Terms, please contact us at:</p>
-              <p><strong>Appex Innovations</strong><br />Email: legal@appexinnovations.com</p>
+              <p><strong>Flex Innovations</strong><br />Email: legal@flexinnovations.com</p>
             </div>
           ) : (
             <div className="prose prose-gray dark:prose-invert max-w-none">
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Terminos de Servicio</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Ultima actualizacion: {lastUpdatedEs}</p>
 
-              <p>Bienvenido a Appex Innovations. Al acceder o usar nuestra plataforma (el "Servicio"), usted acepta estar sujeto a estos Terminos de Servicio ("Terminos"). Si no esta de acuerdo con estos Terminos, no use el Servicio.</p>
+              <p>Bienvenido a Flex Innovations. Al acceder o usar nuestra plataforma (el "Servicio"), usted acepta estar sujeto a estos Terminos de Servicio ("Terminos"). Si no esta de acuerdo con estos Terminos, no use el Servicio.</p>
 
               <h2>1. Aceptacion de los Terminos</h2>
               <p>Al crear una cuenta o usar el Servicio, confirma que tiene al menos 18 anos y la autoridad legal para aceptar estos Terminos. Si usa el Servicio en nombre de una organizacion, declara que tiene la autoridad para vincular a dicha organizacion con estos Terminos.</p>
 
               <h2>2. Descripcion del Servicio</h2>
-              <p>Appex Innovations proporciona una plataforma de agentes de voz impulsados por IA que permite a los usuarios:</p>
+              <p>Flex Innovations proporciona una plataforma de agentes de voz impulsados por IA que permite a los usuarios:</p>
               <ul>
                 <li>Crear y configurar agentes de voz IA para llamadas entrantes y salientes</li>
                 <li>Gestionar numeros de telefono e integraciones de telefonia</li>
@@ -214,7 +214,7 @@ export default function TermsOfService() {
 
               <h2>7. Propiedad Intelectual</h2>
               <ul>
-                <li>El Servicio, incluyendo su diseno, codigo y marca, es propiedad de Appex Innovations</li>
+                <li>El Servicio, incluyendo su diseno, codigo y marca, es propiedad de Flex Innovations</li>
                 <li>Usted retiene la propiedad de su contenido (configuraciones de agentes, prompts personalizados, datos cargados)</li>
                 <li>Nos otorga una licencia limitada para usar su contenido unicamente para proporcionar el Servicio</li>
                 <li>Las salidas generadas por IA (respuestas de llamadas, transcripciones) se proporcionan "tal cual" y pueden no ser completamente precisas</li>
@@ -230,7 +230,7 @@ export default function TermsOfService() {
               <p>Si tiene la intencion de usar el Servicio con Informacion de Salud Protegida (PHI), debe:</p>
               <ul>
                 <li>Habilitar las funciones de cumplimiento HIPAA en la configuracion de su cuenta</li>
-                <li>Ejecutar un Acuerdo de Asociado Comercial (BAA) con Appex Innovations</li>
+                <li>Ejecutar un Acuerdo de Asociado Comercial (BAA) con Flex Innovations</li>
                 <li>Asegurar que su uso del Servicio cumpla con todas las regulaciones de salud aplicables</li>
               </ul>
 
@@ -247,7 +247,7 @@ export default function TermsOfService() {
               </ul>
 
               <h2>13. Indemnizacion</h2>
-              <p>Usted acepta indemnizar y mantener indemne a Appex Innovations, sus directivos, directores, empleados y agentes de cualquier reclamacion, dano, perdida o gasto que surja de su uso del Servicio, violacion de estos Terminos o infraccion de derechos de terceros.</p>
+              <p>Usted acepta indemnizar y mantener indemne a Flex Innovations, sus directivos, directores, empleados y agentes de cualquier reclamacion, dano, perdida o gasto que surja de su uso del Servicio, violacion de estos Terminos o infraccion de derechos de terceros.</p>
 
               <h2>14. Terminacion</h2>
               <ul>
@@ -261,11 +261,11 @@ export default function TermsOfService() {
               <p>Nos reservamos el derecho de modificar estos Terminos en cualquier momento. Los cambios materiales se comunicaran a traves del Servicio o por correo electronico. El uso continuado despues de los cambios constituye la aceptacion de los Terminos actualizados.</p>
 
               <h2>16. Ley Aplicable</h2>
-              <p>Estos Terminos se regiran e interpretaran de acuerdo con las leyes de la jurisdiccion donde Appex Innovations esta incorporada, sin tener en cuenta las disposiciones sobre conflictos de leyes.</p>
+              <p>Estos Terminos se regiran e interpretaran de acuerdo con las leyes de la jurisdiccion donde Flex Innovations esta incorporada, sin tener en cuenta las disposiciones sobre conflictos de leyes.</p>
 
               <h2>17. Contactenos</h2>
               <p>Para preguntas sobre estos Terminos, contactenos en:</p>
-              <p><strong>Appex Innovations</strong><br />Email: legal@appexinnovations.com</p>
+              <p><strong>Flex Innovations</strong><br />Email: legal@flexinnovations.com</p>
             </div>
           )}
         </div>
