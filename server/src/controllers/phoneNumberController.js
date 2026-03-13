@@ -223,7 +223,7 @@ const assignToAgent = async (req, res) => {
     let agent = null;
     if (agentId) {
       agent = await req.prisma.agent.findUnique({
-        where: { id: parseInt(agentId) }
+        where: { id: agentId }
       });
 
       if (!agent) {
@@ -257,7 +257,7 @@ const assignToAgent = async (req, res) => {
     // Update in database
     const updated = await req.prisma.phoneNumber.update({
       where: { id: parseInt(id) },
-      data: { agentId: agentId ? parseInt(agentId) : null },
+      data: { agentId: agentId ? agentId : null },
       include: {
         agent: {
           select: {

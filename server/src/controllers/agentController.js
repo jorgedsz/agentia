@@ -71,7 +71,7 @@ const getAgent = async (req, res) => {
 
     const agent = await req.prisma.agent.findFirst({
       where: {
-        id: parseInt(id),
+        id: id,
         userId: req.user.id
       }
     });
@@ -167,7 +167,7 @@ const updateAgent = async (req, res) => {
     // Verify ownership
     const existingAgent = await req.prisma.agent.findFirst({
       where: {
-        id: parseInt(id),
+        id: id,
         userId: req.user.id
       }
     });
@@ -229,7 +229,7 @@ const updateAgent = async (req, res) => {
         const vapiAgent = await vapiService.createAgent({ name, ...fixedConfig });
         // Store the new vapiId
         await req.prisma.agent.update({
-          where: { id: parseInt(id) },
+          where: { id: id },
           data: { vapiId: vapiAgent.id }
         });
         existingAgent.vapiId = vapiAgent.id;
@@ -250,7 +250,7 @@ const updateAgent = async (req, res) => {
     if (agentType) updateData.agentType = agentType;
 
     const agent = await req.prisma.agent.update({
-      where: { id: parseInt(id) },
+      where: { id: id },
       data: updateData
     });
 
@@ -285,7 +285,7 @@ const deleteAgent = async (req, res) => {
     // Verify ownership
     const existingAgent = await req.prisma.agent.findFirst({
       where: {
-        id: parseInt(id),
+        id: id,
         userId: req.user.id
       }
     });
@@ -306,7 +306,7 @@ const deleteAgent = async (req, res) => {
     }
 
     await req.prisma.agent.delete({
-      where: { id: parseInt(id) }
+      where: { id: id }
     });
 
     logAudit(req.prisma, {
@@ -333,7 +333,7 @@ const checkVapiSync = async (req, res) => {
   try {
     const { id } = req.params;
     const agent = await req.prisma.agent.findFirst({
-      where: { id: parseInt(id), userId: req.user.id }
+      where: { id: id, userId: req.user.id }
     });
 
     if (!agent) return res.status(404).json({ error: 'Agent not found' });

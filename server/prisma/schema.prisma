@@ -100,7 +100,7 @@ model TeamMember {
 }
 
 model Agent {
-  id           Int           @id @default(autoincrement())
+  id           String        @id @default(cuid())
   name         String
   description  String?
   agentType    String        @default("outbound")
@@ -172,7 +172,7 @@ model CallLog {
   costCharged     Float    @default(0) // Amount deducted from credits
   billed          Boolean  @default(false)
   outcome         String   @default("unknown") // answered, booked, not_interested, failed, transferred, voicemail, unknown
-  agentId         Int?     // Local agent ID for per-agent filtering
+  agentId         String?  // Local agent ID for per-agent filtering
   recordingUrl    String?  // Our local recording URL
   transcript      String?  // Full transcript text
   summary         String?  // Call summary
@@ -192,7 +192,7 @@ model PhoneNumber {
   status              String            @default("pending") // pending, active, error
   twilioCredentialsId Int
   twilioCredentials   TwilioCredentials @relation(fields: [twilioCredentialsId], references: [id], onDelete: Cascade)
-  agentId             Int?
+  agentId             String?
   agent               Agent?            @relation(fields: [agentId], references: [id], onDelete: SetNull)
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt

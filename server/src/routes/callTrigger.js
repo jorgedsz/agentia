@@ -69,7 +69,7 @@ router.post('/', async (req, res) => {
 
     // 2. Look up Agent
     const agent = await req.prisma.agent.findUnique({
-      where: { id: parseInt(agentId) }
+      where: { id: agentId }
     });
 
     if (!agent) {

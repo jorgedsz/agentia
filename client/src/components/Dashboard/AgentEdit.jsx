@@ -1084,7 +1084,7 @@ export default function AgentEdit() {
         setSelectedPhone(allNumbers[0].id.toString())
       }
       // Track which phone is assigned to THIS agent
-      const assigned = allNumbers.find(p => p.agentId === parseInt(id))
+      const assigned = allNumbers.find(p => p.agentId === id)
       setAssignedPhoneId(assigned ? assigned.id.toString() : '')
     } catch (err) {
       console.error('Failed to fetch phone numbers:', err)
@@ -2336,7 +2336,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${triggerApiKey || 'YOUR_TRIGGER_API_KEY'}" \\
   -d '{
-    "agentId": ${id},
+    "agentId": "${id}",
     "clientId": ${user?.id || 'YOUR_CLIENT_ID'},
     "from": "${fromNumber}",
     "to": "+1XXXXXXXXXX"${variablesJson}
@@ -2477,7 +2477,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   >
                     <option value="">No phone assigned</option>
                     {phoneNumbers.map((phone) => {
-                      const assignedToOther = phone.agentId && phone.agentId !== parseInt(id)
+                      const assignedToOther = phone.agentId && phone.agentId !== id
                       return (
                         <option key={phone.id} value={phone.id.toString()} disabled={assignedToOther}>
                           {phone.phoneNumber}{assignedToOther ? ` (${phone.agent?.name || 'other agent'})` : ''}

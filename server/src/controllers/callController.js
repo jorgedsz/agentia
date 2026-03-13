@@ -91,7 +91,7 @@ const createCall = async (req, res) => {
     // Get the agent to verify ownership and get vapiId
     const agent = await req.prisma.agent.findFirst({
       where: {
-        id: parseInt(agentId),
+        id: agentId,
         userId: req.user.id
       }
     });
@@ -266,7 +266,7 @@ const getAnalytics = async (req, res) => {
 
     // Build where clause
     const where = { userId };
-    if (agentId) where.agentId = parseInt(agentId);
+    if (agentId) where.agentId = agentId;
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
