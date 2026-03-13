@@ -497,6 +497,11 @@ export default function AgentEdit() {
     setExpandedSection(prev => prev === section ? null : section)
   }
 
+  // Trigger variables
+  const [variables, setVariables] = useState([])
+  const [newVarName, setNewVarName] = useState('')
+  const [newVarDefault, setNewVarDefault] = useState('')
+
   // Calendar settings (multi-provider)
   const [calendarConfig, setCalendarConfig] = useState({
     enabled: false,
@@ -966,6 +971,9 @@ export default function AgentEdit() {
       if (agentData.config?.transferConfig) {
         setTransferConfig(agentData.config.transferConfig)
       }
+
+      // Load trigger variables
+      setVariables(agentData.config?.variables || [])
 
       // Load voice settings
       if (agentData.config) {
@@ -1500,6 +1508,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
           backgroundSound: voiceSettings.backgroundSound,
           backgroundSoundVolume: voiceSettings.backgroundSoundVolume,
           tools: allTools,
+          variables,
           summaryPrompt: serverConfig.summaryPrompt,
           successEvaluationEnabled: serverConfig.successEvaluationEnabled,
           successEvaluationRubric: serverConfig.successEvaluationRubric,
@@ -2359,6 +2368,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                 const triggerUrl = `${apiBaseUrl}/call/trigger`
                 const assignedPhone = phoneNumbers.find(p => p.id.toString() === assignedPhoneId)
                 const fromNumber = assignedPhone ? assignedPhone.phoneNumber : '+1XXXXXXXXXX'
+                const variablesJson = variables.length > 0 ? `,\n${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}` : ''
                 const curlExample = `curl -X POST ${triggerUrl} \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: YOUR_TRIGGER_API_KEY" \\
@@ -2366,7 +2376,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
     "agentId": ${id},
     "clientId": ${user?.id || 'YOUR_CLIENT_ID'},
     "from": "${fromNumber}",
-    "to": "+1XXXXXXXXXX"
+    "to": "+1XXXXXXXXXX"${variablesJson}
   }'`
                 return (
                   <div className="px-5 pb-4 space-y-3">
@@ -2397,6 +2407,89 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   </div>
                 )
               })()}
+            </div>
+
+            {/* Variables Section */}
+            <div>
+              <button
+                type="button"
+                onClick={() => toggleSection('variables')}
+                className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+              >
+                <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedSection === 'variables' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9l.879 2.121z" />
+                </svg>
+                <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Variables</span>
+                {variables.length > 0 && (
+                  <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded-full bg-green-500 text-white">{variables.length}</span>
+                )}
+              </button>
+              {expandedSection === 'variables' && (
+                <div className="px-5 pb-4 space-y-3">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Define extra variables to pass via the API trigger. These become VAPI variable overrides and appear in the cURL example above.</p>
+                  {variables.length > 0 && (
+                    <div className="space-y-2">
+                      {variables.map((v, i) => (
+                        <div key={i} className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-dark-bg rounded-lg">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white font-mono">{v.name}</span>
+                            {v.defaultValue && (
+                              <span className="text-xs text-gray-400 ml-2">default: {v.defaultValue}</span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => setVariables(variables.filter((_, idx) => idx !== i))}
+                            className="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={newVarName}
+                        onChange={(e) => setNewVarName(e.target.value)}
+                        placeholder="e.g. customerName"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Default value</label>
+                      <input
+                        type="text"
+                        value={newVarDefault}
+                        onChange={(e) => setNewVarDefault(e.target.value)}
+                        placeholder="optional"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (newVarName.trim()) {
+                          setVariables([...variables, { name: newVarName.trim(), defaultValue: newVarDefault.trim() }])
+                          setNewVarName('')
+                          setNewVarDefault('')
+                        }
+                      }}
+                      disabled={!newVarName.trim()}
+                      className="px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 text-sm font-medium flex-shrink-0"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
           </div>
