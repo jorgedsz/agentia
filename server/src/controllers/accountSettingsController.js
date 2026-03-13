@@ -224,13 +224,12 @@ const getTriggerKey = async (req, res) => {
     });
 
     const hasKey = !!user?.triggerApiKey;
-    let maskedKey = '';
+    let plainKey = '';
     if (hasKey) {
-      const decrypted = decrypt(user.triggerApiKey);
-      maskedKey = mask(decrypted, 4);
+      plainKey = decrypt(user.triggerApiKey);
     }
 
-    res.json({ hasTriggerKey: hasKey, triggerApiKey: maskedKey });
+    res.json({ hasTriggerKey: hasKey, triggerApiKey: plainKey });
   } catch (error) {
     console.error('Get trigger key error:', error);
     res.status(500).json({ error: 'Failed to fetch trigger key status' });
