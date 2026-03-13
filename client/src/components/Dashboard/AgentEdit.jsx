@@ -1644,7 +1644,22 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
       voiceAudioRef.current.pause()
     }
     if (!voice.previewUrl) return
-    const audio = new Audio(voice.previewUrl)
+    // Convert Google Drive sharing URLs to direct download URLs
+    const convertDriveUrl = (url) => {
+      const fileMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/)
+      if (fileMatch) return `https://drive.usercontent.google.com/download?id=${fileMatch[1]}&export=download&confirm=t`
+      const openMatch = url.match(/drive\.google\.com\/open\?id=([^&]+)/)
+      if (openMatch) return `https://drive.usercontent.google.com/download?id=${openMatch[1]}&export=download&confirm=t`
+      const ucMatch = url.match(/drive\.google\.com\/uc\?.*id=([^&]+)/)
+      if (ucMatch) return `https://drive.usercontent.google.com/download?id=${ucMatch[1]}&export=download&confirm=t`
+      return url
+    }
+    const rawUrl = convertDriveUrl(voice.previewUrl)
+    const needsProxy = rawUrl.includes('drive.google.com') || rawUrl.includes('drive.usercontent.google.com') || rawUrl.includes('docs.google.com')
+    const playUrl = needsProxy
+      ? `${import.meta.env.VITE_API_URL || '/api'}/voices/audio-proxy?url=${encodeURIComponent(rawUrl)}`
+      : rawUrl
+    const audio = new Audio(playUrl)
     voiceAudioRef.current = audio
     setPreviewPlayingId(voice.voiceId)
     audio.play().catch(() => setPreviewPlayingId(null))
