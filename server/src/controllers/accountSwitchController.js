@@ -32,6 +32,8 @@ const getAccessibleAccounts = async (req, res) => {
           email: true,
           name: true,
           role: true,
+          voiceAgentsEnabled: true,
+          chatbotsEnabled: true,
           agency: {
             select: { id: true, name: true, email: true }
           },
@@ -57,6 +59,8 @@ const getAccessibleAccounts = async (req, res) => {
           vapiCredits: true,
           outboundRate: true,
           inboundRate: true,
+          voiceAgentsEnabled: true,
+          chatbotsEnabled: true,
           _count: {
             select: { agents: true }
           }

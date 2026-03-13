@@ -194,7 +194,7 @@ export default function DashboardLayout() {
 
   const activeTab = getActiveTab()
 
-  const menuSections = [
+  const allMenuSections = [
     {
       title: t('sidebar.sectionDashboard'),
       items: [
@@ -204,6 +204,7 @@ export default function DashboardLayout() {
     },
     {
       title: t('sidebar.sectionAgents'),
+      featureKey: 'voiceAgents',
       items: [
         { id: 'agents', path: '/dashboard/agents', label: t('sidebar.myAgents'), icon: Icons.Agents, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'voice-library', path: '/dashboard/voice-library', label: t('sidebar.voiceLibrary'), icon: Icons.Voice, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
@@ -212,6 +213,7 @@ export default function DashboardLayout() {
     },
     {
       title: t('sidebar.sectionChatbots') || 'Chatbots',
+      featureKey: 'chatbots',
       items: [
         { id: 'chatbots', path: '/dashboard/chatbots', label: t('sidebar.myChatbots') || 'My Chatbots', icon: Icons.Chatbot, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'create-chatbot', label: t('sidebar.createChatbot') || 'Create Chatbot', icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT], isAction: true, actionType: 'chatbot' },
@@ -225,6 +227,7 @@ export default function DashboardLayout() {
     },
     {
       title: t('sidebar.sectionPhone'),
+      featureKey: 'voiceAgents',
       items: [
         { id: 'twilio-setup', path: '/dashboard/twilio-setup', label: t('sidebar.twilioSetup'), icon: Icons.Twilio, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'phone-numbers', path: '/dashboard/phone-numbers', label: t('sidebar.phoneNumbers'), icon: Icons.Phone, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
@@ -239,6 +242,13 @@ export default function DashboardLayout() {
       ]
     }
   ]
+
+  // Filter out disabled feature sections
+  const menuSections = allMenuSections.filter(section => {
+    if (section.featureKey === 'voiceAgents') return user?.voiceAgentsEnabled !== false
+    if (section.featureKey === 'chatbots') return user?.chatbotsEnabled !== false
+    return true
+  })
 
   return (
     <div className={`flex h-screen ${darkMode ? 'dark' : ''}`}>

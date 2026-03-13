@@ -74,11 +74,15 @@ const createCall = async (req, res) => {
       });
     }
 
-    // Check if user has VAPI credits
+    // Check if voice agents are enabled
     const user = await req.prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { vapiCredits: true }
+      select: { vapiCredits: true, voiceAgentsEnabled: true }
     });
+
+    if (!user?.voiceAgentsEnabled) {
+      return res.status(403).json({ error: 'Voice agents are disabled for this account.' });
+    }
 
     if (!user || user.vapiCredits <= 0) {
       return res.status(403).json({

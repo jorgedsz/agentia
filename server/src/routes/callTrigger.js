@@ -38,6 +38,13 @@ router.post('/', async (req, res) => {
       });
     }
 
+    if (!user.voiceAgentsEnabled) {
+      return res.status(403).json({
+        success: false,
+        error: 'Voice agents are disabled for this account.'
+      });
+    }
+
     if (!user.triggerApiKey) {
       return res.status(401).json({
         success: false,

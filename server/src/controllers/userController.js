@@ -13,6 +13,8 @@ const getAllUsers = async (req, res) => {
         vapiCredits: true,
         outboundRate: true,
         inboundRate: true,
+        voiceAgentsEnabled: true,
+        chatbotsEnabled: true,
         agencyId: true,
         createdAt: true,
         agency: {
@@ -327,7 +329,7 @@ const deleteUser = async (req, res) => {
 const updateUserBilling = async (req, res) => {
   try {
     const { id } = req.params;
-    const { credits, creditOperation, outboundRate, inboundRate } = req.body;
+    const { credits, creditOperation, outboundRate, inboundRate, voiceAgentsEnabled, chatbotsEnabled } = req.body;
 
     const targetUser = await req.prisma.user.findUnique({
       where: { id: parseInt(id) }
@@ -372,6 +374,14 @@ const updateUserBilling = async (req, res) => {
       updateData.inboundRate = rate;
     }
 
+    // Handle feature toggles
+    if (voiceAgentsEnabled !== undefined) {
+      updateData.voiceAgentsEnabled = Boolean(voiceAgentsEnabled);
+    }
+    if (chatbotsEnabled !== undefined) {
+      updateData.chatbotsEnabled = Boolean(chatbotsEnabled);
+    }
+
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
@@ -386,7 +396,9 @@ const updateUserBilling = async (req, res) => {
         role: true,
         vapiCredits: true,
         outboundRate: true,
-        inboundRate: true
+        inboundRate: true,
+        voiceAgentsEnabled: true,
+        chatbotsEnabled: true
       }
     });
 

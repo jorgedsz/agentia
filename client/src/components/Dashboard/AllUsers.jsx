@@ -22,6 +22,8 @@ export default function AllUsers() {
   const [billingForm, setBillingForm] = useState({
     credits: '',
     creditOperation: 'add',
+    voiceAgentsEnabled: true,
+    chatbotsEnabled: true,
   })
   const [saving, setSaving] = useState(false)
 
@@ -62,6 +64,8 @@ export default function AllUsers() {
     setBillingForm({
       credits: '',
       creditOperation: 'add',
+      voiceAgentsEnabled: targetUser.voiceAgentsEnabled !== false,
+      chatbotsEnabled: targetUser.chatbotsEnabled !== false,
     })
     setError('')
     setSuccess('')
@@ -72,6 +76,8 @@ export default function AllUsers() {
     setBillingForm({
       credits: '',
       creditOperation: 'add',
+      voiceAgentsEnabled: true,
+      chatbotsEnabled: true,
     })
   }
 
@@ -89,11 +95,9 @@ export default function AllUsers() {
         data.creditOperation = billingForm.creditOperation
       }
 
-      if (Object.keys(data).length === 0) {
-        setError('Please enter at least one field to update')
-        setSaving(false)
-        return
-      }
+      // Always send feature toggles
+      data.voiceAgentsEnabled = billingForm.voiceAgentsEnabled
+      data.chatbotsEnabled = billingForm.chatbotsEnabled
 
       await usersAPI.updateBilling(editingUser.id, data)
       setSuccess('Billing updated successfully')
@@ -333,6 +337,45 @@ export default function AllUsers() {
                       placeholder="0.00"
                       className="w-full pl-7 pr-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Features Section */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  {t('common.featureToggles')}
+                </label>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{t('common.voiceAgents')}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {billingForm.voiceAgentsEnabled ? t('common.enabled') : t('common.disabled')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBillingForm({ ...billingForm, voiceAgentsEnabled: !billingForm.voiceAgentsEnabled })}
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${billingForm.voiceAgentsEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.voiceAgentsEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{t('common.chatbots')}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {billingForm.chatbotsEnabled ? t('common.enabled') : t('common.disabled')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBillingForm({ ...billingForm, chatbotsEnabled: !billingForm.chatbotsEnabled })}
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${billingForm.chatbotsEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.chatbotsEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
                   </div>
                 </div>
               </div>

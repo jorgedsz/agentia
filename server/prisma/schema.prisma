@@ -24,6 +24,8 @@ model User {
   vapiApiKey        String?            // Encrypted - Per-account VAPI API Key
   vapiPublicKey     String?            // Encrypted - Per-account VAPI Public Key
   triggerApiKey     String?            // Encrypted - API key for /api/call/trigger
+  voiceAgentsEnabled Boolean           @default(true)
+  chatbotsEnabled    Boolean           @default(true)
   agencyId          Int?               // If CLIENT, belongs to this agency
   agency            User?              @relation("AgencyClients", fields: [agencyId], references: [id])
   clients           User[]             @relation("AgencyClients") // If AGENCY, these are their clients
