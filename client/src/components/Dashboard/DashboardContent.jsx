@@ -828,7 +828,7 @@ function AgentCard({ agent, modelRates, transcriberRates, onDelete, onEdit, onTe
   const totalRate = (modelRate || 0) + (transcriberRate || 0)
   const hasRate = modelRate != null || transcriberRate != null
 
-  const displayId = agent.vapiId || agent.id
+  const displayId = agent.id
   const copyId = () => {
     navigator.clipboard.writeText(String(displayId))
     setCopied(true)
