@@ -2311,54 +2311,6 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
           {/* API Trigger */}
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden divide-y divide-gray-200 dark:divide-dark-border">
 
-            {/* Trigger URL Section */}
-            <div>
-              <button
-                type="button"
-                onClick={() => toggleSection('triggerUrl')}
-                className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
-              >
-                <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedSection === 'triggerUrl' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-                <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">API Trigger URL</span>
-                <span className="text-xs text-green-600 dark:text-green-400 font-medium">Ready</span>
-              </button>
-              {expandedSection === 'triggerUrl' && (() => {
-                const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
-                const triggerUrl = `${apiBaseUrl}/call/trigger`
-                return (
-                  <div className="px-5 pb-4 space-y-3">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Send a POST request to trigger an outbound call from this agent.</p>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={triggerUrl}
-                        readOnly
-                        className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-700 dark:text-gray-300 text-sm font-mono"
-                      />
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(triggerUrl)
-                          setSuccess('Trigger URL copied!')
-                          setTimeout(() => setSuccess(''), 2000)
-                        }}
-                        className="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-600 dark:text-gray-300 text-sm flex-shrink-0"
-                        title="Copy URL"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-
             {/* cURL Example Section */}
             <div>
               <button
