@@ -1236,7 +1236,7 @@ export default function AgentEdit() {
         })
       }
 
-      // Build a single transferCall tool with all destinations (VAPI only allows one per agent)
+      // Build a single transferCall tool with all destinations (only one allowed per agent)
       const transferTools = []
       if (transferConfig.enabled) {
         const activeTransfers = getActiveTransfers().filter(entry => entry.destinationValue)
@@ -1537,14 +1537,14 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         }
       })
 
-      // Show VAPI sync result
+      // Show sync result
       const syncInfo = response.data?.vapiSyncInfo
       if (response.data?.vapiWarning) {
         setError(response.data.vapiWarning)
         setTimeout(() => setError(''), 10000)
       } else if (syncInfo) {
         const webhookStatus = syncInfo.webhookUrl && syncInfo.webhookUrl !== 'NOT SET' ? '' : ' | Webhook: NOT SET (billing disabled!)'
-        setSuccess(`Agent saved — VAPI synced (${syncInfo.savedTools} tools, prompt: ${syncInfo.savedPromptLength} chars${webhookStatus})`)
+        setSuccess(`Agent saved & synced (${syncInfo.savedTools} tools, prompt: ${syncInfo.savedPromptLength} chars${webhookStatus})`)
         setTimeout(() => setSuccess(''), 8000)
       } else {
         setSuccess('Agent saved successfully')
@@ -1564,13 +1564,13 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
     }
 
     if (!agent?.vapiId) {
-      setCallStatus('Agent is not connected to VAPI. Please create a new agent.')
+      setCallStatus('Agent is not synced. Please save the agent first.')
       return
     }
 
     const selectedPhoneData = phoneNumbers.find(p => p.id.toString() === selectedPhone)
     if (!selectedPhoneData?.vapiPhoneNumberId) {
-      setCallStatus('Selected phone number is not connected to VAPI.')
+      setCallStatus('Selected phone number is not synced.')
       return
     }
 
@@ -1833,7 +1833,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         return
       }
 
-      // Parse headers from JSON string to VAPI schema format
+      // Parse headers from JSON string to schema format
       let headers
       if (toolForm.httpHeaders && toolForm.httpHeaders.trim()) {
         try {
@@ -2365,7 +2365,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       <p><strong className="text-gray-500 dark:text-gray-400">clientId</strong> (required) — Your account ID (auto-filled)</p>
                       <p><strong className="text-gray-500 dark:text-gray-400">from</strong> (required) — Caller phone number in E.164 format</p>
                       <p><strong className="text-gray-500 dark:text-gray-400">to</strong> (required) — Destination phone number in E.164 format</p>
-                      <p className="pt-1 text-gray-400 dark:text-gray-500 italic">Any extra fields in the body become VAPI variable overrides.</p>
+                      <p className="pt-1 text-gray-400 dark:text-gray-500 italic">Any extra fields in the body become variable overrides.</p>
                     </div>
                   </div>
                 )
@@ -2393,7 +2393,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               </button>
               {expandedSection === 'variables' && (
                 <div className="px-5 pb-4 space-y-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Define extra variables to pass via the API trigger. These become VAPI variable overrides and appear in the cURL example above.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Define extra variables to pass via the API trigger. These become variable overrides and appear in the cURL example above.</p>
                   {variables.length > 0 && (
                     <div className="space-y-2">
                       {variables.map((v, i) => (

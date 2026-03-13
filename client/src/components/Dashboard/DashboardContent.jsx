@@ -919,7 +919,7 @@ function AgentCard({ agent, modelRates, transcriberRates, onDelete, onEdit, onTe
               onClick={onTest}
               disabled={!agent.vapiId}
               className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-600/40 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              title={agent.vapiId ? 'Web Call' : 'Agent not connected to VAPI'}
+              title={agent.vapiId ? 'Web Call' : 'Agent not synced'}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
@@ -930,7 +930,7 @@ function AgentCard({ agent, modelRates, transcriberRates, onDelete, onEdit, onTe
               onClick={onPhoneCall}
               disabled={!agent.vapiId}
               className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-600/40 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              title={agent.vapiId ? 'Phone Call' : 'Agent not connected to VAPI'}
+              title={agent.vapiId ? 'Phone Call' : 'Agent not synced'}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />

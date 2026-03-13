@@ -489,7 +489,7 @@ function AgentCard({ agent, pricingRates, onDelete, onEdit, onTest }) {
       )}
       <div className="flex gap-2">
         <button onClick={onEdit} className="flex-1 px-3 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 font-medium">Edit</button>
-        <button onClick={onTest} disabled={!agent.vapiId} className="px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50" title={agent.vapiId ? 'Test Agent' : 'Agent not connected to VAPI'}>
+        <button onClick={onTest} disabled={!agent.vapiId} className="px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50" title={agent.vapiId ? 'Test Agent' : 'Agent not synced'}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
