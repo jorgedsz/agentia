@@ -579,6 +579,8 @@
     "systemPrompt": "System Prompt",
     "promptPlaceholder": "Enter the system prompt for this agent...",
     "llmModel": "LLM Model",
+    "aiProvider": "AI Provider",
+    "selectModel": "Select Model",
     "voice": "Voice",
     "chooseVoice": "Choose a Voice",
     "changeVoice": "Change Voice",
