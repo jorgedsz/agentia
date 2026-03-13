@@ -501,6 +501,7 @@ export default function AgentEdit() {
   const [variables, setVariables] = useState([])
   const [newVarName, setNewVarName] = useState('')
   const [newVarDefault, setNewVarDefault] = useState('')
+  const [triggerApiKey, setTriggerApiKey] = useState('')
 
   // Calendar settings (multi-provider)
   const [calendarConfig, setCalendarConfig] = useState({
@@ -629,6 +630,7 @@ export default function AgentEdit() {
     fetchAgent()
     fetchPhoneNumbers()
     fetchCredits()
+    fetchTriggerKey()
     fetchGhlStatus()
     fetchCalendarIntegrations()
     fetchPricingRates()
@@ -917,6 +919,15 @@ export default function AgentEdit() {
       }
     } catch (err) {
       console.error('Failed to fetch credits:', err)
+    }
+  }
+
+  const fetchTriggerKey = async () => {
+    try {
+      const { data } = await accountSettingsAPI.getTriggerKey()
+      setTriggerApiKey(data.triggerApiKey || '')
+    } catch (err) {
+      // Key may not exist yet — leave blank
     }
   }
 
@@ -2371,7 +2382,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                 const variablesJson = variables.length > 0 ? `,\n${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}` : ''
                 const curlExample = `curl -X POST ${triggerUrl} \\
   -H "Content-Type: application/json" \\
-  -H "x-api-key: YOUR_TRIGGER_API_KEY" \\
+  -H "x-api-key: ${triggerApiKey || 'YOUR_TRIGGER_API_KEY'}" \\
   -d '{
     "agentId": ${id},
     "clientId": ${user?.id || 'YOUR_CLIENT_ID'},
