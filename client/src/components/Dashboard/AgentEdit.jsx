@@ -2143,7 +2143,13 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Transcriber Provider */}
             <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">{ta('transcriberProvider')}</label>
+              <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                {ta('transcriberProvider')}
+                <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <title>The speech-to-text (STT) engine that converts the caller's voice into text for the AI to process. Each provider has different accuracy, speed and language support. Deepgram is recommended for the best balance of speed and accuracy.</title>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </label>
               <div className="relative">
                 <select
                   value={transcriberProvider}
@@ -2177,7 +2183,13 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
             {/* Transcriber Language */}
             <div>
-              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">{ta('transcriberLanguage')}</label>
+              <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                {ta('transcriberLanguage')}
+                <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <title>The language the transcriber will listen for. Select "Multi" for automatic language detection if your agent handles calls in multiple languages, or pick a specific language for better accuracy.</title>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </label>
               <div className="relative">
                 <select
                   value={transcriberLanguage}
