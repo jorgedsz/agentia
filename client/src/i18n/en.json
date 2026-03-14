@@ -888,6 +888,8 @@
     "featureVoiceAgents": "Voice Agents",
     "featureChatbots": "Chatbots",
     "quarterly": "Quarterly",
-    "perQuarter": "/qtr"
+    "perQuarter": "/qtr",
+    "lifetime": "Lifetime",
+    "perLifetime": ""
   }
 }

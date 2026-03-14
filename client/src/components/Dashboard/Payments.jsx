@@ -189,6 +189,7 @@ export default function Payments() {
       case 'monthly': return t('payments.monthly')
       case 'quarterly': return t('payments.quarterly')
       case 'annual': return t('payments.annual')
+      case 'lifetime': return t('payments.lifetime')
       default: return cycle
     }
   }
@@ -198,6 +199,7 @@ export default function Payments() {
       case 'monthly': return t('payments.perMonth')
       case 'quarterly': return t('payments.perQuarter')
       case 'annual': return t('payments.perYear')
+      case 'lifetime': return t('payments.perLifetime')
       default: return ''
     }
   }
@@ -484,6 +486,7 @@ export default function Payments() {
                     <option value="monthly">{t('payments.monthly')}</option>
                     <option value="quarterly">{t('payments.quarterly')}</option>
                     <option value="annual">{t('payments.annual')}</option>
+                    <option value="lifetime">{t('payments.lifetime')}</option>
                   </select>
                 </div>
               </div>
@@ -608,6 +611,7 @@ export default function Payments() {
                     <option value="monthly">{t('payments.monthly')}</option>
                     <option value="quarterly">{t('payments.quarterly')}</option>
                     <option value="annual">{t('payments.annual')}</option>
+                    <option value="lifetime">{t('payments.lifetime')}</option>
                   </select>
                 </div>
               </div>
