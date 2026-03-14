@@ -635,7 +635,17 @@ export default function AgentEdit() {
     fetchGhlStatus()
     fetchCalendarIntegrations()
     fetchPricingRates()
+    fetchVoicesList()
   }, [id])
+
+  const fetchVoicesList = async () => {
+    try {
+      const res = await voicesAPI.list()
+      setVoicesList(res.data)
+    } catch (err) {
+      console.error('Failed to load voices:', err)
+    }
+  }
 
   const fetchGhlStatus = async () => {
     try {
@@ -1612,14 +1622,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
     setVoiceLanguageFilter('all')
     if (voicesList.length === 0) {
       setVoicesLoading(true)
-      try {
-        const res = await voicesAPI.list()
-        setVoicesList(res.data)
-      } catch (err) {
-        console.error('Failed to load voices:', err)
-      } finally {
-        setVoicesLoading(false)
-      }
+      await fetchVoicesList()
+      setVoicesLoading(false)
     }
   }
 
