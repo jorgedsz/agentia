@@ -355,6 +355,14 @@ const TTS_LATENCY = { '11labs': 500 }
 
 const MAX_LATENCY = 5000 // ms
 
+function getSpeedTag(llmLatency) {
+  if (llmLatency <= 200) return '⚡ Fastest'
+  if (llmLatency <= 500) return '🟢 Fast'
+  if (llmLatency <= 1000) return '🟡 Medium'
+  if (llmLatency <= 2000) return '🟠 Slow'
+  return '🔴 Slowest'
+}
+
 function getModelLatency(provider, model, voiceProv, sttProv) {
   const models = MODELS_BY_PROVIDER[provider] || []
   const m = models.find(entry => entry.model === model)
@@ -2069,9 +2077,10 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                   {(MODELS_BY_PROVIDER[modelProvider] || []).map(m => {
                     const lat = getModelLatency(modelProvider, m.model, voiceProvider, transcriberProvider)
                     const mRate = modelRates[`${modelProvider}::${m.model}`]
+                    const speed = getSpeedTag(m.llmLatency)
                     return (
                       <option key={m.model} value={m.model}>
-                        {m.label} · {lat ? `~${lat.total}ms` : ''}{mRate != null ? ` · $${mRate.toFixed(2)}/min` : ''}
+                        {m.label} · {speed}{lat ? ` · ~${lat.total}ms` : ''}{mRate != null ? ` · $${mRate.toFixed(2)}/min` : ''}
                       </option>
                     )
                   })}
