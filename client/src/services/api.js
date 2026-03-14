@@ -214,6 +214,20 @@ export const complianceAPI = {
   getAuditLogs: (params) => api.get('/compliance/audit-logs', { params })
 }
 
+// Payments API
+export const paymentsAPI = {
+  listTiers: () => api.get('/payments/tiers'),
+  getTier: (id) => api.get(`/payments/tiers/${id}`),
+  createTier: (data) => api.post('/payments/tiers', data),
+  updateTier: (id, data) => api.put(`/payments/tiers/${id}`, data),
+  deleteTier: (id) => api.delete(`/payments/tiers/${id}`),
+  listPlans: () => api.get('/payments/plans'),
+  getPlan: (userId) => api.get(`/payments/plans/${userId}`),
+  assignPlan: (userId, data) => api.post(`/payments/plans/${userId}`, data),
+  updatePlan: (userId, data) => api.put(`/payments/plans/${userId}`, data),
+  removePlan: (userId) => api.delete(`/payments/plans/${userId}`),
+}
+
 // Chat API (uses fetch for SSE streaming, not axios)
 export const chatAPI = {
   sendMessage: async (messages, onChunk, onDone, onError) => {

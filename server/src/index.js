@@ -31,6 +31,7 @@ const recordingRoutes = require('./routes/recordings');
 const complianceRoutes = require('./routes/compliance');
 const pricingRoutes = require('./routes/pricing');
 const chatbotRoutes = require('./routes/chatbots');
+const paymentRoutes = require('./routes/payments');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -84,6 +85,7 @@ app.use('/api/recordings', recordingRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/chatbots', chatbotRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

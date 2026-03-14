@@ -43,6 +43,7 @@ model User {
   vapiKeyPoolEntry     VapiKeyPool?
   complianceSetting    ComplianceSetting?
   chatbots             Chatbot[]
+  userPlan             UserPlan?
 }
 
 model VapiKeyPool {
@@ -299,4 +300,34 @@ model TranscriberRate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@unique([provider, setById])
+}
+
+model PlanTier {
+  id           Int        @id @default(autoincrement())
+  name         String
+  description  String?
+  price        Float
+  billingCycle String     @default("monthly") // "monthly" or "annual"
+  isActive     Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  userPlans    UserPlan[]
+}
+
+model UserPlan {
+  id                   Int       @id @default(autoincrement())
+  userId               Int       @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planTierId           Int
+  planTier             PlanTier  @relation(fields: [planTierId], references: [id], onDelete: Restrict)
+  amount               Float
+  billingCycle         String    @default("monthly")
+  status               String    @default("active") // "active", "cancelled", "past_due"
+  nextPaymentDate      DateTime?
+  stripeSubscriptionId String?
+  stripeCustomerId     String?
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
