@@ -2031,7 +2031,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
                 {ta('aiProvider')}
                 <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <title>The AI provider that powers your agent's intelligence. OpenAI, Google, Anthropic and others are supported. Each provider has different models with varying speed, quality and cost.</title>
+                  <title>{ta('tipAiProvider')}</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
@@ -2063,7 +2063,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
                 {ta('llmModel')}
                 <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <title>The specific AI model to use. Larger models are smarter but slower and more expensive. Smaller models respond faster and cost less. The latency and cost per minute are shown for each option.</title>
+                  <title>{ta('tipLlmModel')}</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
@@ -2094,7 +2094,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
               {ta('firstMessage')}
               <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <title>The first thing your agent says when the call starts. For outbound calls, this is typically a greeting like "Hi, is this John?". For inbound calls, something like "Thank you for calling, how can I help you?"</title>
+                <title>{ta('tipFirstMessage')}</title>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </label>
@@ -2146,7 +2146,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
                 {ta('transcriberProvider')}
                 <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <title>The speech-to-text (STT) engine that converts the caller's voice into text for the AI to process. Each provider has different accuracy, speed and language support. Deepgram is recommended for the best balance of speed and accuracy.</title>
+                  <title>{ta('tipTranscriberProvider')}</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
@@ -2186,7 +2186,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
                 {ta('transcriberLanguage')}
                 <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <title>The language the transcriber will listen for. Select "Multi" for automatic language detection if your agent handles calls in multiple languages, or pick a specific language for better accuracy.</title>
+                  <title>{ta('tipTranscriberLanguage')}</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
@@ -2257,7 +2257,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
                 {ta('calendarOptions')}
                 <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <title>Connect a calendar so your agent can check availability and book appointments during calls. Supports GoHighLevel, Google Calendar, Calendly, HubSpot and Cal.com.</title>
+                  <title>{ta('tipCalendarOptions')}</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
@@ -2292,7 +2292,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
                 Call Transfer
                 <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <title>Enable your agent to transfer calls to a live person when needed. Configure a phone number, SIP address, or another assistant as the transfer destination.</title>
+                  <title>{ta('tipCallTransfer')}</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
@@ -2326,7 +2326,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
                 {ta('advancedOptions')}
                 <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <title>Fine-tune your agent's behavior: voice settings (stability, speed, similarity), transcriber configuration, background sounds, end-of-call messages, max call duration and custom tools/API integrations.</title>
+                  <title>{ta('tipAdvancedOptions')}</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>

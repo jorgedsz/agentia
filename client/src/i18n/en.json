@@ -776,7 +776,15 @@
     "voiceModelTurboV2": "Turbo v2",
     "voiceModelTurboV2Desc": "Fast with decent quality",
     "variable": "Variable",
-    "stable": "Stable"
+    "stable": "Stable",
+    "tipAiProvider": "The AI provider that powers your agent's intelligence. OpenAI, Google, Anthropic and others are supported. Each provider has different models with varying speed, quality and cost.",
+    "tipLlmModel": "The specific AI model to use. Larger models are smarter but slower and more expensive. Smaller models respond faster and cost less. The latency and cost per minute are shown for each option.",
+    "tipFirstMessage": "The first thing your agent says when the call starts. For outbound calls, this is typically a greeting like \"Hi, is this John?\". For inbound calls, something like \"Thank you for calling, how can I help you?\"",
+    "tipCalendarOptions": "Connect a calendar so your agent can check availability and book appointments during calls. Supports GoHighLevel, Google Calendar, Calendly, HubSpot and Cal.com.",
+    "tipCallTransfer": "Enable your agent to transfer calls to a live person when needed. Configure a phone number, SIP address, or another assistant as the transfer destination.",
+    "tipAdvancedOptions": "Fine-tune your agent's behavior: voice settings (stability, speed, similarity), transcriber configuration, background sounds, end-of-call messages, max call duration and custom tools/API integrations.",
+    "tipTranscriberProvider": "The speech-to-text (STT) engine that converts the caller's voice into text for the AI to process. Each provider has different accuracy, speed and language support. Deepgram is recommended for the best balance of speed and accuracy.",
+    "tipTranscriberLanguage": "The language the transcriber will listen for. Select \"Multi\" for automatic language detection if your agent handles calls in multiple languages, or pick a specific language for better accuracy."
   },
   "pricing": {
     "modelRates": "Model Rates",

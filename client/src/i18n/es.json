@@ -776,7 +776,15 @@
     "voiceModelTurboV2": "Turbo v2",
     "voiceModelTurboV2Desc": "Rápido con calidad decente",
     "variable": "Variable",
-    "stable": "Estable"
+    "stable": "Estable",
+    "tipAiProvider": "El proveedor de IA que impulsa la inteligencia de tu agente. Se soportan OpenAI, Google, Anthropic y otros. Cada proveedor tiene diferentes modelos con distinta velocidad, calidad y costo.",
+    "tipLlmModel": "El modelo de IA específico a usar. Los modelos más grandes son más inteligentes pero más lentos y costosos. Los modelos más pequeños responden más rápido y cuestan menos. La latencia y el costo por minuto se muestran para cada opción.",
+    "tipFirstMessage": "Lo primero que dice tu agente cuando comienza la llamada. Para llamadas salientes, típicamente un saludo como \"Hola, ¿hablo con Juan?\". Para llamadas entrantes, algo como \"Gracias por llamar, ¿en qué puedo ayudarte?\"",
+    "tipCalendarOptions": "Conecta un calendario para que tu agente pueda verificar disponibilidad y agendar citas durante las llamadas. Soporta GoHighLevel, Google Calendar, Calendly, HubSpot y Cal.com.",
+    "tipCallTransfer": "Permite que tu agente transfiera llamadas a una persona real cuando sea necesario. Configura un número de teléfono, dirección SIP u otro asistente como destino de transferencia.",
+    "tipAdvancedOptions": "Ajusta el comportamiento de tu agente: configuración de voz (estabilidad, velocidad, similitud), configuración del transcriptor, sonidos de fondo, mensajes de fin de llamada, duración máxima de llamada e integraciones de herramientas/API personalizadas.",
+    "tipTranscriberProvider": "El motor de voz a texto (STT) que convierte la voz del llamante en texto para que la IA lo procese. Cada proveedor tiene diferente precisión, velocidad y soporte de idiomas. Se recomienda Deepgram por el mejor balance entre velocidad y precisión.",
+    "tipTranscriberLanguage": "El idioma que el transcriptor escuchará. Selecciona \"Multi\" para detección automática de idioma si tu agente maneja llamadas en múltiples idiomas, o elige un idioma específico para mejor precisión."
   },
   "pricing": {
     "modelRates": "Tarifas de Modelos",
