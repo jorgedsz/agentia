@@ -119,7 +119,7 @@ const Icons = {
 export default function DashboardLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, logout, isImpersonating, switchBack, branding } = useAuth()
+  const { user, logout, isImpersonating, switchBack, branding, isTeamMember, teamMember } = useAuth()
   const { darkMode, toggleDarkMode } = useTheme()
   const { t, language, toggleLanguage } = useLanguage()
   const [switchingBack, setSwitchingBack] = useState(false)
@@ -437,13 +437,13 @@ export default function DashboardLayout() {
           {/* User info */}
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white text-sm font-medium">
-              {(user?.name || user?.email || 'U')[0].toUpperCase()}
+              {((isTeamMember ? teamMember?.name : user?.name) || user?.email || 'U')[0].toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                {user?.name || user?.email}
+                {isTeamMember ? teamMember?.name : (user?.name || user?.email)}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{user?.role}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{isTeamMember ? teamMember?.teamRole : user?.role}</p>
             </div>
             <button
               onClick={logout}
