@@ -8,4 +8,7 @@ router.use(authMiddleware);
 // POST /api/prompt-generator/generate
 router.post('/generate', promptGeneratorController.generatePrompt);
 
+// POST /api/prompt-generator/update
+router.post('/update', promptGeneratorController.updatePrompt);
+
 module.exports = router;

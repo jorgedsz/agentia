@@ -156,7 +156,8 @@ export const vapiKeyPoolAPI = {
 
 // Prompt Generator API
 export const promptGeneratorAPI = {
-  generate: (data) => api.post('/prompt-generator/generate', data)
+  generate: (data) => api.post('/prompt-generator/generate', data),
+  update: (data) => api.post('/prompt-generator/update', data)
 }
 
 // Platform Settings API (OWNER only, except getVapiPublicKey)

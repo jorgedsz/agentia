@@ -25,4 +25,32 @@ const generatePrompt = async (req, res) => {
   }
 };
 
-module.exports = { generatePrompt };
+const updatePrompt = async (req, res) => {
+  try {
+    const { currentPrompt, changeDescription, language } = req.body;
+
+    if (!currentPrompt || !currentPrompt.trim()) {
+      return res.status(400).json({ error: 'Current prompt is required' });
+    }
+
+    if (!changeDescription || !changeDescription.trim()) {
+      return res.status(400).json({ error: 'Change description is required' });
+    }
+
+    const { openaiApiKey } = await getApiKeys(req.prisma);
+
+    const result = await promptGeneratorService.updatePrompt(
+      currentPrompt.trim(),
+      changeDescription.trim(),
+      language || 'en',
+      openaiApiKey
+    );
+
+    res.json({ prompt: result.prompt });
+  } catch (error) {
+    console.error('Update prompt error:', error);
+    res.status(500).json({ error: 'Failed to update prompt' });
+  }
+};
+
+module.exports = { generatePrompt, updatePrompt };

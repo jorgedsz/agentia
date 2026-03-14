@@ -483,6 +483,7 @@ export default function AgentEdit() {
   const [generatedFirstMessage, setGeneratedFirstMessage] = useState('')
   const [promptLanguage, setPromptLanguage] = useState('en')
   const [promptDirection, setPromptDirection] = useState('outbound')
+  const [promptMode, setPromptMode] = useState('generate')
 
   // Feature toggles
   const [showCalendarModal, setShowCalendarModal] = useState(false)
@@ -1722,6 +1723,26 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
     }
   }
 
+  const handleUpdatePrompt = async () => {
+    if (!promptDescription.trim() || !systemPrompt.trim()) return
+    setGeneratingPrompt(true)
+    setGeneratedPrompt('')
+    setGeneratedFirstMessage('')
+    try {
+      const { data } = await promptGeneratorAPI.update({
+        currentPrompt: systemPrompt,
+        changeDescription: promptDescription,
+        language: promptLanguage
+      })
+      setGeneratedPrompt(data.prompt)
+    } catch (err) {
+      setError('Failed to update prompt')
+      setTimeout(() => setError(''), 3000)
+    } finally {
+      setGeneratingPrompt(false)
+    }
+  }
+
   const handleUseGeneratedPrompt = () => {
     setSystemPrompt(generatedPrompt)
     if (generatedFirstMessage) {
@@ -1732,6 +1753,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
     setPromptDescription('')
     setGeneratedPrompt('')
     setGeneratedFirstMessage('')
+    setPromptMode('generate')
   }
 
   // Tool management functions
@@ -4219,7 +4241,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">AI Prompt Generator</h3>
               <button
-                onClick={() => { setShowPromptGenerator(false); setPromptDescription(''); setGeneratedPrompt('') }}
+                onClick={() => { setShowPromptGenerator(false); setPromptDescription(''); setGeneratedPrompt(''); setPromptMode('generate') }}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4230,30 +4252,78 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-              {/* Direction & Language selectors */}
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Direction</label>
+              {/* Mode toggle - only show if there's an existing prompt */}
+              {systemPrompt.trim() && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Mode</label>
                   <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
                     <button
                       type="button"
-                      onClick={() => setPromptDirection('inbound')}
-                      className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptDirection === 'inbound' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
+                      onClick={() => { setPromptMode('generate'); setGeneratedPrompt(''); setPromptDescription('') }}
+                      className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptMode === 'generate' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
                     >
-                      Inbound
+                      Generate New
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPromptDirection('outbound')}
-                      className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptDirection === 'outbound' ? 'bg-green-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
+                      onClick={() => { setPromptMode('update'); setGeneratedPrompt(''); setPromptDescription('') }}
+                      className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptMode === 'update' ? 'bg-orange-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
                     >
-                      Outbound
+                      Update Current
                     </button>
                   </div>
                 </div>
-                <div className="flex-1">
+              )}
+
+              {/* Direction & Language selectors - only for generate mode */}
+              {promptMode === 'generate' && (
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Direction</label>
+                    <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setPromptDirection('inbound')}
+                        className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptDirection === 'inbound' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
+                      >
+                        Inbound
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPromptDirection('outbound')}
+                        className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptDirection === 'outbound' ? 'bg-green-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
+                      >
+                        Outbound
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Language</label>
+                    <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setPromptLanguage('en')}
+                        className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
+                      >
+                        English
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPromptLanguage('es')}
+                        className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
+                      >
+                        Spanish
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Language selector for update mode */}
+              {promptMode === 'update' && (
+                <div>
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Language</label>
-                  <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
+                  <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden w-48">
                     <button
                       type="button"
                       onClick={() => setPromptLanguage('en')}
@@ -4270,30 +4340,34 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     </button>
                   </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
-                  Describe what your agent should do:
+                  {promptMode === 'update' ? 'Describe the changes you want to make:' : 'Describe what your agent should do:'}
                 </label>
                 <textarea
                   value={promptDescription}
                   onChange={(e) => setPromptDescription(e.target.value)}
                   rows={4}
-                  placeholder={promptLanguage === 'es'
-                    ? 'Describe tu negocio, qué debe hacer el agente, público objetivo, preguntas de calificación, resultado deseado (agendar cita, transferir, etc). Ej: "Una clínica dental llamada Bright Smiles. El agente debe llamar a leads que llenaron un formulario, preguntar sobre sus necesidades dentales, calificarlos y agendar una cita de consulta..."'
-                    : 'Describe your business, what the agent should do, target audience, qualifying questions, desired outcome (booking, transfer, etc). E.g. "A dental clinic called Bright Smiles. The agent should call leads who filled out a form, ask about their dental needs, qualify them, and book a consultation appointment..."'
+                  placeholder={promptMode === 'update'
+                    ? (promptLanguage === 'es'
+                      ? 'Describe los cambios que quieres hacer al prompt actual. Ej: "Cambiar el nombre del agente a Maria", "Agregar una pregunta sobre el presupuesto", "Cambiar el tono a mas formal"...'
+                      : 'Describe the changes you want to make to the current prompt. E.g. "Change the agent name to Sarah", "Add a question about budget", "Make the tone more formal"...')
+                    : (promptLanguage === 'es'
+                      ? 'Describe tu negocio, qué debe hacer el agente, público objetivo, preguntas de calificación, resultado deseado (agendar cita, transferir, etc). Ej: "Una clínica dental llamada Bright Smiles. El agente debe llamar a leads que llenaron un formulario, preguntar sobre sus necesidades dentales, calificarlos y agendar una cita de consulta..."'
+                      : 'Describe your business, what the agent should do, target audience, qualifying questions, desired outcome (booking, transfer, etc). E.g. "A dental clinic called Bright Smiles. The agent should call leads who filled out a form, ask about their dental needs, qualify them, and book a consultation appointment..."')
                   }
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !generatingPrompt) { e.preventDefault(); handleGeneratePrompt() } }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !generatingPrompt) { e.preventDefault(); promptMode === 'update' ? handleUpdatePrompt() : handleGeneratePrompt() } }}
                 />
               </div>
 
               {!generatedPrompt && (
                 <button
-                  onClick={handleGeneratePrompt}
+                  onClick={promptMode === 'update' ? handleUpdatePrompt : handleGeneratePrompt}
                   disabled={generatingPrompt || !promptDescription.trim()}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${promptMode === 'update' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-purple-600 hover:bg-purple-700'}`}
                 >
                   {generatingPrompt ? (
                     <>
@@ -4301,17 +4375,19 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
-                      Generating...
+                      {promptMode === 'update' ? 'Updating...' : 'Generating...'}
                     </>
                   ) : (
-                    'Generate Prompt'
+                    promptMode === 'update' ? 'Update Prompt' : 'Generate Prompt'
                   )}
                 </button>
               )}
 
               {generatedPrompt && (
                 <div className="space-y-3">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">Generated Prompt:</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
+                    {promptMode === 'update' ? 'Updated Prompt:' : 'Generated Prompt:'}
+                  </label>
                   <div className="p-4 rounded-lg bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border max-h-[50vh] overflow-y-auto">
                     <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{generatedPrompt}</p>
                   </div>
@@ -4323,7 +4399,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             {generatedPrompt && (
               <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
                 <button
-                  onClick={handleGeneratePrompt}
+                  onClick={promptMode === 'update' ? handleUpdatePrompt : handleGeneratePrompt}
                   disabled={generatingPrompt}
                   className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-50 transition-colors"
                 >
@@ -4333,10 +4409,10 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
-                      Regenerating...
+                      {promptMode === 'update' ? 'Updating...' : 'Regenerating...'}
                     </>
                   ) : (
-                    'Regenerate'
+                    promptMode === 'update' ? 'Update Again' : 'Regenerate'
                   )}
                 </button>
                 <button

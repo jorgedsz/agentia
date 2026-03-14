@@ -362,4 +362,50 @@ const generatePrompt = async (description, agentType, language, apiKey) => {
   };
 };
 
-module.exports = { generatePrompt };
+// ─── UPDATE EXISTING PROMPT ───
+
+const UPDATE_META_PROMPT = `You are an expert Prompt Engineer that modifies existing voice AI agent system prompts. You receive the current prompt and a description of the changes the user wants.
+
+CRITICAL RULES:
+- Keep the overall structure and fixed sections intact
+- Only modify the parts the user is asking to change
+- Preserve formatting, tone, and style of the original prompt
+- Never use ** for bold headings
+- Never use asterisks, emojis, or special formatting characters
+- Do not add or remove fixed sections (MANDATORY, Conversation Style, Language Rules, IVR, etc.)
+- Return the FULL updated prompt, not just the changed parts
+- If the user asks to change something that doesn't exist in the prompt, add it in the appropriate place
+
+Return ONLY the updated prompt text. No explanations, no markdown code blocks, no JSON wrapping.`;
+
+const updatePrompt = async (currentPrompt, changeDescription, language, apiKey) => {
+  const openai = new OpenAI({
+    apiKey: apiKey || process.env.OPENAI_API_KEY
+  });
+
+  const langInstruction = language === 'es'
+    ? '\n\nIMPORTANT: Maintain the prompt in SPANISH. Any new content should also be in Spanish.'
+    : '';
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: UPDATE_META_PROMPT + langInstruction },
+      { role: 'user', content: `Here is the current prompt:\n\n---\n${currentPrompt}\n---\n\nChanges requested:\n${changeDescription}` }
+    ],
+    temperature: 0.7,
+    max_tokens: 4096
+  });
+
+  const updatedPrompt = response.choices[0].message.content.trim();
+
+  // Strip markdown code blocks if the AI wrapped it
+  let result = updatedPrompt;
+  if (result.startsWith('```')) {
+    result = result.replace(/^```(?:\w+)?\n?/, '').replace(/\n?```$/, '');
+  }
+
+  return { prompt: result };
+};
+
+module.exports = { generatePrompt, updatePrompt };
