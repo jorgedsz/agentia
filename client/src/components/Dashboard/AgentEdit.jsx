@@ -2022,7 +2022,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             <div>
               <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
                 {ta('aiProvider')}
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <title>The AI provider that powers your agent's intelligence. OpenAI, Google, Anthropic and others are supported. Each provider has different models with varying speed, quality and cost.</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
@@ -2053,7 +2054,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             <div>
               <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
                 {ta('llmModel')}
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <title>The specific AI model to use. Larger models are smarter but slower and more expensive. Smaller models respond faster and cost less. The latency and cost per minute are shown for each option.</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
@@ -2082,7 +2084,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
           <div>
             <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
               {ta('firstMessage')}
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <title>The first thing your agent says when the call starts. For outbound calls, this is typically a greeting like "Hi, is this John?". For inbound calls, something like "Thank you for calling, how can I help you?"</title>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </label>
@@ -2232,7 +2235,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             <div className="text-center">
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
                 {ta('calendarOptions')}
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <title>Connect a calendar so your agent can check availability and book appointments during calls. Supports GoHighLevel, Google Calendar, Calendly, HubSpot and Cal.com.</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
@@ -2266,7 +2270,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             <div className="text-center">
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
                 Call Transfer
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <title>Enable your agent to transfer calls to a live person when needed. Configure a phone number, SIP address, or another assistant as the transfer destination.</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
@@ -2299,7 +2304,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             <div className="text-center">
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
                 {ta('advancedOptions')}
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <title>Fine-tune your agent's behavior: voice settings (stability, speed, similarity), transcriber configuration, background sounds, end-of-call messages, max call duration and custom tools/API integrations.</title>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </label>
