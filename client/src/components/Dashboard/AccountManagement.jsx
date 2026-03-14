@@ -27,6 +27,8 @@ export default function AccountManagement() {
     creditOperation: 'add',
     voiceAgentsEnabled: true,
     chatbotsEnabled: true,
+    callsPaused: false,
+    messagesPaused: false,
   })
   const [saving, setSaving] = useState(false)
 
@@ -99,6 +101,8 @@ export default function AccountManagement() {
       creditOperation: 'add',
       voiceAgentsEnabled: targetUser.voiceAgentsEnabled !== false,
       chatbotsEnabled: targetUser.chatbotsEnabled !== false,
+      callsPaused: targetUser.callsPaused || false,
+      messagesPaused: targetUser.messagesPaused || false,
     })
     setError('')
     setSuccess('')
@@ -106,7 +110,7 @@ export default function AccountManagement() {
 
   const closeBillingModal = () => {
     setEditingUser(null)
-    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true })
+    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, callsPaused: false, messagesPaused: false })
   }
 
   const handleBillingSubmit = async (e) => {
@@ -125,6 +129,8 @@ export default function AccountManagement() {
       // Always send feature toggles
       data.voiceAgentsEnabled = billingForm.voiceAgentsEnabled
       data.chatbotsEnabled = billingForm.chatbotsEnabled
+      data.callsPaused = billingForm.callsPaused
+      data.messagesPaused = billingForm.messagesPaused
 
       await usersAPI.updateBilling(editingUser.id, data)
       setSuccess('Billing updated successfully')
@@ -520,6 +526,36 @@ export default function AccountManagement() {
                       className={`w-11 h-6 rounded-full p-0.5 transition-colors ${billingForm.chatbotsEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
                     >
                       <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.chatbotsEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{t('common.pauseCalls')}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {billingForm.callsPaused ? t('common.callsPaused') : t('common.disabled')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBillingForm({ ...billingForm, callsPaused: !billingForm.callsPaused })}
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${billingForm.callsPaused ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.callsPaused ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{t('common.pauseMessages')}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {billingForm.messagesPaused ? t('common.messagesPaused') : t('common.disabled')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBillingForm({ ...billingForm, messagesPaused: !billingForm.messagesPaused })}
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${billingForm.messagesPaused ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.messagesPaused ? 'translate-x-5' : 'translate-x-0'}`} />
                     </button>
                   </div>
                 </div>

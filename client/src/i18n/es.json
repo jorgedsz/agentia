@@ -51,7 +51,13 @@
     "switchBack": "Volver",
     "logout": "Cerrar sesión",
     "copy": "Copiar",
-    "generating": "Generando..."
+    "generating": "Generando...",
+    "callsPaused": "Llamadas Pausadas",
+    "messagesPaused": "Mensajes Pausados",
+    "pauseCalls": "Pausar Llamadas",
+    "pauseMessages": "Pausar Mensajes",
+    "callsPausedBanner": "Las llamadas salientes están pausadas para tu cuenta. Contacta a tu administrador para reanudar.",
+    "messagesPausedBanner": "Los mensajes de chatbot están pausados para tu cuenta. Contacta a tu administrador para reanudar."
   },
   "auth": {
     "title": "Appex Innovations AI",

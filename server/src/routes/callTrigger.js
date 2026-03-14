@@ -45,6 +45,13 @@ router.post('/', async (req, res) => {
       });
     }
 
+    if (user.callsPaused) {
+      return res.status(403).json({
+        success: false,
+        error: 'Calls are currently paused for this account.'
+      });
+    }
+
     if (!user.triggerApiKey) {
       return res.status(401).json({
         success: false,

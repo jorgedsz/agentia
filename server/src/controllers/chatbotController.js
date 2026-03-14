@@ -348,9 +348,12 @@ const webhookProxy = async (req, res) => {
     }
 
     // Check if chatbots are enabled for the owner
-    const chatbotOwner = await req.prisma.user.findUnique({ where: { id: chatbot.userId }, select: { chatbotsEnabled: true } });
+    const chatbotOwner = await req.prisma.user.findUnique({ where: { id: chatbot.userId }, select: { chatbotsEnabled: true, messagesPaused: true } });
     if (!chatbotOwner?.chatbotsEnabled) {
       return res.status(403).json({ error: 'Chatbots are disabled for this account.' });
+    }
+    if (chatbotOwner?.messagesPaused) {
+      return res.status(403).json({ error: 'Messages are currently paused for this account.' });
     }
 
     if (!chatbot.isActive) {
