@@ -886,6 +886,8 @@
     "noPlans": "No user plans found",
     "features": "Features",
     "featureVoiceAgents": "Voice Agents",
-    "featureChatbots": "Chatbots"
+    "featureChatbots": "Chatbots",
+    "quarterly": "Quarterly",
+    "perQuarter": "/qtr"
   }
 }

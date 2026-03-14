@@ -184,6 +184,24 @@ export default function Payments() {
 
   const formatCurrency = (amount) => `$${parseFloat(amount).toFixed(2)}`
 
+  const getBillingCycleLabel = (cycle) => {
+    switch (cycle) {
+      case 'monthly': return t('payments.monthly')
+      case 'quarterly': return t('payments.quarterly')
+      case 'annual': return t('payments.annual')
+      default: return cycle
+    }
+  }
+
+  const getBillingCycleSuffix = (cycle) => {
+    switch (cycle) {
+      case 'monthly': return t('payments.perMonth')
+      case 'quarterly': return t('payments.perQuarter')
+      case 'annual': return t('payments.perYear')
+      default: return ''
+    }
+  }
+
   const getStatusBadge = (status) => {
     switch (status) {
       case 'active': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
@@ -228,12 +246,12 @@ export default function Payments() {
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">{t('payments.amount')}</span>
                 <span className="font-medium text-gray-900 dark:text-white">
-                  {formatCurrency(myPlan.amount)}{myPlan.billingCycle === 'monthly' ? t('payments.perMonth') : t('payments.perYear')}
+                  {formatCurrency(myPlan.amount)}{getBillingCycleSuffix(myPlan.billingCycle)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">{t('payments.billingCycle')}</span>
-                <span className="text-gray-900 dark:text-white">{myPlan.billingCycle === 'monthly' ? t('payments.monthly') : t('payments.annual')}</span>
+                <span className="text-gray-900 dark:text-white">{getBillingCycleLabel(myPlan.billingCycle)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">{t('payments.status')}</span>
@@ -318,7 +336,7 @@ export default function Payments() {
                         {tier.description && <div className="text-xs text-gray-500 dark:text-gray-400">{tier.description}</div>}
                       </td>
                       <td className="px-4 py-3 text-gray-900 dark:text-white">{formatCurrency(tier.price)}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{tier.billingCycle === 'monthly' ? t('payments.monthly') : t('payments.annual')}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{getBillingCycleLabel(tier.billingCycle)}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1 flex-wrap">
                           {(() => { try { return JSON.parse(tier.features || '[]') } catch { return [] } })().map(f => (
@@ -392,9 +410,9 @@ export default function Payments() {
                     </td>
                     <td className="px-4 py-3 text-gray-900 dark:text-white">{plan.planTier?.name}</td>
                     <td className="px-4 py-3 text-gray-900 dark:text-white">
-                      {formatCurrency(plan.amount)}{plan.billingCycle === 'monthly' ? t('payments.perMonth') : t('payments.perYear')}
+                      {formatCurrency(plan.amount)}{getBillingCycleSuffix(plan.billingCycle)}
                     </td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{plan.billingCycle === 'monthly' ? t('payments.monthly') : t('payments.annual')}</td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{getBillingCycleLabel(plan.billingCycle)}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(plan.status)}`}>
                         {getStatusLabel(plan.status)}
@@ -464,6 +482,7 @@ export default function Payments() {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
                   >
                     <option value="monthly">{t('payments.monthly')}</option>
+                    <option value="quarterly">{t('payments.quarterly')}</option>
                     <option value="annual">{t('payments.annual')}</option>
                   </select>
                 </div>
@@ -564,7 +583,7 @@ export default function Payments() {
                 >
                   <option value="">{t('payments.selectTier')}</option>
                   {tiers.filter(t => t.isActive).map(tier => (
-                    <option key={tier.id} value={tier.id}>{tier.name} — {formatCurrency(tier.price)}{tier.billingCycle === 'monthly' ? t('payments.perMonth') : t('payments.perYear')}</option>
+                    <option key={tier.id} value={tier.id}>{tier.name} — {formatCurrency(tier.price)}{getBillingCycleSuffix(tier.billingCycle)}</option>
                   ))}
                 </select>
               </div>
@@ -587,6 +606,7 @@ export default function Payments() {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
                   >
                     <option value="monthly">{t('payments.monthly')}</option>
+                    <option value="quarterly">{t('payments.quarterly')}</option>
                     <option value="annual">{t('payments.annual')}</option>
                   </select>
                 </div>

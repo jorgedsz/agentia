@@ -883,6 +883,11 @@
     "selectTier": "Seleccionar un plan",
     "user": "Usuario",
     "plan": "Plan",
-    "noPlans": "No se encontraron planes de usuarios"
+    "noPlans": "No se encontraron planes de usuarios",
+    "features": "Características",
+    "featureVoiceAgents": "Agentes de Voz",
+    "featureChatbots": "Chatbots",
+    "quarterly": "Trimestral",
+    "perQuarter": "/trim"
   }
 }

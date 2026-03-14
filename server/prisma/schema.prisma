@@ -307,7 +307,7 @@ model PlanTier {
   name         String
   description  String?
   price        Float
-  billingCycle String     @default("monthly") // "monthly" or "annual"
+  billingCycle String     @default("monthly") // "monthly", "quarterly", or "annual"
   isActive     Boolean    @default(true)
   sortOrder    Int        @default(0)
   features     String     @default("[\"voiceAgents\",\"chatbots\"]") // JSON array: "voiceAgents", "chatbots"
