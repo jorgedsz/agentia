@@ -29,7 +29,7 @@ const getPlanTier = async (req, res) => {
 
 const createPlanTier = async (req, res) => {
   try {
-    const { name, description, price, billingCycle, sortOrder, isActive } = req.body;
+    const { name, description, price, billingCycle, sortOrder, isActive, features } = req.body;
     if (!name || price == null || !billingCycle) {
       return res.status(400).json({ error: 'Name, price, and billingCycle are required' });
     }
@@ -41,6 +41,7 @@ const createPlanTier = async (req, res) => {
         billingCycle,
         sortOrder: sortOrder != null ? parseInt(sortOrder) : 0,
         isActive: isActive !== false,
+        features: features ? JSON.stringify(features) : undefined,
       },
     });
     res.status(201).json(tier);
@@ -52,7 +53,7 @@ const createPlanTier = async (req, res) => {
 
 const updatePlanTier = async (req, res) => {
   try {
-    const { name, description, price, billingCycle, isActive, sortOrder } = req.body;
+    const { name, description, price, billingCycle, isActive, sortOrder, features } = req.body;
     const data = {};
     if (name !== undefined) data.name = name;
     if (description !== undefined) data.description = description;
@@ -60,6 +61,7 @@ const updatePlanTier = async (req, res) => {
     if (billingCycle !== undefined) data.billingCycle = billingCycle;
     if (isActive !== undefined) data.isActive = isActive;
     if (sortOrder !== undefined) data.sortOrder = parseInt(sortOrder);
+    if (features !== undefined) data.features = JSON.stringify(features);
 
     const tier = await req.prisma.planTier.update({
       where: { id: parseInt(req.params.id) },
@@ -187,6 +189,17 @@ const assignUserPlan = async (req, res) => {
       },
       include: { planTier: true, user: { select: { id: true, name: true, email: true } } },
     });
+
+    // Sync user feature flags from tier
+    const tierFeatures = JSON.parse(tier.features || '[]');
+    await req.prisma.user.update({
+      where: { id: userId },
+      data: {
+        voiceAgentsEnabled: tierFeatures.includes('voiceAgents'),
+        chatbotsEnabled: tierFeatures.includes('chatbots'),
+      },
+    });
+
     res.json(plan);
   } catch (err) {
     console.error('assignUserPlan error:', err);
@@ -223,6 +236,17 @@ const updateUserPlan = async (req, res) => {
       data,
       include: { planTier: true, user: { select: { id: true, name: true, email: true } } },
     });
+
+    // Sync user feature flags from the (possibly updated) tier
+    const tierFeatures = JSON.parse(plan.planTier.features || '[]');
+    await req.prisma.user.update({
+      where: { id: userId },
+      data: {
+        voiceAgentsEnabled: tierFeatures.includes('voiceAgents'),
+        chatbotsEnabled: tierFeatures.includes('chatbots'),
+      },
+    });
+
     res.json(plan);
   } catch (err) {
     console.error('updateUserPlan error:', err);
@@ -246,6 +270,16 @@ const removeUserPlan = async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'No plan assigned to this user' });
 
     await req.prisma.userPlan.delete({ where: { userId } });
+
+    // Reset user feature flags (no plan = no features)
+    await req.prisma.user.update({
+      where: { id: userId },
+      data: {
+        voiceAgentsEnabled: false,
+        chatbotsEnabled: false,
+      },
+    });
+
     res.json({ message: 'User plan removed' });
   } catch (err) {
     console.error('removeUserPlan error:', err);

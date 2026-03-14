@@ -22,7 +22,7 @@ export default function Payments() {
 
   // Tier modal
   const [tierModal, setTierModal] = useState(null) // null | 'create' | tier object (edit)
-  const [tierForm, setTierForm] = useState({ name: '', description: '', price: '', billingCycle: 'monthly', sortOrder: 0, isActive: true })
+  const [tierForm, setTierForm] = useState({ name: '', description: '', price: '', billingCycle: 'monthly', sortOrder: 0, isActive: true, features: ['voiceAgents', 'chatbots'] })
   const [tierSaving, setTierSaving] = useState(false)
 
   // Plan modal
@@ -70,12 +70,13 @@ export default function Payments() {
   // ── Tier CRUD ──
 
   const openCreateTier = () => {
-    setTierForm({ name: '', description: '', price: '', billingCycle: 'monthly', sortOrder: 0, isActive: true })
+    setTierForm({ name: '', description: '', price: '', billingCycle: 'monthly', sortOrder: 0, isActive: true, features: ['voiceAgents', 'chatbots'] })
     setTierModal('create')
   }
 
   const openEditTier = (tier) => {
-    setTierForm({ name: tier.name, description: tier.description || '', price: tier.price, billingCycle: tier.billingCycle, sortOrder: tier.sortOrder, isActive: tier.isActive })
+    const features = (() => { try { return JSON.parse(tier.features || '[]') } catch { return [] } })()
+    setTierForm({ name: tier.name, description: tier.description || '', price: tier.price, billingCycle: tier.billingCycle, sortOrder: tier.sortOrder, isActive: tier.isActive, features })
     setTierModal(tier)
   }
 
@@ -303,6 +304,7 @@ export default function Payments() {
                     <th className="px-4 py-3 font-medium">{t('payments.tierName')}</th>
                     <th className="px-4 py-3 font-medium">{t('payments.tierPrice')}</th>
                     <th className="px-4 py-3 font-medium">{t('payments.billingCycle')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.features')}</th>
                     <th className="px-4 py-3 font-medium">{t('payments.status')}</th>
                     <th className="px-4 py-3 font-medium">{t('payments.sortOrder')}</th>
                     <th className="px-4 py-3 font-medium">{t('common.actions')}</th>
@@ -317,6 +319,15 @@ export default function Payments() {
                       </td>
                       <td className="px-4 py-3 text-gray-900 dark:text-white">{formatCurrency(tier.price)}</td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{tier.billingCycle === 'monthly' ? t('payments.monthly') : t('payments.annual')}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1 flex-wrap">
+                          {(() => { try { return JSON.parse(tier.features || '[]') } catch { return [] } })().map(f => (
+                            <span key={f} className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                              {f === 'voiceAgents' ? t('payments.featureVoiceAgents') : t('payments.featureChatbots')}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tier.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
                           {tier.isActive ? t('common.active') : t('common.inactive')}
@@ -481,12 +492,45 @@ export default function Payments() {
                   </div>
                 )}
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('payments.features')}</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tierForm.features.includes('voiceAgents')}
+                      onChange={e => setTierForm(f => ({
+                        ...f,
+                        features: e.target.checked
+                          ? [...f.features, 'voiceAgents']
+                          : f.features.filter(ft => ft !== 'voiceAgents')
+                      }))}
+                      className="rounded"
+                    />
+                    {t('payments.featureVoiceAgents')}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={tierForm.features.includes('chatbots')}
+                      onChange={e => setTierForm(f => ({
+                        ...f,
+                        features: e.target.checked
+                          ? [...f.features, 'chatbots']
+                          : f.features.filter(ft => ft !== 'chatbots')
+                      }))}
+                      className="rounded"
+                    />
+                    {t('payments.featureChatbots')}
+                  </label>
+                </div>
+              </div>
             </div>
             <div className="p-4 border-t border-gray-200 dark:border-dark-border flex justify-end gap-2">
               <button
                 onClick={() => setTierModal(null)}
                 className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg"
-              >
+>
                 {t('common.cancel')}
               </button>
               <button

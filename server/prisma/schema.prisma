@@ -310,6 +310,7 @@ model PlanTier {
   billingCycle String     @default("monthly") // "monthly" or "annual"
   isActive     Boolean    @default(true)
   sortOrder    Int        @default(0)
+  features     String     @default("[\"voiceAgents\",\"chatbots\"]") // JSON array: "voiceAgents", "chatbots"
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   userPlans    UserPlan[]

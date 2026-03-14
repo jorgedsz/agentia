@@ -883,6 +883,9 @@
     "selectTier": "Select a tier",
     "user": "User",
     "plan": "Plan",
-    "noPlans": "No user plans found"
+    "noPlans": "No user plans found",
+    "features": "Features",
+    "featureVoiceAgents": "Voice Agents",
+    "featureChatbots": "Chatbots"
   }
 }
