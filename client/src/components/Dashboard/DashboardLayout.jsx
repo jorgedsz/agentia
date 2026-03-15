@@ -233,7 +233,7 @@ export default function DashboardLayout() {
       title: t('sidebar.sectionManagement'),
       items: [
         { id: 'accounts', path: '/dashboard/accounts', label: t('sidebar.accounts'), icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.AGENCY] },
-        { id: 'payments', path: '/dashboard/payments', label: t('sidebar.payments'), icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'payments', path: '/dashboard/payments', label: t('sidebar.payments'), icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.AGENCY] },
       ]
     },
     {

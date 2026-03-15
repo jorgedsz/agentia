@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI, vapiKeyPoolAPI, complianceAPI } from '../../services/api'
+import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI, vapiKeyPoolAPI, complianceAPI, paymentsAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 import PricingSettings from './PricingSettings'
 
@@ -105,6 +105,17 @@ const SETTINGS_ITEMS = [
       </svg>
     ),
     roles: [ROLES.OWNER, ROLES.AGENCY]
+  },
+  {
+    id: 'my-plan',
+    label: 'settings.myPlan',
+    description: 'settings.myPlanDesc',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+      </svg>
+    ),
+    roles: [ROLES.CLIENT]
   },
   {
     id: 'account',
@@ -230,6 +241,7 @@ export default function Settings() {
         {activeTab === 'vapi-pool' && isOwner && <VapiKeyPoolTab />}
         {activeTab === 'slack' && isOwner && <SlackTab />}
         {activeTab === 'compliance' && <ComplianceTab />}
+        {activeTab === 'my-plan' && <MyPlanTab />}
         {activeTab === 'account' && <AccountTab />}
       </div>
     </div>
@@ -241,6 +253,126 @@ function BillingTab() {
   return (
     <div className="space-y-6">
       <PricingSettings />
+    </div>
+  )
+}
+
+// My Plan Tab (CLIENT only)
+function MyPlanTab() {
+  const { user } = useAuth()
+  const { t } = useLanguage()
+  const [plan, setPlan] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchPlan = async () => {
+      try {
+        const response = await paymentsAPI.getPlan(user.id)
+        setPlan(response.data.plan)
+      } catch (err) {
+        console.error('Failed to fetch plan:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchPlan()
+  }, [user.id])
+
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-6 bg-gray-200 dark:bg-dark-hover rounded w-1/3"></div>
+          <div className="h-4 bg-gray-200 dark:bg-dark-hover rounded w-2/3"></div>
+          <div className="h-32 bg-gray-200 dark:bg-dark-hover rounded"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!plan) {
+    return (
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.myPlanTitle')}</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-6">{t('settings.myPlanSubtitle')}</p>
+        <div className="text-center py-12">
+          <svg className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('settings.noPlanAssigned')}</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">{t('settings.noPlanAssignedDesc')}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const statusColor = plan.status === 'active'
+    ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400'
+    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-400'
+
+  const features = []
+  if (user?.voiceAgentsEnabled !== false) features.push('Voice Agents')
+  if (user?.chatbotsEnabled !== false) features.push('Chatbots')
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.myPlanTitle')}</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-6">{t('settings.myPlanSubtitle')}</p>
+
+        <div className="bg-gray-50 dark:bg-dark-hover rounded-xl p-6 border border-gray-200 dark:border-dark-border">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">{plan.name}</h3>
+              {plan.description && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{plan.description}</p>
+              )}
+            </div>
+            <span className={`px-3 py-1 text-xs font-medium rounded-full ${statusColor}`}>
+              {plan.status?.charAt(0).toUpperCase() + plan.status?.slice(1)}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+            <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
+              <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Amount</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                ${(plan.amount / 100).toFixed(2)}
+              </div>
+            </div>
+            <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
+              <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Billing Cycle</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white capitalize">
+                {plan.interval || 'monthly'}
+              </div>
+            </div>
+            {plan.currentPeriodEnd && (
+              <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Next Payment</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {new Date(plan.currentPeriodEnd).toLocaleDateString()}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {features.length > 0 && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.planFeatures')}</h3>
+          <div className="space-y-3">
+            {features.map((feature) => (
+              <div key={feature} className="flex items-center gap-3">
+                <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="text-sm text-gray-700 dark:text-gray-300">{feature}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
