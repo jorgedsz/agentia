@@ -460,42 +460,63 @@ function AccountTab() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {catalogData.userProducts.map(up => (
-                  <div key={up.id} className="bg-gray-50 dark:bg-dark-hover rounded-xl p-4 border border-gray-200 dark:border-dark-border">
-                    <div className="flex items-start justify-between mb-3">
-                      <h3 className="font-semibold text-gray-900 dark:text-white">{up.product?.name}</h3>
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                        up.status === 'active'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400'
-                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-400'
-                      }`}>
-                        {up.status?.charAt(0).toUpperCase() + up.status?.slice(1)}
-                      </span>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 dark:text-gray-400">{t('payments.amount')}</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(up.amount)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 dark:text-gray-400">{t('payments.billingCycle')}</span>
-                        <span className="text-gray-900 dark:text-white">{getBillingCycleLabel(up.billingCycle)}</span>
-                      </div>
-                      {up.discountApplied > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-500 dark:text-gray-400">{t('payments.discount')}</span>
-                          <span className="text-green-600 dark:text-green-400">{up.discountApplied}%</span>
+                {catalogData.userProducts.map(up => {
+                  const slug = up.product?.slug
+                  const iconColors = {
+                    chatbots: 'from-blue-500 to-blue-600',
+                    voicebots: 'from-purple-500 to-purple-600',
+                    crm: 'from-emerald-500 to-emerald-600',
+                    'agent-generator': 'from-orange-500 to-orange-600',
+                  }
+                  const icons = {
+                    chatbots: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />,
+                    voicebots: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />,
+                    crm: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />,
+                    'agent-generator': <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
+                  }
+                  return (
+                    <div key={up.id} className="relative overflow-hidden bg-white dark:bg-dark-hover rounded-xl border border-gray-200 dark:border-dark-border shadow-sm hover:shadow-md transition-shadow">
+                      <div className={`h-1.5 bg-gradient-to-r ${iconColors[slug] || 'from-gray-400 to-gray-500'}`} />
+                      <div className="p-5">
+                        <div className="flex items-start gap-3 mb-4">
+                          <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${iconColors[slug] || 'from-gray-400 to-gray-500'} flex items-center justify-center flex-shrink-0`}>
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {icons[slug] || <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />}
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 dark:text-white">{up.product?.name}</h3>
+                            <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
+                              up.status === 'active'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400'
+                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-400'
+                            }`}>
+                              {up.status?.charAt(0).toUpperCase() + up.status?.slice(1)}
+                            </span>
+                          </div>
                         </div>
-                      )}
-                      {up.nextPaymentDate && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-500 dark:text-gray-400">{t('payments.nextPaymentDate')}</span>
-                          <span className="text-gray-900 dark:text-white">{new Date(up.nextPaymentDate).toLocaleDateString()}</span>
+                        <div className="flex items-baseline gap-1 mb-3">
+                          <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(up.amount)}</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">/ {getBillingCycleLabel(up.billingCycle).toLowerCase()}</span>
                         </div>
-                      )}
+                        <div className="space-y-2 text-sm">
+                          {up.discountApplied > 0 && (
+                            <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                              <span>{up.discountApplied}% {t('payments.bundleDiscount').toLowerCase()}</span>
+                            </div>
+                          )}
+                          {up.nextPaymentDate && (
+                            <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                              <span>{t('payments.nextPaymentDate')}: {new Date(up.nextPaymentDate).toLocaleDateString()}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -512,32 +533,88 @@ function AccountTab() {
                 </div>
               )}
 
-              <div className="space-y-3 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 {availableProducts.map(product => {
                   const inCart = !!cart[product.id]
                   const cycle = cart[product.id] || 'monthly'
+                  const slug = product.slug
+                  const iconColors = {
+                    chatbots: 'from-blue-500 to-blue-600',
+                    voicebots: 'from-purple-500 to-purple-600',
+                    crm: 'from-emerald-500 to-emerald-600',
+                    'agent-generator': 'from-orange-500 to-orange-600',
+                  }
+                  const iconBgLight = {
+                    chatbots: 'bg-blue-50 dark:bg-blue-500/10',
+                    voicebots: 'bg-purple-50 dark:bg-purple-500/10',
+                    crm: 'bg-emerald-50 dark:bg-emerald-500/10',
+                    'agent-generator': 'bg-orange-50 dark:bg-orange-500/10',
+                  }
+                  const iconTextColor = {
+                    chatbots: 'text-blue-600 dark:text-blue-400',
+                    voicebots: 'text-purple-600 dark:text-purple-400',
+                    crm: 'text-emerald-600 dark:text-emerald-400',
+                    'agent-generator': 'text-orange-600 dark:text-orange-400',
+                  }
+                  const icons = {
+                    chatbots: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />,
+                    voicebots: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />,
+                    crm: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />,
+                    'agent-generator': <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
+                  }
+                  const currentPrice = cycle === 'quarterly' ? product.quarterlyPrice : cycle === 'annual' ? product.annualPrice : cycle === 'lifetime' ? product.lifetimePrice : product.monthlyPrice
+
                   return (
-                    <div key={product.id} className={`p-4 rounded-xl border transition-colors ${inCart ? 'border-primary-300 dark:border-primary-600 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-border'}`}>
-                      <div className="flex items-center justify-between">
-                        <label className="flex items-center gap-3 cursor-pointer flex-1">
-                          <input type="checkbox" checked={inCart} onChange={() => toggleCart(product.id)} className="rounded" />
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
-                            {product.description && <div className="text-xs text-gray-500 dark:text-gray-400">{product.description}</div>}
-                          </div>
-                        </label>
-                        {inCart && (
-                          <select
-                            value={cycle}
-                            onChange={e => setCartCycle(product.id, e.target.value)}
-                            className="px-2 py-1 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-xs"
-                          >
-                            <option value="monthly">{t('payments.monthly')} — {formatCurrency(product.monthlyPrice)}</option>
-                            <option value="quarterly">{t('payments.quarterly')} — {formatCurrency(product.quarterlyPrice)}</option>
-                            <option value="annual">{t('payments.annual')} — {formatCurrency(product.annualPrice)}</option>
-                            <option value="lifetime">{t('payments.lifetime')} — {formatCurrency(product.lifetimePrice)}</option>
-                          </select>
+                    <div
+                      key={product.id}
+                      onClick={() => toggleCart(product.id)}
+                      className={`relative cursor-pointer rounded-xl border-2 transition-all duration-200 overflow-hidden ${
+                        inCart
+                          ? 'border-primary-500 dark:border-primary-400 shadow-lg shadow-primary-500/10 dark:shadow-primary-400/5 scale-[1.02]'
+                          : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
+                      }`}
+                    >
+                      {inCart && (
+                        <div className="absolute top-3 right-3 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center">
+                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="p-5">
+                        <div className={`w-12 h-12 rounded-xl ${iconBgLight[slug] || 'bg-gray-100 dark:bg-gray-700'} flex items-center justify-center mb-4`}>
+                          <svg className={`w-6 h-6 ${iconTextColor[slug] || 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {icons[slug] || <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />}
+                          </svg>
+                        </div>
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">{product.name}</h3>
+                        {product.description && (
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{product.description}</p>
                         )}
+                        <div className="flex items-baseline gap-1 mb-4">
+                          <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(currentPrice)}</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">/ {getBillingCycleLabel(cycle).toLowerCase()}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5" onClick={e => e.stopPropagation()}>
+                          {['monthly', 'quarterly', 'annual', 'lifetime'].map(c => {
+                            const price = c === 'quarterly' ? product.quarterlyPrice : c === 'annual' ? product.annualPrice : c === 'lifetime' ? product.lifetimePrice : product.monthlyPrice
+                            const isSelected = inCart && cycle === c
+                            return (
+                              <button
+                                key={c}
+                                onClick={() => { if (!inCart) toggleCart(product.id); setCartCycle(product.id, c) }}
+                                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  isSelected
+                                    ? 'bg-primary-500 text-white'
+                                    : 'bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                }`}
+                              >
+                                <div>{getBillingCycleLabel(c)}</div>
+                                <div className={`font-bold ${isSelected ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{formatCurrency(price)}</div>
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
                   )
@@ -548,33 +625,52 @@ function AccountTab() {
               {Object.keys(cart).length > 0 && (() => {
                 const { count, totalCount, subtotal, discountPercent, discountAmount, total } = getCartSummary()
                 return (
-                  <div className="bg-gray-50 dark:bg-dark-hover rounded-xl p-4 border border-gray-200 dark:border-dark-border mb-4">
-                    <h3 className="font-semibold text-gray-900 dark:text-white mb-3">{t('payments.orderSummary')}</h3>
-                    <div className="space-y-1 text-sm">
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-hover dark:to-dark-bg rounded-xl p-5 border border-gray-200 dark:border-dark-border">
+                    <div className="flex items-center gap-2 mb-4">
+                      <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+                      </svg>
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{t('payments.orderSummary')}</h3>
+                      <span className="ml-auto text-xs bg-primary-100 dark:bg-primary-500/10 text-primary-700 dark:text-primary-400 px-2 py-0.5 rounded-full font-medium">
+                        {count} {count === 1 ? 'item' : 'items'}
+                      </span>
+                    </div>
+                    <div className="space-y-2 text-sm">
                       <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                        <span>{t('payments.subtotal')} ({count} {t('payments.newProducts')})</span>
-                        <span>{formatCurrency(subtotal)}</span>
+                        <span>{t('payments.subtotal')}</span>
+                        <span className="font-medium">{formatCurrency(subtotal)}</span>
                       </div>
                       {discountPercent > 0 && (
-                        <div className="flex justify-between text-green-600 dark:text-green-400">
-                          <span>{t('payments.bundleDiscount')} ({discountPercent}%)</span>
-                          <span>-{formatCurrency(discountAmount)}</span>
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                            {t('payments.bundleDiscount')} ({discountPercent}%)
+                          </span>
+                          <span className="font-medium text-green-600 dark:text-green-400">-{formatCurrency(discountAmount)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between font-semibold text-gray-900 dark:text-white pt-2 border-t border-gray-200 dark:border-dark-border">
+                      <div className="flex justify-between font-bold text-lg text-gray-900 dark:text-white pt-3 border-t border-gray-300 dark:border-dark-border">
                         <span>{t('payments.total')}</span>
                         <span>{formatCurrency(total)}</span>
                       </div>
                       {totalCount >= 3 && (
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">{t('payments.bundleDiscountNote')}</p>
+                        <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/5 rounded-lg px-3 py-2 mt-2">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                          {t('payments.bundleDiscountNote')}
+                        </div>
                       )}
                     </div>
                     <button
                       onClick={handlePurchase}
                       disabled={purchasing}
-                      className="mt-4 w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+                      className="mt-5 w-full px-4 py-3 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl hover:from-primary-700 hover:to-primary-600 disabled:opacity-50 text-sm font-semibold shadow-lg shadow-primary-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-primary-500/30"
                     >
-                      {purchasing ? t('common.saving') : t('payments.purchase')}
+                      {purchasing ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                          {t('common.saving')}
+                        </span>
+                      ) : t('payments.purchase')}
                     </button>
                   </div>
                 )
