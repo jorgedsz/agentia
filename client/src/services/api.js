@@ -219,16 +219,22 @@ export const complianceAPI = {
 
 // Payments API
 export const paymentsAPI = {
-  listTiers: () => api.get('/payments/tiers'),
-  getTier: (id) => api.get(`/payments/tiers/${id}`),
-  createTier: (data) => api.post('/payments/tiers', data),
-  updateTier: (id, data) => api.put(`/payments/tiers/${id}`, data),
-  deleteTier: (id) => api.delete(`/payments/tiers/${id}`),
-  listPlans: () => api.get('/payments/plans'),
-  getPlan: (userId) => api.get(`/payments/plans/${userId}`),
-  assignPlan: (userId, data) => api.post(`/payments/plans/${userId}`, data),
-  updatePlan: (userId, data) => api.put(`/payments/plans/${userId}`, data),
-  removePlan: (userId) => api.delete(`/payments/plans/${userId}`),
+  // Products
+  listProducts: () => api.get('/payments/products'),
+  getProduct: (id) => api.get(`/payments/products/${id}`),
+  createProduct: (data) => api.post('/payments/products', data),
+  updateProduct: (id, data) => api.put(`/payments/products/${id}`, data),
+  deleteProduct: (id) => api.delete(`/payments/products/${id}`),
+  // User Products
+  listUserProducts: () => api.get('/payments/user-products'),
+  getUserProducts: (userId) => api.get(`/payments/user-products/${userId}`),
+  assignUserProducts: (userId, data) => api.post(`/payments/user-products/${userId}`, data),
+  updateUserProduct: (userId, productId, data) => api.put(`/payments/user-products/${userId}/${productId}`, data),
+  removeUserProduct: (userId, productId) => api.delete(`/payments/user-products/${userId}/${productId}`),
+  // Catalog & Purchase
+  getCatalog: () => api.get('/payments/catalog'),
+  purchase: (data) => api.post('/payments/purchase', data),
+  preview: (data) => api.post('/payments/preview', data),
 }
 
 // Tools API (test HTTP requests via proxy)

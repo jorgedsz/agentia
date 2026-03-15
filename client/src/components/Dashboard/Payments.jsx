@@ -9,30 +9,31 @@ const ROLES = {
   CLIENT: 'CLIENT'
 }
 
+const BILLING_CYCLES = ['monthly', 'quarterly', 'annual', 'lifetime']
+
 export default function Payments() {
   const { user } = useAuth()
   const { t } = useLanguage()
 
-  const [tiers, setTiers] = useState([])
-  const [plans, setPlans] = useState([])
+  const [products, setProducts] = useState([])
+  const [userProducts, setUserProducts] = useState([])
   const [allUsers, setAllUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [activeTab, setActiveTab] = useState(user?.role === ROLES.OWNER ? 'products' : 'user-products')
 
-  // Tier modal
-  const [tierModal, setTierModal] = useState(null) // null | 'create' | tier object (edit)
-  const [tierForm, setTierForm] = useState({ name: '', description: '', price: '', billingCycle: 'monthly', sortOrder: 0, isActive: true, features: ['voiceAgents', 'chatbots'] })
-  const [tierSaving, setTierSaving] = useState(false)
+  // Product modal
+  const [productModal, setProductModal] = useState(null) // null | 'create' | product object
+  const [productForm, setProductForm] = useState({ name: '', slug: '', description: '', monthlyPrice: '', quarterlyPrice: '', annualPrice: '', lifetimePrice: '', sortOrder: 0, isActive: true })
+  const [productSaving, setProductSaving] = useState(false)
 
-  // Plan modal
-  const [planModal, setPlanModal] = useState(null) // null | { userId, existing? }
-  const [planForm, setPlanForm] = useState({ planTierId: '', amount: '', billingCycle: 'monthly', nextPaymentDate: '', status: 'active', notes: '' })
-  const [planSaving, setPlanSaving] = useState(false)
+  // Assign modal
+  const [assignModal, setAssignModal] = useState(null) // null | userId
+  const [assignSelections, setAssignSelections] = useState({}) // { productId: { selected, billingCycle } }
+  const [assignSaving, setAssignSaving] = useState(false)
 
-  useEffect(() => {
-    fetchData()
-  }, [])
+  useEffect(() => { fetchData() }, [])
 
   useEffect(() => {
     if (success) {
@@ -45,14 +46,13 @@ export default function Payments() {
     setLoading(true)
     setError('')
     try {
-      const [tiersRes, plansRes] = await Promise.all([
-        paymentsAPI.listTiers(),
-        paymentsAPI.listPlans(),
+      const [productsRes, userProductsRes] = await Promise.all([
+        paymentsAPI.listProducts(),
+        paymentsAPI.listUserProducts(),
       ])
-      setTiers(tiersRes.data)
-      setPlans(plansRes.data)
+      setProducts(productsRes.data)
+      setUserProducts(userProductsRes.data)
 
-      // Fetch users for plan assignment (OWNER/AGENCY only)
       if (user?.role === ROLES.OWNER) {
         const usersRes = await usersAPI.getAll()
         setAllUsers(usersRes.data.users || [])
@@ -67,122 +67,146 @@ export default function Payments() {
     }
   }
 
-  // ── Tier CRUD ──
+  // ── Product CRUD ──
 
-  const openCreateTier = () => {
-    setTierForm({ name: '', description: '', price: '', billingCycle: 'monthly', sortOrder: 0, isActive: true, features: ['voiceAgents', 'chatbots'] })
-    setTierModal('create')
+  const openCreateProduct = () => {
+    setProductForm({ name: '', slug: '', description: '', monthlyPrice: '', quarterlyPrice: '', annualPrice: '', lifetimePrice: '', sortOrder: 0, isActive: true })
+    setProductModal('create')
   }
 
-  const openEditTier = (tier) => {
-    const features = (() => { try { return JSON.parse(tier.features || '[]') } catch { return [] } })()
-    setTierForm({ name: tier.name, description: tier.description || '', price: tier.price, billingCycle: tier.billingCycle, sortOrder: tier.sortOrder, isActive: tier.isActive, features })
-    setTierModal(tier)
+  const openEditProduct = (product) => {
+    setProductForm({
+      name: product.name,
+      slug: product.slug,
+      description: product.description || '',
+      monthlyPrice: product.monthlyPrice,
+      quarterlyPrice: product.quarterlyPrice,
+      annualPrice: product.annualPrice,
+      lifetimePrice: product.lifetimePrice,
+      sortOrder: product.sortOrder,
+      isActive: product.isActive,
+    })
+    setProductModal(product)
   }
 
-  const saveTier = async () => {
-    setTierSaving(true)
+  const saveProduct = async () => {
+    setProductSaving(true)
     setError('')
     try {
-      if (tierModal === 'create') {
-        await paymentsAPI.createTier(tierForm)
-        setSuccess(t('payments.tierCreated'))
+      if (productModal === 'create') {
+        await paymentsAPI.createProduct(productForm)
+        setSuccess(t('payments.productCreated'))
       } else {
-        await paymentsAPI.updateTier(tierModal.id, tierForm)
-        setSuccess(t('payments.tierUpdated'))
+        await paymentsAPI.updateProduct(productModal.id, productForm)
+        setSuccess(t('payments.productUpdated'))
       }
-      setTierModal(null)
+      setProductModal(null)
       fetchData()
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save tier')
+      setError(err.response?.data?.error || 'Failed to save product')
     } finally {
-      setTierSaving(false)
+      setProductSaving(false)
     }
   }
 
-  const deleteTier = async (tier) => {
-    if (!confirm(t('payments.confirmDeleteTier'))) return
+  const deleteProduct = async (product) => {
+    if (!confirm(t('payments.confirmDeleteProduct'))) return
     try {
-      await paymentsAPI.deleteTier(tier.id)
-      setSuccess(t('payments.tierDeleted'))
+      await paymentsAPI.deleteProduct(product.id)
+      setSuccess(t('payments.productDeleted'))
       fetchData()
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to delete tier')
+      setError(err.response?.data?.error || 'Failed to delete product')
     }
   }
 
-  // ── Plan CRUD ──
+  // ── Assign Products ──
 
-  const openAssignPlan = (userId) => {
-    const existing = plans.find(p => p.userId === userId)
-    if (existing) {
-      setPlanForm({
-        planTierId: String(existing.planTierId),
-        amount: String(existing.amount),
-        billingCycle: existing.billingCycle,
-        nextPaymentDate: existing.nextPaymentDate ? existing.nextPaymentDate.slice(0, 10) : '',
-        status: existing.status,
-        notes: existing.notes || '',
-      })
-      setPlanModal({ userId, existing: true })
-    } else {
-      setPlanForm({ planTierId: '', amount: '', billingCycle: 'monthly', nextPaymentDate: '', status: 'active', notes: '' })
-      setPlanModal({ userId, existing: false })
-    }
+  const openAssignModal = (userId) => {
+    const existing = userProducts.filter(up => up.userId === userId)
+    const selections = {}
+    products.forEach(p => {
+      const existingProduct = existing.find(ep => ep.productId === p.id)
+      selections[p.id] = {
+        selected: !!existingProduct,
+        billingCycle: existingProduct?.billingCycle || 'monthly',
+        wasExisting: !!existingProduct,
+      }
+    })
+    setAssignSelections(selections)
+    setAssignModal(userId)
   }
 
-  const savePlan = async () => {
-    setPlanSaving(true)
+  const getAssignTotal = () => {
+    const selected = Object.entries(assignSelections).filter(([, v]) => v.selected)
+    const count = selected.length
+    const discountPercent = count >= 3 ? 5 : 0
+
+    let subtotal = 0
+    selected.forEach(([productId, sel]) => {
+      const product = products.find(p => p.id === parseInt(productId))
+      if (product) {
+        subtotal += getPriceForCycle(product, sel.billingCycle)
+      }
+    })
+    const discountAmount = (subtotal * discountPercent) / 100
+    return { count, subtotal, discountPercent, discountAmount, total: subtotal - discountAmount }
+  }
+
+  const saveAssignments = async () => {
+    setAssignSaving(true)
     setError('')
     try {
-      const data = {
-        planTierId: parseInt(planForm.planTierId),
-        billingCycle: planForm.billingCycle,
-        nextPaymentDate: planForm.nextPaymentDate || null,
-        notes: planForm.notes,
-        status: planForm.status,
-      }
-      if (planForm.amount !== '') data.amount = parseFloat(planForm.amount)
+      const toAssign = Object.entries(assignSelections)
+        .filter(([, v]) => v.selected)
+        .map(([productId, v]) => ({ productId: parseInt(productId), billingCycle: v.billingCycle }))
 
-      if (planModal.existing) {
-        await paymentsAPI.updatePlan(planModal.userId, data)
-        setSuccess(t('payments.planUpdated'))
-      } else {
-        await paymentsAPI.assignPlan(planModal.userId, data)
-        setSuccess(t('payments.planAssigned'))
+      // Remove products that were deselected
+      const toRemove = Object.entries(assignSelections)
+        .filter(([, v]) => !v.selected && v.wasExisting)
+        .map(([productId]) => parseInt(productId))
+
+      if (toAssign.length > 0) {
+        await paymentsAPI.assignUserProducts(assignModal, { products: toAssign })
       }
-      setPlanModal(null)
+      for (const productId of toRemove) {
+        await paymentsAPI.removeUserProduct(assignModal, productId)
+      }
+
+      setSuccess(t('payments.productsAssigned'))
+      setAssignModal(null)
       fetchData()
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save plan')
+      setError(err.response?.data?.error || 'Failed to assign products')
     } finally {
-      setPlanSaving(false)
+      setAssignSaving(false)
     }
   }
 
-  const removePlan = async (userId) => {
-    if (!confirm(t('payments.confirmRemovePlan'))) return
+  const removeUserProduct = async (userId, productId) => {
+    if (!confirm(t('payments.confirmRemoveProduct'))) return
     try {
-      await paymentsAPI.removePlan(userId)
-      setSuccess(t('payments.planRemoved'))
+      await paymentsAPI.removeUserProduct(userId, productId)
+      setSuccess(t('payments.productRemoved'))
       fetchData()
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to remove plan')
+      setError(err.response?.data?.error || 'Failed to remove product')
     }
   }
 
-  // When tier is selected in plan form, set default amount
-  const handleTierSelect = (tierId) => {
-    const tier = tiers.find(t => t.id === parseInt(tierId))
-    setPlanForm(prev => ({
-      ...prev,
-      planTierId: tierId,
-      amount: tier ? String(tier.price) : prev.amount,
-      billingCycle: tier ? tier.billingCycle : prev.billingCycle,
-    }))
+  // ── Helpers ──
+
+  const getPriceForCycle = (product, cycle) => {
+    switch (cycle) {
+      case 'monthly': return product.monthlyPrice
+      case 'quarterly': return product.quarterlyPrice
+      case 'annual': return product.annualPrice
+      case 'lifetime': return product.lifetimePrice
+      default: return product.monthlyPrice
+    }
   }
 
-  const formatCurrency = (amount) => `$${parseFloat(amount).toFixed(2)}`
+  const formatCurrency = (amount) => `$${parseFloat(amount || 0).toFixed(2)}`
 
   const getBillingCycleLabel = (cycle) => {
     switch (cycle) {
@@ -230,57 +254,22 @@ export default function Payments() {
     )
   }
 
-  // CLIENT view – read-only plan card
+  // CLIENT shouldn't see this page (they see catalog in Settings)
   if (user?.role === ROLES.CLIENT) {
-    const myPlan = plans.find(p => p.userId === user.id)
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{t('payments.title')}</h1>
-        <p className="text-gray-500 dark:text-gray-400 mb-6">{t('payments.myPlan')}</p>
-
-        {myPlan ? (
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 max-w-md">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{myPlan.planTier?.name}</h3>
-            {myPlan.planTier?.description && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{myPlan.planTier.description}</p>
-            )}
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">{t('payments.amount')}</span>
-                <span className="font-medium text-gray-900 dark:text-white">
-                  {formatCurrency(myPlan.amount)}{getBillingCycleSuffix(myPlan.billingCycle)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">{t('payments.billingCycle')}</span>
-                <span className="text-gray-900 dark:text-white">{getBillingCycleLabel(myPlan.billingCycle)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">{t('payments.status')}</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(myPlan.status)}`}>
-                  {getStatusLabel(myPlan.status)}
-                </span>
-              </div>
-              {myPlan.nextPaymentDate && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">{t('payments.nextPaymentDate')}</span>
-                  <span className="text-gray-900 dark:text-white">{new Date(myPlan.nextPaymentDate).toLocaleDateString()}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-8 text-center max-w-md">
-            <p className="text-gray-500 dark:text-gray-400">{t('payments.noPlan')}</p>
-          </div>
-        )}
+        <p className="text-gray-500 dark:text-gray-400">{t('payments.clientRedirect')}</p>
       </div>
     )
   }
 
-  // OWNER / AGENCY view
-  // Users that don't have a plan yet (for assign dropdown)
-  const usersWithoutPlan = allUsers.filter(u => !plans.find(p => p.userId === u.id))
+  // Group user products by user
+  const userProductMap = {}
+  userProducts.forEach(up => {
+    if (!userProductMap[up.userId]) userProductMap[up.userId] = []
+    userProductMap[up.userId].push(up)
+  })
 
   return (
     <div className="p-6 space-y-8">
@@ -289,7 +278,6 @@ export default function Payments() {
         <p className="text-gray-500 dark:text-gray-400">{t('payments.subtitle')}</p>
       </div>
 
-      {/* Status messages */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm">
           {error}
@@ -301,63 +289,71 @@ export default function Payments() {
         </div>
       )}
 
-      {/* Plan Tiers (OWNER only) */}
+      {/* Tabs */}
       {user?.role === ROLES.OWNER && (
+        <div className="flex gap-2 border-b border-gray-200 dark:border-dark-border">
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'products' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+          >
+            {t('payments.products')}
+          </button>
+          <button
+            onClick={() => setActiveTab('user-products')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'user-products' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+          >
+            {t('payments.userProducts')}
+          </button>
+        </div>
+      )}
+
+      {/* Products Tab (OWNER only) */}
+      {activeTab === 'products' && user?.role === ROLES.OWNER && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border">
           <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('payments.planTiers')}</h2>
-            <button
-              onClick={openCreateTier}
-              className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors"
-            >
-              {t('payments.createTier')}
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('payments.products')}</h2>
+            <button onClick={openCreateProduct} className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors">
+              {t('payments.createProduct')}
             </button>
           </div>
 
-          {tiers.length === 0 ? (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">{t('payments.noTiers')}</div>
+          {products.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">{t('payments.noProducts')}</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-dark-border text-left text-gray-500 dark:text-gray-400">
-                    <th className="px-4 py-3 font-medium">{t('payments.tierName')}</th>
-                    <th className="px-4 py-3 font-medium">{t('payments.tierPrice')}</th>
-                    <th className="px-4 py-3 font-medium">{t('payments.billingCycle')}</th>
-                    <th className="px-4 py-3 font-medium">{t('payments.features')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.productName')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.monthlyPrice')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.quarterlyPrice')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.annualPrice')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.lifetimePrice')}</th>
                     <th className="px-4 py-3 font-medium">{t('payments.status')}</th>
-                    <th className="px-4 py-3 font-medium">{t('payments.sortOrder')}</th>
                     <th className="px-4 py-3 font-medium">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tiers.map(tier => (
-                    <tr key={tier.id} className="border-b border-gray-100 dark:border-dark-border/50">
+                  {products.map(product => (
+                    <tr key={product.id} className="border-b border-gray-100 dark:border-dark-border/50">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900 dark:text-white">{tier.name}</div>
-                        {tier.description && <div className="text-xs text-gray-500 dark:text-gray-400">{tier.description}</div>}
+                        <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{product.slug}</div>
+                        {product.description && <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{product.description}</div>}
                       </td>
-                      <td className="px-4 py-3 text-gray-900 dark:text-white">{formatCurrency(tier.price)}</td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{getBillingCycleLabel(tier.billingCycle)}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-white">{formatCurrency(product.monthlyPrice)}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-white">{formatCurrency(product.quarterlyPrice)}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-white">{formatCurrency(product.annualPrice)}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-white">{formatCurrency(product.lifetimePrice)}</td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-1 flex-wrap">
-                          {(() => { try { return JSON.parse(tier.features || '[]') } catch { return [] } })().map(f => (
-                            <span key={f} className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                              {f === 'voiceAgents' ? t('payments.featureVoiceAgents') : t('payments.featureChatbots')}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tier.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
-                          {tier.isActive ? t('common.active') : t('common.inactive')}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${product.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
+                          {product.isActive ? t('common.active') : t('common.inactive')}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{tier.sortOrder}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          <button onClick={() => openEditTier(tier)} className="text-primary-600 hover:text-primary-700 text-sm">{t('common.edit')}</button>
-                          <button onClick={() => deleteTier(tier)} className="text-red-500 hover:text-red-600 text-sm">{t('common.delete')}</button>
+                          <button onClick={() => openEditProduct(product)} className="text-primary-600 hover:text-primary-700 text-sm">{t('common.edit')}</button>
+                          <button onClick={() => deleteProduct(product)} className="text-red-500 hover:text-red-600 text-sm">{t('common.delete')}</button>
                         </div>
                       </td>
                     </tr>
@@ -369,298 +365,247 @@ export default function Payments() {
         </div>
       )}
 
-      {/* User Plans */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border">
-        <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('payments.userPlans')}</h2>
-          {usersWithoutPlan.length > 0 && (
-            <select
-              onChange={(e) => { if (e.target.value) openAssignPlan(parseInt(e.target.value)); e.target.value = '' }}
-              className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors cursor-pointer appearance-none"
-              defaultValue=""
-            >
-              <option value="" disabled>{t('payments.assignPlan')}</option>
-              {usersWithoutPlan.map(u => (
-                <option key={u.id} value={u.id}>{u.name || u.email}</option>
-              ))}
-            </select>
+      {/* User Products Tab */}
+      {activeTab === 'user-products' && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border">
+          <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('payments.userProducts')}</h2>
+            {allUsers.length > 0 && (
+              <select
+                onChange={(e) => { if (e.target.value) openAssignModal(parseInt(e.target.value)); e.target.value = '' }}
+                className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors cursor-pointer appearance-none"
+                defaultValue=""
+              >
+                <option value="" disabled>{t('payments.assignProducts')}</option>
+                {allUsers.filter(u => u.role !== ROLES.OWNER).map(u => (
+                  <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {userProducts.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">{t('payments.noUserProducts')}</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-dark-border text-left text-gray-500 dark:text-gray-400">
+                    <th className="px-4 py-3 font-medium">{t('payments.user')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.productName')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.amount')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.billingCycle')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.discount')}</th>
+                    <th className="px-4 py-3 font-medium">{t('payments.status')}</th>
+                    <th className="px-4 py-3 font-medium">{t('common.actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userProducts.map(up => (
+                    <tr key={up.id} className="border-b border-gray-100 dark:border-dark-border/50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-gray-900 dark:text-white">{up.user?.name || up.user?.email}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{up.user?.email}</div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-white">{up.product?.name}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-white">
+                        {formatCurrency(up.amount)}{getBillingCycleSuffix(up.billingCycle)}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{getBillingCycleLabel(up.billingCycle)}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                        {up.discountApplied > 0 ? `${up.discountApplied}%` : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(up.status)}`}>
+                          {getStatusLabel(up.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          <button onClick={() => openAssignModal(up.userId)} className="text-primary-600 hover:text-primary-700 text-sm">{t('common.edit')}</button>
+                          <button onClick={() => removeUserProduct(up.userId, up.productId)} className="text-red-500 hover:text-red-600 text-sm">{t('common.remove')}</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
+      )}
 
-        {plans.length === 0 ? (
-          <div className="p-8 text-center text-gray-500 dark:text-gray-400">{t('payments.noPlans')}</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-dark-border text-left text-gray-500 dark:text-gray-400">
-                  <th className="px-4 py-3 font-medium">{t('payments.user')}</th>
-                  <th className="px-4 py-3 font-medium">{t('payments.plan')}</th>
-                  <th className="px-4 py-3 font-medium">{t('payments.amount')}</th>
-                  <th className="px-4 py-3 font-medium">{t('payments.billingCycle')}</th>
-                  <th className="px-4 py-3 font-medium">{t('payments.status')}</th>
-                  <th className="px-4 py-3 font-medium">{t('payments.nextPaymentDate')}</th>
-                  <th className="px-4 py-3 font-medium">{t('common.actions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plans.map(plan => (
-                  <tr key={plan.id} className="border-b border-gray-100 dark:border-dark-border/50">
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900 dark:text-white">{plan.user?.name || plan.user?.email}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{plan.user?.email}</div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-900 dark:text-white">{plan.planTier?.name}</td>
-                    <td className="px-4 py-3 text-gray-900 dark:text-white">
-                      {formatCurrency(plan.amount)}{getBillingCycleSuffix(plan.billingCycle)}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{getBillingCycleLabel(plan.billingCycle)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(plan.status)}`}>
-                        {getStatusLabel(plan.status)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                      {plan.nextPaymentDate ? new Date(plan.nextPaymentDate).toLocaleDateString() : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <button onClick={() => openAssignPlan(plan.userId)} className="text-primary-600 hover:text-primary-700 text-sm">{t('common.edit')}</button>
-                        <button onClick={() => removePlan(plan.userId)} className="text-red-500 hover:text-red-600 text-sm">{t('common.remove')}</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Tier Modal */}
-      {tierModal && (
+      {/* Product Modal */}
+      {productModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-md">
             <div className="p-4 border-b border-gray-200 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {tierModal === 'create' ? t('payments.createTier') : t('payments.editTier')}
+                {productModal === 'create' ? t('payments.createProduct') : t('payments.editProduct')}
               </h3>
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.tierName')}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.productName')}</label>
                 <input
                   type="text"
-                  value={tierForm.name}
-                  onChange={e => setTierForm(f => ({ ...f, name: e.target.value }))}
+                  value={productForm.name}
+                  onChange={e => setProductForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.tierDescription')}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.slug')}</label>
                 <input
                   type="text"
-                  value={tierForm.description}
-                  onChange={e => setTierForm(f => ({ ...f, description: e.target.value }))}
+                  value={productForm.slug}
+                  onChange={e => setProductForm(f => ({ ...f, slug: e.target.value }))}
+                  placeholder="e.g. chatbots"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.description')}</label>
+                <input
+                  type="text"
+                  value={productForm.description}
+                  onChange={e => setProductForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.tierPrice')} ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={tierForm.price}
-                    onChange={e => setTierForm(f => ({ ...f, price: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.monthlyPrice')} ($)</label>
+                  <input type="number" step="0.01" value={productForm.monthlyPrice} onChange={e => setProductForm(f => ({ ...f, monthlyPrice: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.billingCycle')}</label>
-                  <select
-                    value={tierForm.billingCycle}
-                    onChange={e => setTierForm(f => ({ ...f, billingCycle: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
-                  >
-                    <option value="monthly">{t('payments.monthly')}</option>
-                    <option value="quarterly">{t('payments.quarterly')}</option>
-                    <option value="annual">{t('payments.annual')}</option>
-                    <option value="lifetime">{t('payments.lifetime')}</option>
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.quarterlyPrice')} ($)</label>
+                  <input type="number" step="0.01" value={productForm.quarterlyPrice} onChange={e => setProductForm(f => ({ ...f, quarterlyPrice: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.annualPrice')} ($)</label>
+                  <input type="number" step="0.01" value={productForm.annualPrice} onChange={e => setProductForm(f => ({ ...f, annualPrice: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.lifetimePrice')} ($)</label>
+                  <input type="number" step="0.01" value={productForm.lifetimePrice} onChange={e => setProductForm(f => ({ ...f, lifetimePrice: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.sortOrder')}</label>
-                  <input
-                    type="number"
-                    value={tierForm.sortOrder}
-                    onChange={e => setTierForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
-                  />
+                  <input type="number" value={productForm.sortOrder} onChange={e => setProductForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
                 </div>
-                {tierModal !== 'create' && (
+                {productModal !== 'create' && (
                   <div className="flex items-center pt-6">
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={tierForm.isActive}
-                        onChange={e => setTierForm(f => ({ ...f, isActive: e.target.checked }))}
-                        className="rounded"
-                      />
+                      <input type="checkbox" checked={productForm.isActive} onChange={e => setProductForm(f => ({ ...f, isActive: e.target.checked }))} className="rounded" />
                       {t('common.active')}
                     </label>
                   </div>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('payments.features')}</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={tierForm.features.includes('voiceAgents')}
-                      onChange={e => setTierForm(f => ({
-                        ...f,
-                        features: e.target.checked
-                          ? [...f.features, 'voiceAgents']
-                          : f.features.filter(ft => ft !== 'voiceAgents')
-                      }))}
-                      className="rounded"
-                    />
-                    {t('payments.featureVoiceAgents')}
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={tierForm.features.includes('chatbots')}
-                      onChange={e => setTierForm(f => ({
-                        ...f,
-                        features: e.target.checked
-                          ? [...f.features, 'chatbots']
-                          : f.features.filter(ft => ft !== 'chatbots')
-                      }))}
-                      className="rounded"
-                    />
-                    {t('payments.featureChatbots')}
-                  </label>
-                </div>
-              </div>
             </div>
             <div className="p-4 border-t border-gray-200 dark:border-dark-border flex justify-end gap-2">
-              <button
-                onClick={() => setTierModal(null)}
-                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg"
->
+              <button onClick={() => setProductModal(null)} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg">
                 {t('common.cancel')}
               </button>
-              <button
-                onClick={saveTier}
-                disabled={tierSaving || !tierForm.name || !tierForm.price}
-                className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-              >
-                {tierSaving ? t('common.saving') : t('common.save')}
+              <button onClick={saveProduct} disabled={productSaving || !productForm.name || !productForm.slug}
+                className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                {productSaving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Plan Modal */}
-      {planModal && (
+      {/* Assign Products Modal */}
+      {assignModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-md">
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-lg">
             <div className="p-4 border-b border-gray-200 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {planModal.existing ? t('payments.editPlan') : t('payments.assignPlan')}
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('payments.assignProducts')}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {allUsers.find(u => u.id === assignModal)?.name || allUsers.find(u => u.id === assignModal)?.email}
+              </p>
             </div>
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.plan')}</label>
-                <select
-                  value={planForm.planTierId}
-                  onChange={e => handleTierSelect(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
-                >
-                  <option value="">{t('payments.selectTier')}</option>
-                  {tiers.filter(t => t.isActive).map(tier => (
-                    <option key={tier.id} value={tier.id}>{tier.name} — {formatCurrency(tier.price)}{getBillingCycleSuffix(tier.billingCycle)}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.amount')} ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={planForm.amount}
-                    onChange={e => setPlanForm(f => ({ ...f, amount: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.billingCycle')}</label>
-                  <select
-                    value={planForm.billingCycle}
-                    onChange={e => setPlanForm(f => ({ ...f, billingCycle: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
-                  >
-                    <option value="monthly">{t('payments.monthly')}</option>
-                    <option value="quarterly">{t('payments.quarterly')}</option>
-                    <option value="annual">{t('payments.annual')}</option>
-                    <option value="lifetime">{t('payments.lifetime')}</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.nextPaymentDate')}</label>
-                  <input
-                    type="date"
-                    value={planForm.nextPaymentDate}
-                    onChange={e => setPlanForm(f => ({ ...f, nextPaymentDate: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.status')}</label>
-                  <select
-                    value={planForm.status}
-                    onChange={e => setPlanForm(f => ({ ...f, status: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
-                  >
-                    <option value="active">{t('payments.statusActive')}</option>
-                    <option value="cancelled">{t('payments.statusCancelled')}</option>
-                    <option value="past_due">{t('payments.statusPastDue')}</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('payments.notes')}</label>
-                <textarea
-                  value={planForm.notes}
-                  onChange={e => setPlanForm(f => ({ ...f, notes: e.target.value }))}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
-                />
-              </div>
+            <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+              {products.filter(p => p.isActive).map(product => {
+                const sel = assignSelections[product.id] || { selected: false, billingCycle: 'monthly' }
+                return (
+                  <div key={product.id} className={`p-3 rounded-lg border transition-colors ${sel.selected ? 'border-primary-300 dark:border-primary-600 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-border'}`}>
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-3 cursor-pointer flex-1">
+                        <input
+                          type="checkbox"
+                          checked={sel.selected}
+                          onChange={e => setAssignSelections(prev => ({ ...prev, [product.id]: { ...prev[product.id], selected: e.target.checked } }))}
+                          className="rounded"
+                        />
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white text-sm">{product.name}</div>
+                          {product.description && <div className="text-xs text-gray-500 dark:text-gray-400">{product.description}</div>}
+                        </div>
+                      </label>
+                      {sel.selected && (
+                        <select
+                          value={sel.billingCycle}
+                          onChange={e => setAssignSelections(prev => ({ ...prev, [product.id]: { ...prev[product.id], billingCycle: e.target.value } }))}
+                          className="px-2 py-1 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-xs"
+                        >
+                          {BILLING_CYCLES.map(c => (
+                            <option key={c} value={c}>{getBillingCycleLabel(c)} — {formatCurrency(getPriceForCycle(product, c))}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
+
+            {/* Order Summary */}
+            {(() => {
+              const { count, subtotal, discountPercent, discountAmount, total } = getAssignTotal()
+              return (
+                <div className="p-4 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-hover">
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                      <span>{t('payments.subtotal')} ({count} {t('payments.products').toLowerCase()})</span>
+                      <span>{formatCurrency(subtotal)}</span>
+                    </div>
+                    {discountPercent > 0 && (
+                      <div className="flex justify-between text-green-600 dark:text-green-400">
+                        <span>{t('payments.bundleDiscount')} ({discountPercent}%)</span>
+                        <span>-{formatCurrency(discountAmount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-semibold text-gray-900 dark:text-white pt-1 border-t border-gray-200 dark:border-dark-border">
+                      <span>{t('payments.total')}</span>
+                      <span>{formatCurrency(total)}</span>
+                    </div>
+                    {count >= 3 && (
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1">{t('payments.bundleDiscountNote')}</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+
             <div className="p-4 border-t border-gray-200 dark:border-dark-border flex justify-end gap-2">
-              <button
-                onClick={() => setPlanModal(null)}
-                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg"
-              >
+              <button onClick={() => setAssignModal(null)} className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg">
                 {t('common.cancel')}
               </button>
-              <button
-                onClick={savePlan}
-                disabled={planSaving || !planForm.planTierId}
-                className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-              >
-                {planSaving ? t('common.saving') : t('common.save')}
+              <button onClick={saveAssignments} disabled={assignSaving}
+                className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                {assignSaving ? t('common.saving') : t('common.save')}
               </button>
             </div>
           </div>

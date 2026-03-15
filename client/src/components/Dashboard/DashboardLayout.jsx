@@ -265,6 +265,8 @@ export default function DashboardLayout() {
   const menuSections = allMenuSections.filter(section => {
     if (section.featureKey === 'voiceAgents') return user?.voiceAgentsEnabled !== false
     if (section.featureKey === 'chatbots') return user?.chatbotsEnabled !== false
+    if (section.featureKey === 'crm') return user?.crmEnabled === true
+    if (section.featureKey === 'agentGenerator') return user?.agentGeneratorEnabled === true
     return true
   })
 

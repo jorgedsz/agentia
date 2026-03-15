@@ -24,6 +24,8 @@ export default function AllUsers() {
     creditOperation: 'add',
     voiceAgentsEnabled: true,
     chatbotsEnabled: true,
+    crmEnabled: false,
+    agentGeneratorEnabled: false,
     callsPaused: false,
     messagesPaused: false,
   })
@@ -68,6 +70,8 @@ export default function AllUsers() {
       creditOperation: 'add',
       voiceAgentsEnabled: targetUser.voiceAgentsEnabled !== false,
       chatbotsEnabled: targetUser.chatbotsEnabled !== false,
+      crmEnabled: targetUser.crmEnabled || false,
+      agentGeneratorEnabled: targetUser.agentGeneratorEnabled || false,
       callsPaused: targetUser.callsPaused || false,
       messagesPaused: targetUser.messagesPaused || false,
     })
@@ -82,6 +86,8 @@ export default function AllUsers() {
       creditOperation: 'add',
       voiceAgentsEnabled: true,
       chatbotsEnabled: true,
+      crmEnabled: false,
+      agentGeneratorEnabled: false,
       callsPaused: false,
       messagesPaused: false,
     })
@@ -104,6 +110,8 @@ export default function AllUsers() {
       // Always send feature toggles
       data.voiceAgentsEnabled = billingForm.voiceAgentsEnabled
       data.chatbotsEnabled = billingForm.chatbotsEnabled
+      data.crmEnabled = billingForm.crmEnabled
+      data.agentGeneratorEnabled = billingForm.agentGeneratorEnabled
       data.callsPaused = billingForm.callsPaused
       data.messagesPaused = billingForm.messagesPaused
 
@@ -383,6 +391,36 @@ export default function AllUsers() {
                       className={`w-11 h-6 rounded-full p-0.5 transition-colors ${billingForm.chatbotsEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
                     >
                       <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.chatbotsEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{t('common.crm')}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {billingForm.crmEnabled ? t('common.enabled') : t('common.disabled')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBillingForm({ ...billingForm, crmEnabled: !billingForm.crmEnabled })}
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${billingForm.crmEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.crmEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{t('common.agentGenerator')}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {billingForm.agentGeneratorEnabled ? t('common.enabled') : t('common.disabled')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBillingForm({ ...billingForm, agentGeneratorEnabled: !billingForm.agentGeneratorEnabled })}
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${billingForm.agentGeneratorEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.agentGeneratorEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                     </button>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">

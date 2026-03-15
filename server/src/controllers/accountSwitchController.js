@@ -34,6 +34,8 @@ const getAccessibleAccounts = async (req, res) => {
           role: true,
           voiceAgentsEnabled: true,
           chatbotsEnabled: true,
+          crmEnabled: true,
+          agentGeneratorEnabled: true,
           callsPaused: true,
           messagesPaused: true,
           agency: {
@@ -63,6 +65,8 @@ const getAccessibleAccounts = async (req, res) => {
           inboundRate: true,
           voiceAgentsEnabled: true,
           chatbotsEnabled: true,
+          crmEnabled: true,
+          agentGeneratorEnabled: true,
           callsPaused: true,
           messagesPaused: true,
           _count: {

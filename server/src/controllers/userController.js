@@ -15,6 +15,8 @@ const getAllUsers = async (req, res) => {
         inboundRate: true,
         voiceAgentsEnabled: true,
         chatbotsEnabled: true,
+        crmEnabled: true,
+        agentGeneratorEnabled: true,
         callsPaused: true,
         messagesPaused: true,
         agencyId: true,
@@ -331,7 +333,7 @@ const deleteUser = async (req, res) => {
 const updateUserBilling = async (req, res) => {
   try {
     const { id } = req.params;
-    const { credits, creditOperation, outboundRate, inboundRate, voiceAgentsEnabled, chatbotsEnabled, callsPaused, messagesPaused } = req.body;
+    const { credits, creditOperation, outboundRate, inboundRate, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, callsPaused, messagesPaused } = req.body;
 
     const targetUser = await req.prisma.user.findUnique({
       where: { id: parseInt(id) }
@@ -383,6 +385,12 @@ const updateUserBilling = async (req, res) => {
     if (chatbotsEnabled !== undefined) {
       updateData.chatbotsEnabled = Boolean(chatbotsEnabled);
     }
+    if (crmEnabled !== undefined) {
+      updateData.crmEnabled = Boolean(crmEnabled);
+    }
+    if (agentGeneratorEnabled !== undefined) {
+      updateData.agentGeneratorEnabled = Boolean(agentGeneratorEnabled);
+    }
     if (callsPaused !== undefined) {
       updateData.callsPaused = Boolean(callsPaused);
     }
@@ -407,6 +415,8 @@ const updateUserBilling = async (req, res) => {
         inboundRate: true,
         voiceAgentsEnabled: true,
         chatbotsEnabled: true,
+        crmEnabled: true,
+        agentGeneratorEnabled: true,
         callsPaused: true,
         messagesPaused: true
       }

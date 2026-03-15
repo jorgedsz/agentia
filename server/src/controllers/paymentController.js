@@ -1,101 +1,148 @@
-// ── Plan Tiers ──
+// ── Helpers ──
 
-const listPlanTiers = async (req, res) => {
+const SLUG_TO_FLAG = {
+  chatbots: 'chatbotsEnabled',
+  voicebots: 'voiceAgentsEnabled',
+  crm: 'crmEnabled',
+  'agent-generator': 'agentGeneratorEnabled',
+};
+
+async function syncUserFlags(prisma, userId) {
+  const activeProducts = await prisma.userProduct.findMany({
+    where: { userId, status: 'active' },
+    include: { product: { select: { slug: true } } },
+  });
+  const activeSlugs = activeProducts.map((up) => up.product.slug);
+
+  const flags = {};
+  for (const [slug, flag] of Object.entries(SLUG_TO_FLAG)) {
+    flags[flag] = activeSlugs.includes(slug);
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: flags });
+}
+
+function getPriceForCycle(product, cycle) {
+  switch (cycle) {
+    case 'monthly': return product.monthlyPrice;
+    case 'quarterly': return product.quarterlyPrice;
+    case 'annual': return product.annualPrice;
+    case 'lifetime': return product.lifetimePrice;
+    default: return product.monthlyPrice;
+  }
+}
+
+function calculateDiscount(count) {
+  return count >= 3 ? 5 : 0;
+}
+
+// ── Products CRUD ──
+
+const listProducts = async (req, res) => {
   try {
     const where = req.user.role === 'OWNER' ? {} : { isActive: true };
-    const tiers = await req.prisma.planTier.findMany({
+    const products = await req.prisma.product.findMany({
       where,
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
-    res.json(tiers);
+    res.json(products);
   } catch (err) {
-    console.error('listPlanTiers error:', err);
-    res.status(500).json({ error: 'Failed to list plan tiers' });
+    console.error('listProducts error:', err);
+    res.status(500).json({ error: 'Failed to list products' });
   }
 };
 
-const getPlanTier = async (req, res) => {
+const getProduct = async (req, res) => {
   try {
-    const tier = await req.prisma.planTier.findUnique({
+    const product = await req.prisma.product.findUnique({
       where: { id: parseInt(req.params.id) },
     });
-    if (!tier) return res.status(404).json({ error: 'Plan tier not found' });
-    res.json(tier);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    res.json(product);
   } catch (err) {
-    console.error('getPlanTier error:', err);
-    res.status(500).json({ error: 'Failed to get plan tier' });
+    console.error('getProduct error:', err);
+    res.status(500).json({ error: 'Failed to get product' });
   }
 };
 
-const createPlanTier = async (req, res) => {
+const createProduct = async (req, res) => {
   try {
-    const { name, description, price, billingCycle, sortOrder, isActive, features } = req.body;
-    if (!name || price == null || !billingCycle) {
-      return res.status(400).json({ error: 'Name, price, and billingCycle are required' });
+    const { name, slug, description, monthlyPrice, quarterlyPrice, annualPrice, lifetimePrice, sortOrder, isActive } = req.body;
+    if (!name || !slug) {
+      return res.status(400).json({ error: 'Name and slug are required' });
     }
-    const tier = await req.prisma.planTier.create({
+    const product = await req.prisma.product.create({
       data: {
         name,
+        slug,
         description: description || null,
-        price: parseFloat(price),
-        billingCycle,
+        monthlyPrice: monthlyPrice != null ? parseFloat(monthlyPrice) : 0,
+        quarterlyPrice: quarterlyPrice != null ? parseFloat(quarterlyPrice) : 0,
+        annualPrice: annualPrice != null ? parseFloat(annualPrice) : 0,
+        lifetimePrice: lifetimePrice != null ? parseFloat(lifetimePrice) : 0,
         sortOrder: sortOrder != null ? parseInt(sortOrder) : 0,
         isActive: isActive !== false,
-        features: features ? JSON.stringify(features) : undefined,
       },
     });
-    res.status(201).json(tier);
+    res.status(201).json(product);
   } catch (err) {
-    console.error('createPlanTier error:', err);
-    res.status(500).json({ error: 'Failed to create plan tier' });
+    if (err.code === 'P2002') {
+      return res.status(400).json({ error: 'A product with this slug already exists' });
+    }
+    console.error('createProduct error:', err);
+    res.status(500).json({ error: 'Failed to create product' });
   }
 };
 
-const updatePlanTier = async (req, res) => {
+const updateProduct = async (req, res) => {
   try {
-    const { name, description, price, billingCycle, isActive, sortOrder, features } = req.body;
+    const { name, slug, description, monthlyPrice, quarterlyPrice, annualPrice, lifetimePrice, isActive, sortOrder } = req.body;
     const data = {};
     if (name !== undefined) data.name = name;
+    if (slug !== undefined) data.slug = slug;
     if (description !== undefined) data.description = description;
-    if (price !== undefined) data.price = parseFloat(price);
-    if (billingCycle !== undefined) data.billingCycle = billingCycle;
+    if (monthlyPrice !== undefined) data.monthlyPrice = parseFloat(monthlyPrice);
+    if (quarterlyPrice !== undefined) data.quarterlyPrice = parseFloat(quarterlyPrice);
+    if (annualPrice !== undefined) data.annualPrice = parseFloat(annualPrice);
+    if (lifetimePrice !== undefined) data.lifetimePrice = parseFloat(lifetimePrice);
     if (isActive !== undefined) data.isActive = isActive;
     if (sortOrder !== undefined) data.sortOrder = parseInt(sortOrder);
-    if (features !== undefined) data.features = JSON.stringify(features);
 
-    const tier = await req.prisma.planTier.update({
+    const product = await req.prisma.product.update({
       where: { id: parseInt(req.params.id) },
       data,
     });
-    res.json(tier);
+    res.json(product);
   } catch (err) {
-    console.error('updatePlanTier error:', err);
-    res.status(500).json({ error: 'Failed to update plan tier' });
+    if (err.code === 'P2002') {
+      return res.status(400).json({ error: 'A product with this slug already exists' });
+    }
+    console.error('updateProduct error:', err);
+    res.status(500).json({ error: 'Failed to update product' });
   }
 };
 
-const deletePlanTier = async (req, res) => {
+const deleteProduct = async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const usageCount = await req.prisma.userPlan.count({ where: { planTierId: id } });
+    const usageCount = await req.prisma.userProduct.count({ where: { productId: id } });
 
     if (usageCount > 0) {
-      // Soft delete – mark inactive
-      await req.prisma.planTier.update({ where: { id }, data: { isActive: false } });
-      return res.json({ message: 'Plan tier deactivated (in use by users)', softDeleted: true });
+      await req.prisma.product.update({ where: { id }, data: { isActive: false } });
+      return res.json({ message: 'Product deactivated (in use by users)', softDeleted: true });
     }
 
-    await req.prisma.planTier.delete({ where: { id } });
-    res.json({ message: 'Plan tier deleted' });
+    await req.prisma.product.delete({ where: { id } });
+    res.json({ message: 'Product deleted' });
   } catch (err) {
-    console.error('deletePlanTier error:', err);
-    res.status(500).json({ error: 'Failed to delete plan tier' });
+    console.error('deleteProduct error:', err);
+    res.status(500).json({ error: 'Failed to delete product' });
   }
 };
 
-// ── User Plans ──
+// ── User Products ──
 
-const listUserPlans = async (req, res) => {
+const listUserProducts = async (req, res) => {
   try {
     let where = {};
     if (req.user.role === 'CLIENT') {
@@ -105,27 +152,26 @@ const listUserPlans = async (req, res) => {
         where: { agencyId: req.user.id },
         select: { id: true },
       });
-      const clientIds = clients.map(c => c.id);
+      const clientIds = clients.map((c) => c.id);
       where = { userId: { in: [req.user.id, ...clientIds] } };
     }
-    // OWNER: no filter – gets all
 
-    const plans = await req.prisma.userPlan.findMany({
+    const userProducts = await req.prisma.userProduct.findMany({
       where,
       include: {
         user: { select: { id: true, name: true, email: true, role: true } },
-        planTier: true,
+        product: true,
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(plans);
+    res.json(userProducts);
   } catch (err) {
-    console.error('listUserPlans error:', err);
-    res.status(500).json({ error: 'Failed to list user plans' });
+    console.error('listUserProducts error:', err);
+    res.status(500).json({ error: 'Failed to list user products' });
   }
 };
 
-const getUserPlan = async (req, res) => {
+const getUserProducts = async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
 
@@ -140,24 +186,103 @@ const getUserPlan = async (req, res) => {
       }
     }
 
-    const plan = await req.prisma.userPlan.findUnique({
+    const userProducts = await req.prisma.userProduct.findMany({
       where: { userId },
-      include: { planTier: true, user: { select: { id: true, name: true, email: true } } },
+      include: { product: true },
+      orderBy: { createdAt: 'desc' },
     });
-    if (!plan) return res.status(404).json({ error: 'No plan assigned' });
-    res.json(plan);
+    res.json(userProducts);
   } catch (err) {
-    console.error('getUserPlan error:', err);
-    res.status(500).json({ error: 'Failed to get user plan' });
+    console.error('getUserProducts error:', err);
+    res.status(500).json({ error: 'Failed to get user products' });
   }
 };
 
-const assignUserPlan = async (req, res) => {
+const assignUserProducts = async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
-    const { planTierId, amount, billingCycle, nextPaymentDate, notes } = req.body;
+    const { products: productsInput } = req.body;
+    // productsInput: [{ productId, billingCycle, notes? }]
 
-    if (!planTierId) return res.status(400).json({ error: 'planTierId is required' });
+    if (!productsInput || !Array.isArray(productsInput) || productsInput.length === 0) {
+      return res.status(400).json({ error: 'products array is required' });
+    }
+
+    // Permission check for AGENCY
+    if (req.user.role === 'AGENCY') {
+      const client = await req.prisma.user.findUnique({ where: { id: userId } });
+      if (!client || client.agencyId !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    // Count how many products user will have total (existing active + new)
+    const existingProducts = await req.prisma.userProduct.findMany({
+      where: { userId, status: 'active' },
+      select: { productId: true },
+    });
+    const existingIds = new Set(existingProducts.map((p) => p.productId));
+    const newIds = productsInput.map((p) => p.productId);
+    const allProductIds = new Set([...existingIds, ...newIds]);
+    const totalCount = allProductIds.size;
+    const discountPercent = calculateDiscount(totalCount);
+
+    // Fetch product details
+    const productRecords = await req.prisma.product.findMany({
+      where: { id: { in: newIds } },
+    });
+    const productMap = {};
+    productRecords.forEach((p) => { productMap[p.id] = p; });
+
+    const results = [];
+    for (const item of productsInput) {
+      const product = productMap[item.productId];
+      if (!product) continue;
+
+      const cycle = item.billingCycle || 'monthly';
+      const basePrice = getPriceForCycle(product, cycle);
+      const discountAmount = (basePrice * discountPercent) / 100;
+      const finalAmount = basePrice - discountAmount;
+
+      const userProduct = await req.prisma.userProduct.upsert({
+        where: { userId_productId: { userId, productId: product.id } },
+        create: {
+          userId,
+          productId: product.id,
+          billingCycle: cycle,
+          amount: finalAmount,
+          discountApplied: discountPercent,
+          notes: item.notes || null,
+          assignedBy: req.user.id,
+        },
+        update: {
+          billingCycle: cycle,
+          amount: finalAmount,
+          discountApplied: discountPercent,
+          status: 'active',
+          notes: item.notes !== undefined ? item.notes : undefined,
+          assignedBy: req.user.id,
+        },
+        include: { product: true },
+      });
+      results.push(userProduct);
+    }
+
+    // Sync user feature flags
+    await syncUserFlags(req.prisma, userId);
+
+    res.json(results);
+  } catch (err) {
+    console.error('assignUserProducts error:', err);
+    res.status(500).json({ error: 'Failed to assign products' });
+  }
+};
+
+const updateUserProduct = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const productId = parseInt(req.params.productId);
+    const { billingCycle, status, nextPaymentDate, notes } = req.body;
 
     // Permission check
     if (req.user.role === 'AGENCY') {
@@ -167,96 +292,45 @@ const assignUserPlan = async (req, res) => {
       }
     }
 
-    const tier = await req.prisma.planTier.findUnique({ where: { id: parseInt(planTierId) } });
-    if (!tier) return res.status(404).json({ error: 'Plan tier not found' });
-
-    const plan = await req.prisma.userPlan.upsert({
-      where: { userId },
-      create: {
-        userId,
-        planTierId: tier.id,
-        amount: amount != null ? parseFloat(amount) : tier.price,
-        billingCycle: billingCycle || tier.billingCycle,
-        nextPaymentDate: nextPaymentDate ? new Date(nextPaymentDate) : null,
-        notes: notes || null,
-      },
-      update: {
-        planTierId: tier.id,
-        amount: amount != null ? parseFloat(amount) : tier.price,
-        billingCycle: billingCycle || tier.billingCycle,
-        nextPaymentDate: nextPaymentDate ? new Date(nextPaymentDate) : null,
-        notes: notes !== undefined ? notes : undefined,
-      },
-      include: { planTier: true, user: { select: { id: true, name: true, email: true } } },
+    const existing = await req.prisma.userProduct.findUnique({
+      where: { userId_productId: { userId, productId } },
+      include: { product: true },
     });
-
-    // Sync user feature flags from tier
-    const tierFeatures = JSON.parse(tier.features || '[]');
-    await req.prisma.user.update({
-      where: { id: userId },
-      data: {
-        voiceAgentsEnabled: tierFeatures.includes('voiceAgents'),
-        chatbotsEnabled: tierFeatures.includes('chatbots'),
-      },
-    });
-
-    res.json(plan);
-  } catch (err) {
-    console.error('assignUserPlan error:', err);
-    res.status(500).json({ error: 'Failed to assign user plan' });
-  }
-};
-
-const updateUserPlan = async (req, res) => {
-  try {
-    const userId = parseInt(req.params.userId);
-    const { planTierId, amount, billingCycle, status, nextPaymentDate, notes } = req.body;
-
-    // Permission check
-    if (req.user.role === 'AGENCY') {
-      const client = await req.prisma.user.findUnique({ where: { id: userId } });
-      if (!client || client.agencyId !== req.user.id) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-    }
-
-    const existing = await req.prisma.userPlan.findUnique({ where: { userId } });
-    if (!existing) return res.status(404).json({ error: 'No plan assigned to this user' });
+    if (!existing) return res.status(404).json({ error: 'User product not found' });
 
     const data = {};
-    if (planTierId !== undefined) data.planTierId = parseInt(planTierId);
-    if (amount !== undefined) data.amount = parseFloat(amount);
-    if (billingCycle !== undefined) data.billingCycle = billingCycle;
+    if (billingCycle !== undefined) {
+      data.billingCycle = billingCycle;
+      // Recalculate amount
+      const activeCount = await req.prisma.userProduct.count({ where: { userId, status: 'active' } });
+      const discountPercent = calculateDiscount(activeCount);
+      const basePrice = getPriceForCycle(existing.product, billingCycle);
+      data.amount = basePrice - (basePrice * discountPercent) / 100;
+      data.discountApplied = discountPercent;
+    }
     if (status !== undefined) data.status = status;
     if (nextPaymentDate !== undefined) data.nextPaymentDate = nextPaymentDate ? new Date(nextPaymentDate) : null;
     if (notes !== undefined) data.notes = notes;
 
-    const plan = await req.prisma.userPlan.update({
-      where: { userId },
+    const userProduct = await req.prisma.userProduct.update({
+      where: { userId_productId: { userId, productId } },
       data,
-      include: { planTier: true, user: { select: { id: true, name: true, email: true } } },
+      include: { product: true, user: { select: { id: true, name: true, email: true } } },
     });
 
-    // Sync user feature flags from the (possibly updated) tier
-    const tierFeatures = JSON.parse(plan.planTier.features || '[]');
-    await req.prisma.user.update({
-      where: { id: userId },
-      data: {
-        voiceAgentsEnabled: tierFeatures.includes('voiceAgents'),
-        chatbotsEnabled: tierFeatures.includes('chatbots'),
-      },
-    });
+    await syncUserFlags(req.prisma, userId);
 
-    res.json(plan);
+    res.json(userProduct);
   } catch (err) {
-    console.error('updateUserPlan error:', err);
-    res.status(500).json({ error: 'Failed to update user plan' });
+    console.error('updateUserProduct error:', err);
+    res.status(500).json({ error: 'Failed to update user product' });
   }
 };
 
-const removeUserPlan = async (req, res) => {
+const removeUserProduct = async (req, res) => {
   try {
     const userId = parseInt(req.params.userId);
+    const productId = parseInt(req.params.productId);
 
     // Permission check
     if (req.user.role === 'AGENCY') {
@@ -266,36 +340,214 @@ const removeUserPlan = async (req, res) => {
       }
     }
 
-    const existing = await req.prisma.userPlan.findUnique({ where: { userId } });
-    if (!existing) return res.status(404).json({ error: 'No plan assigned to this user' });
+    const existing = await req.prisma.userProduct.findUnique({
+      where: { userId_productId: { userId, productId } },
+    });
+    if (!existing) return res.status(404).json({ error: 'User product not found' });
 
-    await req.prisma.userPlan.delete({ where: { userId } });
-
-    // Reset user feature flags (no plan = no features)
-    await req.prisma.user.update({
-      where: { id: userId },
-      data: {
-        voiceAgentsEnabled: false,
-        chatbotsEnabled: false,
-      },
+    await req.prisma.userProduct.delete({
+      where: { userId_productId: { userId, productId } },
     });
 
-    res.json({ message: 'User plan removed' });
+    // Recalculate discounts for remaining products
+    const remaining = await req.prisma.userProduct.findMany({
+      where: { userId, status: 'active' },
+      include: { product: true },
+    });
+    const newDiscount = calculateDiscount(remaining.length);
+    for (const up of remaining) {
+      const basePrice = getPriceForCycle(up.product, up.billingCycle);
+      const finalAmount = basePrice - (basePrice * newDiscount) / 100;
+      await req.prisma.userProduct.update({
+        where: { id: up.id },
+        data: { amount: finalAmount, discountApplied: newDiscount },
+      });
+    }
+
+    await syncUserFlags(req.prisma, userId);
+
+    res.json({ message: 'Product removed from user' });
   } catch (err) {
-    console.error('removeUserPlan error:', err);
-    res.status(500).json({ error: 'Failed to remove user plan' });
+    console.error('removeUserProduct error:', err);
+    res.status(500).json({ error: 'Failed to remove user product' });
+  }
+};
+
+// ── Catalog & Purchase (CLIENT self-service) ──
+
+const getCatalog = async (req, res) => {
+  try {
+    const products = await req.prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
+
+    const userProducts = await req.prisma.userProduct.findMany({
+      where: { userId: req.user.id, status: 'active' },
+      include: { product: true },
+    });
+
+    res.json({ products, userProducts });
+  } catch (err) {
+    console.error('getCatalog error:', err);
+    res.status(500).json({ error: 'Failed to get catalog' });
+  }
+};
+
+const purchase = async (req, res) => {
+  try {
+    const { products: productsInput } = req.body;
+    // productsInput: [{ productId, billingCycle }]
+    if (!productsInput || !Array.isArray(productsInput) || productsInput.length === 0) {
+      return res.status(400).json({ error: 'products array is required' });
+    }
+
+    const userId = req.user.id;
+
+    // Get existing active products
+    const existingProducts = await req.prisma.userProduct.findMany({
+      where: { userId, status: 'active' },
+      select: { productId: true },
+    });
+    const existingIds = new Set(existingProducts.map((p) => p.productId));
+    const newIds = productsInput.map((p) => p.productId);
+    const allProductIds = new Set([...existingIds, ...newIds]);
+    const totalCount = allProductIds.size;
+    const discountPercent = calculateDiscount(totalCount);
+
+    // Fetch product details
+    const productRecords = await req.prisma.product.findMany({
+      where: { id: { in: newIds }, isActive: true },
+    });
+    const productMap = {};
+    productRecords.forEach((p) => { productMap[p.id] = p; });
+
+    const results = [];
+    for (const item of productsInput) {
+      const product = productMap[item.productId];
+      if (!product) continue;
+
+      // Skip if already owned
+      if (existingIds.has(product.id)) continue;
+
+      const cycle = item.billingCycle || 'monthly';
+      const basePrice = getPriceForCycle(product, cycle);
+      const discountAmount = (basePrice * discountPercent) / 100;
+      const finalAmount = basePrice - discountAmount;
+
+      const userProduct = await req.prisma.userProduct.create({
+        data: {
+          userId,
+          productId: product.id,
+          billingCycle: cycle,
+          amount: finalAmount,
+          discountApplied: discountPercent,
+          assignedBy: null, // self-purchased
+        },
+        include: { product: true },
+      });
+      results.push(userProduct);
+    }
+
+    // Update discount on existing products if it changed
+    if (discountPercent > 0) {
+      const allActive = await req.prisma.userProduct.findMany({
+        where: { userId, status: 'active' },
+        include: { product: true },
+      });
+      for (const up of allActive) {
+        const basePrice = getPriceForCycle(up.product, up.billingCycle);
+        const finalAmount = basePrice - (basePrice * discountPercent) / 100;
+        if (up.discountApplied !== discountPercent) {
+          await req.prisma.userProduct.update({
+            where: { id: up.id },
+            data: { amount: finalAmount, discountApplied: discountPercent },
+          });
+        }
+      }
+    }
+
+    await syncUserFlags(req.prisma, userId);
+
+    res.json({ purchased: results, discountApplied: discountPercent });
+  } catch (err) {
+    console.error('purchase error:', err);
+    res.status(500).json({ error: 'Failed to purchase products' });
+  }
+};
+
+const previewPurchase = async (req, res) => {
+  try {
+    const { products: productsInput } = req.body;
+    // productsInput: [{ productId, billingCycle }]
+    if (!productsInput || !Array.isArray(productsInput) || productsInput.length === 0) {
+      return res.status(400).json({ error: 'products array is required' });
+    }
+
+    const userId = req.user.id;
+
+    const existingProducts = await req.prisma.userProduct.findMany({
+      where: { userId, status: 'active' },
+      select: { productId: true },
+    });
+    const existingCount = existingProducts.length;
+    const newCount = productsInput.filter((p) => !existingProducts.some((ep) => ep.productId === p.productId)).length;
+    const totalCount = existingCount + newCount;
+    const discountPercent = calculateDiscount(totalCount);
+
+    // Fetch product details
+    const newIds = productsInput.map((p) => p.productId);
+    const productRecords = await req.prisma.product.findMany({
+      where: { id: { in: newIds }, isActive: true },
+    });
+    const productMap = {};
+    productRecords.forEach((p) => { productMap[p.id] = p; });
+
+    let subtotal = 0;
+    const lineItems = [];
+    for (const item of productsInput) {
+      const product = productMap[item.productId];
+      if (!product) continue;
+      const cycle = item.billingCycle || 'monthly';
+      const basePrice = getPriceForCycle(product, cycle);
+      subtotal += basePrice;
+      lineItems.push({
+        productId: product.id,
+        name: product.name,
+        billingCycle: cycle,
+        basePrice,
+      });
+    }
+
+    const discountAmount = (subtotal * discountPercent) / 100;
+    const total = subtotal - discountAmount;
+
+    res.json({
+      lineItems,
+      subtotal,
+      discountPercent,
+      discountAmount,
+      total,
+      totalProductCount: totalCount,
+    });
+  } catch (err) {
+    console.error('previewPurchase error:', err);
+    res.status(500).json({ error: 'Failed to preview purchase' });
   }
 };
 
 module.exports = {
-  listPlanTiers,
-  getPlanTier,
-  createPlanTier,
-  updatePlanTier,
-  deletePlanTier,
-  listUserPlans,
-  getUserPlan,
-  assignUserPlan,
-  updateUserPlan,
-  removeUserPlan,
+  listProducts,
+  getProduct,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  listUserProducts,
+  getUserProducts,
+  assignUserProducts,
+  updateUserProduct,
+  removeUserProduct,
+  getCatalog,
+  purchase,
+  previewPurchase,
 };

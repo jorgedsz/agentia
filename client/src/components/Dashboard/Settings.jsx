@@ -261,9 +261,12 @@ function AccountTab() {
   const [triggerError, setTriggerError] = useState('')
   const [triggerSuccess, setTriggerSuccess] = useState('')
 
-  // My Plan state (for CLIENT)
-  const [plan, setPlan] = useState(null)
-  const [planLoading, setPlanLoading] = useState(true)
+  // My Products state (for CLIENT)
+  const [catalogData, setCatalogData] = useState({ products: [], userProducts: [] })
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [cart, setCart] = useState({}) // { productId: billingCycle }
+  const [purchasing, setPurchasing] = useState(false)
+  const [purchaseSuccess, setPurchaseSuccess] = useState('')
 
   const canEditKeys = !isTeamMember || teamMember?.teamRole === 'admin'
 
@@ -274,9 +277,9 @@ function AccountTab() {
       setTriggerLoading(false)
     }
     if (user?.role === ROLES.CLIENT) {
-      fetchPlan()
+      fetchCatalog()
     } else {
-      setPlanLoading(false)
+      setCatalogLoading(false)
     }
   }, [])
 
@@ -313,17 +316,84 @@ function AccountTab() {
     }
   }
 
-  const fetchPlan = async () => {
-    setPlanLoading(true)
+  const fetchCatalog = async () => {
+    setCatalogLoading(true)
     try {
-      const response = await paymentsAPI.getPlan(user.id)
-      setPlan(response.data.plan)
+      const { data } = await paymentsAPI.getCatalog()
+      setCatalogData(data)
     } catch (err) {
-      console.error('Failed to fetch plan:', err)
+      console.error('Failed to fetch catalog:', err)
     } finally {
-      setPlanLoading(false)
+      setCatalogLoading(false)
     }
   }
+
+  const ownedProductIds = new Set(catalogData.userProducts.map(up => up.productId))
+  const availableProducts = catalogData.products.filter(p => !ownedProductIds.has(p.id))
+
+  const toggleCart = (productId) => {
+    setCart(prev => {
+      const next = { ...prev }
+      if (next[productId]) {
+        delete next[productId]
+      } else {
+        next[productId] = 'monthly'
+      }
+      return next
+    })
+  }
+
+  const setCartCycle = (productId, cycle) => {
+    setCart(prev => ({ ...prev, [productId]: cycle }))
+  }
+
+  const getCartSummary = () => {
+    const entries = Object.entries(cart)
+    const totalCount = ownedProductIds.size + entries.length
+    const discountPercent = totalCount >= 3 ? 5 : 0
+    let subtotal = 0
+    entries.forEach(([productId, cycle]) => {
+      const product = catalogData.products.find(p => p.id === parseInt(productId))
+      if (product) {
+        const price = cycle === 'quarterly' ? product.quarterlyPrice : cycle === 'annual' ? product.annualPrice : cycle === 'lifetime' ? product.lifetimePrice : product.monthlyPrice
+        subtotal += price
+      }
+    })
+    const discountAmount = (subtotal * discountPercent) / 100
+    return { count: entries.length, totalCount, subtotal, discountPercent, discountAmount, total: subtotal - discountAmount }
+  }
+
+  const handlePurchase = async () => {
+    setPurchasing(true)
+    setPurchaseSuccess('')
+    try {
+      const productsInput = Object.entries(cart).map(([productId, billingCycle]) => ({
+        productId: parseInt(productId),
+        billingCycle,
+      }))
+      await paymentsAPI.purchase({ products: productsInput })
+      setPurchaseSuccess(t('payments.purchaseSuccess'))
+      setCart({})
+      fetchCatalog()
+      setTimeout(() => setPurchaseSuccess(''), 5000)
+    } catch (err) {
+      console.error('Purchase failed:', err)
+    } finally {
+      setPurchasing(false)
+    }
+  }
+
+  const getBillingCycleLabel = (cycle) => {
+    switch (cycle) {
+      case 'monthly': return t('payments.monthly')
+      case 'quarterly': return t('payments.quarterly')
+      case 'annual': return t('payments.annual')
+      case 'lifetime': return t('payments.lifetime')
+      default: return cycle
+    }
+  }
+
+  const formatCurrency = (amount) => `$${parseFloat(amount || 0).toFixed(2)}`
 
   return (
     <div className="space-y-6">
@@ -368,84 +438,148 @@ function AccountTab() {
         </div>
       </div>
 
-      {/* My Plan (CLIENT only) */}
+      {/* My Products (CLIENT only) */}
       {user?.role === ROLES.CLIENT && (
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.myPlanTitle')}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-6">{t('settings.myPlanSubtitle')}</p>
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.myProductsTitle')}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-6">{t('settings.myProductsSubtitle')}</p>
 
-          {planLoading ? (
-            <div className="animate-pulse space-y-4">
-              <div className="h-6 bg-gray-200 dark:bg-dark-hover rounded w-1/3"></div>
-              <div className="h-32 bg-gray-200 dark:bg-dark-hover rounded"></div>
-            </div>
-          ) : !plan ? (
-            <div className="text-center py-8">
-              <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <h3 className="text-base font-medium text-gray-900 dark:text-white mb-1">{t('settings.noPlanAssigned')}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">{t('settings.noPlanAssignedDesc')}</p>
-            </div>
-          ) : (
-            <>
-              <div className="bg-gray-50 dark:bg-dark-hover rounded-xl p-5 border border-gray-200 dark:border-dark-border">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{plan.name}</h3>
-                    {plan.description && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{plan.description}</p>
-                    )}
-                  </div>
-                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                    plan.status === 'active'
-                      ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400'
-                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-400'
-                  }`}>
-                    {plan.status?.charAt(0).toUpperCase() + plan.status?.slice(1)}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
-                    <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Amount</div>
-                    <div className="text-2xl font-bold text-gray-900 dark:text-white">${(plan.amount / 100).toFixed(2)}</div>
-                  </div>
-                  <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
-                    <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Billing Cycle</div>
-                    <div className="text-2xl font-bold text-gray-900 dark:text-white capitalize">{plan.interval || 'monthly'}</div>
-                  </div>
-                  {plan.currentPeriodEnd && (
-                    <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
-                      <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Next Payment</div>
-                      <div className="text-2xl font-bold text-gray-900 dark:text-white">{new Date(plan.currentPeriodEnd).toLocaleDateString()}</div>
+            {catalogLoading ? (
+              <div className="animate-pulse space-y-4">
+                <div className="h-6 bg-gray-200 dark:bg-dark-hover rounded w-1/3"></div>
+                <div className="h-32 bg-gray-200 dark:bg-dark-hover rounded"></div>
+              </div>
+            ) : catalogData.userProducts.length === 0 ? (
+              <div className="text-center py-8">
+                <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <h3 className="text-base font-medium text-gray-900 dark:text-white mb-1">{t('settings.noProductsAssigned')}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">{t('settings.noProductsAssignedDesc')}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {catalogData.userProducts.map(up => (
+                  <div key={up.id} className="bg-gray-50 dark:bg-dark-hover rounded-xl p-4 border border-gray-200 dark:border-dark-border">
+                    <div className="flex items-start justify-between mb-3">
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{up.product?.name}</h3>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                        up.status === 'active'
+                          ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400'
+                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-400'
+                      }`}>
+                        {up.status?.charAt(0).toUpperCase() + up.status?.slice(1)}
+                      </span>
                     </div>
-                  )}
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 dark:text-gray-400">{t('payments.amount')}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{formatCurrency(up.amount)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 dark:text-gray-400">{t('payments.billingCycle')}</span>
+                        <span className="text-gray-900 dark:text-white">{getBillingCycleLabel(up.billingCycle)}</span>
+                      </div>
+                      {up.discountApplied > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 dark:text-gray-400">{t('payments.discount')}</span>
+                          <span className="text-green-600 dark:text-green-400">{up.discountApplied}%</span>
+                        </div>
+                      )}
+                      {up.nextPaymentDate && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 dark:text-gray-400">{t('payments.nextPaymentDate')}</span>
+                          <span className="text-gray-900 dark:text-white">{new Date(up.nextPaymentDate).toLocaleDateString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Product Catalog */}
+          {!catalogLoading && availableProducts.length > 0 && (
+            <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.browseCatalog')}</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-6">{t('settings.browseCatalogDesc')}</p>
+
+              {purchaseSuccess && (
+                <div className="mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 p-3 rounded-lg text-sm">
+                  {purchaseSuccess}
                 </div>
+              )}
+
+              <div className="space-y-3 mb-6">
+                {availableProducts.map(product => {
+                  const inCart = !!cart[product.id]
+                  const cycle = cart[product.id] || 'monthly'
+                  return (
+                    <div key={product.id} className={`p-4 rounded-xl border transition-colors ${inCart ? 'border-primary-300 dark:border-primary-600 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-border'}`}>
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-3 cursor-pointer flex-1">
+                          <input type="checkbox" checked={inCart} onChange={() => toggleCart(product.id)} className="rounded" />
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">{product.name}</div>
+                            {product.description && <div className="text-xs text-gray-500 dark:text-gray-400">{product.description}</div>}
+                          </div>
+                        </label>
+                        {inCart && (
+                          <select
+                            value={cycle}
+                            onChange={e => setCartCycle(product.id, e.target.value)}
+                            className="px-2 py-1 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-xs"
+                          >
+                            <option value="monthly">{t('payments.monthly')} — {formatCurrency(product.monthlyPrice)}</option>
+                            <option value="quarterly">{t('payments.quarterly')} — {formatCurrency(product.quarterlyPrice)}</option>
+                            <option value="annual">{t('payments.annual')} — {formatCurrency(product.annualPrice)}</option>
+                            <option value="lifetime">{t('payments.lifetime')} — {formatCurrency(product.lifetimePrice)}</option>
+                          </select>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
 
-              {/* Features */}
-              {(() => {
-                const features = []
-                if (user?.voiceAgentsEnabled !== false) features.push('Voice Agents')
-                if (user?.chatbotsEnabled !== false) features.push('Chatbots')
-                if (features.length === 0) return null
+              {/* Order Summary */}
+              {Object.keys(cart).length > 0 && (() => {
+                const { count, totalCount, subtotal, discountPercent, discountAmount, total } = getCartSummary()
                 return (
-                  <div className="mt-4">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">{t('settings.planFeatures')}</h3>
-                    <div className="space-y-2">
-                      {features.map((feature) => (
-                        <div key={feature} className="flex items-center gap-3">
-                          <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{feature}</span>
+                  <div className="bg-gray-50 dark:bg-dark-hover rounded-xl p-4 border border-gray-200 dark:border-dark-border mb-4">
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-3">{t('payments.orderSummary')}</h3>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                        <span>{t('payments.subtotal')} ({count} {t('payments.newProducts')})</span>
+                        <span>{formatCurrency(subtotal)}</span>
+                      </div>
+                      {discountPercent > 0 && (
+                        <div className="flex justify-between text-green-600 dark:text-green-400">
+                          <span>{t('payments.bundleDiscount')} ({discountPercent}%)</span>
+                          <span>-{formatCurrency(discountAmount)}</span>
                         </div>
-                      ))}
+                      )}
+                      <div className="flex justify-between font-semibold text-gray-900 dark:text-white pt-2 border-t border-gray-200 dark:border-dark-border">
+                        <span>{t('payments.total')}</span>
+                        <span>{formatCurrency(total)}</span>
+                      </div>
+                      {totalCount >= 3 && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">{t('payments.bundleDiscountNote')}</p>
+                      )}
                     </div>
+                    <button
+                      onClick={handlePurchase}
+                      disabled={purchasing}
+                      className="mt-4 w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+                    >
+                      {purchasing ? t('common.saving') : t('payments.purchase')}
+                    </button>
                   </div>
                 )
               })()}
-            </>
+            </div>
           )}
         </div>
       )}
