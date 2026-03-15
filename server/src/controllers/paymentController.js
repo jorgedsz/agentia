@@ -373,6 +373,78 @@ const removeUserProduct = async (req, res) => {
   }
 };
 
+// ── Self-service Update & Cancel ──
+
+const selfUpdateProduct = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const productId = parseInt(req.params.productId);
+    const { billingCycle } = req.body;
+
+    if (!billingCycle) return res.status(400).json({ error: 'billingCycle is required' });
+
+    const existing = await req.prisma.userProduct.findUnique({
+      where: { userId_productId: { userId, productId } },
+      include: { product: true },
+    });
+    if (!existing) return res.status(404).json({ error: 'Product not found in your subscriptions' });
+
+    const activeCount = await req.prisma.userProduct.count({ where: { userId, status: 'active' } });
+    const discountPercent = calculateDiscount(activeCount);
+    const basePrice = getPriceForCycle(existing.product, billingCycle);
+    const amount = basePrice - (basePrice * discountPercent) / 100;
+
+    const userProduct = await req.prisma.userProduct.update({
+      where: { userId_productId: { userId, productId } },
+      data: { billingCycle, amount, discountApplied: discountPercent },
+      include: { product: true },
+    });
+
+    res.json(userProduct);
+  } catch (err) {
+    console.error('selfUpdateProduct error:', err);
+    res.status(500).json({ error: 'Failed to update product' });
+  }
+};
+
+const selfCancelProduct = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const productId = parseInt(req.params.productId);
+
+    const existing = await req.prisma.userProduct.findUnique({
+      where: { userId_productId: { userId, productId } },
+    });
+    if (!existing) return res.status(404).json({ error: 'Product not found in your subscriptions' });
+
+    await req.prisma.userProduct.delete({
+      where: { userId_productId: { userId, productId } },
+    });
+
+    // Recalculate discounts for remaining products
+    const remaining = await req.prisma.userProduct.findMany({
+      where: { userId, status: 'active' },
+      include: { product: true },
+    });
+    const newDiscount = calculateDiscount(remaining.length);
+    for (const up of remaining) {
+      const basePrice = getPriceForCycle(up.product, up.billingCycle);
+      const finalAmount = basePrice - (basePrice * newDiscount) / 100;
+      await req.prisma.userProduct.update({
+        where: { id: up.id },
+        data: { amount: finalAmount, discountApplied: newDiscount },
+      });
+    }
+
+    await syncUserFlags(req.prisma, userId);
+
+    res.json({ message: 'Product cancelled successfully' });
+  } catch (err) {
+    console.error('selfCancelProduct error:', err);
+    res.status(500).json({ error: 'Failed to cancel product' });
+  }
+};
+
 // ── Catalog & Purchase (CLIENT self-service) ──
 
 const getCatalog = async (req, res) => {
@@ -547,6 +619,8 @@ module.exports = {
   assignUserProducts,
   updateUserProduct,
   removeUserProduct,
+  selfUpdateProduct,
+  selfCancelProduct,
   getCatalog,
   purchase,
   previewPurchase,

@@ -1002,6 +1002,12 @@
     "purchase": "Purchase",
     "purchaseSuccess": "Products purchased successfully!",
     "browseCatalog": "Browse Catalog",
-    "clientRedirect": "Visit Settings > Account to view your products and browse the catalog."
+    "clientRedirect": "Visit Settings > Account to view your products and browse the catalog.",
+    "changePlan": "Change Plan",
+    "changePlanDesc": "Select a new billing cycle for this product.",
+    "updatePlan": "Update Plan",
+    "currentPlan": "Current",
+    "cancelProduct": "Cancel",
+    "confirmCancelProduct": "Are you sure you want to cancel this product? This action cannot be undone."
   }
 }

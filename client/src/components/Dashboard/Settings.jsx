@@ -267,6 +267,10 @@ function AccountTab() {
   const [cart, setCart] = useState({}) // { productId: billingCycle }
   const [purchasing, setPurchasing] = useState(false)
   const [purchaseSuccess, setPurchaseSuccess] = useState('')
+  const [editingProduct, setEditingProduct] = useState(null) // userProduct being edited
+  const [editCycle, setEditCycle] = useState('')
+  const [updatingProduct, setUpdatingProduct] = useState(false)
+  const [cancellingProductId, setCancellingProductId] = useState(null)
 
   const canEditKeys = !isTeamMember || teamMember?.teamRole === 'admin'
 
@@ -380,6 +384,33 @@ function AccountTab() {
       console.error('Purchase failed:', err)
     } finally {
       setPurchasing(false)
+    }
+  }
+
+  const handleUpdateProduct = async () => {
+    if (!editingProduct) return
+    setUpdatingProduct(true)
+    try {
+      await paymentsAPI.selfUpdateProduct(editingProduct.productId, { billingCycle: editCycle })
+      setEditingProduct(null)
+      fetchCatalog()
+    } catch (err) {
+      console.error('Update failed:', err)
+    } finally {
+      setUpdatingProduct(false)
+    }
+  }
+
+  const handleCancelProduct = async (productId) => {
+    if (!confirm(t('payments.confirmCancelProduct'))) return
+    setCancellingProductId(productId)
+    try {
+      await paymentsAPI.selfCancelProduct(productId)
+      fetchCatalog()
+    } catch (err) {
+      console.error('Cancel failed:', err)
+    } finally {
+      setCancellingProductId(null)
     }
   }
 
@@ -512,6 +543,27 @@ function AccountTab() {
                               <span>{t('payments.nextPaymentDate')}: {new Date(up.nextPaymentDate).toLocaleDateString()}</span>
                             </div>
                           )}
+                        </div>
+                        <div className="flex gap-2 mt-4 pt-3 border-t border-gray-200 dark:border-dark-border">
+                          <button
+                            onClick={() => { setEditingProduct(up); setEditCycle(up.billingCycle) }}
+                            className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-gray-100 dark:bg-dark-bg text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            {t('payments.changePlan')}
+                          </button>
+                          <button
+                            onClick={() => handleCancelProduct(up.productId)}
+                            disabled={cancellingProductId === up.productId}
+                            className="flex-1 px-3 py-2 text-xs font-medium rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            {cancellingProductId === up.productId ? (
+                              <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            )}
+                            {t('payments.cancelProduct')}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -677,6 +729,71 @@ function AccountTab() {
               })()}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Change Plan Modal */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setEditingProduct(null)}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-200 dark:border-dark-border shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('payments.changePlan')}</h3>
+                <button onClick={() => setEditingProduct(null)} className="p-1 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{editingProduct.product?.name}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-5">{t('payments.changePlanDesc')}</p>
+              <div className="space-y-2">
+                {['monthly', 'quarterly', 'annual', 'lifetime'].map(cycle => {
+                  const product = editingProduct.product
+                  const price = cycle === 'quarterly' ? product?.quarterlyPrice : cycle === 'annual' ? product?.annualPrice : cycle === 'lifetime' ? product?.lifetimePrice : product?.monthlyPrice
+                  const isCurrentPlan = editingProduct.billingCycle === cycle
+                  const isSelected = editCycle === cycle
+                  return (
+                    <button
+                      key={cycle}
+                      onClick={() => setEditCycle(cycle)}
+                      className={`w-full flex items-center justify-between p-3.5 rounded-xl border-2 transition-all ${
+                        isSelected
+                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10'
+                          : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-primary-500' : 'border-gray-300 dark:border-gray-600'}`}>
+                          {isSelected && <div className="w-2 h-2 rounded-full bg-primary-500" />}
+                        </div>
+                        <div className="text-left">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{getBillingCycleLabel(cycle)}</span>
+                          {isCurrentPlan && (
+                            <span className="ml-2 text-xs bg-gray-200 dark:bg-dark-hover text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded">{t('payments.currentPlan')}</span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold text-gray-900 dark:text-white">{formatCurrency(price)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setEditingProduct(null)}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium rounded-xl border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={handleUpdateProduct}
+                  disabled={updatingProduct || editCycle === editingProduct.billingCycle}
+                  className="flex-1 px-4 py-2.5 text-sm font-semibold rounded-xl bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                >
+                  {updatingProduct ? t('common.updating') : t('payments.updatePlan')}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

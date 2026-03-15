@@ -20,6 +20,10 @@ router.post('/user-products/:userId', requireRole(ROLES.OWNER, ROLES.AGENCY), pa
 router.put('/user-products/:userId/:productId', requireRole(ROLES.OWNER, ROLES.AGENCY), paymentController.updateUserProduct);
 router.delete('/user-products/:userId/:productId', requireRole(ROLES.OWNER, ROLES.AGENCY), paymentController.removeUserProduct);
 
+// Self-service (any authenticated user — operates on own account)
+router.put('/my-products/:productId', paymentController.selfUpdateProduct);
+router.delete('/my-products/:productId', paymentController.selfCancelProduct);
+
 // Catalog & Purchase (any authenticated user)
 router.get('/catalog', paymentController.getCatalog);
 router.post('/purchase', paymentController.purchase);

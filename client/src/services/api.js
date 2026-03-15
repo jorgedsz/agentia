@@ -231,6 +231,9 @@ export const paymentsAPI = {
   assignUserProducts: (userId, data) => api.post(`/payments/user-products/${userId}`, data),
   updateUserProduct: (userId, productId, data) => api.put(`/payments/user-products/${userId}/${productId}`, data),
   removeUserProduct: (userId, productId) => api.delete(`/payments/user-products/${userId}/${productId}`),
+  // Self-service
+  selfUpdateProduct: (productId, data) => api.put(`/payments/my-products/${productId}`, data),
+  selfCancelProduct: (productId) => api.delete(`/payments/my-products/${productId}`),
   // Catalog & Purchase
   getCatalog: () => api.get('/payments/catalog'),
   purchase: (data) => api.post('/payments/purchase', data),

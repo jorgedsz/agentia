@@ -1002,6 +1002,12 @@
     "purchase": "Comprar",
     "purchaseSuccess": "¡Productos comprados exitosamente!",
     "browseCatalog": "Ver Catálogo",
-    "clientRedirect": "Visita Configuración > Cuenta para ver tus productos y explorar el catálogo."
+    "clientRedirect": "Visita Configuración > Cuenta para ver tus productos y explorar el catálogo.",
+    "changePlan": "Cambiar Plan",
+    "changePlanDesc": "Selecciona un nuevo ciclo de facturación para este producto.",
+    "updatePlan": "Actualizar Plan",
+    "currentPlan": "Actual",
+    "cancelProduct": "Cancelar",
+    "confirmCancelProduct": "¿Estás seguro de que deseas cancelar este producto? Esta acción no se puede deshacer."
   }
 }
