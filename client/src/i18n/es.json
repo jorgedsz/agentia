@@ -832,7 +832,14 @@
     "paramName": "Nombre del Parámetro",
     "paramType": "Tipo",
     "paramDescription": "Descripción",
-    "addParameter": "Agregar Parámetro"
+    "addParameter": "Agregar Parámetro",
+    "tipVoiceModel": "Elige el modelo de voz de ElevenLabs. Multilingüe v2 ofrece la mejor calidad y soporte de idiomas. Los modelos Flash tienen menor latencia. Los modelos Turbo equilibran velocidad y calidad.",
+    "tipVoiceTuning": "Ajusta las características de voz de tu agente. Modifica estabilidad (consistencia vs expresividad), claridad, velocidad de habla y exageración de estilo para crear la persona deseada.",
+    "tipBgSound": "Agrega ruido ambiental de fondo para que las conversaciones se sientan más naturales. La opción de oficina simula un entorno realista de centro de llamadas.",
+    "tipAgentTools": "Agrega integraciones de API y funciones personalizadas que tu agente puede ejecutar durante las conversaciones. Usa herramientas para agendar citas, buscar datos o activar flujos externos.",
+    "tipWebhook": "Recibe una solicitud POST con los datos completos de la llamada (transcripción, duración, resultado) al finalizar cada llamada. Útil para actualizar CRM, analíticas o activar flujos de seguimiento.",
+    "tipStructuredData": "Extrae automáticamente información estructurada de las conversaciones usando un esquema JSON. VAPI completa campos como nombre del cliente, fecha de cita o tipo de problema basándose en lo que se discutió.",
+    "tipVoicemail": "Cuando está habilitado, el agente detecta automáticamente contestadoras y buzones de voz, permitiéndole dejar un mensaje o terminar la llamada de forma apropiada."
   },
   "pricing": {
     "modelRates": "Tarifas de Modelos",

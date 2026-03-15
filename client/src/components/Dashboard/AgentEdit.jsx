@@ -497,6 +497,7 @@ export default function AgentEdit() {
   const [showCalendarModal, setShowCalendarModal] = useState(false)
   const [showAdvancedModal, setShowAdvancedModal] = useState(false)
   const [advancedSubPanel, setAdvancedSubPanel] = useState(null) // null = grid view, or 'voiceModel', 'voiceTuning', 'bgSound', 'tools', 'webhook', 'recording', 'transcript', 'summary'
+  const [advancedInfoPopup, setAdvancedInfoPopup] = useState(null) // which sub-panel info popup is open
   const [showProviderDropdown, setShowProviderDropdown] = useState(false)
   const providerDropdownRef = useRef(null)
 
@@ -3983,6 +3984,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('voicemail')}</span>
                       <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.voicemailDetectionEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
                         <svg className={`w-7 h-7 ${callBehaviorSettings.voicemailDetectionEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <title>{ta('tipVoicemail')}</title>
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                       </div>
@@ -4015,11 +4017,17 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             {advancedSubPanel === 'voiceModel' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceModel')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'voiceModel' ? null : 'voiceModel')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
                 </div>
+                {advancedInfoPopup === 'voiceModel' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipVoiceModel')}</div>
+                )}
                 <div className="p-4 space-y-3">
                   {[
                     { value: 'eleven_multilingual_v2', label: ta('voiceModelMultilingualV2'), desc: ta('voiceModelMultilingualV2Desc') },
@@ -4050,11 +4058,17 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             {advancedSubPanel === 'voiceTuning' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceTuning')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'voiceTuning' ? null : 'voiceTuning')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
                 </div>
+                {advancedInfoPopup === 'voiceTuning' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipVoiceTuning')}</div>
+                )}
                 <div className="p-4 space-y-5">
                   {[
                     { key: 'stability', label: ta('stability'), min: 0, max: 1, step: 0.05, left: ta('variable'), right: ta('stable'), fmt: v => v.toFixed(2) },
@@ -4094,11 +4108,17 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             {advancedSubPanel === 'bgSound' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('backgroundSound')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'bgSound' ? null : 'bgSound')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
                 </div>
+                {advancedInfoPopup === 'bgSound' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipBgSound')}</div>
+                )}
                 <div className="p-4 space-y-3">
                   {[
                     { value: 'off', label: 'Off', desc: 'No background noise' },
@@ -4127,13 +4147,19 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
               <>
                 <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
                   <div className="flex items-center gap-3">
-                    <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                     </button>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('agentTools')}</h3>
+                    <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'tools' ? null : 'tools')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </button>
                   </div>
                   <button onClick={openAddToolModal} className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">+ {ta('add')}</button>
                 </div>
+                {advancedInfoPopup === 'tools' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipAgentTools')}</div>
+                )}
                 <div className="p-4">
                   {tools.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 dark:bg-dark-hover rounded-lg border border-dashed border-gray-300 dark:border-dark-border">
@@ -4185,11 +4211,17 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             {advancedSubPanel === 'webhook' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('postCallWebhook')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'webhook' ? null : 'webhook')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
                 </div>
+                {advancedInfoPopup === 'webhook' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipWebhook')}</div>
+                )}
                 <div className="p-4 space-y-4">
                   <div>
                     <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('webhookUrlLabel')}</label>
@@ -4220,13 +4252,18 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             {advancedSubPanel === 'structuredData' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('structuredData')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'structuredData' ? null : 'structuredData')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
                 </div>
+                {advancedInfoPopup === 'structuredData' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipStructuredData')}</div>
+                )}
                 <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('structuredDataFullDesc')}</p>
 
                   {/* Enable toggle */}
                   <div className="flex items-center justify-between">
@@ -4277,14 +4314,18 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             {advancedSubPanel === 'stopSpeaking' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('stopSpeakingPlan')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'stopSpeaking' ? null : 'stopSpeaking')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
                 </div>
+                {advancedInfoPopup === 'stopSpeaking' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('stopSpeakingDesc')}</div>
+                )}
                 <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('stopSpeakingDesc')}</p>
-
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStopSpeaking')}</span>
                     <button
@@ -4357,13 +4398,18 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             {advancedSubPanel === 'startSpeaking' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('startSpeakingPlan')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'startSpeaking' ? null : 'startSpeaking')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
                 </div>
+                {advancedInfoPopup === 'startSpeaking' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('startSpeakingDesc')}</div>
+                )}
                 <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('startSpeakingDesc')}</p>
 
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStartSpeaking')}</span>
@@ -4490,13 +4536,18 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             {advancedSubPanel === 'callTimeouts' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => setAdvancedSubPanel(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callTimeouts')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'callTimeouts' ? null : 'callTimeouts')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
                 </div>
+                {advancedInfoPopup === 'callTimeouts' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('callTimeoutsDesc')}</div>
+                )}
                 <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('callTimeoutsDesc')}</p>
 
                   <div>
                     <div className="flex justify-between mb-1">

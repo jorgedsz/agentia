@@ -832,7 +832,14 @@
     "paramName": "Parameter Name",
     "paramType": "Type",
     "paramDescription": "Description",
-    "addParameter": "Add Parameter"
+    "addParameter": "Add Parameter",
+    "tipVoiceModel": "Choose the ElevenLabs voice model. Multilingual v2 offers the best quality and language support. Flash models have lower latency. Turbo models balance speed and quality.",
+    "tipVoiceTuning": "Fine-tune your agent's voice characteristics. Adjust stability (consistency vs expressiveness), clarity, speaking speed, and style exaggeration to match your desired persona.",
+    "tipBgSound": "Add ambient background noise to make conversations feel more natural. The office option simulates a realistic call center environment.",
+    "tipAgentTools": "Add custom API integrations and functions your agent can call during conversations. Use tools for booking appointments, looking up data, or triggering external workflows.",
+    "tipWebhook": "Receive a POST request with full call data (transcript, duration, outcome) when each call ends. Useful for CRM updates, analytics, or triggering follow-up workflows.",
+    "tipStructuredData": "Automatically extract structured information from conversations using a JSON schema. VAPI populates fields like customer name, appointment date, or issue type based on what was discussed.",
+    "tipVoicemail": "When enabled, the agent automatically detects answering machines and voicemail greetings, allowing it to leave a message or end the call gracefully."
   },
   "pricing": {
     "modelRates": "Model Rates",
