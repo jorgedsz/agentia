@@ -49,7 +49,7 @@ const SETTINGS_ITEMS = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
       </svg>
     ),
-    roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT]
+    roles: [ROLES.OWNER]
   },
   {
     id: 'billing',
@@ -105,17 +105,6 @@ const SETTINGS_ITEMS = [
       </svg>
     ),
     roles: [ROLES.OWNER, ROLES.AGENCY]
-  },
-  {
-    id: 'my-plan',
-    label: 'settings.myPlan',
-    description: 'settings.myPlanDesc',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-      </svg>
-    ),
-    roles: [ROLES.CLIENT]
   },
   {
     id: 'account',
@@ -241,7 +230,6 @@ export default function Settings() {
         {activeTab === 'vapi-pool' && isOwner && <VapiKeyPoolTab />}
         {activeTab === 'slack' && isOwner && <SlackTab />}
         {activeTab === 'compliance' && <ComplianceTab />}
-        {activeTab === 'my-plan' && <MyPlanTab />}
         {activeTab === 'account' && <AccountTab />}
       </div>
     </div>
@@ -257,133 +245,89 @@ function BillingTab() {
   )
 }
 
-// My Plan Tab (CLIENT only)
-function MyPlanTab() {
-  const { user } = useAuth()
-  const { t } = useLanguage()
-  const [plan, setPlan] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchPlan = async () => {
-      try {
-        const response = await paymentsAPI.getPlan(user.id)
-        setPlan(response.data.plan)
-      } catch (err) {
-        console.error('Failed to fetch plan:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchPlan()
-  }, [user.id])
-
-  if (loading) {
-    return (
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 dark:bg-dark-hover rounded w-1/3"></div>
-          <div className="h-4 bg-gray-200 dark:bg-dark-hover rounded w-2/3"></div>
-          <div className="h-32 bg-gray-200 dark:bg-dark-hover rounded"></div>
-        </div>
-      </div>
-    )
-  }
-
-  if (!plan) {
-    return (
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.myPlanTitle')}</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-6">{t('settings.myPlanSubtitle')}</p>
-        <div className="text-center py-12">
-          <svg className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('settings.noPlanAssigned')}</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">{t('settings.noPlanAssignedDesc')}</p>
-        </div>
-      </div>
-    )
-  }
-
-  const statusColor = plan.status === 'active'
-    ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400'
-    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-400'
-
-  const features = []
-  if (user?.voiceAgentsEnabled !== false) features.push('Voice Agents')
-  if (user?.chatbotsEnabled !== false) features.push('Chatbots')
-
-  return (
-    <div className="space-y-6">
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.myPlanTitle')}</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-6">{t('settings.myPlanSubtitle')}</p>
-
-        <div className="bg-gray-50 dark:bg-dark-hover rounded-xl p-6 border border-gray-200 dark:border-dark-border">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">{plan.name}</h3>
-              {plan.description && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{plan.description}</p>
-              )}
-            </div>
-            <span className={`px-3 py-1 text-xs font-medium rounded-full ${statusColor}`}>
-              {plan.status?.charAt(0).toUpperCase() + plan.status?.slice(1)}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-            <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
-              <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Amount</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                ${(plan.amount / 100).toFixed(2)}
-              </div>
-            </div>
-            <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
-              <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Billing Cycle</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white capitalize">
-                {plan.interval || 'monthly'}
-              </div>
-            </div>
-            {plan.currentPeriodEnd && (
-              <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
-                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Next Payment</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {new Date(plan.currentPeriodEnd).toLocaleDateString()}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {features.length > 0 && (
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.planFeatures')}</h3>
-          <div className="space-y-3">
-            {features.map((feature) => (
-              <div key={feature} className="flex items-center gap-3">
-                <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="text-sm text-gray-700 dark:text-gray-300">{feature}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // Account Tab
 function AccountTab() {
-  const { user } = useAuth()
+  const { user, isTeamMember, teamMember } = useAuth()
   const { t } = useLanguage()
+  const isOwner = user?.role === ROLES.OWNER
+  const isClientOrAgency = user?.role === ROLES.CLIENT || user?.role === ROLES.AGENCY
+
+  // Trigger API key state (for CLIENT/AGENCY inline display)
+  const [triggerLoading, setTriggerLoading] = useState(true)
+  const [triggerGenerating, setTriggerGenerating] = useState(false)
+  const [hasTriggerKey, setHasTriggerKey] = useState(false)
+  const [maskedTriggerKey, setMaskedTriggerKey] = useState('')
+  const [newTriggerKey, setNewTriggerKey] = useState('')
+  const [triggerError, setTriggerError] = useState('')
+  const [triggerSuccess, setTriggerSuccess] = useState('')
+
+  // My Plan state (for CLIENT)
+  const [plan, setPlan] = useState(null)
+  const [planLoading, setPlanLoading] = useState(true)
+
+  const canEditKeys = !isTeamMember || teamMember?.teamRole === 'admin'
+
+  useEffect(() => {
+    if (isClientOrAgency && canEditKeys) {
+      fetchTriggerKey()
+    } else {
+      setTriggerLoading(false)
+    }
+    if (user?.role === ROLES.CLIENT) {
+      fetchPlan()
+    } else {
+      setPlanLoading(false)
+    }
+  }, [])
+
+  const fetchTriggerKey = async () => {
+    setTriggerLoading(true)
+    try {
+      const { data } = await accountSettingsAPI.getTriggerKey()
+      setHasTriggerKey(data.hasTriggerKey)
+      setMaskedTriggerKey(data.triggerApiKey || '')
+    } catch (err) {
+      // silently fail
+    } finally {
+      setTriggerLoading(false)
+    }
+  }
+
+  const handleGenerateTriggerKey = async () => {
+    if (hasTriggerKey && !confirm(t('settings.triggerKeyReplaceConfirm'))) return
+    setTriggerGenerating(true)
+    setNewTriggerKey('')
+    setTriggerError('')
+    setTriggerSuccess('')
+    try {
+      const { data } = await accountSettingsAPI.generateTriggerKey()
+      setNewTriggerKey(data.triggerApiKey)
+      setHasTriggerKey(true)
+      setMaskedTriggerKey('')
+      setTriggerSuccess(t('settings.triggerKeyGenerated'))
+      setTimeout(() => setTriggerSuccess(''), 5000)
+    } catch (err) {
+      setTriggerError(err.response?.data?.error || 'Failed to generate trigger key')
+    } finally {
+      setTriggerGenerating(false)
+    }
+  }
+
+  const fetchPlan = async () => {
+    setPlanLoading(true)
+    try {
+      const response = await paymentsAPI.getPlan(user.id)
+      setPlan(response.data.plan)
+    } catch (err) {
+      console.error('Failed to fetch plan:', err)
+    } finally {
+      setPlanLoading(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
+      {/* Account Info */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('settings.accountInfo')}</h2>
 
@@ -423,6 +367,138 @@ function AccountTab() {
           </div>
         </div>
       </div>
+
+      {/* My Plan (CLIENT only) */}
+      {user?.role === ROLES.CLIENT && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.myPlanTitle')}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-6">{t('settings.myPlanSubtitle')}</p>
+
+          {planLoading ? (
+            <div className="animate-pulse space-y-4">
+              <div className="h-6 bg-gray-200 dark:bg-dark-hover rounded w-1/3"></div>
+              <div className="h-32 bg-gray-200 dark:bg-dark-hover rounded"></div>
+            </div>
+          ) : !plan ? (
+            <div className="text-center py-8">
+              <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h3 className="text-base font-medium text-gray-900 dark:text-white mb-1">{t('settings.noPlanAssigned')}</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">{t('settings.noPlanAssignedDesc')}</p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-gray-50 dark:bg-dark-hover rounded-xl p-5 border border-gray-200 dark:border-dark-border">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{plan.name}</h3>
+                    {plan.description && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{plan.description}</p>
+                    )}
+                  </div>
+                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                    plan.status === 'active'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-500/10 dark:text-green-400'
+                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-400'
+                  }`}>
+                    {plan.status?.charAt(0).toUpperCase() + plan.status?.slice(1)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Amount</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">${(plan.amount / 100).toFixed(2)}</div>
+                  </div>
+                  <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Billing Cycle</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white capitalize">{plan.interval || 'monthly'}</div>
+                  </div>
+                  {plan.currentPeriodEnd && (
+                    <div className="bg-white dark:bg-dark-card rounded-lg p-4 border border-gray-200 dark:border-dark-border">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Next Payment</div>
+                      <div className="text-2xl font-bold text-gray-900 dark:text-white">{new Date(plan.currentPeriodEnd).toLocaleDateString()}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Features */}
+              {(() => {
+                const features = []
+                if (user?.voiceAgentsEnabled !== false) features.push('Voice Agents')
+                if (user?.chatbotsEnabled !== false) features.push('Chatbots')
+                if (features.length === 0) return null
+                return (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">{t('settings.planFeatures')}</h3>
+                    <div className="space-y-2">
+                      {features.map((feature) => (
+                        <div key={feature} className="flex items-center gap-3">
+                          <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Trigger API Key (CLIENT/AGENCY) */}
+      {isClientOrAgency && canEditKeys && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('settings.triggerApiKey')}</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-4">{t('settings.triggerApiKeyDesc')}</p>
+
+          {triggerError && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-sm mb-3">{triggerError}</div>
+          )}
+          {triggerSuccess && (
+            <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg text-sm mb-3">{triggerSuccess}</div>
+          )}
+
+          {triggerLoading ? (
+            <div className="flex justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-500"></div>
+            </div>
+          ) : (
+            <>
+              {hasTriggerKey && !newTriggerKey && maskedTriggerKey && (
+                <div className="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-[#16181c] rounded-lg border border-gray-200 dark:border-gray-700/30 mb-3">
+                  <span className="text-xs font-mono text-gray-500 dark:text-gray-500">{maskedTriggerKey}</span>
+                  <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-500/15 text-green-400">Active</span>
+                </div>
+              )}
+
+              {newTriggerKey && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg mb-3">
+                  <p className="text-xs font-medium text-amber-400 mb-2">{t('settings.triggerKeyCopyWarning')}</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs font-mono text-gray-300 bg-[#1a1c20] px-3 py-2 rounded break-all select-all">{newTriggerKey}</code>
+                    <button onClick={() => navigator.clipboard.writeText(newTriggerKey)} className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 text-xs font-medium flex-shrink-0">
+                      {t('common.copy')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleGenerateTriggerKey}
+                disabled={triggerGenerating}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-500 disabled:opacity-50 text-sm font-medium transition-colors"
+              >
+                {triggerGenerating ? t('common.generating') : hasTriggerKey ? t('settings.regenerateTriggerKey') : t('settings.generateTriggerKey')}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
