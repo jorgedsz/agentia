@@ -606,7 +606,7 @@ export default function AgentEdit() {
     successEvaluationRubric: '',
     successEvaluationPrompt: '',
     structuredDataEnabled: false,
-    structuredDataSchema: '{\n  "type": "object",\n  "properties": {}\n}',
+    structuredDataFields: [],
     structuredDataPrompt: ''
   })
 
@@ -1066,7 +1066,17 @@ export default function AgentEdit() {
           successEvaluationRubric: cfg.successEvaluationRubric || '',
           successEvaluationPrompt: cfg.successEvaluationPrompt || '',
           structuredDataEnabled: cfg.structuredDataEnabled || false,
-          structuredDataSchema: cfg.structuredDataSchema || '{\n  "type": "object",\n  "properties": {}\n}',
+          structuredDataFields: (() => {
+            try {
+              const schema = cfg.structuredDataSchema ? JSON.parse(cfg.structuredDataSchema) : {}
+              if (schema.properties) {
+                return Object.entries(schema.properties).map(([k, v]) => ({
+                  key: k, type: v.type || 'string', description: v.description || ''
+                }))
+              }
+            } catch {}
+            return []
+          })(),
           structuredDataPrompt: cfg.structuredDataPrompt || ''
         })
       }
@@ -1552,7 +1562,15 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
           successEvaluationRubric: serverConfig.successEvaluationRubric,
           successEvaluationPrompt: serverConfig.successEvaluationPrompt,
           structuredDataEnabled: serverConfig.structuredDataEnabled,
-          structuredDataSchema: serverConfig.structuredDataSchema,
+          structuredDataSchema: (() => {
+            const fields = (serverConfig.structuredDataFields || []).filter(f => f.key.trim())
+            if (fields.length === 0) return '{\n  "type": "object",\n  "properties": {}\n}'
+            const props = {}
+            fields.forEach(f => {
+              props[f.key.trim()] = { type: f.type || 'string', ...(f.description ? { description: f.description } : {}) }
+            })
+            return JSON.stringify({ type: 'object', properties: props }, null, 2)
+          })(),
           structuredDataPrompt: serverConfig.structuredDataPrompt,
           // Call behavior settings
           ...callBehaviorSettings,
@@ -4278,18 +4296,69 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                   {serverConfig.structuredDataEnabled && (
                     <>
-                      {/* JSON Schema */}
+                      {/* Data Fields */}
                       <div>
-                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('jsonSchema')}</label>
-                        <textarea
-                          value={serverConfig.structuredDataSchema}
-                          onChange={(e) => setServerConfig({ ...serverConfig, structuredDataSchema: e.target.value })}
-                          rows={8}
-                          placeholder={'{\n  "type": "object",\n  "properties": {\n    "customerName": { "type": "string" },\n    "appointmentDate": { "type": "string" },\n    "issue": { "type": "string" }\n  }\n}'}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm font-mono"
-                          spellCheck={false}
-                        />
-                        <p className="text-xs text-gray-400 mt-1">{ta('jsonSchemaPlaceholder')}</p>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('structuredDataFields')}</label>
+                        <div className="space-y-2">
+                          {(serverConfig.structuredDataFields || []).map((field, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={field.key}
+                                onChange={(e) => {
+                                  const updated = [...serverConfig.structuredDataFields]
+                                  updated[idx] = { ...updated[idx], key: e.target.value }
+                                  setServerConfig({ ...serverConfig, structuredDataFields: updated })
+                                }}
+                                placeholder={ta('fieldName')}
+                                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                              />
+                              <select
+                                value={field.type}
+                                onChange={(e) => {
+                                  const updated = [...serverConfig.structuredDataFields]
+                                  updated[idx] = { ...updated[idx], type: e.target.value }
+                                  setServerConfig({ ...serverConfig, structuredDataFields: updated })
+                                }}
+                                className="w-24 px-2 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                              >
+                                <option value="string">string</option>
+                                <option value="number">number</option>
+                                <option value="integer">integer</option>
+                                <option value="boolean">boolean</option>
+                              </select>
+                              <input
+                                type="text"
+                                value={field.description}
+                                onChange={(e) => {
+                                  const updated = [...serverConfig.structuredDataFields]
+                                  updated[idx] = { ...updated[idx], description: e.target.value }
+                                  setServerConfig({ ...serverConfig, structuredDataFields: updated })
+                                }}
+                                placeholder={ta('fieldDescription')}
+                                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = serverConfig.structuredDataFields.filter((_, i) => i !== idx)
+                                  setServerConfig({ ...serverConfig, structuredDataFields: updated })
+                                }}
+                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setServerConfig({ ...serverConfig, structuredDataFields: [...(serverConfig.structuredDataFields || []), { key: '', type: 'string', description: '' }] })}
+                            className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center gap-1"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                            {ta('addField')}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Extraction Prompt */}

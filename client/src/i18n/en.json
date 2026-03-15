@@ -839,7 +839,12 @@
     "tipAgentTools": "Add custom API integrations and functions your agent can call during conversations. Use tools for booking appointments, looking up data, or triggering external workflows.",
     "tipWebhook": "Receive a POST request with full call data (transcript, duration, outcome) when each call ends. Useful for CRM updates, analytics, or triggering follow-up workflows.",
     "tipStructuredData": "Automatically extract structured information from conversations using a JSON schema. VAPI populates fields like customer name, appointment date, or issue type based on what was discussed.",
-    "tipVoicemail": "When enabled, the agent automatically detects answering machines and voicemail greetings, allowing it to leave a message or end the call gracefully."
+    "tipVoicemail": "When enabled, the agent automatically detects answering machines and voicemail greetings, allowing it to leave a message or end the call gracefully.",
+    "structuredDataFields": "Data Fields",
+    "fieldName": "Field Name",
+    "fieldType": "Type",
+    "fieldDescription": "Description (optional)",
+    "addField": "Add Field"
   },
   "pricing": {
     "modelRates": "Model Rates",

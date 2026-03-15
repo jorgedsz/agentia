@@ -839,7 +839,12 @@
     "tipAgentTools": "Agrega integraciones de API y funciones personalizadas que tu agente puede ejecutar durante las conversaciones. Usa herramientas para agendar citas, buscar datos o activar flujos externos.",
     "tipWebhook": "Recibe una solicitud POST con los datos completos de la llamada (transcripción, duración, resultado) al finalizar cada llamada. Útil para actualizar CRM, analíticas o activar flujos de seguimiento.",
     "tipStructuredData": "Extrae automáticamente información estructurada de las conversaciones usando un esquema JSON. VAPI completa campos como nombre del cliente, fecha de cita o tipo de problema basándose en lo que se discutió.",
-    "tipVoicemail": "Cuando está habilitado, el agente detecta automáticamente contestadoras y buzones de voz, permitiéndole dejar un mensaje o terminar la llamada de forma apropiada."
+    "tipVoicemail": "Cuando está habilitado, el agente detecta automáticamente contestadoras y buzones de voz, permitiéndole dejar un mensaje o terminar la llamada de forma apropiada.",
+    "structuredDataFields": "Campos de Datos",
+    "fieldName": "Nombre del Campo",
+    "fieldType": "Tipo",
+    "fieldDescription": "Descripción (opcional)",
+    "addField": "Agregar Campo"
   },
   "pricing": {
     "modelRates": "Tarifas de Modelos",
