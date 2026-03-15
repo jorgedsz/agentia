@@ -231,6 +231,11 @@ export const paymentsAPI = {
   removePlan: (userId) => api.delete(`/payments/plans/${userId}`),
 }
 
+// Tools API (test HTTP requests via proxy)
+export const toolsAPI = {
+  testRequest: (data) => api.post('/tools/test-request', data)
+}
+
 // Chat API (uses fetch for SSE streaming, not axios)
 export const chatAPI = {
   sendMessage: async (messages, onChunk, onDone, onError) => {

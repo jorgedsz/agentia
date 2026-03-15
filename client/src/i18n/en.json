@@ -812,7 +812,18 @@
     "promptUpdateAgain": "Update Again",
     "promptUse": "Use This Prompt",
     "english": "English",
-    "spanish": "Spanish"
+    "spanish": "Spanish",
+    "waitForResponse": "Wait for Response",
+    "waitForResponseDesc": "When enabled, the AI waits for the API response before continuing. Disable for fire-and-forget requests.",
+    "testRequest": "Test Request",
+    "sendTestRequest": "Send Test Request",
+    "sending": "Sending...",
+    "testRequestBody": "Test Body (actual values, not schema)",
+    "testRequestBodyPlaceholder": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\"\n}",
+    "requestSent": "Request Sent",
+    "responseReceived": "Response Received",
+    "duration": "Duration",
+    "noResponseYet": "Send a test request to see the response here"
   },
   "pricing": {
     "modelRates": "Model Rates",

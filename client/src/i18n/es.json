@@ -812,7 +812,18 @@
     "promptUpdateAgain": "Actualizar de Nuevo",
     "promptUse": "Usar Este Prompt",
     "english": "Inglés",
-    "spanish": "Español"
+    "spanish": "Español",
+    "waitForResponse": "Esperar Respuesta",
+    "waitForResponseDesc": "Cuando está activado, la IA espera la respuesta de la API antes de continuar. Desactiva para solicitudes sin esperar respuesta.",
+    "testRequest": "Probar Solicitud",
+    "sendTestRequest": "Enviar Solicitud de Prueba",
+    "sending": "Enviando...",
+    "testRequestBody": "Cuerpo de Prueba (valores reales, no esquema)",
+    "testRequestBodyPlaceholder": "{\n  \"nombre\": \"Juan Pérez\",\n  \"email\": \"juan@ejemplo.com\"\n}",
+    "requestSent": "Solicitud Enviada",
+    "responseReceived": "Respuesta Recibida",
+    "duration": "Duración",
+    "noResponseYet": "Envía una solicitud de prueba para ver la respuesta aquí"
   },
   "pricing": {
     "modelRates": "Tarifas de Modelos",

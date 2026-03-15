@@ -32,6 +32,7 @@ const complianceRoutes = require('./routes/compliance');
 const pricingRoutes = require('./routes/pricing');
 const chatbotRoutes = require('./routes/chatbots');
 const paymentRoutes = require('./routes/payments');
+const toolRoutes = require('./routes/tools');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -86,6 +87,7 @@ app.use('/api/compliance', complianceRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/chatbots', chatbotRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/tools', toolRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

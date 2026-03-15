@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, accountSettingsAPI, voicesAPI, pricingAPI } from '../../services/api'
+import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, accountSettingsAPI, voicesAPI, pricingAPI, toolsAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { TRANSCRIBER_PROVIDERS, MODELS_BY_PROVIDER } from '../../constants/models'
@@ -586,6 +586,13 @@ export default function AgentEdit() {
     httpBody: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
     async: false,
     endCallMessage: ''
+  })
+  const [testRequestState, setTestRequestState] = useState({
+    loading: false,
+    expanded: false,
+    testBody: '',
+    result: null,
+    error: null
   })
 
   // Server/Post-call configuration
@@ -1781,6 +1788,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
       async: false,
       endCallMessage: ''
     })
+    setTestRequestState({ loading: false, expanded: false, testBody: '', result: null, error: null })
   }
 
   const openAddToolModal = () => {
@@ -1813,7 +1821,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         webhookUrl: tool.url || '',
         httpHeaders: headersStr,
         httpBody: JSON.stringify(tool.body || {}, null, 2),
-        async: false,
+        async: tool.async || false,
         endCallMessage: ''
       })
     } else if (tool.type === 'function') {
@@ -1906,6 +1914,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         url: toolForm.webhookUrl,
         headers: headers || { type: 'object', properties: {} },
         body,
+        async: toolForm.async,
         timeoutSeconds: 20
       }
     } else if (toolForm.type === 'endCall') {
@@ -1932,6 +1941,39 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
   const handleDeleteTool = (index) => {
     setTools(tools.filter((_, i) => i !== index))
+  }
+
+  const handleTestRequest = async () => {
+    if (!toolForm.webhookUrl) {
+      setTestRequestState(prev => ({ ...prev, error: 'URL is required', result: null }))
+      return
+    }
+    setTestRequestState(prev => ({ ...prev, loading: true, error: null, result: null }))
+    try {
+      // Parse headers from the form
+      let headers = {}
+      if (toolForm.httpHeaders && toolForm.httpHeaders.trim()) {
+        try { headers = JSON.parse(toolForm.httpHeaders) } catch { /* ignore */ }
+      }
+      // Parse test body
+      let body = undefined
+      if (testRequestState.testBody && testRequestState.testBody.trim()) {
+        try { body = JSON.parse(testRequestState.testBody) } catch { body = testRequestState.testBody }
+      }
+      const { data } = await toolsAPI.testRequest({
+        method: toolForm.httpMethod || 'POST',
+        url: toolForm.webhookUrl,
+        headers,
+        body
+      })
+      setTestRequestState(prev => ({ ...prev, loading: false, result: data }))
+    } catch (err) {
+      setTestRequestState(prev => ({
+        ...prev,
+        loading: false,
+        error: err.response?.data?.error || err.message || 'Request failed'
+      }))
+    }
   }
 
   if (loading) {
@@ -2700,7 +2742,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
       {/* Tool Modal */}
       {showToolModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingTool ? ta('editTool') : ta('addTool')}
@@ -2789,6 +2831,120 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       rows={4}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white font-mono text-sm"
                     />
+                  </div>
+
+                  {/* Wait for Response Toggle */}
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-bg rounded-lg">
+                    <div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('waitForResponse')}</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('waitForResponseDesc')}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setToolForm({ ...toolForm, async: !toolForm.async })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${!toolForm.async ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${!toolForm.async ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {/* Test Request Section */}
+                  <div className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setTestRequestState(prev => ({ ...prev, expanded: !prev.expanded }))}
+                      className="w-full flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-bg hover:bg-gray-100 dark:hover:bg-dark-border/50 transition-colors"
+                    >
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('testRequest')}</span>
+                      <svg className={`w-4 h-4 text-gray-500 transition-transform ${testRequestState.expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {testRequestState.expanded && (
+                      <div className="p-3 space-y-3 border-t border-gray-200 dark:border-dark-border">
+                        <div>
+                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('testRequestBody')}</label>
+                          <textarea
+                            value={testRequestState.testBody}
+                            onChange={(e) => setTestRequestState(prev => ({ ...prev, testBody: e.target.value }))}
+                            rows={3}
+                            placeholder={ta('testRequestBodyPlaceholder')}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white font-mono text-sm"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleTestRequest}
+                          disabled={testRequestState.loading || !toolForm.webhookUrl}
+                          className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                        >
+                          {testRequestState.loading ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                              {ta('sending')}
+                            </>
+                          ) : ta('sendTestRequest')}
+                        </button>
+
+                        {testRequestState.error && (
+                          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                            <p className="text-sm text-red-700 dark:text-red-400">{testRequestState.error}</p>
+                          </div>
+                        )}
+
+                        {testRequestState.result && (
+                          <div className="space-y-3">
+                            {/* Request Sent */}
+                            <details className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+                              <summary className="px-3 py-2 bg-gray-50 dark:bg-dark-bg cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">{testRequestState.result.request.method}</span>
+                                {ta('requestSent')}
+                              </summary>
+                              <div className="p-3 space-y-2">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 break-all">{testRequestState.result.request.url}</p>
+                                {testRequestState.result.request.headers && Object.keys(testRequestState.result.request.headers).length > 0 && (
+                                  <details className="text-xs">
+                                    <summary className="cursor-pointer text-gray-500 dark:text-gray-400">Headers</summary>
+                                    <pre className="mt-1 p-2 bg-gray-100 dark:bg-dark-bg rounded text-gray-700 dark:text-gray-300 overflow-x-auto">{JSON.stringify(testRequestState.result.request.headers, null, 2)}</pre>
+                                  </details>
+                                )}
+                                {testRequestState.result.request.body && (
+                                  <details className="text-xs">
+                                    <summary className="cursor-pointer text-gray-500 dark:text-gray-400">Body</summary>
+                                    <pre className="mt-1 p-2 bg-gray-100 dark:bg-dark-bg rounded text-gray-700 dark:text-gray-300 overflow-x-auto">{typeof testRequestState.result.request.body === 'string' ? testRequestState.result.request.body : JSON.stringify(testRequestState.result.request.body, null, 2)}</pre>
+                                  </details>
+                                )}
+                              </div>
+                            </details>
+
+                            {/* Response Received */}
+                            <details open className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+                              <summary className="px-3 py-2 bg-gray-50 dark:bg-dark-bg cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
+                                  testRequestState.result.response.status < 300 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                                  testRequestState.result.response.status < 400 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                  'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                }`}>{testRequestState.result.response.status} {testRequestState.result.response.statusText}</span>
+                                {ta('responseReceived')}
+                                <span className="ml-auto text-xs text-gray-400">{testRequestState.result.duration}ms</span>
+                              </summary>
+                              <div className="p-3 space-y-2">
+                                {testRequestState.result.response.headers && (
+                                  <details className="text-xs">
+                                    <summary className="cursor-pointer text-gray-500 dark:text-gray-400">Headers</summary>
+                                    <pre className="mt-1 p-2 bg-gray-100 dark:bg-dark-bg rounded text-gray-700 dark:text-gray-300 overflow-x-auto">{JSON.stringify(testRequestState.result.response.headers, null, 2)}</pre>
+                                  </details>
+                                )}
+                                <div>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Body</p>
+                                  <pre className="p-2 bg-gray-100 dark:bg-dark-bg rounded text-xs text-gray-700 dark:text-gray-300 overflow-x-auto max-h-60 overflow-y-auto">{typeof testRequestState.result.response.body === 'string' ? testRequestState.result.response.body : JSON.stringify(testRequestState.result.response.body, null, 2)}</pre>
+                                </div>
+                              </div>
+                            </details>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
