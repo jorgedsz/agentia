@@ -823,7 +823,16 @@
     "requestSent": "Request Sent",
     "responseReceived": "Response Received",
     "duration": "Duration",
-    "noResponseYet": "Send a test request to see the response here"
+    "noResponseYet": "Send a test request to see the response here",
+    "headers": "Headers",
+    "headerKey": "Header Name",
+    "headerValue": "Value",
+    "addHeader": "Add Header",
+    "requestBodyParams": "Request Body Parameters",
+    "paramName": "Parameter Name",
+    "paramType": "Type",
+    "paramDescription": "Description",
+    "addParameter": "Add Parameter"
   },
   "pricing": {
     "modelRates": "Model Rates",

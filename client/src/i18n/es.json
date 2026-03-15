@@ -823,7 +823,16 @@
     "requestSent": "Solicitud Enviada",
     "responseReceived": "Respuesta Recibida",
     "duration": "Duración",
-    "noResponseYet": "Envía una solicitud de prueba para ver la respuesta aquí"
+    "noResponseYet": "Envía una solicitud de prueba para ver la respuesta aquí",
+    "headers": "Encabezados",
+    "headerKey": "Nombre del Encabezado",
+    "headerValue": "Valor",
+    "addHeader": "Agregar Encabezado",
+    "requestBodyParams": "Parámetros del Cuerpo",
+    "paramName": "Nombre del Parámetro",
+    "paramType": "Tipo",
+    "paramDescription": "Descripción",
+    "addParameter": "Agregar Parámetro"
   },
   "pricing": {
     "modelRates": "Tarifas de Modelos",

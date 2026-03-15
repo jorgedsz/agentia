@@ -582,8 +582,8 @@ export default function AgentEdit() {
     functionDescription: '',
     httpMethod: 'POST',
     webhookUrl: '',
-    httpHeaders: '',
-    httpBody: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
+    httpHeaders: [],
+    httpBodyFields: [],
     async: false,
     endCallMessage: ''
   })
@@ -1783,8 +1783,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
       functionDescription: '',
       httpMethod: 'POST',
       webhookUrl: '',
-      httpHeaders: '',
-      httpBody: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
+      httpHeaders: [],
+      httpBodyFields: [],
       async: false,
       endCallMessage: ''
     })
@@ -1804,14 +1804,19 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
     setEditingToolIndex(index)
 
     if (tool.type === 'apiRequest') {
-      // Parse headers back to JSON string for editing
-      let headersStr = ''
+      // Parse headers into array of { key, value }
+      const headersArr = []
       if (tool.headers?.properties) {
-        const parsed = {}
         Object.entries(tool.headers.properties).forEach(([k, v]) => {
-          parsed[k] = v.value || v.description || ''
+          headersArr.push({ key: k, value: v.value || v.description || '' })
         })
-        headersStr = JSON.stringify(parsed, null, 2)
+      }
+      // Parse body properties into array of { key, type, description }
+      const bodyFields = []
+      if (tool.body?.properties) {
+        Object.entries(tool.body.properties).forEach(([k, v]) => {
+          bodyFields.push({ key: k, type: v.type || 'string', description: v.description || '' })
+        })
       }
       setToolForm({
         type: 'apiRequest',
@@ -1819,21 +1824,28 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         functionDescription: tool.description || '',
         httpMethod: tool.method || 'POST',
         webhookUrl: tool.url || '',
-        httpHeaders: headersStr,
-        httpBody: JSON.stringify(tool.body || {}, null, 2),
+        httpHeaders: headersArr,
+        httpBodyFields: bodyFields,
         async: tool.async || false,
         endCallMessage: ''
       })
     } else if (tool.type === 'function') {
       // Backward compat: load old function tools as apiRequest for editing
+      const bodyFields = []
+      const params = tool.function?.parameters
+      if (params?.properties) {
+        Object.entries(params.properties).forEach(([k, v]) => {
+          bodyFields.push({ key: k, type: v.type || 'string', description: v.description || '' })
+        })
+      }
       setToolForm({
         type: 'apiRequest',
         functionName: tool.function?.name || '',
         functionDescription: tool.function?.description || '',
         httpMethod: 'POST',
         webhookUrl: tool.server?.url || '',
-        httpHeaders: '',
-        httpBody: JSON.stringify(tool.function?.parameters || {}, null, 2),
+        httpHeaders: [],
+        httpBodyFields: bodyFields,
         async: tool.async || false,
         endCallMessage: ''
       })
@@ -1844,8 +1856,8 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         functionDescription: '',
         httpMethod: 'POST',
         webhookUrl: '',
-        httpHeaders: '',
-        httpBody: '{\n  "type": "object",\n  "properties": {},\n  "required": []\n}',
+        httpHeaders: [],
+        httpBodyFields: [],
         async: false,
         endCallMessage: tool.messages?.[0]?.content || ''
       })
@@ -1864,46 +1876,26 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         return
       }
 
-      let body = {}
-      try {
-        const parsed = toolForm.httpBody ? JSON.parse(toolForm.httpBody) : {}
-        // Auto-convert simplified formats to JSON Schema
-        if (parsed.type === 'object' && parsed.properties) {
-          // Already JSON Schema — normalize string values like "string" → { type: "string" }
-          const props = {}
-          Object.entries(parsed.properties).forEach(([k, v]) => {
-            props[k] = typeof v === 'string' ? { type: v } : v
-          })
-          body = { type: 'object', properties: props, ...(parsed.required ? { required: parsed.required } : {}) }
-        } else if (typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length > 0 && !parsed.type) {
-          // Simplified format: { "estado": "string" } or { "estado": { "type": "string" } }
-          const props = {}
-          Object.entries(parsed).forEach(([k, v]) => {
-            props[k] = typeof v === 'string' ? { type: v } : v
-          })
-          body = { type: 'object', properties: props }
-        } else {
-          body = parsed
-        }
-      } catch (e) {
-        setError('Invalid JSON in request body field')
-        return
+      // Build body JSON Schema from httpBodyFields array
+      let body = { type: 'object', properties: {} }
+      const validBodyFields = (toolForm.httpBodyFields || []).filter(f => f.key.trim())
+      if (validBodyFields.length > 0) {
+        const props = {}
+        validBodyFields.forEach(f => {
+          props[f.key.trim()] = { type: f.type || 'string', ...(f.description ? { description: f.description } : {}) }
+        })
+        body = { type: 'object', properties: props }
       }
 
-      // Parse headers from JSON string to schema format
+      // Build headers schema from httpHeaders array
       let headers
-      if (toolForm.httpHeaders && toolForm.httpHeaders.trim()) {
-        try {
-          const parsed = JSON.parse(toolForm.httpHeaders)
-          const properties = {}
-          Object.entries(parsed).forEach(([key, value]) => {
-            properties[key] = { type: 'string', value: String(value) }
-          })
-          headers = { type: 'object', properties }
-        } catch (e) {
-          setError('Invalid JSON in headers field')
-          return
-        }
+      const validHeaders = (toolForm.httpHeaders || []).filter(h => h.key.trim())
+      if (validHeaders.length > 0) {
+        const properties = {}
+        validHeaders.forEach(h => {
+          properties[h.key.trim()] = { type: 'string', value: String(h.value) }
+        })
+        headers = { type: 'object', properties }
       }
 
       newTool = {
@@ -1950,10 +1942,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
     }
     setTestRequestState(prev => ({ ...prev, loading: true, error: null, result: null }))
     try {
-      // Parse headers from the form
+      // Build headers object from array
       let headers = {}
-      if (toolForm.httpHeaders && toolForm.httpHeaders.trim()) {
-        try { headers = JSON.parse(toolForm.httpHeaders) } catch { /* ignore */ }
+      if (Array.isArray(toolForm.httpHeaders)) {
+        toolForm.httpHeaders.forEach(h => {
+          if (h.key.trim()) headers[h.key.trim()] = h.value
+        })
       }
       // Parse test body
       let body = undefined
@@ -2813,28 +2807,124 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       />
                     </div>
                   </div>
+                  {/* Headers — dynamic key/value rows */}
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Headers (JSON)</label>
-                    <textarea
-                      value={toolForm.httpHeaders}
-                      onChange={(e) => setToolForm({ ...toolForm, httpHeaders: e.target.value })}
-                      rows={2}
-                      placeholder={'{\n  "Authorization": "Bearer token..."\n}'}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white font-mono text-sm"
-                    />
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('headers')}</label>
+                    <div className="space-y-2">
+                      {(toolForm.httpHeaders || []).map((header, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={header.key}
+                            onChange={(e) => {
+                              const updated = [...toolForm.httpHeaders]
+                              updated[idx] = { ...updated[idx], key: e.target.value }
+                              setToolForm({ ...toolForm, httpHeaders: updated })
+                            }}
+                            placeholder={ta('headerKey')}
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                          />
+                          <input
+                            type="text"
+                            value={header.value}
+                            onChange={(e) => {
+                              const updated = [...toolForm.httpHeaders]
+                              updated[idx] = { ...updated[idx], value: e.target.value }
+                              setToolForm({ ...toolForm, httpHeaders: updated })
+                            }}
+                            placeholder={ta('headerValue')}
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = toolForm.httpHeaders.filter((_, i) => i !== idx)
+                              setToolForm({ ...toolForm, httpHeaders: updated })
+                            }}
+                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setToolForm({ ...toolForm, httpHeaders: [...(toolForm.httpHeaders || []), { key: '', value: '' }] })}
+                        className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                        {ta('addHeader')}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Request Body Parameters — dynamic rows */}
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Request Body (JSON Schema)</label>
-                    <textarea
-                      value={toolForm.httpBody}
-                      onChange={(e) => setToolForm({ ...toolForm, httpBody: e.target.value })}
-                      rows={4}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white font-mono text-sm"
-                    />
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('requestBodyParams')}</label>
+                    <div className="space-y-2">
+                      {(toolForm.httpBodyFields || []).map((field, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={field.key}
+                            onChange={(e) => {
+                              const updated = [...toolForm.httpBodyFields]
+                              updated[idx] = { ...updated[idx], key: e.target.value }
+                              setToolForm({ ...toolForm, httpBodyFields: updated })
+                            }}
+                            placeholder={ta('paramName')}
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                          />
+                          <select
+                            value={field.type}
+                            onChange={(e) => {
+                              const updated = [...toolForm.httpBodyFields]
+                              updated[idx] = { ...updated[idx], type: e.target.value }
+                              setToolForm({ ...toolForm, httpBodyFields: updated })
+                            }}
+                            className="w-28 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                          >
+                            <option value="string">string</option>
+                            <option value="number">number</option>
+                            <option value="integer">integer</option>
+                            <option value="boolean">boolean</option>
+                          </select>
+                          <input
+                            type="text"
+                            value={field.description}
+                            onChange={(e) => {
+                              const updated = [...toolForm.httpBodyFields]
+                              updated[idx] = { ...updated[idx], description: e.target.value }
+                              setToolForm({ ...toolForm, httpBodyFields: updated })
+                            }}
+                            placeholder={ta('paramDescription')}
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = toolForm.httpBodyFields.filter((_, i) => i !== idx)
+                              setToolForm({ ...toolForm, httpBodyFields: updated })
+                            }}
+                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setToolForm({ ...toolForm, httpBodyFields: [...(toolForm.httpBodyFields || []), { key: '', type: 'string', description: '' }] })}
+                        className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                        {ta('addParameter')}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Wait for Response Toggle */}
-                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-bg rounded-lg">
+                  <div className={`flex items-center justify-between p-3 rounded-lg transition-colors ${!toolForm.async ? 'bg-green-50 dark:bg-green-900/10' : 'bg-orange-50 dark:bg-orange-900/10'}`}>
                     <div>
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('waitForResponse')}</span>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('waitForResponseDesc')}</p>
@@ -2842,7 +2932,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     <button
                       type="button"
                       onClick={() => setToolForm({ ...toolForm, async: !toolForm.async })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${!toolForm.async ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${!toolForm.async ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'}`}
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${!toolForm.async ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
