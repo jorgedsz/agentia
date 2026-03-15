@@ -590,7 +590,7 @@ export default function AgentEdit() {
   const [testRequestState, setTestRequestState] = useState({
     loading: false,
     expanded: false,
-    testBody: '',
+    testFields: [],
     result: null,
     error: null
   })
@@ -1788,7 +1788,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
       async: false,
       endCallMessage: ''
     })
-    setTestRequestState({ loading: false, expanded: false, testBody: '', result: null, error: null })
+    setTestRequestState({ loading: false, expanded: false, testFields: [], result: null, error: null })
   }
 
   const openAddToolModal = () => {
@@ -1949,10 +1949,12 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
           if (h.key.trim()) headers[h.key.trim()] = h.value
         })
       }
-      // Parse test body
+      // Build test body from field rows
       let body = undefined
-      if (testRequestState.testBody && testRequestState.testBody.trim()) {
-        try { body = JSON.parse(testRequestState.testBody) } catch { body = testRequestState.testBody }
+      const validTestFields = (testRequestState.testFields || []).filter(f => f.key.trim())
+      if (validTestFields.length > 0) {
+        body = {}
+        validTestFields.forEach(f => { body[f.key.trim()] = f.value })
       }
       const { data } = await toolsAPI.testRequest({
         method: toolForm.httpMethod || 'POST',
@@ -2783,7 +2785,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                     />
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-5 gap-3">
                     <div className="col-span-1">
                       <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Method *</label>
                       <select
@@ -2796,7 +2798,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                         ))}
                       </select>
                     </div>
-                    <div className="col-span-2">
+                    <div className="col-span-4">
                       <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">URL *</label>
                       <input
                         type="url"
@@ -2954,13 +2956,40 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       <div className="p-3 space-y-3 border-t border-gray-200 dark:border-dark-border">
                         <div>
                           <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('testRequestBody')}</label>
-                          <textarea
-                            value={testRequestState.testBody}
-                            onChange={(e) => setTestRequestState(prev => ({ ...prev, testBody: e.target.value }))}
-                            rows={3}
-                            placeholder={ta('testRequestBodyPlaceholder')}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white font-mono text-sm"
-                          />
+                          <div className="space-y-2">
+                            {(() => {
+                              // Auto-sync test fields from body params when expanding
+                              const bodyKeys = (toolForm.httpBodyFields || []).filter(f => f.key.trim()).map(f => f.key.trim())
+                              const currentKeys = (testRequestState.testFields || []).map(f => f.key)
+                              if (bodyKeys.length > 0 && (currentKeys.length === 0 || bodyKeys.join(',') !== currentKeys.join(','))) {
+                                const newFields = bodyKeys.map(k => {
+                                  const existing = (testRequestState.testFields || []).find(f => f.key === k)
+                                  return { key: k, value: existing?.value || '' }
+                                })
+                                setTimeout(() => setTestRequestState(prev => ({ ...prev, testFields: newFields })), 0)
+                              }
+                              return null
+                            })()}
+                            {(testRequestState.testFields || []).map((field, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600 dark:text-gray-400 font-medium min-w-[100px] truncate">{field.key}</span>
+                                <input
+                                  type="text"
+                                  value={field.value}
+                                  onChange={(e) => {
+                                    const updated = [...testRequestState.testFields]
+                                    updated[idx] = { ...updated[idx], value: e.target.value }
+                                    setTestRequestState(prev => ({ ...prev, testFields: updated }))
+                                  }}
+                                  placeholder={`Value for ${field.key}`}
+                                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                />
+                              </div>
+                            ))}
+                            {(testRequestState.testFields || []).length === 0 && (
+                              <p className="text-xs text-gray-400 dark:text-gray-500 italic">Add body parameters above to fill in test values here.</p>
+                            )}
+                          </div>
                         </div>
                         <button
                           type="button"
