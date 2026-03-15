@@ -17,6 +17,7 @@ import AccountManagement from './components/Dashboard/AccountManagement'
 import VoiceLibrary from './components/Dashboard/VoiceLibrary'
 import Analytics from './components/Dashboard/Analytics'
 import Support from './components/Dashboard/Support'
+import Training from './components/Dashboard/Training'
 import Payments from './components/Dashboard/Payments'
 import ChatbotList from './components/Dashboard/ChatbotList'
 import ChatbotEdit from './components/Dashboard/ChatbotEdit'
@@ -123,6 +124,8 @@ function App() {
           <Route path="chatbots" element={<ChatbotList />} />
           <Route path="chatbot/:id" element={<ChatbotEdit />} />
           <Route path="payments" element={<Payments />} />
+          <Route path="tutorials/:lang" element={<Training />} />
+          <Route path="training" element={<Navigate to="/dashboard/tutorials/en" replace />} />
           <Route path="support" element={<Support />} />
         </Route>
 
