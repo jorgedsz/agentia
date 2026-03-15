@@ -1008,6 +1008,8 @@
     "updatePlan": "Actualizar Plan",
     "currentPlan": "Actual",
     "cancelProduct": "Cancelar",
-    "confirmCancelProduct": "¿Estás seguro de que deseas cancelar este producto? Esta acción no se puede deshacer."
+    "confirmCancelProduct": "¿Estás seguro de que deseas cancelar este producto? Esta acción no se puede deshacer.",
+    "comingSoon": "Próximamente",
+    "comingSoonDesc": "Este producto estará disponible pronto. ¡Mantente atento!"
   }
 }

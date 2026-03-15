@@ -1008,6 +1008,8 @@
     "updatePlan": "Update Plan",
     "currentPlan": "Current",
     "cancelProduct": "Cancel",
-    "confirmCancelProduct": "Are you sure you want to cancel this product? This action cannot be undone."
+    "confirmCancelProduct": "Are you sure you want to cancel this product? This action cannot be undone.",
+    "comingSoon": "Coming Soon",
+    "comingSoonDesc": "This product will be available soon. Stay tuned!"
   }
 }

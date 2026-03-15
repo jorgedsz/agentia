@@ -614,19 +614,27 @@ function AccountTab() {
                     crm: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />,
                     'agent-generator': <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
                   }
+                  const comingSoon = slug === 'chatbots'
                   const currentPrice = cycle === 'quarterly' ? product.quarterlyPrice : cycle === 'annual' ? product.annualPrice : cycle === 'lifetime' ? product.lifetimePrice : product.monthlyPrice
 
                   return (
                     <div
                       key={product.id}
-                      onClick={() => toggleCart(product.id)}
-                      className={`relative cursor-pointer rounded-xl border-2 transition-all duration-200 overflow-hidden ${
-                        inCart
-                          ? 'border-primary-500 dark:border-primary-400 shadow-lg shadow-primary-500/10 dark:shadow-primary-400/5 scale-[1.02]'
-                          : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
+                      onClick={() => !comingSoon && toggleCart(product.id)}
+                      className={`relative rounded-xl border-2 transition-all duration-200 overflow-hidden ${
+                        comingSoon
+                          ? 'border-gray-200 dark:border-dark-border opacity-75 cursor-default'
+                          : inCart
+                            ? 'border-primary-500 dark:border-primary-400 shadow-lg shadow-primary-500/10 dark:shadow-primary-400/5 scale-[1.02] cursor-pointer'
+                            : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md cursor-pointer'
                       }`}
                     >
-                      {inCart && (
+                      {comingSoon && (
+                        <div className="absolute top-3 right-3 px-2.5 py-1 bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-full">
+                          {t('payments.comingSoon')}
+                        </div>
+                      )}
+                      {!comingSoon && inCart && (
                         <div className="absolute top-3 right-3 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center">
                           <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -643,30 +651,38 @@ function AccountTab() {
                         {product.description && (
                           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{product.description}</p>
                         )}
-                        <div className="flex items-baseline gap-1 mb-4">
-                          <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(currentPrice)}</span>
-                          <span className="text-sm text-gray-500 dark:text-gray-400">/ {getBillingCycleLabel(cycle).toLowerCase()}</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-1.5" onClick={e => e.stopPropagation()}>
-                          {['monthly', 'quarterly', 'annual', 'lifetime'].map(c => {
-                            const price = c === 'quarterly' ? product.quarterlyPrice : c === 'annual' ? product.annualPrice : c === 'lifetime' ? product.lifetimePrice : product.monthlyPrice
-                            const isSelected = inCart && cycle === c
-                            return (
-                              <button
-                                key={c}
-                                onClick={() => { if (!inCart) toggleCart(product.id); setCartCycle(product.id, c) }}
-                                className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                  isSelected
-                                    ? 'bg-primary-500 text-white'
-                                    : 'bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                                }`}
-                              >
-                                <div>{getBillingCycleLabel(c)}</div>
-                                <div className={`font-bold ${isSelected ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{formatCurrency(price)}</div>
-                              </button>
-                            )
-                          })}
-                        </div>
+                        {comingSoon ? (
+                          <div className="text-center py-3">
+                            <p className="text-sm font-medium text-amber-600 dark:text-amber-400">{t('payments.comingSoonDesc')}</p>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-baseline gap-1 mb-4">
+                              <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(currentPrice)}</span>
+                              <span className="text-sm text-gray-500 dark:text-gray-400">/ {getBillingCycleLabel(cycle).toLowerCase()}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5" onClick={e => e.stopPropagation()}>
+                              {['monthly', 'quarterly', 'annual', 'lifetime'].map(c => {
+                                const price = c === 'quarterly' ? product.quarterlyPrice : c === 'annual' ? product.annualPrice : c === 'lifetime' ? product.lifetimePrice : product.monthlyPrice
+                                const isSelected = inCart && cycle === c
+                                return (
+                                  <button
+                                    key={c}
+                                    onClick={() => { if (!inCart) toggleCart(product.id); setCartCycle(product.id, c) }}
+                                    className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                      isSelected
+                                        ? 'bg-primary-500 text-white'
+                                        : 'bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                    }`}
+                                  >
+                                    <div>{getBillingCycleLabel(c)}</div>
+                                    <div className={`font-bold ${isSelected ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{formatCurrency(price)}</div>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   )
