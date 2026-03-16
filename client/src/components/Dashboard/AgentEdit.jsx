@@ -982,15 +982,19 @@ export default function AgentEdit() {
   const fetchGhlCrmData = async () => {
     setGhlCrmLoading(true)
     setGhlCrmError('')
+    const errors = []
     try {
       const [pipelinesRes, tagsRes, customFieldsRes] = await Promise.all([
-        ghlAPI.getPipelines().catch(() => ({ data: { pipelines: [] } })),
-        ghlAPI.getTags().catch(() => ({ data: { tags: [] } })),
-        ghlAPI.getCustomFields().catch(() => ({ data: { customFields: [] } }))
+        ghlAPI.getPipelines().catch(e => { errors.push(e.response?.data?.error || 'Pipelines failed'); return { data: { pipelines: [] } } }),
+        ghlAPI.getTags().catch(e => { errors.push(e.response?.data?.error || 'Tags failed'); return { data: { tags: [] } } }),
+        ghlAPI.getCustomFields().catch(e => { errors.push(e.response?.data?.error || 'Custom fields failed'); return { data: { customFields: [] } } })
       ])
       setGhlPipelines(pipelinesRes.data.pipelines || [])
       setGhlTags(tagsRes.data.tags || [])
       setGhlCustomFields(customFieldsRes.data.customFields || [])
+      if (errors.length > 0) {
+        setGhlCrmError(errors[0] + (errors[0].includes('reconnect') ? '' : ' Try reconnecting GHL in Settings to grant CRM permissions.'))
+      }
     } catch (err) {
       setGhlCrmError('Failed to load GHL data. Please check your GHL connection in Settings.')
     } finally {
@@ -4711,28 +4715,51 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                                   </button>
                                 </span>
                               ))}
-                              <select
-                                className="text-xs bg-transparent border-none outline-none text-gray-500 cursor-pointer"
-                                value=""
-                                onChange={(e) => {
-                                  if (!e.target.value) return
-                                  const tag = e.target.value
-                                  setGhlCrmConfig(c => ({
-                                    ...c,
-                                    tagMapping: {
-                                      ...c.tagMapping,
-                                      [outcome]: c.tagMapping[outcome]?.includes(tag)
-                                        ? c.tagMapping[outcome]
-                                        : [...(c.tagMapping[outcome] || []), tag]
-                                    }
-                                  }))
+                              <input
+                                type="text"
+                                list={`ghl-tags-${outcome}`}
+                                placeholder={`+ ${ta('ghlCrmAddTag')}`}
+                                className="text-xs bg-transparent border-none outline-none text-gray-700 dark:text-gray-300 placeholder-gray-400 min-w-[80px] flex-1"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ',') {
+                                    e.preventDefault()
+                                    const tag = e.target.value.trim().replace(/,$/, '')
+                                    if (!tag) return
+                                    setGhlCrmConfig(c => ({
+                                      ...c,
+                                      tagMapping: {
+                                        ...c.tagMapping,
+                                        [outcome]: (c.tagMapping[outcome] || []).includes(tag)
+                                          ? c.tagMapping[outcome]
+                                          : [...(c.tagMapping[outcome] || []), tag]
+                                      }
+                                    }))
+                                    e.target.value = ''
+                                  }
                                 }}
-                              >
-                                <option value="">+ {ta('ghlCrmAddTag')}</option>
+                                onChange={(e) => {
+                                  // Auto-add when selecting from datalist
+                                  const tag = e.target.value.trim()
+                                  const isFromList = ghlTags.some(t => t.name === tag)
+                                  if (isFromList) {
+                                    setGhlCrmConfig(c => ({
+                                      ...c,
+                                      tagMapping: {
+                                        ...c.tagMapping,
+                                        [outcome]: (c.tagMapping[outcome] || []).includes(tag)
+                                          ? c.tagMapping[outcome]
+                                          : [...(c.tagMapping[outcome] || []), tag]
+                                      }
+                                    }))
+                                    e.target.value = ''
+                                  }
+                                }}
+                              />
+                              <datalist id={`ghl-tags-${outcome}`}>
                                 {ghlTags.filter(t => !(ghlCrmConfig.tagMapping[outcome] || []).includes(t.name)).map(t => (
-                                  <option key={t.id} value={t.name}>{t.name}</option>
+                                  <option key={t.id} value={t.name} />
                                 ))}
-                              </select>
+                              </datalist>
                             </div>
                           </div>
                         ))}

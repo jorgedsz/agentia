@@ -804,7 +804,11 @@ const getPipelines = async (req, res) => {
       res.json({ pipelines });
     } catch (ghlError) {
       console.error('GHL API error fetching pipelines:', ghlError);
-      res.status(400).json({ error: 'Failed to fetch pipelines from GoHighLevel.' });
+      const msg = ghlError.message || '';
+      const hint = msg.includes('scope') || msg.includes('unauthorized') || msg.includes('403')
+        ? ' You may need to reconnect GHL in Settings to grant the required permissions.'
+        : '';
+      res.status(400).json({ error: `Failed to fetch pipelines: ${msg}.${hint}` });
     }
   } catch (error) {
     console.error('Error fetching GHL pipelines:', error);
@@ -841,7 +845,11 @@ const getTags = async (req, res) => {
       res.json({ tags });
     } catch (ghlError) {
       console.error('GHL API error fetching tags:', ghlError);
-      res.status(400).json({ error: 'Failed to fetch tags from GoHighLevel.' });
+      const msg = ghlError.message || '';
+      const hint = msg.includes('scope') || msg.includes('unauthorized') || msg.includes('403')
+        ? ' You may need to reconnect GHL in Settings to grant the required permissions.'
+        : '';
+      res.status(400).json({ error: `Failed to fetch tags: ${msg}.${hint}` });
     }
   } catch (error) {
     console.error('Error fetching GHL tags:', error);
@@ -880,7 +888,11 @@ const getCustomFields = async (req, res) => {
       res.json({ customFields });
     } catch (ghlError) {
       console.error('GHL API error fetching custom fields:', ghlError);
-      res.status(400).json({ error: 'Failed to fetch custom fields from GoHighLevel.' });
+      const msg = ghlError.message || '';
+      const hint = msg.includes('scope') || msg.includes('unauthorized') || msg.includes('403')
+        ? ' You may need to reconnect GHL in Settings to grant the required permissions.'
+        : '';
+      res.status(400).json({ error: `Failed to fetch custom fields: ${msg}.${hint}` });
     }
   } catch (error) {
     console.error('Error fetching GHL custom fields:', error);
