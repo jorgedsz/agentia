@@ -563,7 +563,7 @@ export default function AgentEdit() {
   const [followUpConfig, setFollowUpConfig] = useState({
     enabled: false,
     maxAttempts: 3,
-    intervalMinutes: 120,
+    intervals: [120, 120, 120],
     outcomes: ['failed', 'voicemail']
   })
 
@@ -1665,7 +1665,13 @@ If the customer asks to be called back at a later time:
           })(),
           transferConfig,
           callbackConfig,
-          followUpConfig,
+          followUpConfig: {
+            ...followUpConfig,
+            intervals: (followUpConfig.intervals || []).map((v, i) =>
+              v === -1 ? ((followUpConfig.customIntervals || {})[i] || 120) : v
+            ),
+            customIntervals: undefined
+          },
           ghlCrmConfig,
           // Voice settings
           elevenLabsModel: voiceSettings.model,
@@ -5108,28 +5114,67 @@ If the customer asks to be called back at a later time:
                           min={1}
                           max={10}
                           value={followUpConfig.maxAttempts}
-                          onChange={(e) => setFollowUpConfig(prev => ({ ...prev, maxAttempts: Math.min(10, Math.max(1, parseInt(e.target.value) || 1)) }))}
+                          onChange={(e) => {
+                            const newMax = Math.min(10, Math.max(1, parseInt(e.target.value) || 1))
+                            setFollowUpConfig(prev => {
+                              const currentIntervals = prev.intervals || [120]
+                              const newIntervals = Array.from({ length: newMax }, (_, i) => currentIntervals[i] ?? currentIntervals[currentIntervals.length - 1] ?? 120)
+                              return { ...prev, maxAttempts: newMax, intervals: newIntervals }
+                            })
+                          }}
                           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                         />
                       </div>
 
-                      {/* Interval */}
+                      {/* Per-attempt intervals */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('followUpsInterval')}</label>
-                        <select
-                          value={followUpConfig.intervalMinutes}
-                          onChange={(e) => setFollowUpConfig(prev => ({ ...prev, intervalMinutes: parseInt(e.target.value) }))}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                        >
-                          <option value={30}>30 min</option>
-                          <option value={60}>1 hour</option>
-                          <option value={120}>2 hours</option>
-                          <option value={240}>4 hours</option>
-                          <option value={480}>8 hours</option>
-                          <option value={1440}>1 day</option>
-                          <option value={2880}>2 days</option>
-                          <option value={4320}>3 days</option>
-                        </select>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{ta('followUpsIntervals')}</label>
+                        <div className="space-y-2">
+                          {Array.from({ length: followUpConfig.maxAttempts }, (_, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 dark:text-gray-400 w-20 shrink-0">{ta('followUpsAttempt')} {i + 1}:</span>
+                              <select
+                                value={(followUpConfig.intervals || [])[i] === -1 ? -1 : ((followUpConfig.intervals || [])[i] || 120)}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value)
+                                  setFollowUpConfig(prev => {
+                                    const newIntervals = [...(prev.intervals || [])]
+                                    newIntervals[i] = val === -1 ? -1 : val
+                                    return { ...prev, intervals: newIntervals }
+                                  })
+                                }}
+                                className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                              >
+                                <option value={15}>15 min</option>
+                                <option value={30}>30 min</option>
+                                <option value={60}>1 hour</option>
+                                <option value={120}>2 hours</option>
+                                <option value={240}>4 hours</option>
+                                <option value={480}>8 hours</option>
+                                <option value={1440}>1 day</option>
+                                <option value={2880}>2 days</option>
+                                <option value={4320}>3 days</option>
+                                <option value={-1}>{ta('followUpsCustom')}</option>
+                              </select>
+                              {(followUpConfig.intervals || [])[i] === -1 && (
+                                <input
+                                  type="number"
+                                  min={1}
+                                  placeholder="min"
+                                  value={(followUpConfig.customIntervals || {})[i] || ''}
+                                  onChange={(e) => {
+                                    const mins = Math.max(1, parseInt(e.target.value) || 1)
+                                    setFollowUpConfig(prev => ({
+                                      ...prev,
+                                      customIntervals: { ...(prev.customIntervals || {}), [i]: mins }
+                                    }))
+                                  }}
+                                  className="w-20 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
 
                       {/* Outcomes checkboxes */}

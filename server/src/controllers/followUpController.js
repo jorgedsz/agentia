@@ -40,7 +40,9 @@ async function scheduleFollowUp(prisma, callLog, agent, outcome, plainSummary) {
     if (!followUpConfig.outcomes || !followUpConfig.outcomes.includes(outcome)) return;
 
     const maxAttempts = followUpConfig.maxAttempts || 3;
-    const intervalMinutes = followUpConfig.intervalMinutes || 120;
+    // Support per-attempt intervals array, fallback to single intervalMinutes for backward compat
+    const intervals = Array.isArray(followUpConfig.intervals) ? followUpConfig.intervals : [];
+    const fallbackInterval = followUpConfig.intervalMinutes || 120;
 
     // Check if this call itself was a follow-up (to track attempt chain)
     let attemptNumber = 1;
@@ -77,6 +79,9 @@ async function scheduleFollowUp(prisma, callLog, agent, outcome, plainSummary) {
       include: { phoneNumbers: true }
     });
     const fromNumber = agentWithPhones?.phoneNumbers?.[0]?.phoneNumber || null;
+
+    // Pick interval for this attempt (0-indexed: attempt 1 uses intervals[0])
+    const intervalMinutes = intervals[attemptNumber - 1] || fallbackInterval;
 
     // Schedule the follow-up
     const scheduledAt = new Date(Date.now() + intervalMinutes * 60 * 1000);
