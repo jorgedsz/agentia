@@ -337,3 +337,19 @@ model UserProduct {
   updatedAt       DateTime  @updatedAt
   @@unique([userId, productId])
 }
+
+model ScheduledCallback {
+  id              Int      @id @default(autoincrement())
+  userId          Int      // Owner of the agent
+  agentId         String   // Agent to use for the callback
+  customerNumber  String   // E.164 phone number to call back
+  scheduledAt     DateTime // When to fire the callback
+  reason          String?  // Why the customer wants a callback
+  status          String   @default("pending") // pending, completed, failed, cancelled
+  callLogId       Int?     // Links to the CallLog once fired
+  fromNumber      String?  // Phone number to call from (agent's assigned number)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, scheduledAt])
+}

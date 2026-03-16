@@ -957,7 +957,12 @@
     "ghlCrmCustomFieldsDesc": "Add GHL custom fields to extract from calls. Select a field and describe what to extract.",
     "ghlCrmNoCustomFields": "No custom fields found in your GHL location.",
     "ghlCrmSelectCustomField": "Select a custom field...",
-    "ghlCrmAddCustomField": "Add Custom Field"
+    "ghlCrmAddCustomField": "Add Custom Field",
+    "callbacks": "Callbacks",
+    "callbacksEnable": "Enable scheduled callbacks",
+    "callbacksDesc": "Allow the AI agent to schedule a callback when the customer asks to be called back later.",
+    "callbacksInfo": "When enabled, the agent can schedule a callback during a call. A background process will automatically initiate the outbound call at the scheduled time using this agent.",
+    "callbacksPhoneNote": "The agent's assigned phone number will be used for callbacks. Make sure a phone number is assigned to this agent."
   },
   "pricing": {
     "modelRates": "Model Rates",

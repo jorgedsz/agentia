@@ -554,6 +554,11 @@ export default function AgentEdit() {
   const [ghlCrmLoading, setGhlCrmLoading] = useState(false)
   const [ghlCrmError, setGhlCrmError] = useState('')
 
+  // Callback scheduling config
+  const [callbackConfig, setCallbackConfig] = useState({
+    enabled: false
+  })
+
   // Call Transfer settings
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [transferConfig, setTransferConfig] = useState({
@@ -1060,6 +1065,11 @@ export default function AgentEdit() {
         setTransferConfig(agentData.config.transferConfig)
       }
 
+      // Load callback config
+      if (agentData.config?.callbackConfig) {
+        setCallbackConfig(agentData.config.callbackConfig)
+      }
+
       // Load trigger variables
       setVariables(agentData.config?.variables || [])
 
@@ -1080,10 +1090,11 @@ export default function AgentEdit() {
       }
 
 
-      // Load tools (filter out calendar + transfer tools — they're rebuilt from config on save)
+      // Load tools (filter out calendar + transfer + callback tools — they're rebuilt from config on save)
       const isCalendarTool = (toolName) => toolName && (toolName.startsWith('check_calendar_availability') || toolName.startsWith('book_appointment'))
+      const isCallbackTool = (toolName) => toolName && toolName.startsWith('schedule_callback')
       const isTransferTool = (tool) => tool.type === 'transferCall'
-      const rawTools = (agentData.config?.tools || []).filter(t => !isCalendarTool(t.function?.name || t.name || '') && !isTransferTool(t))
+      const rawTools = (agentData.config?.tools || []).filter(t => !isCalendarTool(t.function?.name || t.name || '') && !isCallbackTool(t.function?.name || t.name || '') && !isTransferTool(t))
       // Normalize all tools to flat apiRequest format
       const savedTools = rawTools.map(t => {
         if (t.type === 'function' || (t.type === 'apiRequest' && (t.function || t.server || !t.url))) {
@@ -1396,11 +1407,41 @@ export default function AgentEdit() {
         }
       }
 
-      // Merge regular tools with calendar + transfer tools (filter duplicates)
+      // Build callback tool when enabled
+      const callbackTools = []
+      if (callbackConfig.enabled) {
+        const callbackUrl = `${apiBaseUrl}/callbacks/schedule?userId=${user?.id}&agentId=${id}`
+        callbackTools.push({
+          type: 'apiRequest',
+          method: 'POST',
+          url: callbackUrl,
+          name: `schedule_callback_${safeName}`,
+          description: 'Schedule a callback for the customer at a specific date and time. Use this when the customer asks to be called back later.',
+          body: {
+            type: 'object',
+            properties: {
+              callbackTime: {
+                type: 'string',
+                description: 'The date and time for the callback in ISO 8601 format (e.g., 2026-03-17T14:00:00). Calculate from {{currentDateTime}}.'
+              },
+              reason: {
+                type: 'string',
+                description: 'Brief reason for the callback (e.g., "Customer wants to discuss pricing after reviewing proposal")'
+              }
+            },
+            required: ['callbackTime']
+          },
+          timeoutSeconds: 15,
+          messages: [{ type: 'request-start', content: 'Let me schedule that callback for you...' }]
+        })
+      }
+
+      // Merge regular tools with calendar + transfer + callback tools (filter duplicates)
       const isCalTool = (toolName) => toolName && (toolName.startsWith('check_calendar_availability') || toolName.startsWith('book_appointment'))
+      const isCallbackToolName = (toolName) => toolName && toolName.startsWith('schedule_callback')
       const getToolName = (t) => t.function?.name || t.name || ''
-      const regularTools = tools.filter(t => !isCalTool(getToolName(t)))
-      const allTools = [...regularTools, ...calendarTools, ...transferTools]
+      const regularTools = tools.filter(t => !isCalTool(getToolName(t)) && !isCallbackToolName(getToolName(t)))
+      const allTools = [...regularTools, ...calendarTools, ...transferTools, ...callbackTools]
 
       // Generate calendar booking instructions if calendar is enabled
       let finalSystemPrompt = systemPrompt
@@ -1563,6 +1604,21 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
         }
       }
 
+      // Generate callback scheduling instructions if enabled
+      if (callbackConfig.enabled) {
+        const callbackInstructions = `
+
+## CALLBACK SCHEDULING INSTRUCTIONS
+If the customer asks to be called back at a later time:
+1. Confirm the desired date and time
+2. Call the "schedule_callback_${safeName}" function with the callbackTime in ISO 8601 format
+3. Calculate dates relative to {{currentDateTime}}
+4. After scheduling, confirm: "I've scheduled a callback for [date] at [time]. We'll call you back then."
+- NEVER guess dates. Always calculate from {{currentDateTime}}.`
+
+        finalSystemPrompt = finalSystemPrompt + callbackInstructions
+      }
+
       const response = await agentsAPI.update(id, {
         name,
         description,
@@ -1595,6 +1651,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             return calendarConfig
           })(),
           transferConfig,
+          callbackConfig,
           ghlCrmConfig,
           // Voice settings
           elevenLabsModel: voiceSettings.model,
@@ -4082,6 +4139,18 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       </div>
                       {ghlCrmConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
                     </button>
+
+                    {/* Callbacks */}
+                    <button onClick={() => setAdvancedSubPanel('callbacks')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('callbacks')}</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callbackConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${callbackConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 3h5m0 0v5m0-5l-6 6" />
+                        </svg>
+                      </div>
+                      {callbackConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
                   </div>
                 </div>
                 <div className="p-4 pt-2">
@@ -4932,6 +5001,43 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                       </div>
 
                     </>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Callbacks */}
+            {advancedSubPanel === 'callbacks' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callbacks')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'callbacks' ? null : 'callbacks')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
+                </div>
+                {advancedInfoPopup === 'callbacks' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('callbacksInfo')}</div>
+                )}
+                <div className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{ta('callbacksEnable')}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('callbacksDesc')}</p>
+                    </div>
+                    <button
+                      onClick={() => setCallbackConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callbackConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callbackConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  {callbackConfig.enabled && (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                      <p className="text-xs text-amber-700 dark:text-amber-300">{ta('callbacksPhoneNote')}</p>
+                    </div>
                   )}
                 </div>
               </>

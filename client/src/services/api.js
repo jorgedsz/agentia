@@ -249,6 +249,12 @@ export const toolsAPI = {
   testRequest: (data) => api.post('/tools/test-request', data)
 }
 
+// Callbacks API
+export const callbackAPI = {
+  list: () => api.get('/callbacks'),
+  cancel: (id) => api.delete(`/callbacks/${id}`)
+}
+
 // Chat API (uses fetch for SSE streaming, not axios)
 export const chatAPI = {
   sendMessage: async (messages, onChunk, onDone, onError) => {
