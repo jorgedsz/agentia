@@ -533,6 +533,27 @@ export default function AgentEdit() {
   // Track which multi-calendar entry is expanded (null = all collapsed)
   const [expandedCalendarEntry, setExpandedCalendarEntry] = useState(null)
 
+  // GHL CRM config
+  const [ghlCrmConfig, setGhlCrmConfig] = useState({
+    enabled: false,
+    deleteOldTags: false,
+    pipelineId: '',
+    pipelineName: '',
+    tagMapping: {
+      booked: [], answered: [], not_interested: [],
+      failed: [], transferred: [], voicemail: []
+    },
+    pipelineMapping: {
+      booked: '', answered: '', not_interested: '',
+      failed: '', transferred: '', voicemail: ''
+    }
+  })
+  const [ghlPipelines, setGhlPipelines] = useState([])
+  const [ghlTags, setGhlTags] = useState([])
+  const [ghlCustomFields, setGhlCustomFields] = useState([])
+  const [ghlCrmLoading, setGhlCrmLoading] = useState(false)
+  const [ghlCrmError, setGhlCrmError] = useState('')
+
   // Call Transfer settings
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [transferConfig, setTransferConfig] = useState({
@@ -958,6 +979,25 @@ export default function AgentEdit() {
     }
   }
 
+  const fetchGhlCrmData = async () => {
+    setGhlCrmLoading(true)
+    setGhlCrmError('')
+    try {
+      const [pipelinesRes, tagsRes, customFieldsRes] = await Promise.all([
+        ghlAPI.getPipelines().catch(() => ({ data: { pipelines: [] } })),
+        ghlAPI.getTags().catch(() => ({ data: { tags: [] } })),
+        ghlAPI.getCustomFields().catch(() => ({ data: { customFields: [] } }))
+      ])
+      setGhlPipelines(pipelinesRes.data.pipelines || [])
+      setGhlTags(tagsRes.data.tags || [])
+      setGhlCustomFields(customFieldsRes.data.customFields || [])
+    } catch (err) {
+      setGhlCrmError('Failed to load GHL data. Please check your GHL connection in Settings.')
+    } finally {
+      setGhlCrmLoading(false)
+    }
+  }
+
   const fetchAgent = async () => {
     try {
       const response = await agentsAPI.get(id)
@@ -1003,6 +1043,11 @@ export default function AgentEdit() {
           integrationId: saved.integrationId || '',
           calendars: saved.calendars || []
         })
+      }
+
+      // Load GHL CRM config
+      if (agentData.config?.ghlCrmConfig) {
+        setGhlCrmConfig(prev => ({ ...prev, ...agentData.config.ghlCrmConfig }))
       }
 
       // Load transfer config
@@ -1544,6 +1589,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             return calendarConfig
           })(),
           transferConfig,
+          ghlCrmConfig,
           // Voice settings
           elevenLabsModel: voiceSettings.model,
           stability: voiceSettings.stability,
@@ -4018,6 +4064,17 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                         </svg>
                       </div>
                     </button>
+
+                    {/* GHL CRM */}
+                    <button onClick={() => { setAdvancedSubPanel('ghlCrm'); fetchGhlCrmData() }} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('ghlCrm')}</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${ghlCrmConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${ghlCrmConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </div>
+                      {ghlCrmConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
                   </div>
                 </div>
                 <div className="p-4 pt-2">
@@ -4596,6 +4653,183 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                         </div>
                       )}
                     </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: GHL CRM */}
+            {advancedSubPanel === 'ghlCrm' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('ghlCrm')}</h3>
+                </div>
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+
+                  {/* Enable toggle */}
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <div className={`w-10 h-5 rounded-full transition-colors relative ${ghlCrmConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                      onClick={() => setGhlCrmConfig(c => ({ ...c, enabled: !c.enabled }))}>
+                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${ghlCrmConfig.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('ghlCrmEnable')}</span>
+                  </label>
+
+                  {ghlCrmLoading && (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      {ta('ghlCrmLoadingData')}
+                    </div>
+                  )}
+
+                  {ghlCrmError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300">{ghlCrmError}</div>
+                  )}
+
+                  {ghlCrmConfig.enabled && !ghlCrmLoading && (
+                    <>
+                      {/* --- Tag Mapping --- */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{ta('ghlCrmTagMapping')}</h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmTagMappingDesc')}</p>
+
+                        {['booked', 'answered', 'not_interested', 'failed', 'transferred', 'voicemail'].map(outcome => (
+                          <div key={outcome} className="mb-3">
+                            <label className="text-xs font-medium text-gray-600 dark:text-gray-400 capitalize mb-1 block">{outcome.replace('_', ' ')}</label>
+                            <div className="flex flex-wrap gap-1.5 p-2 border border-gray-200 dark:border-dark-border rounded-lg min-h-[36px] bg-white dark:bg-dark-hover">
+                              {(ghlCrmConfig.tagMapping[outcome] || []).map(tag => (
+                                <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs">
+                                  {tag}
+                                  <button onClick={() => setGhlCrmConfig(c => ({
+                                    ...c,
+                                    tagMapping: { ...c.tagMapping, [outcome]: c.tagMapping[outcome].filter(t => t !== tag) }
+                                  }))} className="hover:text-red-500">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </span>
+                              ))}
+                              <select
+                                className="text-xs bg-transparent border-none outline-none text-gray-500 cursor-pointer"
+                                value=""
+                                onChange={(e) => {
+                                  if (!e.target.value) return
+                                  const tag = e.target.value
+                                  setGhlCrmConfig(c => ({
+                                    ...c,
+                                    tagMapping: {
+                                      ...c.tagMapping,
+                                      [outcome]: c.tagMapping[outcome]?.includes(tag)
+                                        ? c.tagMapping[outcome]
+                                        : [...(c.tagMapping[outcome] || []), tag]
+                                    }
+                                  }))
+                                }}
+                              >
+                                <option value="">+ {ta('ghlCrmAddTag')}</option>
+                                {ghlTags.filter(t => !(ghlCrmConfig.tagMapping[outcome] || []).includes(t.name)).map(t => (
+                                  <option key={t.id} value={t.name}>{t.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Delete old tags checkbox */}
+                        <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={ghlCrmConfig.deleteOldTags}
+                            onChange={(e) => setGhlCrmConfig(c => ({ ...c, deleteOldTags: e.target.checked }))}
+                            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <span className="text-xs text-gray-600 dark:text-gray-400">{ta('ghlCrmDeleteOldTags')}</span>
+                        </label>
+                      </div>
+
+                      {/* --- Pipeline Mapping --- */}
+                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
+                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{ta('ghlCrmPipelineMapping')}</h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmPipelineMappingDesc')}</p>
+
+                        {/* Pipeline selector */}
+                        <div className="mb-3">
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">{ta('ghlCrmPipeline')}</label>
+                          <select
+                            value={ghlCrmConfig.pipelineId}
+                            onChange={(e) => {
+                              const pl = ghlPipelines.find(p => p.id === e.target.value)
+                              setGhlCrmConfig(c => ({
+                                ...c,
+                                pipelineId: e.target.value,
+                                pipelineName: pl?.name || '',
+                                pipelineMapping: { booked: '', answered: '', not_interested: '', failed: '', transferred: '', voicemail: '' }
+                              }))
+                            }}
+                            className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-hover text-gray-900 dark:text-white"
+                          >
+                            <option value="">{ta('ghlCrmSelectPipeline')}</option>
+                            {ghlPipelines.map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Stage mapping per outcome */}
+                        {ghlCrmConfig.pipelineId && (() => {
+                          const selectedPipeline = ghlPipelines.find(p => p.id === ghlCrmConfig.pipelineId)
+                          const stages = selectedPipeline?.stages || []
+                          return ['booked', 'answered', 'not_interested', 'failed', 'transferred', 'voicemail'].map(outcome => (
+                            <div key={outcome} className="mb-2">
+                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 capitalize mb-1 block">{outcome.replace('_', ' ')}</label>
+                              <select
+                                value={ghlCrmConfig.pipelineMapping[outcome] || ''}
+                                onChange={(e) => setGhlCrmConfig(c => ({
+                                  ...c,
+                                  pipelineMapping: { ...c.pipelineMapping, [outcome]: e.target.value }
+                                }))}
+                                className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-hover text-gray-900 dark:text-white"
+                              >
+                                <option value="">{ta('ghlCrmNoStage')}</option>
+                                {stages.map(s => (
+                                  <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ))
+                        })()}
+                      </div>
+
+                      {/* --- Custom Fields Reference --- */}
+                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
+                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{ta('ghlCrmCustomFields')}</h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmCustomFieldsDesc')}</p>
+                        {ghlCustomFields.length === 0 ? (
+                          <p className="text-xs text-gray-400 italic">{ta('ghlCrmNoCustomFields')}</p>
+                        ) : (
+                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                            {ghlCustomFields.map(f => (
+                              <div key={f.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-hover rounded-lg text-xs">
+                                <div>
+                                  <span className="font-medium text-gray-700 dark:text-gray-300">{f.name}</span>
+                                  <span className="text-gray-400 ml-2">({f.dataType})</span>
+                                </div>
+                                <button
+                                  onClick={() => { navigator.clipboard.writeText(f.fieldKey); }}
+                                  className="text-primary-600 hover:text-primary-700 text-xs flex items-center gap-1"
+                                  title={f.fieldKey}
+                                >
+                                  <code className="text-[10px] text-gray-500 mr-1">{f.fieldKey}</code>
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </>

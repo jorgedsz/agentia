@@ -940,7 +940,22 @@
     "fieldName": "Nombre del Campo",
     "fieldType": "Tipo",
     "fieldDescription": "Descripción (opcional)",
-    "addField": "Agregar Campo"
+    "addField": "Agregar Campo",
+    "ghlCrm": "GHL CRM",
+    "ghlCrmEnable": "Habilitar automatización GHL CRM",
+    "ghlCrmLoadingData": "Cargando datos de GHL...",
+    "ghlCrmTagMapping": "Mapeo de Etiquetas",
+    "ghlCrmTagMappingDesc": "Asigna etiquetas de GHL a los contactos según el resultado de cada llamada.",
+    "ghlCrmAddTag": "Agregar etiqueta",
+    "ghlCrmDeleteOldTags": "Eliminar etiquetas de resultados anteriores antes de aplicar las nuevas",
+    "ghlCrmPipelineMapping": "Mapeo de Pipeline",
+    "ghlCrmPipelineMappingDesc": "Crea o mueve oportunidades en un pipeline de GHL según el resultado de la llamada.",
+    "ghlCrmPipeline": "Pipeline",
+    "ghlCrmSelectPipeline": "Seleccionar un pipeline...",
+    "ghlCrmNoStage": "Sin etapa (omitir)",
+    "ghlCrmCustomFields": "Campos Personalizados (Referencia)",
+    "ghlCrmCustomFieldsDesc": "Lista de solo lectura de los campos personalizados de GHL. Haz clic para copiar la clave del campo para usar en prompts.",
+    "ghlCrmNoCustomFields": "No se encontraron campos personalizados en tu ubicación de GHL."
   },
   "pricing": {
     "modelRates": "Tarifas de Modelos",

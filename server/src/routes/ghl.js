@@ -29,4 +29,13 @@ router.delete('/disconnect', ghlController.disconnect);
 // Get calendars from GHL
 router.get('/calendars', ghlController.getCalendars);
 
+// Get pipelines from GHL (for CRM integration)
+router.get('/pipelines', ghlController.getPipelines);
+
+// Get tags from GHL (for CRM integration)
+router.get('/tags', ghlController.getTags);
+
+// Get custom fields from GHL (for CRM integration)
+router.get('/custom-fields', ghlController.getCustomFields);
+
 module.exports = router;

@@ -652,7 +652,11 @@ const oauthAuthorize = async (req, res) => {
       'calendars/events.readonly',
       'calendars/events.write',
       'contacts.readonly',
-      'contacts.write'
+      'contacts.write',
+      'opportunities.readonly',
+      'opportunities.write',
+      'locations/tags.readonly',
+      'locations/customFields.readonly'
     ];
 
     const authorizationUrl = `${GHL_AUTH_BASE}/oauth/chooselocation?response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&client_id=${clientId}&scope=${encodeURIComponent(scopes.join(' '))}&state=${state}`;
@@ -766,13 +770,137 @@ const oauthCallback = async (req, res) => {
   }
 };
 
+/**
+ * Get pipelines from GHL for the authenticated user
+ * GET /api/ghl/pipelines
+ */
+const getPipelines = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const integration = await req.prisma.gHLIntegration.findUnique({
+      where: { userId }
+    });
+
+    if (!integration || !integration.isConnected) {
+      return res.status(400).json({ error: 'GoHighLevel is not connected. Please connect first in Settings.' });
+    }
+
+    const token = await getValidToken(integration, req.prisma);
+
+    try {
+      const data = await ghlRequest(`/opportunities/pipelines?locationId=${integration.locationId}`, token);
+
+      const pipelines = (data.pipelines || []).map(p => ({
+        id: p.id,
+        name: p.name,
+        stages: (p.stages || []).map(s => ({
+          id: s.id,
+          name: s.name,
+          position: s.position
+        }))
+      }));
+
+      res.json({ pipelines });
+    } catch (ghlError) {
+      console.error('GHL API error fetching pipelines:', ghlError);
+      res.status(400).json({ error: 'Failed to fetch pipelines from GoHighLevel.' });
+    }
+  } catch (error) {
+    console.error('Error fetching GHL pipelines:', error);
+    res.status(500).json({ error: 'Failed to fetch pipelines' });
+  }
+};
+
+/**
+ * Get tags from GHL for the authenticated user
+ * GET /api/ghl/tags
+ */
+const getTags = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const integration = await req.prisma.gHLIntegration.findUnique({
+      where: { userId }
+    });
+
+    if (!integration || !integration.isConnected) {
+      return res.status(400).json({ error: 'GoHighLevel is not connected. Please connect first in Settings.' });
+    }
+
+    const token = await getValidToken(integration, req.prisma);
+
+    try {
+      const data = await ghlRequest(`/locations/${integration.locationId}/tags`, token);
+
+      const tags = (data.tags || []).map(t => ({
+        id: t.id || t.name,
+        name: t.name
+      }));
+
+      res.json({ tags });
+    } catch (ghlError) {
+      console.error('GHL API error fetching tags:', ghlError);
+      res.status(400).json({ error: 'Failed to fetch tags from GoHighLevel.' });
+    }
+  } catch (error) {
+    console.error('Error fetching GHL tags:', error);
+    res.status(500).json({ error: 'Failed to fetch tags' });
+  }
+};
+
+/**
+ * Get custom fields from GHL for the authenticated user
+ * GET /api/ghl/custom-fields
+ */
+const getCustomFields = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const integration = await req.prisma.gHLIntegration.findUnique({
+      where: { userId }
+    });
+
+    if (!integration || !integration.isConnected) {
+      return res.status(400).json({ error: 'GoHighLevel is not connected. Please connect first in Settings.' });
+    }
+
+    const token = await getValidToken(integration, req.prisma);
+
+    try {
+      const data = await ghlRequest(`/locations/${integration.locationId}/customFields`, token);
+
+      const customFields = (data.customFields || []).map(f => ({
+        id: f.id,
+        name: f.name,
+        fieldKey: f.fieldKey,
+        dataType: f.dataType
+      }));
+
+      res.json({ customFields });
+    } catch (ghlError) {
+      console.error('GHL API error fetching custom fields:', ghlError);
+      res.status(400).json({ error: 'Failed to fetch custom fields from GoHighLevel.' });
+    }
+  } catch (error) {
+    console.error('Error fetching GHL custom fields:', error);
+    res.status(500).json({ error: 'Failed to fetch custom fields' });
+  }
+};
+
 module.exports = {
   connect,
   getStatus,
   disconnect,
   getCalendars,
+  getPipelines,
+  getTags,
+  getCustomFields,
   checkAvailability,
   bookAppointment,
   oauthAuthorize,
-  oauthCallback
+  oauthCallback,
+  // Exported for use by vapiWebhookController
+  getValidToken,
+  ghlRequest
 };

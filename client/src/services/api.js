@@ -136,7 +136,10 @@ export const ghlAPI = {
   getStatus: () => api.get('/ghl/status'),
   disconnect: () => api.delete('/ghl/disconnect'),
   getCalendars: () => api.get('/ghl/calendars'),
-  getAuthUrl: () => api.get('/ghl/oauth/authorize')
+  getAuthUrl: () => api.get('/ghl/oauth/authorize'),
+  getPipelines: () => api.get('/ghl/pipelines'),
+  getTags: () => api.get('/ghl/tags'),
+  getCustomFields: () => api.get('/ghl/custom-fields')
 }
 
 // Calendar Integration API (multi-provider)

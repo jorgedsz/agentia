@@ -7,6 +7,8 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 
+const { getValidToken, ghlRequest } = require('./ghlController');
+
 const prisma = new PrismaClient();
 
 // Ensure recordings directory exists
@@ -134,6 +136,149 @@ const extractTranscriptText = (transcript) => {
 // Extract customer phone number from VAPI call data
 const extractCustomerNumber = (call) => {
   return call.customer?.number || call.phoneNumber?.number || null;
+};
+
+/**
+ * Process GHL CRM actions after a call (tags + pipeline)
+ * Fire-and-forget — errors are logged but never propagated.
+ */
+const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber) => {
+  try {
+    const ghlCrmConfig = agentConfig?.ghlCrmConfig;
+    if (!ghlCrmConfig?.enabled) return;
+
+    // Find GHL integration (try GHLIntegration first, then CalendarIntegration with provider='ghl')
+    let integration = await prisma.gHLIntegration.findUnique({ where: { userId } });
+
+    if (!integration || !integration.isConnected) {
+      const calendarInt = await prisma.calendarIntegration.findFirst({
+        where: { userId, provider: 'ghl' }
+      });
+      if (calendarInt) {
+        integration = calendarInt;
+      } else {
+        console.log(`[GHL CRM] No GHL integration found for user ${userId}`);
+        return;
+      }
+    }
+
+    const token = await getValidToken(integration, prisma);
+    const locationId = integration.locationId;
+
+    if (!locationId) {
+      console.log(`[GHL CRM] No locationId for user ${userId}`);
+      return;
+    }
+
+    // --- Find or create contact by phone number ---
+    let contactId = null;
+    if (customerNumber) {
+      try {
+        const searchRes = await ghlRequest(
+          `/contacts/search?locationId=${locationId}&query=${encodeURIComponent(customerNumber)}`,
+          token
+        );
+        if (searchRes.contacts && searchRes.contacts.length > 0) {
+          contactId = searchRes.contacts[0].id;
+        } else {
+          const createRes = await ghlRequest('/contacts', token, {
+            method: 'POST',
+            body: JSON.stringify({ locationId, phone: customerNumber, name: customerNumber })
+          });
+          contactId = createRes.contact?.id;
+        }
+      } catch (contactErr) {
+        console.error('[GHL CRM] Contact search/create error:', contactErr.message);
+        return;
+      }
+    }
+
+    if (!contactId) {
+      console.log('[GHL CRM] No contact ID — skipping CRM actions');
+      return;
+    }
+
+    // --- Tag management ---
+    const tagMapping = ghlCrmConfig.tagMapping || {};
+    const outcomeTags = tagMapping[outcome] || [];
+
+    if (ghlCrmConfig.deleteOldTags || outcomeTags.length > 0) {
+      try {
+        // Collect all managed tags (every tag across all outcomes)
+        const allManagedTags = new Set();
+        for (const tags of Object.values(tagMapping)) {
+          if (Array.isArray(tags)) tags.forEach(t => allManagedTags.add(t));
+        }
+
+        // Get contact's current tags
+        const contactRes = await ghlRequest(`/contacts/${contactId}`, token);
+        const currentTags = contactRes.contact?.tags || [];
+
+        let newTags;
+        if (ghlCrmConfig.deleteOldTags) {
+          // Remove all managed tags, then add current outcome's tags
+          newTags = currentTags.filter(t => !allManagedTags.has(t));
+          newTags.push(...outcomeTags.filter(t => !newTags.includes(t)));
+        } else {
+          // Just add outcome tags without removing anything
+          newTags = [...currentTags];
+          outcomeTags.forEach(t => { if (!newTags.includes(t)) newTags.push(t); });
+        }
+
+        await ghlRequest(`/contacts/${contactId}`, token, {
+          method: 'PUT',
+          body: JSON.stringify({ tags: newTags })
+        });
+        console.log(`[GHL CRM] Updated tags for contact ${contactId}: [${newTags.join(', ')}]`);
+      } catch (tagErr) {
+        console.error('[GHL CRM] Tag update error:', tagErr.message);
+      }
+    }
+
+    // --- Pipeline / Opportunity management ---
+    const pipelineId = ghlCrmConfig.pipelineId;
+    const pipelineMapping = ghlCrmConfig.pipelineMapping || {};
+    const stageId = pipelineMapping[outcome];
+
+    if (pipelineId && stageId) {
+      try {
+        // Search for existing opportunity in this pipeline for this contact
+        const oppSearch = await ghlRequest(
+          `/opportunities/search?location_id=${locationId}&pipeline_id=${pipelineId}&contact_id=${contactId}`,
+          token
+        );
+
+        const existingOpp = (oppSearch.opportunities || []).find(o => o.pipelineId === pipelineId);
+
+        if (existingOpp) {
+          // Update stage
+          await ghlRequest(`/opportunities/${existingOpp.id}`, token, {
+            method: 'PUT',
+            body: JSON.stringify({ pipelineStageId: stageId })
+          });
+          console.log(`[GHL CRM] Updated opportunity ${existingOpp.id} to stage ${stageId}`);
+        } else {
+          // Create new opportunity
+          await ghlRequest('/opportunities', token, {
+            method: 'POST',
+            body: JSON.stringify({
+              locationId,
+              pipelineId,
+              pipelineStageId: stageId,
+              contactId,
+              name: `Call - ${outcome}`,
+              status: 'open'
+            })
+          });
+          console.log(`[GHL CRM] Created opportunity for contact ${contactId} in pipeline ${pipelineId}`);
+        }
+      } catch (oppErr) {
+        console.error('[GHL CRM] Opportunity error:', oppErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('[GHL CRM] Unexpected error:', err.message);
+  }
 };
 
 /**
@@ -304,9 +449,15 @@ const handleEvent = async (req, res) => {
       console.log(`[VAPI Webhook] Billed user ${userId}: $${cost.toFixed(4)}`);
     }
 
-    // 6. Forward to user's webhook URL if configured
+    // 6. GHL CRM post-call actions (fire-and-forget)
     if (agent) {
       const agentConfig = agent.config ? JSON.parse(agent.config) : {};
+
+      processGhlCrmActions(userId, agentConfig, outcome, customerNumber).catch(err =>
+        console.error('[GHL CRM] processGhlCrmActions failed:', err.message)
+      );
+
+      // 7. Forward to user's webhook URL if configured
       const webhookUrl = agentConfig.serverUrl;
 
       if (webhookUrl) {

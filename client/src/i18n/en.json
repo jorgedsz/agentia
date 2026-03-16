@@ -940,7 +940,22 @@
     "fieldName": "Field Name",
     "fieldType": "Type",
     "fieldDescription": "Description (optional)",
-    "addField": "Add Field"
+    "addField": "Add Field",
+    "ghlCrm": "GHL CRM",
+    "ghlCrmEnable": "Enable GHL CRM automation",
+    "ghlCrmLoadingData": "Loading GHL data...",
+    "ghlCrmTagMapping": "Tag Mapping",
+    "ghlCrmTagMappingDesc": "Assign GHL tags to contacts based on each call outcome.",
+    "ghlCrmAddTag": "Add tag",
+    "ghlCrmDeleteOldTags": "Remove previous outcome tags before applying new ones",
+    "ghlCrmPipelineMapping": "Pipeline Mapping",
+    "ghlCrmPipelineMappingDesc": "Create or move opportunities in a GHL pipeline based on call outcome.",
+    "ghlCrmPipeline": "Pipeline",
+    "ghlCrmSelectPipeline": "Select a pipeline...",
+    "ghlCrmNoStage": "No stage (skip)",
+    "ghlCrmCustomFields": "Custom Fields Reference",
+    "ghlCrmCustomFieldsDesc": "Read-only list of your GHL custom fields. Click to copy the field key for use in prompts.",
+    "ghlCrmNoCustomFields": "No custom fields found in your GHL location."
   },
   "pricing": {
     "modelRates": "Model Rates",
