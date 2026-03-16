@@ -23,6 +23,11 @@ const getValidToken = async (integration, prisma) => {
       if (expiresAt <= fiveMinFromNow) {
         // Token is expiring soon - refresh it
         if (!integration.refreshToken) {
+          // Fall back to PIT if available
+          if (integration.privateToken) {
+            console.log('OAuth token expired, no refresh token — falling back to PIT');
+            return decrypt(integration.privateToken);
+          }
           throw new Error('Token expired and no refresh token available');
         }
 
@@ -42,6 +47,11 @@ const getValidToken = async (integration, prisma) => {
           if (!response.ok) {
             const errorText = await response.text();
             console.error('Token refresh failed:', errorText);
+            // Fall back to PIT if available
+            if (integration.privateToken) {
+              console.log('OAuth refresh failed — falling back to PIT');
+              return decrypt(integration.privateToken);
+            }
             // Mark as disconnected
             await prisma.gHLIntegration.update({
               where: { id: integration.id },
@@ -64,6 +74,11 @@ const getValidToken = async (integration, prisma) => {
 
           return tokenData.access_token;
         } catch (refreshError) {
+          // Fall back to PIT if available
+          if (integration.privateToken) {
+            console.log('OAuth refresh error — falling back to PIT');
+            return decrypt(integration.privateToken);
+          }
           if (refreshError.message.includes('reconnect')) throw refreshError;
           console.error('Token refresh error:', refreshError);
           throw new Error('Failed to refresh token - please reconnect GoHighLevel');
