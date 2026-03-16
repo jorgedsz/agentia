@@ -1,13 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
-const { createCall, getCall, listCalls, getAnalytics, updateOutcome } = require('../controllers/callController');
+const { createCall, getCall, listCalls, getAnalytics, getAdvancedAnalytics, updateOutcome } = require('../controllers/callController');
 
 // All routes require authentication
 router.use(authMiddleware);
 
 // POST /api/calls - Create a new outbound call
 router.post('/', createCall);
+
+// GET /api/calls/analytics/advanced - Advanced multi-tab analytics (BEFORE /analytics to avoid conflict)
+router.get('/analytics/advanced', getAdvancedAnalytics);
 
 // GET /api/calls/analytics - Analytics data (BEFORE /:id to avoid conflict)
 router.get('/analytics', getAnalytics);

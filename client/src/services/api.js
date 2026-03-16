@@ -112,6 +112,7 @@ export const callsAPI = {
   get: (id) => api.get(`/calls/${id}`),
   list: () => api.get('/calls'),
   getAnalytics: (params) => api.get('/calls/analytics', { params }),
+  getAdvancedAnalytics: (params) => api.get('/calls/analytics/advanced', { params }),
   updateOutcome: (id, outcome) => api.patch(`/calls/${id}/outcome`, { outcome })
 }
 

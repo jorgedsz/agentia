@@ -538,10 +538,407 @@ const syncCallBilling = async (prisma, vapiCalls) => {
   return { billedCount, totalCharged };
 };
 
+// Advanced Analytics endpoint (multi-tab)
+const getAdvancedAnalytics = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // Determine which users' data to query
+    let userFilter;
+    if (userRole === 'OWNER') {
+      userFilter = {}; // All users
+    } else if (userRole === 'AGENCY') {
+      // Own data + own clients
+      const clients = await req.prisma.user.findMany({
+        where: { agencyId: userId },
+        select: { id: true }
+      });
+      const clientIds = clients.map(c => c.id);
+      userFilter = { userId: { in: [userId, ...clientIds] } };
+    } else {
+      userFilter = { userId };
+    }
+
+    // Date filter for callLogs
+    const dateFilter = {};
+    if (startDate || endDate) {
+      dateFilter.createdAt = {};
+      if (startDate) dateFilter.createdAt.gte = new Date(startDate);
+      if (endDate) dateFilter.createdAt.lte = new Date(endDate);
+    }
+
+    const callWhere = { ...userFilter, ...dateFilter };
+
+    // ── REVENUE (OWNER only) ──
+    let revenue = null;
+    if (userRole === 'OWNER') {
+      const activeUserProducts = await req.prisma.userProduct.findMany({
+        where: { status: 'active' },
+        include: { product: true, user: { select: { id: true, name: true, email: true } } }
+      });
+
+      // Compute MRR
+      let mrr = 0;
+      const revenueByProductMap = {};
+      const revenueByBillingCycle = { monthly: 0, quarterly: 0, annual: 0, lifetime: 0 };
+
+      for (const up of activeUserProducts) {
+        let monthlyEquivalent = 0;
+        switch (up.billingCycle) {
+          case 'monthly': monthlyEquivalent = up.amount; break;
+          case 'quarterly': monthlyEquivalent = up.amount / 3; break;
+          case 'annual': monthlyEquivalent = up.amount / 12; break;
+          case 'lifetime': monthlyEquivalent = 0; break;
+        }
+        mrr += monthlyEquivalent;
+        revenueByBillingCycle[up.billingCycle] = (revenueByBillingCycle[up.billingCycle] || 0) + up.amount;
+
+        const slug = up.product.slug;
+        if (!revenueByProductMap[slug]) {
+          revenueByProductMap[slug] = { productName: up.product.name, slug, count: 0, revenue: 0 };
+        }
+        revenueByProductMap[slug].count++;
+        revenueByProductMap[slug].revenue += up.amount;
+      }
+
+      // Credits consumed (all call costs in range)
+      const creditsAgg = await req.prisma.callLog.aggregate({
+        where: dateFilter,
+        _sum: { costCharged: true }
+      });
+      const creditsConsumed = creditsAgg._sum.costCharged || 0;
+
+      // Total remaining credits across all users
+      const creditsRemAgg = await req.prisma.user.aggregate({
+        _sum: { vapiCredits: true }
+      });
+      const creditsRemaining = creditsRemAgg._sum.vapiCredits || 0;
+
+      // Top spenders
+      const allCallLogs = await req.prisma.callLog.groupBy({
+        by: ['userId'],
+        ...dateFilter.createdAt ? { where: dateFilter } : {},
+        _sum: { costCharged: true },
+        orderBy: { _sum: { costCharged: 'desc' } },
+        take: 10
+      });
+      const topSpenderIds = allCallLogs.map(c => c.userId);
+      const topSpenderUsers = topSpenderIds.length > 0 ? await req.prisma.user.findMany({
+        where: { id: { in: topSpenderIds } },
+        select: { id: true, name: true, email: true, vapiCredits: true }
+      }) : [];
+      const userMap = {};
+      topSpenderUsers.forEach(u => { userMap[u.id] = u; });
+      const topSpenders = allCallLogs.map(c => ({
+        userId: c.userId,
+        name: userMap[c.userId]?.name || 'Unknown',
+        email: userMap[c.userId]?.email || '',
+        totalCost: parseFloat((c._sum.costCharged || 0).toFixed(2)),
+        credits: parseFloat((userMap[c.userId]?.vapiCredits || 0).toFixed(2))
+      }));
+
+      revenue = {
+        mrr: parseFloat(mrr.toFixed(2)),
+        arr: parseFloat((mrr * 12).toFixed(2)),
+        totalActiveSubscriptions: activeUserProducts.length,
+        revenueByProduct: Object.values(revenueByProductMap).map(r => ({
+          ...r, revenue: parseFloat(r.revenue.toFixed(2))
+        })),
+        revenueByBillingCycle: Object.fromEntries(
+          Object.entries(revenueByBillingCycle).map(([k, v]) => [k, parseFloat(v.toFixed(2))])
+        ),
+        creditsConsumed: parseFloat(creditsConsumed.toFixed(2)),
+        creditsRemaining: parseFloat(creditsRemaining.toFixed(2)),
+        topSpenders
+      };
+    }
+
+    // ── AGENTS ──
+    const agentWhere = userRole === 'OWNER' ? {} :
+      userRole === 'AGENCY' ? { userId: { in: [userId, ...(userFilter.userId?.in?.slice(1) || [])] } } :
+      { userId };
+
+    const allAgents = await req.prisma.agent.findMany({
+      where: agentWhere,
+      select: { id: true, name: true, agentType: true, createdAt: true }
+    });
+    const agentMap = {};
+    allAgents.forEach(a => { agentMap[a.id] = a; });
+
+    // Per-agent call stats
+    const agentCallStats = await req.prisma.callLog.groupBy({
+      by: ['agentId'],
+      where: { ...callWhere, agentId: { not: null } },
+      _count: { id: true },
+      _sum: { durationSeconds: true, costCharged: true }
+    });
+
+    // Per-agent outcome counts
+    const agentOutcomeStats = await req.prisma.callLog.groupBy({
+      by: ['agentId', 'outcome'],
+      where: { ...callWhere, agentId: { not: null } },
+      _count: { id: true }
+    });
+    const agentOutcomeMap = {};
+    for (const row of agentOutcomeStats) {
+      if (!row.agentId) continue;
+      if (!agentOutcomeMap[row.agentId]) agentOutcomeMap[row.agentId] = {};
+      agentOutcomeMap[row.agentId][row.outcome] = row._count.id;
+    }
+
+    const perAgent = agentCallStats.map(s => {
+      const agent = agentMap[s.agentId] || {};
+      const outcomes = agentOutcomeMap[s.agentId] || {};
+      const totalCalls = s._count.id;
+      const booked = outcomes.booked || 0;
+      const answered = (outcomes.answered || 0) + booked + (outcomes.not_interested || 0) + (outcomes.transferred || 0);
+      const failed = outcomes.failed || 0;
+      const totalDuration = s._sum.durationSeconds || 0;
+      const totalCost = s._sum.costCharged || 0;
+      return {
+        agentId: s.agentId,
+        name: agent.name || 'Unknown',
+        agentType: agent.agentType || 'unknown',
+        totalCalls,
+        totalDuration: parseFloat(totalDuration.toFixed(1)),
+        totalCost: parseFloat(totalCost.toFixed(2)),
+        booked,
+        answered,
+        failed,
+        bookingRate: totalCalls > 0 ? parseFloat(((booked / totalCalls) * 100).toFixed(1)) : 0,
+        answerRate: totalCalls > 0 ? parseFloat(((answered / totalCalls) * 100).toFixed(1)) : 0,
+        avgDuration: totalCalls > 0 ? parseFloat((totalDuration / totalCalls).toFixed(1)) : 0,
+        costPerBooking: booked > 0 ? parseFloat((totalCost / booked).toFixed(2)) : 0
+      };
+    }).sort((a, b) => b.totalCalls - a.totalCalls);
+
+    // Utilization by day (top 5 agents by call count)
+    const top5AgentIds = perAgent.slice(0, 5).map(a => a.agentId);
+    const dailyAgentLogs = top5AgentIds.length > 0 ? await req.prisma.callLog.findMany({
+      where: { ...callWhere, agentId: { in: top5AgentIds } },
+      select: { agentId: true, createdAt: true }
+    }) : [];
+    const utilizationMap = {};
+    for (const log of dailyAgentLogs) {
+      const day = log.createdAt.toISOString().slice(0, 10);
+      const key = `${day}-${log.agentId}`;
+      if (!utilizationMap[key]) {
+        utilizationMap[key] = { date: day, agentId: log.agentId, agentName: agentMap[log.agentId]?.name || 'Unknown', calls: 0 };
+      }
+      utilizationMap[key].calls++;
+    }
+
+    const agents = {
+      perAgent,
+      utilizationByDay: Object.values(utilizationMap).sort((a, b) => a.date.localeCompare(b.date))
+    };
+
+    // ── CALLS (quality) ──
+    const allCallLogsForQuality = await req.prisma.callLog.findMany({
+      where: callWhere,
+      select: { endedReason: true, type: true, createdAt: true, outcome: true, costCharged: true }
+    });
+
+    const endReasons = {};
+    const inboundVsOutbound = { inbound: 0, outbound: 0 };
+    const hourlyMap = {};
+    let totalBooked = 0;
+    let totalCostForBooking = 0;
+
+    for (const log of allCallLogsForQuality) {
+      // End reasons
+      const reason = log.endedReason || 'unknown';
+      endReasons[reason] = (endReasons[reason] || 0) + 1;
+
+      // Inbound vs outbound
+      if (log.type === 'inbound') inboundVsOutbound.inbound++;
+      else inboundVsOutbound.outbound++;
+
+      // Hourly heatmap
+      const dt = log.createdAt;
+      const dayOfWeek = dt.getUTCDay();
+      const hour = dt.getUTCHours();
+      const hkey = `${dayOfWeek}-${hour}`;
+      if (!hourlyMap[hkey]) hourlyMap[hkey] = { dayOfWeek, hour, count: 0 };
+      hourlyMap[hkey].count++;
+
+      // Cost per booking
+      if (log.outcome === 'booked') {
+        totalBooked++;
+        totalCostForBooking += (log.costCharged || 0);
+      }
+    }
+
+    const calls = {
+      endReasons,
+      inboundVsOutbound,
+      hourlyHeatmap: Object.values(hourlyMap),
+      costPerBooking: totalBooked > 0 ? parseFloat((totalCostForBooking / totalBooked).toFixed(2)) : 0
+    };
+
+    // ── CLIENTS (OWNER/AGENCY only) ──
+    let clients = null;
+    if (userRole === 'OWNER' || userRole === 'AGENCY') {
+      const clientWhere = userRole === 'OWNER'
+        ? { role: 'CLIENT' }
+        : { role: 'CLIENT', agencyId: userId };
+
+      const allClients = await req.prisma.user.findMany({
+        where: clientWhere,
+        select: { id: true, name: true, email: true, createdAt: true, vapiCredits: true }
+      });
+
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+      // Get last call date + call counts for each client
+      const clientIds = allClients.map(c => c.id);
+      const clientCallStats = clientIds.length > 0 ? await req.prisma.callLog.groupBy({
+        by: ['userId'],
+        where: { userId: { in: clientIds } },
+        _count: { id: true },
+        _max: { createdAt: true }
+      }) : [];
+
+      const monthlyCallStats = clientIds.length > 0 ? await req.prisma.callLog.groupBy({
+        by: ['userId'],
+        where: {
+          userId: { in: clientIds },
+          createdAt: { gte: new Date(`${currentMonth}-01`) }
+        },
+        _count: { id: true }
+      }) : [];
+      const monthlyMap = {};
+      monthlyCallStats.forEach(s => { monthlyMap[s.userId] = s._count.id; });
+
+      const callStatMap = {};
+      clientCallStats.forEach(s => { callStatMap[s.userId] = s; });
+
+      const clientActivity = [];
+      const atRiskClients = [];
+      let activeCount = 0;
+      let newThisMonthCount = 0;
+
+      for (const client of allClients) {
+        const stats = callStatMap[client.id];
+        const lastCallDate = stats?._max?.createdAt || null;
+        const totalCalls = stats?._count?.id || 0;
+        const callsThisMonth = monthlyMap[client.id] || 0;
+        const isActive = lastCallDate && new Date(lastCallDate) >= thirtyDaysAgo;
+
+        if (isActive) activeCount++;
+
+        const clientCreatedMonth = `${client.createdAt.getFullYear()}-${String(client.createdAt.getMonth() + 1).padStart(2, '0')}`;
+        if (clientCreatedMonth === currentMonth) newThisMonthCount++;
+
+        clientActivity.push({
+          userId: client.id,
+          name: client.name || 'Unnamed',
+          email: client.email,
+          lastCallDate: lastCallDate ? lastCallDate.toISOString().slice(0, 10) : null,
+          callsThisMonth,
+          totalCalls,
+          credits: parseFloat((client.vapiCredits || 0).toFixed(2)),
+          status: isActive ? 'active' : 'inactive'
+        });
+
+        if (!isActive && totalCalls > 0) {
+          const daysSinceLastCall = lastCallDate
+            ? Math.floor((now.getTime() - new Date(lastCallDate).getTime()) / (1000 * 60 * 60 * 24))
+            : 999;
+          atRiskClients.push({
+            userId: client.id,
+            name: client.name || 'Unnamed',
+            email: client.email,
+            lastCallDate: lastCallDate ? lastCallDate.toISOString().slice(0, 10) : null,
+            daysSinceLastCall,
+            credits: parseFloat((client.vapiCredits || 0).toFixed(2))
+          });
+        }
+      }
+
+      // New clients over time (monthly)
+      const newClientsMap = {};
+      for (const client of allClients) {
+        const month = `${client.createdAt.getFullYear()}-${String(client.createdAt.getMonth() + 1).padStart(2, '0')}`;
+        newClientsMap[month] = (newClientsMap[month] || 0) + 1;
+      }
+
+      clients = {
+        totalClients: allClients.length,
+        activeClients: activeCount,
+        newClientsOverTime: Object.entries(newClientsMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([month, count]) => ({ month, count })),
+        clientActivity: clientActivity.sort((a, b) => b.callsThisMonth - a.callsThisMonth),
+        atRiskClients: atRiskClients.sort((a, b) => b.daysSinceLastCall - a.daysSinceLastCall),
+        newThisMonth: newThisMonthCount
+      };
+    }
+
+    // ── GROWTH (OWNER/AGENCY) ──
+    let growth = null;
+    if (userRole === 'OWNER' || userRole === 'AGENCY') {
+      const growthAgentWhere = userRole === 'OWNER' ? {} : agentWhere;
+
+      const allGrowthAgents = await req.prisma.agent.findMany({
+        where: growthAgentWhere,
+        select: { createdAt: true }
+      });
+
+      const agentsOverTimeMap = {};
+      for (const agent of allGrowthAgents) {
+        const month = `${agent.createdAt.getFullYear()}-${String(agent.createdAt.getMonth() + 1).padStart(2, '0')}`;
+        agentsOverTimeMap[month] = (agentsOverTimeMap[month] || 0) + 1;
+      }
+
+      const calIntWhere = userRole === 'OWNER' ? {} : { userId: { in: [userId, ...(userFilter.userId?.in?.slice(1) || [])] } };
+      const totalCalendarIntegrations = await req.prisma.calendarIntegration.count({ where: calIntWhere });
+
+      // Product adoption
+      const productAdoption = [];
+      if (userRole === 'OWNER') {
+        const products = await req.prisma.product.findMany({ where: { isActive: true } });
+        const totalUsers = await req.prisma.user.count();
+        for (const product of products) {
+          const activeUsers = await req.prisma.userProduct.count({
+            where: { productId: product.id, status: 'active' }
+          });
+          productAdoption.push({
+            productName: product.name,
+            slug: product.slug,
+            activeUsers,
+            totalUsers,
+            adoptionRate: totalUsers > 0 ? parseFloat(((activeUsers / totalUsers) * 100).toFixed(1)) : 0
+          });
+        }
+      }
+
+      growth = {
+        agentsOverTime: Object.entries(agentsOverTimeMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([month, count]) => ({ month, count })),
+        totalAgents: allGrowthAgents.length,
+        totalCalendarIntegrations,
+        productAdoption
+      };
+    }
+
+    res.json({ revenue, agents, calls, clients, growth });
+  } catch (error) {
+    console.error('Get advanced analytics error:', error);
+    res.status(500).json({ error: 'Failed to get advanced analytics' });
+  }
+};
+
 module.exports = {
   createCall,
   getCall,
   listCalls,
   getAnalytics,
+  getAdvancedAnalytics,
   updateOutcome
 };
