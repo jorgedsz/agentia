@@ -786,6 +786,49 @@ const oauthCallback = async (req, res) => {
 };
 
 /**
+ * Find a GHL integration for a user.
+ * Checks legacy GHLIntegration first, then CalendarIntegration (provider='ghl').
+ * Returns { token, locationId } or null.
+ */
+const findGhlConnection = async (userId, prisma) => {
+  // 1. Try legacy GHLIntegration
+  const legacy = await prisma.gHLIntegration.findUnique({ where: { userId } });
+  if (legacy && legacy.isConnected) {
+    try {
+      const token = await getValidToken(legacy, prisma);
+      return { token, locationId: legacy.locationId };
+    } catch (e) {
+      console.log('Legacy GHLIntegration token failed:', e.message);
+    }
+  }
+
+  // 2. Try CalendarIntegration with provider='ghl'
+  const calInt = await prisma.calendarIntegration.findFirst({
+    where: { userId, provider: 'ghl', isConnected: true }
+  });
+  if (calInt) {
+    const locationId = calInt.externalAccountId || (() => {
+      try { return JSON.parse(calInt.metadata || '{}').locationId; } catch { return null; }
+    })();
+
+    // CalendarIntegration stores PIT in apiKey, OAuth in accessToken
+    if (calInt.apiKey) {
+      return { token: decrypt(calInt.apiKey), locationId };
+    }
+    if (calInt.accessToken) {
+      try {
+        const token = await getValidToken(calInt, prisma);
+        return { token, locationId };
+      } catch (e) {
+        console.log('CalendarIntegration OAuth token failed:', e.message);
+      }
+    }
+  }
+
+  return null;
+};
+
+/**
  * Get pipelines from GHL for the authenticated user
  * GET /api/ghl/pipelines
  */
@@ -793,18 +836,15 @@ const getPipelines = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const integration = await req.prisma.gHLIntegration.findUnique({
-      where: { userId }
-    });
-
-    if (!integration || !integration.isConnected) {
+    const conn = await findGhlConnection(userId, req.prisma);
+    if (!conn) {
       return res.status(400).json({ error: 'GoHighLevel is not connected. Please connect first in Settings.' });
     }
 
-    const token = await getValidToken(integration, req.prisma);
+    const { token, locationId } = conn;
 
     try {
-      const data = await ghlRequest(`/opportunities/pipelines?locationId=${integration.locationId}`, token);
+      const data = await ghlRequest(`/opportunities/pipelines?locationId=${locationId}`, token);
 
       const pipelines = (data.pipelines || []).map(p => ({
         id: p.id,
@@ -839,18 +879,15 @@ const getTags = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const integration = await req.prisma.gHLIntegration.findUnique({
-      where: { userId }
-    });
-
-    if (!integration || !integration.isConnected) {
+    const conn = await findGhlConnection(userId, req.prisma);
+    if (!conn) {
       return res.status(400).json({ error: 'GoHighLevel is not connected. Please connect first in Settings.' });
     }
 
-    const token = await getValidToken(integration, req.prisma);
+    const { token, locationId } = conn;
 
     try {
-      const data = await ghlRequest(`/locations/${integration.locationId}/tags`, token);
+      const data = await ghlRequest(`/locations/${locationId}/tags`, token);
 
       const tags = (data.tags || []).map(t => ({
         id: t.id || t.name,
@@ -880,18 +917,15 @@ const getCustomFields = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const integration = await req.prisma.gHLIntegration.findUnique({
-      where: { userId }
-    });
-
-    if (!integration || !integration.isConnected) {
+    const conn = await findGhlConnection(userId, req.prisma);
+    if (!conn) {
       return res.status(400).json({ error: 'GoHighLevel is not connected. Please connect first in Settings.' });
     }
 
-    const token = await getValidToken(integration, req.prisma);
+    const { token, locationId } = conn;
 
     try {
-      const data = await ghlRequest(`/locations/${integration.locationId}/customFields`, token);
+      const data = await ghlRequest(`/locations/${locationId}/customFields`, token);
 
       const customFields = (data.customFields || []).map(f => ({
         id: f.id,
@@ -929,5 +963,6 @@ module.exports = {
   oauthCallback,
   // Exported for use by vapiWebhookController
   getValidToken,
-  ghlRequest
+  ghlRequest,
+  findGhlConnection
 };

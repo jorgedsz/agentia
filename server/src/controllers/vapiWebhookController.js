@@ -7,7 +7,7 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 
-const { getValidToken, ghlRequest } = require('./ghlController');
+const { getValidToken, ghlRequest, findGhlConnection } = require('./ghlController');
 
 const prisma = new PrismaClient();
 
@@ -147,23 +147,14 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
     const ghlCrmConfig = agentConfig?.ghlCrmConfig;
     if (!ghlCrmConfig?.enabled) return;
 
-    // Find GHL integration (try GHLIntegration first, then CalendarIntegration with provider='ghl')
-    let integration = await prisma.gHLIntegration.findUnique({ where: { userId } });
-
-    if (!integration || !integration.isConnected) {
-      const calendarInt = await prisma.calendarIntegration.findFirst({
-        where: { userId, provider: 'ghl' }
-      });
-      if (calendarInt) {
-        integration = calendarInt;
-      } else {
-        console.log(`[GHL CRM] No GHL integration found for user ${userId}`);
-        return;
-      }
+    // Find GHL integration (checks GHLIntegration + CalendarIntegration)
+    const conn = await findGhlConnection(userId, prisma);
+    if (!conn) {
+      console.log(`[GHL CRM] No GHL integration found for user ${userId}`);
+      return;
     }
 
-    const token = await getValidToken(integration, prisma);
-    const locationId = integration.locationId;
+    const { token, locationId } = conn;
 
     if (!locationId) {
       console.log(`[GHL CRM] No locationId for user ${userId}`);
