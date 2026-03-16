@@ -953,9 +953,11 @@
     "ghlCrmPipeline": "Pipeline",
     "ghlCrmSelectPipeline": "Seleccionar un pipeline...",
     "ghlCrmNoStage": "Sin etapa (omitir)",
-    "ghlCrmCustomFields": "Campos Personalizados (Referencia)",
-    "ghlCrmCustomFieldsDesc": "Lista de solo lectura de los campos personalizados de GHL. Haz clic para copiar la clave del campo para usar en prompts.",
-    "ghlCrmNoCustomFields": "No se encontraron campos personalizados en tu ubicación de GHL."
+    "ghlCrmCustomFields": "Campos Personalizados de GHL",
+    "ghlCrmCustomFieldsDesc": "Agrega campos personalizados de GHL para extraer de las llamadas. Selecciona un campo y describe qué extraer.",
+    "ghlCrmNoCustomFields": "No se encontraron campos personalizados en tu ubicación de GHL.",
+    "ghlCrmSelectCustomField": "Seleccionar un campo...",
+    "ghlCrmAddCustomField": "Agregar Campo Personalizado"
   },
   "pricing": {
     "modelRates": "Tarifas de Modelos",

@@ -953,9 +953,11 @@
     "ghlCrmPipeline": "Pipeline",
     "ghlCrmSelectPipeline": "Select a pipeline...",
     "ghlCrmNoStage": "No stage (skip)",
-    "ghlCrmCustomFields": "Custom Fields Reference",
-    "ghlCrmCustomFieldsDesc": "Read-only list of your GHL custom fields. Click to copy the field key for use in prompts.",
-    "ghlCrmNoCustomFields": "No custom fields found in your GHL location."
+    "ghlCrmCustomFields": "GHL Custom Fields",
+    "ghlCrmCustomFieldsDesc": "Add GHL custom fields to extract from calls. Select a field and describe what to extract.",
+    "ghlCrmNoCustomFields": "No custom fields found in your GHL location.",
+    "ghlCrmSelectCustomField": "Select a custom field...",
+    "ghlCrmAddCustomField": "Add Custom Field"
   },
   "pricing": {
     "modelRates": "Model Rates",

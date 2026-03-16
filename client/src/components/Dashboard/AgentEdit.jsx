@@ -628,7 +628,8 @@ export default function AgentEdit() {
     successEvaluationPrompt: '',
     structuredDataEnabled: false,
     structuredDataFields: [],
-    structuredDataPrompt: ''
+    structuredDataPrompt: '',
+    ghlCustomFields: []
   })
 
   // Call Behavior settings (stop speaking, start speaking, voicemail detection, timeouts)
@@ -1104,7 +1105,7 @@ export default function AgentEdit() {
       setTools(savedTools)
 
       // Load server config
-      if (agentData.config?.serverUrl || agentData.config?.serverConfig) {
+      if (agentData.config?.serverUrl || agentData.config?.serverConfig || agentData.config?.structuredDataEnabled || agentData.config?.ghlCustomFields) {
         const cfg = agentData.config
         setServerConfig({
           serverUrl: cfg.serverUrl || '',
@@ -1126,7 +1127,8 @@ export default function AgentEdit() {
             } catch {}
             return []
           })(),
-          structuredDataPrompt: cfg.structuredDataPrompt || ''
+          structuredDataPrompt: cfg.structuredDataPrompt || '',
+          ghlCustomFields: cfg.ghlCustomFields || []
         })
       }
       // Load call behavior settings
@@ -1622,6 +1624,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
             return JSON.stringify({ type: 'object', properties: props }, null, 2)
           })(),
           structuredDataPrompt: serverConfig.structuredDataPrompt,
+          ghlCustomFields: serverConfig.ghlCustomFields || [],
           // Call behavior settings
           ...callBehaviorSettings,
           ...(serverConfig.serverUrl && {
@@ -4435,35 +4438,70 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                         <p className="text-xs text-gray-400 mt-1">{ta('extractionInstructionsDesc')}</p>
                       </div>
 
-                      {/* GHL Custom Fields Reference */}
+                      {/* GHL Custom Fields */}
                       <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{ta('ghlCrmCustomFields')}</h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmCustomFieldsDesc')}</p>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('ghlCrmCustomFields')}</label>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{ta('ghlCrmCustomFieldsDesc')}</p>
                         {ghlCrmLoading ? (
                           <div className="flex items-center gap-2 text-xs text-gray-500">
                             <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                             {ta('ghlCrmLoadingData')}
                           </div>
-                        ) : ghlCustomFields.length === 0 ? (
-                          <p className="text-xs text-gray-400 italic">{ta('ghlCrmNoCustomFields')}</p>
                         ) : (
-                          <div className="space-y-1 max-h-48 overflow-y-auto">
-                            {ghlCustomFields.map(f => (
-                              <div key={f.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-hover rounded-lg text-xs">
-                                <div>
-                                  <span className="font-medium text-gray-700 dark:text-gray-300">{f.name}</span>
-                                  <span className="text-gray-400 ml-2">({f.dataType})</span>
-                                </div>
-                                <button
-                                  onClick={() => { navigator.clipboard.writeText(f.fieldKey); }}
-                                  className="text-primary-600 hover:text-primary-700 text-xs flex items-center gap-1"
-                                  title={f.fieldKey}
+                          <div className="space-y-2">
+                            {(serverConfig.ghlCustomFields || []).map((field, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <select
+                                  value={field.fieldKey || ''}
+                                  onChange={(e) => {
+                                    const selected = ghlCustomFields.find(f => f.fieldKey === e.target.value)
+                                    const updated = [...(serverConfig.ghlCustomFields || [])]
+                                    updated[idx] = {
+                                      ...updated[idx],
+                                      fieldKey: e.target.value,
+                                      name: selected?.name || e.target.value,
+                                      dataType: selected?.dataType || field.dataType || 'string'
+                                    }
+                                    setServerConfig({ ...serverConfig, ghlCustomFields: updated })
+                                  }}
+                                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                                 >
-                                  <code className="text-[10px] text-gray-500 mr-1">{f.fieldKey}</code>
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                  <option value="">{ta('ghlCrmSelectCustomField')}</option>
+                                  {ghlCustomFields.map(f => (
+                                    <option key={f.id} value={f.fieldKey}>{f.name} ({f.dataType})</option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  value={field.description || ''}
+                                  onChange={(e) => {
+                                    const updated = [...(serverConfig.ghlCustomFields || [])]
+                                    updated[idx] = { ...updated[idx], description: e.target.value }
+                                    setServerConfig({ ...serverConfig, ghlCustomFields: updated })
+                                  }}
+                                  placeholder={ta('fieldDescription')}
+                                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = (serverConfig.ghlCustomFields || []).filter((_, i) => i !== idx)
+                                    setServerConfig({ ...serverConfig, ghlCustomFields: updated })
+                                  }}
+                                  className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 </button>
                               </div>
                             ))}
+                            <button
+                              type="button"
+                              onClick={() => setServerConfig({ ...serverConfig, ghlCustomFields: [...(serverConfig.ghlCustomFields || []), { fieldKey: '', name: '', dataType: 'string', description: '' }] })}
+                              className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center gap-1"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                              {ta('ghlCrmAddCustomField')}
+                            </button>
                           </div>
                         )}
                       </div>
