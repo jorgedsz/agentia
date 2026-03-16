@@ -4362,35 +4362,50 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     <>
                       {/* Data Fields */}
                       <div>
-                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('structuredDataFields')}</label>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">{ta('structuredDataFields')}</label>
                         <div className="space-y-2">
                           {(serverConfig.structuredDataFields || []).map((field, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                value={field.key}
-                                onChange={(e) => {
-                                  const updated = [...serverConfig.structuredDataFields]
-                                  updated[idx] = { ...updated[idx], key: e.target.value }
-                                  setServerConfig({ ...serverConfig, structuredDataFields: updated })
-                                }}
-                                placeholder={ta('fieldName')}
-                                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                              />
-                              <select
-                                value={field.type}
-                                onChange={(e) => {
-                                  const updated = [...serverConfig.structuredDataFields]
-                                  updated[idx] = { ...updated[idx], type: e.target.value }
-                                  setServerConfig({ ...serverConfig, structuredDataFields: updated })
-                                }}
-                                className="w-24 px-2 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                              >
-                                <option value="string">string</option>
-                                <option value="number">number</option>
-                                <option value="integer">integer</option>
-                                <option value="boolean">boolean</option>
-                              </select>
+                            <div key={idx} className="group relative bg-gray-50 dark:bg-dark-hover rounded-xl p-3 border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 transition-colors">
+                              <div className="flex items-center gap-2 mb-2">
+                                <input
+                                  type="text"
+                                  value={field.key}
+                                  onChange={(e) => {
+                                    const updated = [...serverConfig.structuredDataFields]
+                                    updated[idx] = { ...updated[idx], key: e.target.value }
+                                    setServerConfig({ ...serverConfig, structuredDataFields: updated })
+                                  }}
+                                  placeholder={ta('fieldName')}
+                                  className="flex-1 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm font-medium focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
+                                />
+                                <div className="relative">
+                                  <select
+                                    value={field.type}
+                                    onChange={(e) => {
+                                      const updated = [...serverConfig.structuredDataFields]
+                                      updated[idx] = { ...updated[idx], type: e.target.value }
+                                      setServerConfig({ ...serverConfig, structuredDataFields: updated })
+                                    }}
+                                    className="appearance-none w-24 pl-3 pr-7 py-1.5 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 text-xs font-mono cursor-pointer focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
+                                  >
+                                    <option value="string">string</option>
+                                    <option value="number">number</option>
+                                    <option value="integer">integer</option>
+                                    <option value="boolean">boolean</option>
+                                  </select>
+                                  <svg className="w-3.5 h-3.5 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = serverConfig.structuredDataFields.filter((_, i) => i !== idx)
+                                    setServerConfig({ ...serverConfig, structuredDataFields: updated })
+                                  }}
+                                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              </div>
                               <input
                                 type="text"
                                 value={field.description}
@@ -4400,24 +4415,14 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                                   setServerConfig({ ...serverConfig, structuredDataFields: updated })
                                 }}
                                 placeholder={ta('fieldDescription')}
-                                className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                className="w-full px-3 py-1.5 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-600 dark:text-gray-400 text-xs focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
                               />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const updated = serverConfig.structuredDataFields.filter((_, i) => i !== idx)
-                                  setServerConfig({ ...serverConfig, structuredDataFields: updated })
-                                }}
-                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
                             </div>
                           ))}
                           <button
                             type="button"
                             onClick={() => setServerConfig({ ...serverConfig, structuredDataFields: [...(serverConfig.structuredDataFields || []), { key: '', type: 'string', description: '' }] })}
-                            className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center gap-1"
+                            className="w-full py-2 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 dark:border-dark-border hover:border-primary-400 dark:hover:border-primary-600 rounded-xl transition-colors"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                             {ta('addField')}
@@ -4427,50 +4432,68 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
 
                       {/* Extraction Prompt */}
                       <div>
-                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('extractionInstructions')}</label>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{ta('extractionInstructions')}</label>
                         <textarea
                           value={serverConfig.structuredDataPrompt}
                           onChange={(e) => setServerConfig({ ...serverConfig, structuredDataPrompt: e.target.value })}
                           rows={3}
                           placeholder="Extract the customer's name, appointment date they requested, and the issue they described..."
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
                         />
                         <p className="text-xs text-gray-400 mt-1">{ta('extractionInstructionsDesc')}</p>
                       </div>
 
                       {/* GHL Custom Fields */}
                       <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('ghlCrmCustomFields')}</label>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{ta('ghlCrmCustomFields')}</label>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{ta('ghlCrmCustomFieldsDesc')}</p>
                         {ghlCrmLoading ? (
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <div className="flex items-center gap-2 text-xs text-gray-500 py-3">
                             <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                             {ta('ghlCrmLoadingData')}
                           </div>
                         ) : (
                           <div className="space-y-2">
                             {(serverConfig.ghlCustomFields || []).map((field, idx) => (
-                              <div key={idx} className="flex items-center gap-2">
-                                <select
-                                  value={field.fieldKey || ''}
-                                  onChange={(e) => {
-                                    const selected = ghlCustomFields.find(f => f.fieldKey === e.target.value)
-                                    const updated = [...(serverConfig.ghlCustomFields || [])]
-                                    updated[idx] = {
-                                      ...updated[idx],
-                                      fieldKey: e.target.value,
-                                      name: selected?.name || e.target.value,
-                                      dataType: selected?.dataType || field.dataType || 'string'
-                                    }
-                                    setServerConfig({ ...serverConfig, ghlCustomFields: updated })
-                                  }}
-                                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                                >
-                                  <option value="">{ta('ghlCrmSelectCustomField')}</option>
-                                  {ghlCustomFields.map(f => (
-                                    <option key={f.id} value={f.fieldKey}>{f.name} ({f.dataType})</option>
-                                  ))}
-                                </select>
+                              <div key={idx} className="group relative bg-gray-50 dark:bg-dark-hover rounded-xl p-3 border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 transition-colors">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <div className="relative flex-1">
+                                    <select
+                                      value={field.fieldKey || ''}
+                                      onChange={(e) => {
+                                        const selected = ghlCustomFields.find(f => f.fieldKey === e.target.value)
+                                        const updated = [...(serverConfig.ghlCustomFields || [])]
+                                        updated[idx] = {
+                                          ...updated[idx],
+                                          fieldKey: e.target.value,
+                                          name: selected?.name || e.target.value,
+                                          dataType: selected?.dataType || field.dataType || 'string'
+                                        }
+                                        setServerConfig({ ...serverConfig, ghlCustomFields: updated })
+                                      }}
+                                      className="appearance-none w-full pl-3 pr-8 py-1.5 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm font-medium cursor-pointer focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
+                                    >
+                                      <option value="" className="text-gray-400">{ta('ghlCrmSelectCustomField')}</option>
+                                      {ghlCustomFields.map(f => (
+                                        <option key={f.id} value={f.fieldKey}>{f.name}</option>
+                                      ))}
+                                    </select>
+                                    <svg className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                  </div>
+                                  {field.dataType && (
+                                    <span className="px-2 py-1 rounded-md bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 text-[10px] font-mono whitespace-nowrap">{field.dataType}</span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = (serverConfig.ghlCustomFields || []).filter((_, i) => i !== idx)
+                                      setServerConfig({ ...serverConfig, ghlCustomFields: updated })
+                                    }}
+                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                  </button>
+                                </div>
                                 <input
                                   type="text"
                                   value={field.description || ''}
@@ -4480,24 +4503,22 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                                     setServerConfig({ ...serverConfig, ghlCustomFields: updated })
                                   }}
                                   placeholder={ta('fieldDescription')}
-                                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                  className="w-full px-3 py-1.5 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-600 dark:text-gray-400 text-xs focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
                                 />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = (serverConfig.ghlCustomFields || []).filter((_, i) => i !== idx)
-                                    setServerConfig({ ...serverConfig, ghlCustomFields: updated })
-                                  }}
-                                  className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                </button>
+                                {field.fieldKey && (
+                                  <div className="mt-1.5 flex items-center gap-1">
+                                    <code className="text-[10px] text-gray-400 font-mono">{field.fieldKey}</code>
+                                    <button onClick={() => navigator.clipboard.writeText(field.fieldKey)} className="text-gray-300 hover:text-primary-500 transition-colors">
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                             <button
                               type="button"
                               onClick={() => setServerConfig({ ...serverConfig, ghlCustomFields: [...(serverConfig.ghlCustomFields || []), { fieldKey: '', name: '', dataType: 'string', description: '' }] })}
-                              className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center gap-1"
+                              className="w-full py-2 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 dark:border-dark-border hover:border-primary-400 dark:hover:border-primary-600 rounded-xl transition-colors"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                               {ta('ghlCrmAddCustomField')}
@@ -4853,50 +4874,60 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmPipelineMappingDesc')}</p>
 
                         {/* Pipeline selector */}
-                        <div className="mb-3">
-                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1 block">{ta('ghlCrmPipeline')}</label>
-                          <select
-                            value={ghlCrmConfig.pipelineId}
-                            onChange={(e) => {
-                              const pl = ghlPipelines.find(p => p.id === e.target.value)
-                              setGhlCrmConfig(c => ({
-                                ...c,
-                                pipelineId: e.target.value,
-                                pipelineName: pl?.name || '',
-                                pipelineMapping: { booked: '', answered: '', not_interested: '', failed: '', transferred: '', voicemail: '' }
-                              }))
-                            }}
-                            className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-hover text-gray-900 dark:text-white"
-                          >
-                            <option value="">{ta('ghlCrmSelectPipeline')}</option>
-                            {ghlPipelines.map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                          </select>
+                        <div className="mb-4">
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5 block">{ta('ghlCrmPipeline')}</label>
+                          <div className="relative">
+                            <select
+                              value={ghlCrmConfig.pipelineId}
+                              onChange={(e) => {
+                                const pl = ghlPipelines.find(p => p.id === e.target.value)
+                                setGhlCrmConfig(c => ({
+                                  ...c,
+                                  pipelineId: e.target.value,
+                                  pipelineName: pl?.name || '',
+                                  pipelineMapping: { booked: '', answered: '', not_interested: '', failed: '', transferred: '', voicemail: '' }
+                                }))
+                              }}
+                              className="appearance-none w-full text-sm pl-3 pr-8 py-2.5 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-hover text-gray-900 dark:text-white cursor-pointer focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
+                            >
+                              <option value="">{ta('ghlCrmSelectPipeline')}</option>
+                              {ghlPipelines.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                            </select>
+                            <svg className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                          </div>
                         </div>
 
                         {/* Stage mapping per outcome */}
                         {ghlCrmConfig.pipelineId && (() => {
                           const selectedPipeline = ghlPipelines.find(p => p.id === ghlCrmConfig.pipelineId)
                           const stages = selectedPipeline?.stages || []
-                          return ['booked', 'answered', 'not_interested', 'failed', 'transferred', 'voicemail'].map(outcome => (
-                            <div key={outcome} className="mb-2">
-                              <label className="text-xs font-medium text-gray-600 dark:text-gray-400 capitalize mb-1 block">{outcome.replace('_', ' ')}</label>
-                              <select
-                                value={ghlCrmConfig.pipelineMapping[outcome] || ''}
-                                onChange={(e) => setGhlCrmConfig(c => ({
-                                  ...c,
-                                  pipelineMapping: { ...c.pipelineMapping, [outcome]: e.target.value }
-                                }))}
-                                className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-hover text-gray-900 dark:text-white"
-                              >
-                                <option value="">{ta('ghlCrmNoStage')}</option>
-                                {stages.map(s => (
-                                  <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                              </select>
+                          return (
+                            <div className="space-y-2">
+                              {['booked', 'answered', 'not_interested', 'failed', 'transferred', 'voicemail'].map(outcome => (
+                                <div key={outcome} className="flex items-center gap-3 bg-gray-50 dark:bg-dark-hover rounded-xl px-3 py-2.5 border border-gray-200 dark:border-dark-border">
+                                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400 capitalize w-28 shrink-0">{outcome.replace('_', ' ')}</span>
+                                  <div className="relative flex-1">
+                                    <select
+                                      value={ghlCrmConfig.pipelineMapping[outcome] || ''}
+                                      onChange={(e) => setGhlCrmConfig(c => ({
+                                        ...c,
+                                        pipelineMapping: { ...c.pipelineMapping, [outcome]: e.target.value }
+                                      }))}
+                                      className="appearance-none w-full text-sm pl-3 pr-8 py-1.5 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white cursor-pointer focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
+                                    >
+                                      <option value="" className="text-gray-400">{ta('ghlCrmNoStage')}</option>
+                                      {stages.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                      ))}
+                                    </select>
+                                    <svg className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          ))
+                          )
                         })()}
                       </div>
 
