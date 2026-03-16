@@ -35,6 +35,8 @@ const paymentRoutes = require('./routes/payments');
 const toolRoutes = require('./routes/tools');
 const callbackRoutes = require('./routes/callbacks');
 const callbackController = require('./controllers/callbackController');
+const followUpRoutes = require('./routes/followUps');
+const followUpController = require('./controllers/followUpController');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -91,6 +93,7 @@ app.use('/api/chatbots', chatbotRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/tools', toolRoutes);
 app.use('/api/callbacks', callbackRoutes);
+app.use('/api/follow-ups', followUpRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -124,4 +127,5 @@ process.on('SIGINT', async () => {
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   callbackController.startScheduler(prisma);
+  followUpController.startScheduler(prisma);
 });

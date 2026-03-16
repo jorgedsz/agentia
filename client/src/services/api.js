@@ -255,6 +255,11 @@ export const callbackAPI = {
   cancel: (id) => api.delete(`/callbacks/${id}`)
 }
 
+export const followUpAPI = {
+  list: () => api.get('/follow-ups'),
+  cancel: (id) => api.delete(`/follow-ups/${id}`)
+}
+
 // Chat API (uses fetch for SSE streaming, not axios)
 export const chatAPI = {
   sendMessage: async (messages, onChunk, onDone, onError) => {

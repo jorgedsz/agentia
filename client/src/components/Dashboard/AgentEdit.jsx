@@ -559,6 +559,14 @@ export default function AgentEdit() {
     enabled: false
   })
 
+  // Follow-up calls config
+  const [followUpConfig, setFollowUpConfig] = useState({
+    enabled: false,
+    maxAttempts: 3,
+    intervalMinutes: 120,
+    outcomes: ['failed', 'voicemail']
+  })
+
   // Call Transfer settings
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [transferConfig, setTransferConfig] = useState({
@@ -1068,6 +1076,11 @@ export default function AgentEdit() {
       // Load callback config
       if (agentData.config?.callbackConfig) {
         setCallbackConfig(agentData.config.callbackConfig)
+      }
+
+      // Load follow-up config
+      if (agentData.config?.followUpConfig) {
+        setFollowUpConfig(prev => ({ ...prev, ...agentData.config.followUpConfig }))
       }
 
       // Load trigger variables
@@ -1652,6 +1665,7 @@ If the customer asks to be called back at a later time:
           })(),
           transferConfig,
           callbackConfig,
+          followUpConfig,
           ghlCrmConfig,
           // Voice settings
           elevenLabsModel: voiceSettings.model,
@@ -4151,6 +4165,17 @@ If the customer asks to be called back at a later time:
                       </div>
                       {callbackConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
                     </button>
+
+                    {/* Follow-ups */}
+                    <button onClick={() => setAdvancedSubPanel('followUps')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('followUps')}</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${followUpConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${followUpConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </div>
+                      {followUpConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
                   </div>
                 </div>
                 <div className="p-4 pt-2">
@@ -5038,6 +5063,111 @@ If the customer asks to be called back at a later time:
                     <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                       <p className="text-xs text-amber-700 dark:text-amber-300">{ta('callbacksPhoneNote')}</p>
                     </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Follow-ups */}
+            {advancedSubPanel === 'followUps' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('followUps')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'followUps' ? null : 'followUps')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
+                </div>
+                {advancedInfoPopup === 'followUps' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('followUpsInfo')}</div>
+                )}
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                  {/* Enable toggle */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{ta('followUpsEnable')}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('followUpsDesc')}</p>
+                    </div>
+                    <button
+                      onClick={() => setFollowUpConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${followUpConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${followUpConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {followUpConfig.enabled && (
+                    <>
+                      {/* Max attempts */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('followUpsMaxAttempts')}</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={followUpConfig.maxAttempts}
+                          onChange={(e) => setFollowUpConfig(prev => ({ ...prev, maxAttempts: Math.min(10, Math.max(1, parseInt(e.target.value) || 1)) }))}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                        />
+                      </div>
+
+                      {/* Interval */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('followUpsInterval')}</label>
+                        <select
+                          value={followUpConfig.intervalMinutes}
+                          onChange={(e) => setFollowUpConfig(prev => ({ ...prev, intervalMinutes: parseInt(e.target.value) }))}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                        >
+                          <option value={30}>30 min</option>
+                          <option value={60}>1 hour</option>
+                          <option value={120}>2 hours</option>
+                          <option value={240}>4 hours</option>
+                          <option value={480}>8 hours</option>
+                          <option value={1440}>1 day</option>
+                          <option value={2880}>2 days</option>
+                          <option value={4320}>3 days</option>
+                        </select>
+                      </div>
+
+                      {/* Outcomes checkboxes */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{ta('followUpsOutcomes')}</label>
+                        <div className="space-y-2">
+                          {[
+                            { value: 'failed', label: ta('followUpsOutcomesFailed') },
+                            { value: 'voicemail', label: ta('followUpsOutcomesVoicemail') },
+                            { value: 'answered', label: ta('followUpsOutcomesAnswered') },
+                            { value: 'not_interested', label: ta('followUpsOutcomesNotInterested') },
+                            { value: 'unknown', label: ta('followUpsOutcomesUnknown') }
+                          ].map(({ value, label }) => (
+                            <label key={value} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={followUpConfig.outcomes.includes(value)}
+                                onChange={(e) => {
+                                  setFollowUpConfig(prev => ({
+                                    ...prev,
+                                    outcomes: e.target.checked
+                                      ? [...prev.outcomes, value]
+                                      : prev.outcomes.filter(o => o !== value)
+                                  }))
+                                }}
+                                className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Context note */}
+                      <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <p className="text-xs text-blue-700 dark:text-blue-300">{ta('followUpsContextNote')}</p>
+                      </div>
+                    </>
                   )}
                 </div>
               </>

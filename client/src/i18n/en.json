@@ -962,7 +962,20 @@
     "callbacksEnable": "Enable scheduled callbacks",
     "callbacksDesc": "Allow the AI agent to schedule a callback when the customer asks to be called back later.",
     "callbacksInfo": "When enabled, the agent can schedule a callback during a call. A background process will automatically initiate the outbound call at the scheduled time using this agent.",
-    "callbacksPhoneNote": "The agent's assigned phone number will be used for callbacks. Make sure a phone number is assigned to this agent."
+    "callbacksPhoneNote": "The agent's assigned phone number will be used for callbacks. Make sure a phone number is assigned to this agent.",
+    "followUps": "Follow-ups",
+    "followUpsEnable": "Enable automatic follow-ups",
+    "followUpsDesc": "Automatically schedule follow-up calls based on call outcome.",
+    "followUpsInfo": "When enabled, the system will automatically schedule follow-up calls after a call ends, based on the outcome. A background process fires the follow-up at the configured interval. The agent receives context about the previous conversation when appropriate.",
+    "followUpsMaxAttempts": "Max follow-up attempts",
+    "followUpsInterval": "Time between attempts",
+    "followUpsOutcomes": "Trigger follow-up when outcome is:",
+    "followUpsOutcomesFailed": "Not answered (failed)",
+    "followUpsOutcomesVoicemail": "Voicemail",
+    "followUpsOutcomesAnswered": "Answered (call completed but no booking)",
+    "followUpsOutcomesNotInterested": "Not interested",
+    "followUpsOutcomesUnknown": "Unknown",
+    "followUpsContextNote": "For 'answered' and 'not interested' outcomes, the agent will receive context about the previous conversation. For 'failed', 'voicemail', and 'unknown', the call is treated as a first attempt since the customer wasn't reached."
   },
   "pricing": {
     "modelRates": "Model Rates",

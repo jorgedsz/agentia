@@ -962,7 +962,20 @@
     "callbacksEnable": "Habilitar callbacks programados",
     "callbacksDesc": "Permite al agente de IA programar una devolucion de llamada cuando el cliente pide que le devuelvan la llamada mas tarde.",
     "callbacksInfo": "Cuando esta habilitado, el agente puede programar una devolucion de llamada durante una llamada. Un proceso en segundo plano iniciara automaticamente la llamada saliente en el horario programado usando este agente.",
-    "callbacksPhoneNote": "Se usara el numero de telefono asignado al agente para los callbacks. Asegurate de que el agente tenga un numero asignado."
+    "callbacksPhoneNote": "Se usara el numero de telefono asignado al agente para los callbacks. Asegurate de que el agente tenga un numero asignado.",
+    "followUps": "Seguimientos",
+    "followUpsEnable": "Habilitar seguimientos automaticos",
+    "followUpsDesc": "Programar automaticamente llamadas de seguimiento segun el resultado de la llamada.",
+    "followUpsInfo": "Cuando esta habilitado, el sistema programara automaticamente llamadas de seguimiento despues de que termine una llamada, segun el resultado. Un proceso en segundo plano ejecuta el seguimiento en el intervalo configurado. El agente recibe contexto sobre la conversacion anterior cuando corresponde.",
+    "followUpsMaxAttempts": "Maximo de intentos de seguimiento",
+    "followUpsInterval": "Tiempo entre intentos",
+    "followUpsOutcomes": "Activar seguimiento cuando el resultado es:",
+    "followUpsOutcomesFailed": "No contestada (fallida)",
+    "followUpsOutcomesVoicemail": "Buzon de voz",
+    "followUpsOutcomesAnswered": "Contestada (llamada completada sin reserva)",
+    "followUpsOutcomesNotInterested": "No interesado",
+    "followUpsOutcomesUnknown": "Desconocido",
+    "followUpsContextNote": "Para resultados de 'contestada' y 'no interesado', el agente recibira contexto sobre la conversacion anterior. Para 'fallida', 'buzon de voz' y 'desconocido', la llamada se trata como un primer intento ya que no se contacto al cliente."
   },
   "pricing": {
     "modelRates": "Tarifas de Modelos",

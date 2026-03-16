@@ -448,6 +448,12 @@ const handleEvent = async (req, res) => {
         console.error('[GHL CRM] processGhlCrmActions failed:', err.message)
       );
 
+      // 6b. Schedule follow-up if configured
+      const followUpController = require('./followUpController');
+      followUpController.scheduleFollowUp(prisma, callLog, agent, outcome, summary).catch(err =>
+        console.error('[Follow-Up] scheduleFollowUp failed:', err.message)
+      );
+
       // 7. Forward to user's webhook URL if configured
       const webhookUrl = agentConfig.serverUrl;
 
