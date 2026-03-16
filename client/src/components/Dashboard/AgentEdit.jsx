@@ -4014,7 +4014,7 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                     </button>
 
                     {/* Structured Data */}
-                    <button onClick={() => setAdvancedSubPanel('structuredData')} className="flex flex-col items-center gap-2 group">
+                    <button onClick={() => { setAdvancedSubPanel('structuredData'); fetchGhlCrmData() }} className="flex flex-col items-center gap-2 group">
                       <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('structuredData')}</span>
                       <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.structuredDataEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
                         <svg className={`w-7 h-7 ${serverConfig.structuredDataEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4434,6 +4434,39 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                         />
                         <p className="text-xs text-gray-400 mt-1">{ta('extractionInstructionsDesc')}</p>
                       </div>
+
+                      {/* GHL Custom Fields Reference */}
+                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
+                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{ta('ghlCrmCustomFields')}</h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmCustomFieldsDesc')}</p>
+                        {ghlCrmLoading ? (
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                            {ta('ghlCrmLoadingData')}
+                          </div>
+                        ) : ghlCustomFields.length === 0 ? (
+                          <p className="text-xs text-gray-400 italic">{ta('ghlCrmNoCustomFields')}</p>
+                        ) : (
+                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                            {ghlCustomFields.map(f => (
+                              <div key={f.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-hover rounded-lg text-xs">
+                                <div>
+                                  <span className="font-medium text-gray-700 dark:text-gray-300">{f.name}</span>
+                                  <span className="text-gray-400 ml-2">({f.dataType})</span>
+                                </div>
+                                <button
+                                  onClick={() => { navigator.clipboard.writeText(f.fieldKey); }}
+                                  className="text-primary-600 hover:text-primary-700 text-xs flex items-center gap-1"
+                                  title={f.fieldKey}
+                                >
+                                  <code className="text-[10px] text-gray-500 mr-1">{f.fieldKey}</code>
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
@@ -4829,33 +4862,6 @@ ${entry.scenario || entry.description || 'Transfer when the caller requests to b
                         })()}
                       </div>
 
-                      {/* --- Custom Fields Reference --- */}
-                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{ta('ghlCrmCustomFields')}</h4>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmCustomFieldsDesc')}</p>
-                        {ghlCustomFields.length === 0 ? (
-                          <p className="text-xs text-gray-400 italic">{ta('ghlCrmNoCustomFields')}</p>
-                        ) : (
-                          <div className="space-y-1 max-h-48 overflow-y-auto">
-                            {ghlCustomFields.map(f => (
-                              <div key={f.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-hover rounded-lg text-xs">
-                                <div>
-                                  <span className="font-medium text-gray-700 dark:text-gray-300">{f.name}</span>
-                                  <span className="text-gray-400 ml-2">({f.dataType})</span>
-                                </div>
-                                <button
-                                  onClick={() => { navigator.clipboard.writeText(f.fieldKey); }}
-                                  className="text-primary-600 hover:text-primary-700 text-xs flex items-center gap-1"
-                                  title={f.fieldKey}
-                                >
-                                  <code className="text-[10px] text-gray-500 mr-1">{f.fieldKey}</code>
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
                     </>
                   )}
                 </div>
