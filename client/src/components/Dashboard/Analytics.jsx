@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { callsAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
@@ -56,6 +56,49 @@ function formatCurrency(amount) {
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+function InfoTip({ text }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <span className="relative inline-flex ml-1" ref={ref}>
+      <svg
+        className="w-4 h-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-help shrink-0"
+        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onClick={() => setOpen(!open)}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      {open && (
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 px-3 py-2 text-xs text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg pointer-events-none">
+          {text}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px">
+            <div className="w-2 h-2 bg-white dark:bg-dark-card border-r border-b border-gray-200 dark:border-dark-border rotate-45 -translate-y-1" />
+          </div>
+        </div>
+      )}
+    </span>
+  )
+}
+
+function SectionTitle({ children, tip }) {
+  return (
+    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4 flex items-center">
+      {children}
+      {tip && <InfoTip text={tip} />}
+    </h3>
+  )
+}
 
 export default function Analytics() {
   const { t } = useLanguage()
@@ -240,7 +283,7 @@ function CallsTab({ data, advancedCalls, t }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.outcomeDistribution')}</h3>
+          <SectionTitle tip={t('analytics.tipOutcomeDistribution')}>{t('analytics.outcomeDistribution')}</SectionTitle>
           {pieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
@@ -258,7 +301,7 @@ function CallsTab({ data, advancedCalls, t }) {
         </div>
 
         <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.dailyCallOutcomes')}</h3>
+          <SectionTitle tip={t('analytics.tipDailyOutcomes')}>{t('analytics.dailyCallOutcomes')}</SectionTitle>
           {data?.dailyCounts?.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={data.dailyCounts}>
@@ -284,7 +327,7 @@ function CallsTab({ data, advancedCalls, t }) {
 
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('analytics.outcomeBreakdown')}</h3>
+          <SectionTitle tip={t('analytics.tipOutcomeBreakdown')}>{t('analytics.outcomeBreakdown')}</SectionTitle>
         </div>
         <div className="divide-y divide-gray-200 dark:divide-dark-border">
           {Object.entries(OUTCOME_LABELS).map(([key, label]) => {
@@ -313,7 +356,7 @@ function CallsTab({ data, advancedCalls, t }) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 mb-6">
             {/* Inbound vs Outbound */}
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.inboundVsOutbound')}</h3>
+              <SectionTitle tip={t('analytics.tipInboundVsOutbound')}>{t('analytics.inboundVsOutbound')}</SectionTitle>
               {(advancedCalls.inboundVsOutbound?.inbound > 0 || advancedCalls.inboundVsOutbound?.outbound > 0) ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
@@ -337,7 +380,7 @@ function CallsTab({ data, advancedCalls, t }) {
 
             {/* End Reasons */}
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.endReasonsBreakdown')}</h3>
+              <SectionTitle tip={t('analytics.tipEndReasons')}>{t('analytics.endReasonsBreakdown')}</SectionTitle>
               {Object.keys(advancedCalls.endReasons || {}).length > 0 ? (
                 <div className="space-y-2 max-h-[240px] overflow-y-auto">
                   {Object.entries(advancedCalls.endReasons)
@@ -363,7 +406,7 @@ function CallsTab({ data, advancedCalls, t }) {
           {/* Heatmap */}
           {advancedCalls.hourlyHeatmap?.length > 0 && (
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-              <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.heatmapTitle')}</h3>
+              <SectionTitle tip={t('analytics.tipHeatmap')}>{t('analytics.heatmapTitle')}</SectionTitle>
               <HeatmapChart data={advancedCalls.hourlyHeatmap} t={t} />
             </div>
           )}
@@ -388,19 +431,19 @@ function RevenueTab({ data, t }) {
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title={t('analytics.mrr')} value={formatCurrency(data.mrr)} color="blue"
+        <StatCard title={t('analytics.mrr')} value={formatCurrency(data.mrr)} color="blue" tip={t('analytics.tipMrr')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
-        <StatCard title={t('analytics.arr')} value={formatCurrency(data.arr)} color="green"
+        <StatCard title={t('analytics.arr')} value={formatCurrency(data.arr)} color="green" tip={t('analytics.tipArr')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>} />
-        <StatCard title={t('analytics.activeSubscriptions')} value={data.totalActiveSubscriptions} color="emerald"
+        <StatCard title={t('analytics.activeSubscriptions')} value={data.totalActiveSubscriptions} color="emerald" tip={t('analytics.tipActiveSubscriptions')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>} />
-        <StatCard title={t('analytics.creditsConsumed')} value={formatCurrency(data.creditsConsumed)} color="violet"
+        <StatCard title={t('analytics.creditsConsumed')} value={formatCurrency(data.creditsConsumed)} color="violet" tip={t('analytics.tipCreditsConsumed')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.revenueByProduct')}</h3>
+          <SectionTitle tip={t('analytics.tipRevenueByProduct')}>{t('analytics.revenueByProduct')}</SectionTitle>
           {productPieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
@@ -416,7 +459,7 @@ function RevenueTab({ data, t }) {
         </div>
 
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.revenueByBillingCycle')}</h3>
+          <SectionTitle tip={t('analytics.tipRevenueByBillingCycle')}>{t('analytics.revenueByBillingCycle')}</SectionTitle>
           {billingData.some(d => d.value > 0) ? (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={billingData}>
@@ -434,7 +477,7 @@ function RevenueTab({ data, t }) {
       {/* Top Spenders Table */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('analytics.topSpenders')}</h3>
+          <SectionTitle tip={t('analytics.tipTopSpenders')}>{t('analytics.topSpenders')}</SectionTitle>
         </div>
         {data.topSpenders?.length > 0 ? (
           <div className="overflow-x-auto">
@@ -506,9 +549,9 @@ function AgentsTab({ data, t }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard title={t('analytics.totalAgentsMetric')} value={totalAgents} color="blue"
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>} />
-        <StatCard title={t('analytics.bestBookingRate')} value={`${bestBookingRate.toFixed(1)}%`} color="green"
+        <StatCard title={t('analytics.bestBookingRate')} value={`${bestBookingRate.toFixed(1)}%`} color="green" tip={t('analytics.tipBestBookingRate')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>} />
-        <StatCard title={t('analytics.avgCostPerBooking')} value={formatCurrency(avgCostPerBooking)} color="emerald"
+        <StatCard title={t('analytics.avgCostPerBooking')} value={formatCurrency(avgCostPerBooking)} color="emerald" tip={t('analytics.tipAvgCostPerBooking')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
         <StatCard title={t('analytics.avgDuration')} value={formatDuration(avgDurationAll)} color="violet"
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
@@ -517,7 +560,7 @@ function AgentsTab({ data, t }) {
       {/* Top 10 Agents by Booking Rate */}
       {top10.length > 0 && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 mb-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.bookingRateCol')} — Top 10</h3>
+          <SectionTitle tip={t('analytics.tipBookingRateChart')}>{t('analytics.bookingRateCol')} — Top 10</SectionTitle>
           <ResponsiveContainer width="100%" height={Math.max(200, top10.length * 36)}>
             <BarChart data={top10} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -533,7 +576,7 @@ function AgentsTab({ data, t }) {
       {/* Agent Performance Table */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('analytics.agentPerformance')}</h3>
+          <SectionTitle tip={t('analytics.tipAgentPerformance')}>{t('analytics.agentPerformance')}</SectionTitle>
         </div>
         {perAgent.length > 0 ? (
           <div className="overflow-x-auto">
@@ -572,7 +615,7 @@ function AgentsTab({ data, t }) {
       {/* Agent Utilization Chart */}
       {utilizationChartData.length > 0 && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.agentUtilization')}</h3>
+          <SectionTitle tip={t('analytics.tipAgentUtilization')}>{t('analytics.agentUtilization')}</SectionTitle>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={utilizationChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -604,20 +647,20 @@ function ClientsTab({ data, t }) {
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title={t('analytics.totalClientsMetric')} value={data.totalClients || 0} color="blue"
+        <StatCard title={t('analytics.totalClientsMetric')} value={data.totalClients || 0} color="blue" tip={t('analytics.tipTotalClients')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>} />
-        <StatCard title={t('analytics.activeClientsMetric')} value={data.activeClients || 0} color="green"
+        <StatCard title={t('analytics.activeClientsMetric')} value={data.activeClients || 0} color="green" tip={t('analytics.tipActiveClients')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
-        <StatCard title={t('analytics.atRiskClients')} value={data.atRiskClients?.length || 0} color="amber"
+        <StatCard title={t('analytics.atRiskClients')} value={data.atRiskClients?.length || 0} color="amber" tip={t('analytics.tipAtRisk')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>} />
-        <StatCard title={t('analytics.newThisMonth')} value={data.newThisMonth || 0} color="violet"
+        <StatCard title={t('analytics.newThisMonth')} value={data.newThisMonth || 0} color="violet" tip={t('analytics.tipNewThisMonth')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>} />
       </div>
 
       {/* New Clients Over Time */}
       {newClientsChartData.length > 0 && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 mb-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.newClientsOverTime')}</h3>
+          <SectionTitle tip={t('analytics.tipNewClientsOverTime')}>{t('analytics.newClientsOverTime')}</SectionTitle>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={newClientsChartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -633,7 +676,7 @@ function ClientsTab({ data, t }) {
       {/* Active Clients Table */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('analytics.clientActivity')}</h3>
+          <SectionTitle tip={t('analytics.tipClientActivity')}>{t('analytics.clientActivity')}</SectionTitle>
         </div>
         {data.clientActivity?.length > 0 ? (
           <div className="overflow-x-auto">
@@ -677,7 +720,7 @@ function ClientsTab({ data, t }) {
       {data.atRiskClients?.length > 0 && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-red-200 dark:border-red-800/50 overflow-hidden">
           <div className="px-6 py-4 border-b border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-900/10">
-            <h3 className="text-sm font-medium text-red-600 dark:text-red-400">{t('analytics.atRiskClients')}</h3>
+            <h3 className="text-sm font-medium text-red-600 dark:text-red-400 flex items-center">{t('analytics.atRiskClients')}<InfoTip text={t('analytics.tipAtRiskTable')} /></h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -731,7 +774,7 @@ function GrowthTab({ data, t }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard title={t('analytics.totalAgentsMetric')} value={data.totalAgents || 0} color="blue"
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>} />
-        <StatCard title={t('analytics.calendarIntegrations')} value={data.totalCalendarIntegrations || 0} color="green"
+        <StatCard title={t('analytics.calendarIntegrations')} value={data.totalCalendarIntegrations || 0} color="green" tip={t('analytics.tipCalendarIntegrations')}
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} />
         <StatCard title={t('analytics.productsActive')} value={data.productAdoption?.length || 0} color="violet"
           icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>} />
@@ -740,7 +783,7 @@ function GrowthTab({ data, t }) {
       {/* Agents over time (cumulative) */}
       {cumulativeAgents.length > 0 && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 mb-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.agentsOverTime')}</h3>
+          <SectionTitle tip={t('analytics.tipAgentsOverTime')}>{t('analytics.agentsOverTime')}</SectionTitle>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={cumulativeAgents}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -756,7 +799,7 @@ function GrowthTab({ data, t }) {
       {/* Product Adoption */}
       {data.productAdoption?.length > 0 && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">{t('analytics.productAdoption')}</h3>
+          <SectionTitle tip={t('analytics.tipProductAdoption')}>{t('analytics.productAdoption')}</SectionTitle>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={data.productAdoption}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -829,7 +872,7 @@ function HeatmapChart({ data, t }) {
 }
 
 // ─── SHARED COMPONENTS ───
-function StatCard({ title, value, icon, color }) {
+function StatCard({ title, value, icon, color, tip }) {
   const colorMap = {
     blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
     green: 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400',
@@ -844,7 +887,7 @@ function StatCard({ title, value, icon, color }) {
         <div className={`p-2 rounded-lg ${colorMap[color] || colorMap.blue}`}>
           {icon}
         </div>
-        <span className="text-sm text-gray-500 dark:text-gray-400">{title}</span>
+        <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center">{title}{tip && <InfoTip text={tip} />}</span>
       </div>
       <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
     </div>
