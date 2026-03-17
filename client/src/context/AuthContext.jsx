@@ -20,17 +20,38 @@ export function AuthProvider({ children }) {
     checkAuth()
   }, [])
 
-  // Update favicon when branding logo changes
+  // Update favicon when branding logo changes (with rounded corners)
   useEffect(() => {
     if (branding.companyLogo) {
-      let link = document.querySelector("link[rel~='icon']")
-      if (!link) {
-        link = document.createElement('link')
-        link.rel = 'icon'
-        document.head.appendChild(link)
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        const size = 64
+        const radius = 14
+        const canvas = document.createElement('canvas')
+        canvas.width = size
+        canvas.height = size
+        const ctx = canvas.getContext('2d')
+        ctx.beginPath()
+        ctx.moveTo(radius, 0)
+        ctx.arcTo(size, 0, size, size, radius)
+        ctx.arcTo(size, size, 0, size, radius)
+        ctx.arcTo(0, size, 0, 0, radius)
+        ctx.arcTo(0, 0, size, 0, radius)
+        ctx.closePath()
+        ctx.clip()
+        ctx.drawImage(img, 0, 0, size, size)
+
+        let link = document.querySelector("link[rel~='icon']")
+        if (!link) {
+          link = document.createElement('link')
+          link.rel = 'icon'
+          document.head.appendChild(link)
+        }
+        link.type = 'image/png'
+        link.href = canvas.toDataURL('image/png')
       }
-      link.type = 'image/png'
-      link.href = branding.companyLogo
+      img.src = branding.companyLogo
     }
   }, [branding.companyLogo])
 
