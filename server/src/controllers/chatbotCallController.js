@@ -9,7 +9,7 @@ const { getVapiKeyForUser } = require('../utils/getApiKeys');
  */
 async function triggerCall(req, res) {
   try {
-    const { userId, agentId } = req.query;
+    const { userId, agentId, phoneNumberId } = req.query;
     console.log(`[Chatbot Call] triggerCall — query:`, req.query, `body:`, JSON.stringify(req.body));
 
     if (!userId || !agentId) {
@@ -46,10 +46,16 @@ async function triggerCall(req, res) {
       return res.json({ success: false, message: 'Agent not found or not synced to VAPI.' });
     }
 
-    // Find phone number
-    const phoneNumber = agent.phoneNumbers?.[0];
+    // Find phone number: use selected phoneNumberId from query, or fall back to agent's first assigned
+    let phoneNumber = null;
+    if (phoneNumberId) {
+      phoneNumber = await req.prisma.phoneNumber.findUnique({ where: { id: parseInt(phoneNumberId) } });
+    }
+    if (!phoneNumber) {
+      phoneNumber = agent.phoneNumbers?.[0];
+    }
     if (!phoneNumber || !phoneNumber.vapiPhoneNumberId) {
-      return res.json({ success: false, message: 'No phone number assigned to this agent. Please assign a phone number first.' });
+      return res.json({ success: false, message: 'No phone number found. Please select a phone number in the call tool settings.' });
     }
 
     // Get VAPI key
@@ -104,7 +110,7 @@ async function triggerCall(req, res) {
  */
 async function scheduleCall(req, res) {
   try {
-    const { userId, agentId } = req.query;
+    const { userId, agentId, phoneNumberId } = req.query;
 
     if (!userId || !agentId) {
       return res.status(400).json({ success: false, message: 'Missing required query params: userId, agentId' });
@@ -141,7 +147,15 @@ async function scheduleCall(req, res) {
       return res.json({ success: false, message: 'Agent not found.' });
     }
 
-    const fromNumber = agent.phoneNumbers?.[0]?.phoneNumber || null;
+    // Use selected phone number or fall back to agent's first assigned
+    let fromNumber = null;
+    if (phoneNumberId) {
+      const pn = await req.prisma.phoneNumber.findUnique({ where: { id: parseInt(phoneNumberId) } });
+      if (pn) fromNumber = pn.phoneNumber;
+    }
+    if (!fromNumber) {
+      fromNumber = agent.phoneNumbers?.[0]?.phoneNumber || null;
+    }
 
     // Create the scheduled callback record (reuses existing ScheduledCallback model)
     const callback = await req.prisma.scheduledCallback.create({

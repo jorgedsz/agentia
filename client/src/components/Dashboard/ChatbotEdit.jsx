@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { chatbotsAPI, promptGeneratorAPI, calendarAPI, agentsAPI } from '../../services/api'
+import { chatbotsAPI, promptGeneratorAPI, calendarAPI, agentsAPI, phoneNumbersAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { MODELS_BY_PROVIDER } from '../../constants/models'
 import TestChatbotModal from './TestChatbotModal'
@@ -122,8 +122,9 @@ export default function ChatbotEdit() {
 
   // Call tool settings
   const [showCallModal, setShowCallModal] = useState(false)
-  const [callConfig, setCallConfig] = useState({ enabled: false, agentId: '' })
+  const [callConfig, setCallConfig] = useState({ enabled: false, agentId: '', phoneNumberId: '' })
   const [agentsList, setAgentsList] = useState([])
+  const [phoneNumbersList, setPhoneNumbersList] = useState([])
 
   // Calendar settings
   const [showCalendarModal, setShowCalendarModal] = useState(false)
@@ -149,6 +150,7 @@ export default function ChatbotEdit() {
     fetchChatbot()
     fetchCalendarIntegrations()
     fetchAgents()
+    fetchPhoneNumbers()
   }, [id])
 
   const fetchAgents = async () => {
@@ -157,6 +159,15 @@ export default function ChatbotEdit() {
       setAgentsList(data.agents || [])
     } catch (err) {
       console.error('Failed to fetch agents:', err)
+    }
+  }
+
+  const fetchPhoneNumbers = async () => {
+    try {
+      const { data } = await phoneNumbersAPI.list()
+      setPhoneNumbersList(data.phoneNumbers || [])
+    } catch (err) {
+      console.error('Failed to fetch phone numbers:', err)
     }
   }
 
@@ -409,10 +420,14 @@ export default function ChatbotEdit() {
     if (!callConfig.enabled || !callConfig.agentId) return callTools
 
     const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
-    const queryParams = new URLSearchParams({
+    const qp = {
       userId: user?.id?.toString() || '',
       agentId: callConfig.agentId
-    }).toString()
+    }
+    if (callConfig.phoneNumberId) {
+      qp.phoneNumberId = callConfig.phoneNumberId
+    }
+    const queryParams = new URLSearchParams(qp).toString()
 
     callTools.push({
       type: 'apiRequest',
@@ -1575,14 +1590,20 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     </select>
                   </div>
 
-                  {/* Phone note */}
-                  <div className="flex items-start gap-2.5 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                    <svg className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                      The agent's assigned phone number will be used for calls. Make sure a phone number is assigned to the selected agent.
-                    </p>
+                  {/* Phone number dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Phone Number *</label>
+                    <select
+                      value={callConfig.phoneNumberId}
+                      onChange={(e) => setCallConfig({ ...callConfig, phoneNumberId: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select a phone number...</option>
+                      {phoneNumbersList.map(pn => (
+                        <option key={pn.id} value={pn.id}>{pn.phoneNumber}{pn.label ? ` (${pn.label})` : ''}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">This phone number will be used as the caller ID for outbound calls.</p>
                   </div>
                 </>
               )}

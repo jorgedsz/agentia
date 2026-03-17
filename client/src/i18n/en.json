@@ -1015,7 +1015,9 @@
     "callToolInfo": "When enabled, the chatbot can call a customer immediately or schedule a call for later. Two tools are auto-generated: one for immediate calls and one for scheduled callbacks.",
     "callToolAgent": "Voice Agent",
     "callToolSelectAgent": "Select an agent...",
-    "callToolPhoneNote": "The agent's assigned phone number will be used for calls. Make sure a phone number is assigned to the selected agent."
+    "callToolPhone": "Phone Number",
+    "callToolSelectPhone": "Select a phone number...",
+    "callToolPhoneNote": "This phone number will be used as the caller ID for outbound calls."
   },
   "scheduledCalls": {
     "title": "Scheduled Calls",

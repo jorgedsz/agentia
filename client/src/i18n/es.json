@@ -1015,7 +1015,9 @@
     "callToolInfo": "Cuando está habilitado, el chatbot puede llamar a un cliente inmediatamente o programar una llamada para más tarde. Se generan dos herramientas automáticamente: una para llamadas inmediatas y otra para callbacks programados.",
     "callToolAgent": "Agente de Voz",
     "callToolSelectAgent": "Seleccionar un agente...",
-    "callToolPhoneNote": "El número de teléfono asignado al agente se usará para las llamadas. Asegúrate de que el agente seleccionado tenga un número asignado."
+    "callToolPhone": "Número de Teléfono",
+    "callToolSelectPhone": "Seleccionar un número...",
+    "callToolPhoneNote": "Este número de teléfono se usará como identificador de llamada para las llamadas salientes."
   },
   "scheduledCalls": {
     "title": "Llamadas Programadas",
