@@ -132,6 +132,12 @@ async function scheduleCall(req, res) {
       return res.json({ success: false, message: 'Invalid callbackTime format. Please use ISO 8601 format (e.g., 2026-03-18T14:00:00).' });
     }
 
+    // Reject dates in the past
+    if (scheduledAt < new Date()) {
+      const now = new Date().toISOString();
+      return res.json({ success: false, message: `The scheduled time is in the past. Current server time is ${now}. Please provide a future date/time.` });
+    }
+
     // Validate user
     const user = await req.prisma.user.findUnique({ where: { id: parseInt(userId) } });
     if (!user) {
