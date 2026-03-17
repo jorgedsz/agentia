@@ -10,6 +10,7 @@ const { getVapiKeyForUser } = require('../utils/getApiKeys');
 async function triggerCall(req, res) {
   try {
     const { userId, agentId } = req.query;
+    console.log(`[Chatbot Call] triggerCall — query:`, req.query, `body:`, JSON.stringify(req.body));
 
     if (!userId || !agentId) {
       return res.status(400).json({ success: false, message: 'Missing required query params: userId, agentId' });
@@ -91,7 +92,7 @@ async function triggerCall(req, res) {
     return res.json({ success: true, message: `Call initiated to ${customerNumber}. The AI agent "${agent.name}" will call them now.` });
   } catch (error) {
     console.error('[Chatbot Call] Trigger error:', error);
-    return res.json({ success: false, message: 'An error occurred while initiating the call. Please try again.' });
+    return res.json({ success: false, message: `Error initiating call: ${error.message}` });
   }
 }
 
@@ -172,7 +173,7 @@ async function scheduleCall(req, res) {
     });
   } catch (error) {
     console.error('[Chatbot Call] Schedule error:', error);
-    return res.json({ success: false, message: 'An error occurred while scheduling the call. Please try again.' });
+    return res.json({ success: false, message: `Error scheduling call: ${error.message}` });
   }
 }
 
