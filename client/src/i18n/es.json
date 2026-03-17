@@ -1008,7 +1008,14 @@
     "chatbotTriggerDelayDesc": "0 = inmediato, o establece minutos de espera antes de activar",
     "chatbotTriggerMessage": "Plantilla de Mensaje Personalizado (opcional)",
     "chatbotTriggerMessagePlaceholder": "Deja vacio para contexto auto-generado. Usa {{customerNumber}}, {{outcome}}, {{summary}}, {{agentName}} como variables.",
-    "chatbotTriggerMessageDesc": "Reemplaza el mensaje de contexto predeterminado enviado al chatbot."
+    "chatbotTriggerMessageDesc": "Reemplaza el mensaje de contexto predeterminado enviado al chatbot.",
+    "callTool": "Herramienta de Llamada",
+    "callToolEnable": "Habilitar herramienta de llamada",
+    "callToolDesc": "Permite al chatbot iniciar llamadas de voz salientes usando un agente de IA.",
+    "callToolInfo": "Cuando está habilitado, el chatbot puede llamar a un cliente inmediatamente o programar una llamada para más tarde. Se generan dos herramientas automáticamente: una para llamadas inmediatas y otra para callbacks programados.",
+    "callToolAgent": "Agente de Voz",
+    "callToolSelectAgent": "Seleccionar un agente...",
+    "callToolPhoneNote": "El número de teléfono asignado al agente se usará para las llamadas. Asegúrate de que el agente seleccionado tenga un número asignado."
   },
   "scheduledCalls": {
     "title": "Llamadas Programadas",

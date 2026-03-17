@@ -1008,7 +1008,14 @@
     "chatbotTriggerDelayDesc": "0 = immediate, or set minutes to wait before triggering",
     "chatbotTriggerMessage": "Custom Message Template (optional)",
     "chatbotTriggerMessagePlaceholder": "Leave empty for auto-generated context. Use {{customerNumber}}, {{outcome}}, {{summary}}, {{agentName}} as variables.",
-    "chatbotTriggerMessageDesc": "Override the default context message sent to the chatbot."
+    "chatbotTriggerMessageDesc": "Override the default context message sent to the chatbot.",
+    "callTool": "Call Tool",
+    "callToolEnable": "Enable Call Tool",
+    "callToolDesc": "Allow the chatbot to trigger outbound voice calls using an AI agent.",
+    "callToolInfo": "When enabled, the chatbot can call a customer immediately or schedule a call for later. Two tools are auto-generated: one for immediate calls and one for scheduled callbacks.",
+    "callToolAgent": "Voice Agent",
+    "callToolSelectAgent": "Select an agent...",
+    "callToolPhoneNote": "The agent's assigned phone number will be used for calls. Make sure a phone number is assigned to the selected agent."
   },
   "scheduledCalls": {
     "title": "Scheduled Calls",

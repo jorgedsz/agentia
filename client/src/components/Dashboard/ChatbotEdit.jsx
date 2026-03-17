@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { chatbotsAPI, promptGeneratorAPI, calendarAPI } from '../../services/api'
+import { chatbotsAPI, promptGeneratorAPI, calendarAPI, agentsAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { MODELS_BY_PROVIDER } from '../../constants/models'
 import TestChatbotModal from './TestChatbotModal'
@@ -120,6 +120,11 @@ export default function ChatbotEdit() {
   const [newVarName, setNewVarName] = useState('')
   const [newVarDefault, setNewVarDefault] = useState('')
 
+  // Call tool settings
+  const [showCallModal, setShowCallModal] = useState(false)
+  const [callConfig, setCallConfig] = useState({ enabled: false, agentId: '' })
+  const [agentsList, setAgentsList] = useState([])
+
   // Calendar settings
   const [showCalendarModal, setShowCalendarModal] = useState(false)
   const [showProviderDropdown, setShowProviderDropdown] = useState(false)
@@ -143,7 +148,17 @@ export default function ChatbotEdit() {
   useEffect(() => {
     fetchChatbot()
     fetchCalendarIntegrations()
+    fetchAgents()
   }, [id])
+
+  const fetchAgents = async () => {
+    try {
+      const { data } = await agentsAPI.list()
+      setAgentsList(data.agents || [])
+    } catch (err) {
+      console.error('Failed to fetch agents:', err)
+    }
+  }
 
   const fetchChatbot = async () => {
     try {
@@ -166,6 +181,9 @@ export default function ChatbotEdit() {
 
       if (config.calendarConfig) {
         setCalendarConfig(config.calendarConfig)
+      }
+      if (config.callConfig) {
+        setCallConfig(config.callConfig)
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load chatbot')
@@ -385,6 +403,55 @@ export default function ChatbotEdit() {
     return calendarTools
   }
 
+  // Build call tools for saving
+  const buildCallTools = () => {
+    const callTools = []
+    if (!callConfig.enabled || !callConfig.agentId) return callTools
+
+    const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+    const queryParams = new URLSearchParams({
+      userId: user?.id?.toString() || '',
+      agentId: callConfig.agentId
+    }).toString()
+
+    callTools.push({
+      type: 'apiRequest',
+      method: 'POST',
+      url: `${apiBaseUrl}/chatbot-call/trigger?${queryParams}`,
+      name: 'make_call_now',
+      description: 'Make an outbound phone call to the customer right now using an AI voice agent. Use this when the customer wants to speak with someone immediately.',
+      body: {
+        type: 'object',
+        properties: {
+          customerNumber: { type: 'string', description: "The customer's phone number in E.164 format (e.g., +1234567890)" },
+          customerName: { type: 'string', description: "The customer's name (optional)" }
+        },
+        required: ['customerNumber']
+      },
+      timeoutSeconds: 30
+    })
+
+    callTools.push({
+      type: 'apiRequest',
+      method: 'POST',
+      url: `${apiBaseUrl}/chatbot-call/schedule?${queryParams}`,
+      name: 'schedule_call_later',
+      description: 'Schedule a phone call for a future date/time. Use this when the customer wants to be called back later.',
+      body: {
+        type: 'object',
+        properties: {
+          customerNumber: { type: 'string', description: "The customer's phone number in E.164 format (e.g., +1234567890)" },
+          callbackTime: { type: 'string', description: 'When to make the call in ISO 8601 format (e.g., 2026-03-18T14:00:00)' },
+          reason: { type: 'string', description: 'Reason for the callback (optional)' }
+        },
+        required: ['customerNumber', 'callbackTime']
+      },
+      timeoutSeconds: 30
+    })
+
+    return callTools
+  }
+
   const handleSave = async (e) => {
     e?.preventDefault()
     setSaving(true)
@@ -392,11 +459,17 @@ export default function ChatbotEdit() {
     setSuccess('')
 
     try {
-      // Merge manual tools with auto-generated calendar tools
+      // Merge manual tools with auto-generated calendar + call tools
       const calendarTools = buildCalendarTools()
-      // Filter out old calendar tools from manual tools list
-      const manualTools = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_'))
-      const allTools = [...manualTools, ...calendarTools]
+      const callTools = buildCallTools()
+      // Filter out old auto-generated tools from manual tools list
+      const manualTools = tools.filter(t =>
+        !t.name?.startsWith('check_calendar_availability_') &&
+        !t.name?.startsWith('book_appointment_') &&
+        t.name !== 'make_call_now' &&
+        t.name !== 'schedule_call_later'
+      )
+      const allTools = [...manualTools, ...calendarTools, ...callTools]
 
       await chatbotsAPI.update(id, {
         name,
@@ -411,6 +484,7 @@ export default function ChatbotEdit() {
           tools: allTools,
           variables,
           calendarConfig,
+          callConfig,
           outputType: 'respond_to_webhook',
           outputUrl: outputUrl || '',
         }
@@ -594,7 +668,7 @@ export default function ChatbotEdit() {
 
       <div className="space-y-6">
         {/* Icon Button Grid */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {/* Model Button */}
           <button
             onClick={() => setShowModelModal(true)}
@@ -628,18 +702,37 @@ export default function ChatbotEdit() {
             </svg>
           </button>
 
-          {/* Tools Button */}
+          {/* Call Button */}
           <button
-            onClick={() => setShowToolsModal(true)}
+            onClick={() => setShowCallModal(true)}
             className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
-              tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_')).length > 0
+              callConfig.enabled && callConfig.agentId
                 ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                 : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Tools {tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_')).length > 0 && (
-                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_')).length}</span>
+              Call {callConfig.enabled && callConfig.agentId && (
+                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">2</span>
+              )}
+            </span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+            </svg>
+          </button>
+
+          {/* Tools Button */}
+          <button
+            onClick={() => setShowToolsModal(true)}
+            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
+              tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later').length > 0
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Tools {tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later').length > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later').length}</span>
               )}
             </span>
             <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1430,6 +1523,84 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
         )
       })()}
 
+      {/* ===== CALL TOOL MODAL ===== */}
+      {showCallModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Tool</h3>
+              <button onClick={() => setShowCallModal(false)} className="text-gray-500 hover:text-gray-700">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              {/* Enable toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Call Tool</label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Allow the chatbot to trigger outbound voice calls using an AI agent.</p>
+                </div>
+                <button
+                  onClick={() => setCallConfig({ ...callConfig, enabled: !callConfig.enabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callConfig.enabled ? 'bg-green-600' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {callConfig.enabled && (
+                <>
+                  {/* Info note */}
+                  <div className="flex items-start gap-2.5 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <svg className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      When enabled, two tools are auto-generated: <strong>make_call_now</strong> (immediate call) and <strong>schedule_call_later</strong> (scheduled callback). The AI decides which to use based on the conversation.
+                    </p>
+                  </div>
+
+                  {/* Agent dropdown */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Voice Agent *</label>
+                    <select
+                      value={callConfig.agentId}
+                      onChange={(e) => setCallConfig({ ...callConfig, agentId: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select an agent...</option>
+                      {agentsList.map(agent => (
+                        <option key={agent.id} value={agent.id}>{agent.name}{agent.vapiId ? '' : ' (not synced)'}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Phone note */}
+                  <div className="flex items-start gap-2.5 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <svg className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                      The agent's assigned phone number will be used for calls. Make sure a phone number is assigned to the selected agent.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
+              <button
+                onClick={() => setShowCallModal(false)}
+                className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== TOOLS MODAL ===== */}
       {showToolsModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1456,7 +1627,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
             </div>
             <div className="p-4">
               {(() => {
-                const visibleTools = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_'))
+                const visibleTools = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later')
                 return visibleTools.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-6">No tools configured. Add API request tools for your chatbot to call.</p>
                 ) : (

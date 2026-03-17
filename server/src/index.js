@@ -33,6 +33,7 @@ const pricingRoutes = require('./routes/pricing');
 const chatbotRoutes = require('./routes/chatbots');
 const paymentRoutes = require('./routes/payments');
 const toolRoutes = require('./routes/tools');
+const chatbotCallRoutes = require('./routes/chatbotCall');
 const callbackRoutes = require('./routes/callbacks');
 const callbackController = require('./controllers/callbackController');
 const followUpRoutes = require('./routes/followUps');
@@ -92,6 +93,7 @@ app.use('/api/pricing', pricingRoutes);
 app.use('/api/chatbots', chatbotRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/tools', toolRoutes);
+app.use('/api/chatbot-call', chatbotCallRoutes);
 app.use('/api/callbacks', callbackRoutes);
 app.use('/api/follow-ups', followUpRoutes);
 
