@@ -4754,7 +4754,7 @@ If the customer asks to be called back at a later time:
                     </button>
 
                     {/* Chatbot Trigger */}
-                    <button onClick={() => { setAdvancedSubPanel('chatbotTrigger'); if (chatbotsList.length === 0) { setChatbotsLoading(true); chatbotsAPI.list().then(r => setChatbotsList(r.data || [])).catch(() => {}).finally(() => setChatbotsLoading(false)) } }} className="flex flex-col items-center gap-2 group">
+                    <button onClick={() => { setAdvancedSubPanel('chatbotTrigger'); if (chatbotsList.length === 0) { setChatbotsLoading(true); chatbotsAPI.list().then(r => setChatbotsList(r.data.chatbots || [])).catch(() => {}).finally(() => setChatbotsLoading(false)) } }} className="flex flex-col items-center gap-2 group">
                       <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('chatbotTrigger')}</span>
                       <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${chatbotTriggerConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
                         <svg className={`w-7 h-7 ${chatbotTriggerConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
