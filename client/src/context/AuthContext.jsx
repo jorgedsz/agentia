@@ -20,6 +20,20 @@ export function AuthProvider({ children }) {
     checkAuth()
   }, [])
 
+  // Update favicon when branding logo changes
+  useEffect(() => {
+    if (branding.companyLogo) {
+      let link = document.querySelector("link[rel~='icon']")
+      if (!link) {
+        link = document.createElement('link')
+        link.rel = 'icon'
+        document.head.appendChild(link)
+      }
+      link.type = 'image/png'
+      link.href = branding.companyLogo
+    }
+  }, [branding.companyLogo])
+
   const fetchBranding = async () => {
     try {
       const { data } = await brandingAPI.get()
