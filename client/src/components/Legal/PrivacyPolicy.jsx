@@ -42,7 +42,7 @@ export default function PrivacyPolicy() {
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Privacy Policy</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Last updated: {lastUpdated}</p>
 
-              <p>Flex Innovations ("we," "us," or "our") operates the Flex Innovations platform (the "Service"). This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Service.</p>
+              <p>Sword AI Solutions ("we," "us," or "our") operates the Sword AI Solutions platform (the "Service"). This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Service.</p>
 
               <h2>1. Information We Collect</h2>
 
@@ -121,7 +121,7 @@ export default function PrivacyPolicy() {
               <p>Despite these measures, no method of transmission or storage is 100% secure. We cannot guarantee absolute security of your data.</p>
 
               <h2>6. HIPAA Compliance</h2>
-              <p>For healthcare-related use cases, our platform supports HIPAA compliance features. If you require HIPAA compliance, a Business Associate Agreement (BAA) must be executed between your organization and Flex Innovations prior to processing Protected Health Information (PHI).</p>
+              <p>For healthcare-related use cases, our platform supports HIPAA compliance features. If you require HIPAA compliance, a Business Associate Agreement (BAA) must be executed between your organization and Sword AI Solutions prior to processing Protected Health Information (PHI).</p>
 
               <h2>7. Data Retention</h2>
               <p>We retain your information for as long as your account is active or as needed to provide the Service. Call recordings and transcriptions are retained according to your account settings and applicable legal requirements. You may request deletion of your data at any time by contacting us.</p>
@@ -152,14 +152,14 @@ export default function PrivacyPolicy() {
 
               <h2>13. Contact Us</h2>
               <p>If you have questions about this Privacy Policy, please contact us at:</p>
-              <p><strong>Flex Innovations</strong><br />Email: privacy@flexinnovations.com</p>
+              <p><strong>Sword AI Solutions</strong><br />Email: privacy@swordaisolutions.com</p>
             </div>
           ) : (
             <div className="prose prose-gray dark:prose-invert max-w-none">
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Politica de Privacidad</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Ultima actualizacion: {lastUpdatedEs}</p>
 
-              <p>Flex Innovations ("nosotros," "nos" o "nuestro") opera la plataforma Flex Innovations (el "Servicio"). Esta Politica de Privacidad explica como recopilamos, usamos, divulgamos y protegemos su informacion cuando utiliza nuestro Servicio.</p>
+              <p>Sword AI Solutions ("nosotros," "nos" o "nuestro") opera la plataforma Sword AI Solutions (el "Servicio"). Esta Politica de Privacidad explica como recopilamos, usamos, divulgamos y protegemos su informacion cuando utiliza nuestro Servicio.</p>
 
               <h2>1. Informacion que Recopilamos</h2>
 
@@ -238,7 +238,7 @@ export default function PrivacyPolicy() {
               <p>A pesar de estas medidas, ningun metodo de transmision o almacenamiento es 100% seguro. No podemos garantizar la seguridad absoluta de sus datos.</p>
 
               <h2>6. Cumplimiento HIPAA</h2>
-              <p>Para casos de uso relacionados con la salud, nuestra plataforma soporta funciones de cumplimiento HIPAA. Si requiere cumplimiento HIPAA, se debe ejecutar un Acuerdo de Asociado Comercial (BAA) entre su organizacion y Flex Innovations antes de procesar Informacion de Salud Protegida (PHI).</p>
+              <p>Para casos de uso relacionados con la salud, nuestra plataforma soporta funciones de cumplimiento HIPAA. Si requiere cumplimiento HIPAA, se debe ejecutar un Acuerdo de Asociado Comercial (BAA) entre su organizacion y Sword AI Solutions antes de procesar Informacion de Salud Protegida (PHI).</p>
 
               <h2>7. Retencion de Datos</h2>
               <p>Retenemos su informacion mientras su cuenta este activa o sea necesaria para proporcionar el Servicio. Las grabaciones de llamadas y transcripciones se retienen segun la configuracion de su cuenta y los requisitos legales aplicables. Puede solicitar la eliminacion de sus datos en cualquier momento contactandonos.</p>
@@ -269,7 +269,7 @@ export default function PrivacyPolicy() {
 
               <h2>13. Contactenos</h2>
               <p>Si tiene preguntas sobre esta Politica de Privacidad, contactenos en:</p>
-              <p><strong>Flex Innovations</strong><br />Email: privacy@flexinnovations.com</p>
+              <p><strong>Sword AI Solutions</strong><br />Email: privacy@swordaisolutions.com</p>
             </div>
           )}
         </div>
