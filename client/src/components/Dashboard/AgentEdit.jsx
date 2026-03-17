@@ -2439,7 +2439,7 @@ If the customer asks to be called back at a later time:
           })()}
 
           {/* Feature Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {/* Calendar Options */}
             <div className="text-center">
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
@@ -2509,31 +2509,34 @@ If the customer asks to be called back at a later time:
               )}
             </div>
 
-            {/* Actions in Call & Actions After Call */}
-            <div className="text-center col-span-2">
+            {/* Actions in Call */}
+            <div className="text-center">
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
-                {ta('advancedOptions')}
+                {ta('actionsInCall')}
               </label>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => { setAdvancedSubPanel(null); setShowAdvancedModal(true) }}
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
-                >
-                  <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                  </svg>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('actionsInCall')}</span>
-                </button>
-                <button
-                  onClick={() => { setAdvancedSubPanel(null); setShowAfterCallModal(true) }}
-                  className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
-                >
-                  <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('actionsAfterCall')}</span>
-                </button>
-              </div>
+              <button
+                onClick={() => { setAdvancedSubPanel(null); setShowAdvancedModal(true) }}
+                className="p-4 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-gray-300 transition-all"
+              >
+                <svg className="w-8 h-8 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Actions After Call */}
+            <div className="text-center">
+              <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
+                {ta('actionsAfterCall')}
+              </label>
+              <button
+                onClick={() => { setAdvancedSubPanel(null); setShowAfterCallModal(true) }}
+                className="p-4 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-gray-300 transition-all"
+              >
+                <svg className="w-8 h-8 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </button>
             </div>
           </div>
 
