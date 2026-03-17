@@ -24,7 +24,7 @@ const sendMessage = async (req, res) => {
       ? agents.map(a => `- "${a.name}" (${a.agentType})`).join('\n')
       : 'No agents created yet.';
 
-    const systemPrompt = `You are a helpful AI assistant for the Appex Innovations AI voice agent platform. You help users manage their AI voice agents, understand platform features, and troubleshoot issues.
+    const systemPrompt = `You are a helpful AI assistant for the Sword AI voice agent platform. You help users manage their AI voice agents, understand platform features, and troubleshoot issues.
 
 Platform features:
 - Create and manage AI voice agents (inbound and outbound)

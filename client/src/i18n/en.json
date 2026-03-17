@@ -62,7 +62,7 @@
     "messagesPausedBanner": "Chatbot messages are currently paused for your account. Contact your administrator to resume."
   },
   "auth": {
-    "title": "Appex Innovations AI",
+    "title": "Sword AI",
     "signIn": "Sign in to your account",
     "emailLabel": "Email address",
     "emailPlaceholder": "you@example.com",
@@ -1053,7 +1053,7 @@
     "catPhone": "Phone Numbers",
     "catIntegrations": "Integrations",
     "catBilling": "Billing",
-    "vid1Title": "Getting Started with Agentia",
+    "vid1Title": "Getting Started with Sword AI",
     "vid1Desc": "Learn how to create your first AI voice agent, configure it, and make your first test call.",
     "vid2Title": "Creating an Outbound Agent",
     "vid2Desc": "Step-by-step guide to set up an outbound calling agent with custom prompts and voice settings.",
