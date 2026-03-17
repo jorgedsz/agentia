@@ -261,12 +261,14 @@ async function listCallbacks(req, res) {
   try {
     const userId = req.user.id;
 
-    // Get all agent IDs for this user
+    // Get all agents for this user (id + name for enrichment)
     const agents = await req.prisma.agent.findMany({
       where: { userId },
-      select: { id: true }
+      select: { id: true, name: true }
     });
     const agentIds = agents.map(a => a.id);
+    const agentNameMap = {};
+    for (const a of agents) agentNameMap[a.id] = a.name;
 
     const callbacks = await req.prisma.scheduledCallback.findMany({
       where: { agentId: { in: agentIds } },
@@ -274,7 +276,9 @@ async function listCallbacks(req, res) {
       take: 100
     });
 
-    res.json({ callbacks });
+    const enriched = callbacks.map(cb => ({ ...cb, agentName: agentNameMap[cb.agentId] || cb.agentId }));
+
+    res.json({ callbacks: enriched });
   } catch (error) {
     console.error('List callbacks error:', error);
     res.status(500).json({ error: 'Failed to list callbacks' });

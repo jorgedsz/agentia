@@ -281,9 +281,11 @@ async function listFollowUps(req, res) {
 
     const agents = await req.prisma.agent.findMany({
       where: { userId },
-      select: { id: true }
+      select: { id: true, name: true }
     });
     const agentIds = agents.map(a => a.id);
+    const agentNameMap = {};
+    for (const a of agents) agentNameMap[a.id] = a.name;
 
     const followUps = await req.prisma.scheduledFollowUp.findMany({
       where: { agentId: { in: agentIds } },
@@ -291,7 +293,9 @@ async function listFollowUps(req, res) {
       take: 100
     });
 
-    res.json({ followUps });
+    const enriched = followUps.map(fu => ({ ...fu, agentName: agentNameMap[fu.agentId] || fu.agentId }));
+
+    res.json({ followUps: enriched });
   } catch (error) {
     console.error('[Follow-Up] List error:', error);
     res.status(500).json({ error: 'Failed to list follow-ups' });

@@ -21,6 +21,7 @@ import Training from './components/Dashboard/Training'
 import Payments from './components/Dashboard/Payments'
 import ChatbotList from './components/Dashboard/ChatbotList'
 import ChatbotEdit from './components/Dashboard/ChatbotEdit'
+import ScheduledCalls from './components/Dashboard/ScheduledCalls'
 import PrivacyPolicy from './components/Legal/PrivacyPolicy'
 import TermsOfService from './components/Legal/TermsOfService'
 
@@ -119,6 +120,7 @@ function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="call-logs" element={<CallLogs />} />
+          <Route path="scheduled-calls" element={<ScheduledCalls />} />
           <Route path="rates" element={<RatesSettings />} />
           <Route path="voice-library" element={<VoiceLibrary />} />
           <Route path="chatbots" element={<ChatbotList />} />
