@@ -759,6 +759,8 @@
     "checkAvailability": "Check Availability",
     "bookAppointment": "Book Appointment",
     "advancedOptions": "Advanced Options",
+    "actionsInCall": "Actions in Call",
+    "actionsAfterCall": "Actions After Call",
     "transcriber": "Transcriber",
     "transcriberProvider": "Transcriber Provider",
     "transcriberLanguage": "Transcriber Language",

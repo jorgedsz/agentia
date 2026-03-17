@@ -759,6 +759,8 @@
     "checkAvailability": "Verificar Disponibilidad",
     "bookAppointment": "Reservar Cita",
     "advancedOptions": "Opciones Avanzadas",
+    "actionsInCall": "Acciones en Llamada",
+    "actionsAfterCall": "Acciones Post Llamada",
     "transcriber": "Transcriptor",
     "transcriberProvider": "Proveedor de Transcriptor",
     "transcriberLanguage": "Idioma del Transcriptor",

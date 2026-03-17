@@ -496,6 +496,7 @@ export default function AgentEdit() {
   // Feature toggles
   const [showCalendarModal, setShowCalendarModal] = useState(false)
   const [showAdvancedModal, setShowAdvancedModal] = useState(false)
+  const [showAfterCallModal, setShowAfterCallModal] = useState(false)
   const [advancedSubPanel, setAdvancedSubPanel] = useState(null) // null = grid view, or 'voiceModel', 'voiceTuning', 'bgSound', 'tools', 'webhook', 'recording', 'transcript', 'summary'
   const [advancedInfoPopup, setAdvancedInfoPopup] = useState(null) // which sub-panel info popup is open
   const [showProviderDropdown, setShowProviderDropdown] = useState(false)
@@ -2508,23 +2509,31 @@ If the customer asks to be called back at a later time:
               )}
             </div>
 
-            {/* Advanced Options */}
-            <div className="text-center">
+            {/* Actions in Call & Actions After Call */}
+            <div className="text-center col-span-2">
               <label className="flex items-center justify-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-3">
                 {ta('advancedOptions')}
-                <svg className="w-4 h-4 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <title>{ta('tipAdvancedOptions')}</title>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
               </label>
-              <button
-                onClick={() => { setAdvancedSubPanel(null); setShowAdvancedModal(true) }}
-                className="p-4 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
-              >
-                <svg className="w-8 h-8 mx-auto text-gray-400 hover:text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                </svg>
-              </button>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => { setAdvancedSubPanel(null); setShowAdvancedModal(true) }}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+                >
+                  <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('actionsInCall')}</span>
+                </button>
+                <button
+                  onClick={() => { setAdvancedSubPanel(null); setShowAfterCallModal(true) }}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+                >
+                  <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('actionsAfterCall')}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -4029,7 +4038,7 @@ If the customer asks to be called back at a later time:
         )
       })()}
 
-      {/* Advanced Options Modal */}
+      {/* Actions in Call Modal */}
       {showAdvancedModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -4038,7 +4047,7 @@ If the customer asks to be called back at a later time:
             {!advancedSubPanel && (
               <>
                 <div className="p-6 pb-2">
-                  <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">{ta('advancedOptions')}</h3>
+                  <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">{ta('actionsInCall')}</h3>
                 </div>
                 <div className="p-6 pt-4">
                   <div className="grid grid-cols-3 gap-4">
@@ -4081,27 +4090,6 @@ If the customer asks to be called back at a later time:
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
                       </div>
-                    </button>
-
-                    {/* Webhook */}
-                    <button onClick={() => setAdvancedSubPanel('webhook')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('postCallWebhook')}</span>
-                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
-                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
-                      </div>
-                    </button>
-
-                    {/* Structured Data */}
-                    <button onClick={() => { setAdvancedSubPanel('structuredData'); fetchGhlCrmData() }} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('structuredData')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.structuredDataEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${serverConfig.structuredDataEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                        </svg>
-                      </div>
-                      {serverConfig.structuredDataEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
                     </button>
 
                     {/* Stop Speaking */}
@@ -4149,17 +4137,6 @@ If the customer asks to be called back at a later time:
                       </div>
                     </button>
 
-                    {/* GHL CRM */}
-                    <button onClick={() => { setAdvancedSubPanel('ghlCrm'); fetchGhlCrmData() }} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('ghlCrm')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${ghlCrmConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${ghlCrmConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </div>
-                      {ghlCrmConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
-                    </button>
-
                     {/* Callbacks */}
                     <button onClick={() => setAdvancedSubPanel('callbacks')} className="flex flex-col items-center gap-2 group">
                       <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('callbacks')}</span>
@@ -4172,16 +4149,6 @@ If the customer asks to be called back at a later time:
                       {callbackConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
                     </button>
 
-                    {/* Follow-ups */}
-                    <button onClick={() => setAdvancedSubPanel('followUps')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('followUps')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${followUpConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${followUpConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                      </div>
-                      {followUpConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
-                    </button>
                   </div>
                 </div>
                 <div className="p-4 pt-2">
@@ -4385,6 +4352,391 @@ If the customer asks to be called back at a later time:
                       })}
                     </div>
                   )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Stop Speaking */}
+            {advancedSubPanel === 'stopSpeaking' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('stopSpeakingPlan')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'stopSpeaking' ? null : 'stopSpeaking')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
+                </div>
+                {advancedInfoPopup === 'stopSpeaking' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('stopSpeakingDesc')}</div>
+                )}
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStopSpeaking')}</span>
+                    <button
+                      onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingEnabled: !callBehaviorSettings.stopSpeakingEnabled })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.stopSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.stopSpeakingEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {callBehaviorSettings.stopSpeakingEnabled && (
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('numberOfWords')}</label>
+                          <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingNumWords}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={1}
+                          max={10}
+                          step={1}
+                          value={callBehaviorSettings.stopSpeakingNumWords}
+                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingNumWords: parseInt(e.target.value) })}
+                          className="w-full accent-primary-600"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">{ta('wordsBeforeStop')}</p>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('voiceSeconds')}</label>
+                          <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingVoiceSeconds}s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.1}
+                          max={2}
+                          step={0.1}
+                          value={callBehaviorSettings.stopSpeakingVoiceSeconds}
+                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingVoiceSeconds: parseFloat(e.target.value) })}
+                          className="w-full accent-primary-600"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">{ta('voiceActivityDuration')}</p>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('backoffSeconds')}</label>
+                          <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingBackoffSeconds}s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.5}
+                          max={5}
+                          step={0.5}
+                          value={callBehaviorSettings.stopSpeakingBackoffSeconds}
+                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingBackoffSeconds: parseFloat(e.target.value) })}
+                          className="w-full accent-primary-600"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">{ta('backoffCooldown')}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Start Speaking */}
+            {advancedSubPanel === 'startSpeaking' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('startSpeakingPlan')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'startSpeaking' ? null : 'startSpeaking')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
+                </div>
+                {advancedInfoPopup === 'startSpeaking' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('startSpeakingDesc')}</div>
+                )}
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStartSpeaking')}</span>
+                    <button
+                      onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingEnabled: !callBehaviorSettings.startSpeakingEnabled })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.startSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.startSpeakingEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {callBehaviorSettings.startSpeakingEnabled && (
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('waitSeconds')}</label>
+                          <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingWaitSeconds}s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={5}
+                          step={0.1}
+                          value={callBehaviorSettings.startSpeakingWaitSeconds}
+                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingWaitSeconds: parseFloat(e.target.value) })}
+                          className="w-full accent-primary-600"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">{ta('waitSecondsDesc')}</p>
+                      </div>
+
+                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm text-gray-700 dark:text-gray-300">{ta('smartEndpointing')}</span>
+                          <button
+                            onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingSmartEndpointing: !callBehaviorSettings.startSpeakingSmartEndpointing })}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                          >
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-3">{ta('smartEndpointingDesc')}</p>
+
+                        {callBehaviorSettings.startSpeakingSmartEndpointing && (
+                          <div>
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('provider')}</label>
+                            <div className="flex flex-wrap gap-2">
+                              {['livekit', 'vapi', 'krisp', 'deepgram-flux', 'assembly'].map(p => (
+                                <button
+                                  key={p}
+                                  onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingSmartProvider: p })}
+                                  className={`py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors ${callBehaviorSettings.startSpeakingSmartProvider === p ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : 'border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                                >
+                                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {!callBehaviorSettings.startSpeakingSmartEndpointing && (
+                        <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-4">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{ta('transcriptionEndpointing')}</p>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onPunctuation')}</label>
+                              <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnPunctuationSeconds}s</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={3}
+                              step={0.1}
+                              value={callBehaviorSettings.startSpeakingOnPunctuationSeconds}
+                              onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnPunctuationSeconds: parseFloat(e.target.value) })}
+                              className="w-full accent-primary-600"
+                            />
+                            <p className="text-xs text-gray-400 mt-0.5">{ta('onPunctuationDesc')}</p>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onNoPunctuation')}</label>
+                              <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnNoPunctuationSeconds}s</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={5}
+                              step={0.1}
+                              value={callBehaviorSettings.startSpeakingOnNoPunctuationSeconds}
+                              onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnNoPunctuationSeconds: parseFloat(e.target.value) })}
+                              className="w-full accent-primary-600"
+                            />
+                            <p className="text-xs text-gray-400 mt-0.5">{ta('onNoPunctuationDesc')}</p>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onNumber')}</label>
+                              <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnNumberSeconds}s</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={3}
+                              step={0.1}
+                              value={callBehaviorSettings.startSpeakingOnNumberSeconds}
+                              onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnNumberSeconds: parseFloat(e.target.value) })}
+                              className="w-full accent-primary-600"
+                            />
+                            <p className="text-xs text-gray-400 mt-0.5">{ta('onNumberDesc')}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Callbacks */}
+            {advancedSubPanel === 'callbacks' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callbacks')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'callbacks' ? null : 'callbacks')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
+                </div>
+                {advancedInfoPopup === 'callbacks' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('callbacksInfo')}</div>
+                )}
+                <div className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{ta('callbacksEnable')}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('callbacksDesc')}</p>
+                    </div>
+                    <button
+                      onClick={() => setCallbackConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callbackConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callbackConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  {callbackConfig.enabled && (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                      <p className="text-xs text-amber-700 dark:text-amber-300">{ta('callbacksPhoneNote')}</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Call Timeouts */}
+            {advancedSubPanel === 'callTimeouts' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callTimeouts')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'callTimeouts' ? null : 'callTimeouts')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
+                </div>
+                {advancedInfoPopup === 'callTimeouts' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('callTimeoutsDesc')}</div>
+                )}
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <label className="text-xs text-gray-600 dark:text-gray-400">{ta('maxCallDuration')}</label>
+                      <span className="text-xs text-gray-500">{Math.floor(callBehaviorSettings.maxDurationSeconds / 60)} {ta('min')}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={60}
+                      max={7200}
+                      step={60}
+                      value={callBehaviorSettings.maxDurationSeconds}
+                      onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, maxDurationSeconds: parseInt(e.target.value) })}
+                      className="w-full accent-primary-600"
+                    />
+                    <p className="text-xs text-gray-400 mt-0.5">{ta('maxCallDurationDesc')} ({callBehaviorSettings.maxDurationSeconds}s)</p>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <label className="text-xs text-gray-600 dark:text-gray-400">{ta('silenceTimeoutLabel')}</label>
+                      <span className="text-xs text-gray-500">{callBehaviorSettings.silenceTimeoutSeconds}s</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={5}
+                      max={120}
+                      step={5}
+                      value={callBehaviorSettings.silenceTimeoutSeconds}
+                      onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, silenceTimeoutSeconds: parseInt(e.target.value) })}
+                      className="w-full accent-primary-600"
+                    />
+                    <p className="text-xs text-gray-400 mt-0.5">{ta('silenceTimeoutDesc')}</p>
+                  </div>
+                </div>
+              </>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* Actions After Call Modal */}
+      {showAfterCallModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+
+            {/* Grid View (default) */}
+            {!advancedSubPanel && (
+              <>
+                <div className="p-6 pb-2">
+                  <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">{ta('actionsAfterCall')}</h3>
+                </div>
+                <div className="p-6 pt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Webhook */}
+                    <button onClick={() => setAdvancedSubPanel('webhook')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('postCallWebhook')}</span>
+                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
+                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {/* Structured Data */}
+                    <button onClick={() => { setAdvancedSubPanel('structuredData'); fetchGhlCrmData() }} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('structuredData')}</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.structuredDataEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${serverConfig.structuredDataEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                        </svg>
+                      </div>
+                      {serverConfig.structuredDataEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
+
+                    {/* GHL CRM */}
+                    <button onClick={() => { setAdvancedSubPanel('ghlCrm'); fetchGhlCrmData() }} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('ghlCrm')}</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${ghlCrmConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${ghlCrmConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </div>
+                      {ghlCrmConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
+
+                    {/* Follow-ups */}
+                    <button onClick={() => setAdvancedSubPanel('followUps')} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('followUps')}</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${followUpConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${followUpConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </div>
+                      {followUpConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
+                  </div>
+                </div>
+                <div className="p-4 pt-2">
+                  <button
+                    onClick={() => { setAdvancedSubPanel(null); setShowAfterCallModal(false) }}
+                    className="w-full py-2.5 text-primary-600 border border-primary-600 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors font-medium"
+                  >
+                    {ta('close')}
+                  </button>
                 </div>
               </>
             )}
@@ -4632,228 +4984,6 @@ If the customer asks to be called back at a later time:
               </>
             )}
 
-            {/* Sub-panel: Stop Speaking */}
-            {advancedSubPanel === 'stopSpeaking' && (
-              <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                  </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('stopSpeakingPlan')}</h3>
-                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'stopSpeaking' ? null : 'stopSpeaking')} className="text-gray-400 hover:text-primary-500 transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  </button>
-                </div>
-                {advancedInfoPopup === 'stopSpeaking' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('stopSpeakingDesc')}</div>
-                )}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStopSpeaking')}</span>
-                    <button
-                      onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingEnabled: !callBehaviorSettings.stopSpeakingEnabled })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.stopSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.stopSpeakingEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
-                  </div>
-
-                  {callBehaviorSettings.stopSpeakingEnabled && (
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('numberOfWords')}</label>
-                          <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingNumWords}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={1}
-                          max={10}
-                          step={1}
-                          value={callBehaviorSettings.stopSpeakingNumWords}
-                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingNumWords: parseInt(e.target.value) })}
-                          className="w-full accent-primary-600"
-                        />
-                        <p className="text-xs text-gray-400 mt-0.5">{ta('wordsBeforeStop')}</p>
-                      </div>
-
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('voiceSeconds')}</label>
-                          <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingVoiceSeconds}s</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0.1}
-                          max={2}
-                          step={0.1}
-                          value={callBehaviorSettings.stopSpeakingVoiceSeconds}
-                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingVoiceSeconds: parseFloat(e.target.value) })}
-                          className="w-full accent-primary-600"
-                        />
-                        <p className="text-xs text-gray-400 mt-0.5">{ta('voiceActivityDuration')}</p>
-                      </div>
-
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('backoffSeconds')}</label>
-                          <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingBackoffSeconds}s</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0.5}
-                          max={5}
-                          step={0.5}
-                          value={callBehaviorSettings.stopSpeakingBackoffSeconds}
-                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingBackoffSeconds: parseFloat(e.target.value) })}
-                          className="w-full accent-primary-600"
-                        />
-                        <p className="text-xs text-gray-400 mt-0.5">{ta('backoffCooldown')}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Sub-panel: Start Speaking */}
-            {advancedSubPanel === 'startSpeaking' && (
-              <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                  </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('startSpeakingPlan')}</h3>
-                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'startSpeaking' ? null : 'startSpeaking')} className="text-gray-400 hover:text-primary-500 transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  </button>
-                </div>
-                {advancedInfoPopup === 'startSpeaking' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('startSpeakingDesc')}</div>
-                )}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStartSpeaking')}</span>
-                    <button
-                      onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingEnabled: !callBehaviorSettings.startSpeakingEnabled })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.startSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.startSpeakingEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
-                  </div>
-
-                  {callBehaviorSettings.startSpeakingEnabled && (
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between mb-1">
-                          <label className="text-xs text-gray-600 dark:text-gray-400">{ta('waitSeconds')}</label>
-                          <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingWaitSeconds}s</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={0}
-                          max={5}
-                          step={0.1}
-                          value={callBehaviorSettings.startSpeakingWaitSeconds}
-                          onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingWaitSeconds: parseFloat(e.target.value) })}
-                          className="w-full accent-primary-600"
-                        />
-                        <p className="text-xs text-gray-400 mt-0.5">{ta('waitSecondsDesc')}</p>
-                      </div>
-
-                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm text-gray-700 dark:text-gray-300">{ta('smartEndpointing')}</span>
-                          <button
-                            onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingSmartEndpointing: !callBehaviorSettings.startSpeakingSmartEndpointing })}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
-                          >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'translate-x-6' : 'translate-x-1'}`} />
-                          </button>
-                        </div>
-                        <p className="text-xs text-gray-400 mb-3">{ta('smartEndpointingDesc')}</p>
-
-                        {callBehaviorSettings.startSpeakingSmartEndpointing && (
-                          <div>
-                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('provider')}</label>
-                            <div className="flex flex-wrap gap-2">
-                              {['livekit', 'vapi', 'krisp', 'deepgram-flux', 'assembly'].map(p => (
-                                <button
-                                  key={p}
-                                  onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingSmartProvider: p })}
-                                  className={`py-1.5 px-3 rounded-lg text-xs font-medium border transition-colors ${callBehaviorSettings.startSpeakingSmartProvider === p ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : 'border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
-                                >
-                                  {p.charAt(0).toUpperCase() + p.slice(1)}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {!callBehaviorSettings.startSpeakingSmartEndpointing && (
-                        <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-4">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{ta('transcriptionEndpointing')}</p>
-
-                          <div>
-                            <div className="flex justify-between mb-1">
-                              <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onPunctuation')}</label>
-                              <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnPunctuationSeconds}s</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={3}
-                              step={0.1}
-                              value={callBehaviorSettings.startSpeakingOnPunctuationSeconds}
-                              onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnPunctuationSeconds: parseFloat(e.target.value) })}
-                              className="w-full accent-primary-600"
-                            />
-                            <p className="text-xs text-gray-400 mt-0.5">{ta('onPunctuationDesc')}</p>
-                          </div>
-
-                          <div>
-                            <div className="flex justify-between mb-1">
-                              <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onNoPunctuation')}</label>
-                              <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnNoPunctuationSeconds}s</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={5}
-                              step={0.1}
-                              value={callBehaviorSettings.startSpeakingOnNoPunctuationSeconds}
-                              onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnNoPunctuationSeconds: parseFloat(e.target.value) })}
-                              className="w-full accent-primary-600"
-                            />
-                            <p className="text-xs text-gray-400 mt-0.5">{ta('onNoPunctuationDesc')}</p>
-                          </div>
-
-                          <div>
-                            <div className="flex justify-between mb-1">
-                              <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onNumber')}</label>
-                              <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnNumberSeconds}s</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={3}
-                              step={0.1}
-                              value={callBehaviorSettings.startSpeakingOnNumberSeconds}
-                              onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingOnNumberSeconds: parseFloat(e.target.value) })}
-                              className="w-full accent-primary-600"
-                            />
-                            <p className="text-xs text-gray-400 mt-0.5">{ta('onNumberDesc')}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
             {/* Sub-panel: GHL CRM */}
             {advancedSubPanel === 'ghlCrm' && (
               <>
@@ -5037,43 +5167,6 @@ If the customer asks to be called back at a later time:
               </>
             )}
 
-            {/* Sub-panel: Callbacks */}
-            {advancedSubPanel === 'callbacks' && (
-              <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                  </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callbacks')}</h3>
-                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'callbacks' ? null : 'callbacks')} className="text-gray-400 hover:text-primary-500 transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  </button>
-                </div>
-                {advancedInfoPopup === 'callbacks' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('callbacksInfo')}</div>
-                )}
-                <div className="p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{ta('callbacksEnable')}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('callbacksDesc')}</p>
-                    </div>
-                    <button
-                      onClick={() => setCallbackConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callbackConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callbackConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
-                  </div>
-                  {callbackConfig.enabled && (
-                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                      <p className="text-xs text-amber-700 dark:text-amber-300">{ta('callbacksPhoneNote')}</p>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
             {/* Sub-panel: Follow-ups */}
             {advancedSubPanel === 'followUps' && (
               <>
@@ -5214,60 +5307,6 @@ If the customer asks to be called back at a later time:
                       </div>
                     </>
                   )}
-                </div>
-              </>
-            )}
-
-            {/* Sub-panel: Call Timeouts */}
-            {advancedSubPanel === 'callTimeouts' && (
-              <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                  </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callTimeouts')}</h3>
-                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'callTimeouts' ? null : 'callTimeouts')} className="text-gray-400 hover:text-primary-500 transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  </button>
-                </div>
-                {advancedInfoPopup === 'callTimeouts' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('callTimeoutsDesc')}</div>
-                )}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <label className="text-xs text-gray-600 dark:text-gray-400">{ta('maxCallDuration')}</label>
-                      <span className="text-xs text-gray-500">{Math.floor(callBehaviorSettings.maxDurationSeconds / 60)} {ta('min')}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={60}
-                      max={7200}
-                      step={60}
-                      value={callBehaviorSettings.maxDurationSeconds}
-                      onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, maxDurationSeconds: parseInt(e.target.value) })}
-                      className="w-full accent-primary-600"
-                    />
-                    <p className="text-xs text-gray-400 mt-0.5">{ta('maxCallDurationDesc')} ({callBehaviorSettings.maxDurationSeconds}s)</p>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between mb-1">
-                      <label className="text-xs text-gray-600 dark:text-gray-400">{ta('silenceTimeoutLabel')}</label>
-                      <span className="text-xs text-gray-500">{callBehaviorSettings.silenceTimeoutSeconds}s</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={5}
-                      max={120}
-                      step={5}
-                      value={callBehaviorSettings.silenceTimeoutSeconds}
-                      onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, silenceTimeoutSeconds: parseInt(e.target.value) })}
-                      className="w-full accent-primary-600"
-                    />
-                    <p className="text-xs text-gray-400 mt-0.5">{ta('silenceTimeoutDesc')}</p>
-                  </div>
                 </div>
               </>
             )}
