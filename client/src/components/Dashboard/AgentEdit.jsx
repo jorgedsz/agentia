@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, accountSettingsAPI, voicesAPI, pricingAPI, toolsAPI } from '../../services/api'
+import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, accountSettingsAPI, voicesAPI, pricingAPI, toolsAPI, chatbotsAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { TRANSCRIBER_PROVIDERS, MODELS_BY_PROVIDER } from '../../constants/models'
@@ -568,6 +568,21 @@ export default function AgentEdit() {
     outcomes: ['failed', 'voicemail']
   })
 
+  // Chatbot trigger config
+  const [chatbotTriggerConfig, setChatbotTriggerConfig] = useState({
+    enabled: false,
+    chatbotId: '',
+    chatbotName: '',
+    triggerOn: 'always',
+    outcomes: ['booked', 'answered'],
+    structuredDataField: '',
+    structuredDataValue: 'true',
+    delayMinutes: 0,
+    messageTemplate: ''
+  })
+  const [chatbotsList, setChatbotsList] = useState([])
+  const [chatbotsLoading, setChatbotsLoading] = useState(false)
+
   // Call Transfer settings
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [transferConfig, setTransferConfig] = useState({
@@ -1082,6 +1097,11 @@ export default function AgentEdit() {
       // Load follow-up config
       if (agentData.config?.followUpConfig) {
         setFollowUpConfig(prev => ({ ...prev, ...agentData.config.followUpConfig }))
+      }
+
+      // Load chatbot trigger config
+      if (agentData.config?.chatbotTriggerConfig) {
+        setChatbotTriggerConfig(prev => ({ ...prev, ...agentData.config.chatbotTriggerConfig }))
       }
 
       // Load trigger variables
@@ -1674,6 +1694,7 @@ If the customer asks to be called back at a later time:
             customIntervals: undefined
           },
           ghlCrmConfig,
+          chatbotTriggerConfig,
           // Voice settings
           elevenLabsModel: voiceSettings.model,
           stability: voiceSettings.stability,
@@ -4731,6 +4752,17 @@ If the customer asks to be called back at a later time:
                       </div>
                       {followUpConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
                     </button>
+
+                    {/* Chatbot Trigger */}
+                    <button onClick={() => { setAdvancedSubPanel('chatbotTrigger'); if (chatbotsList.length === 0) { setChatbotsLoading(true); chatbotsAPI.list().then(r => setChatbotsList(r.data || [])).catch(() => {}).finally(() => setChatbotsLoading(false)) } }} className="flex flex-col items-center gap-2 group">
+                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('chatbotTrigger')}</span>
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${chatbotTriggerConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
+                        <svg className={`w-7 h-7 ${chatbotTriggerConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                      </div>
+                      {chatbotTriggerConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                    </button>
                   </div>
                 </div>
                 <div className="p-4 pt-2">
@@ -5307,6 +5339,184 @@ If the customer asks to be called back at a later time:
                       {/* Context note */}
                       <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                         <p className="text-xs text-blue-700 dark:text-blue-300">{ta('followUpsContextNote')}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Sub-panel: Chatbot Trigger */}
+            {advancedSubPanel === 'chatbotTrigger' && (
+              <>
+                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('chatbotTrigger')}</h3>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'chatbotTrigger' ? null : 'chatbotTrigger')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
+                </div>
+                {advancedInfoPopup === 'chatbotTrigger' && (
+                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('chatbotTriggerInfo')}</div>
+                )}
+                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                  {/* Enable toggle */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{ta('chatbotTriggerEnable')}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('chatbotTriggerDesc')}</p>
+                    </div>
+                    <button
+                      onClick={() => setChatbotTriggerConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chatbotTriggerConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatbotTriggerConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {chatbotTriggerConfig.enabled && (
+                    <>
+                      {/* Chatbot selector */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('chatbotTriggerSelect')}</label>
+                        {chatbotsLoading ? (
+                          <p className="text-xs text-gray-500">{ta('common.loading') || 'Loading...'}</p>
+                        ) : chatbotsList.length === 0 ? (
+                          <p className="text-xs text-amber-600">{ta('chatbotTriggerNoChatbots')}</p>
+                        ) : (
+                          <select
+                            value={chatbotTriggerConfig.chatbotId}
+                            onChange={(e) => {
+                              const selected = chatbotsList.find(c => c.id === e.target.value)
+                              setChatbotTriggerConfig(prev => ({
+                                ...prev,
+                                chatbotId: e.target.value,
+                                chatbotName: selected?.name || ''
+                              }))
+                            }}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                          >
+                            <option value="">{ta('chatbotTriggerSelectPlaceholder')}</option>
+                            {chatbotsList.map(c => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+
+                      {/* Trigger condition */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{ta('chatbotTriggerCondition')}</label>
+                        <div className="space-y-2">
+                          {[
+                            { value: 'always', label: ta('chatbotTriggerAlways'), desc: ta('chatbotTriggerAlwaysDesc') },
+                            { value: 'outcomes', label: ta('chatbotTriggerByOutcome'), desc: ta('chatbotTriggerByOutcomeDesc') },
+                            { value: 'structuredData', label: ta('chatbotTriggerByStructuredData'), desc: ta('chatbotTriggerByStructuredDataDesc') }
+                          ].map(({ value, label, desc }) => (
+                            <label key={value} className="flex items-start gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="chatbotTriggerOn"
+                                checked={chatbotTriggerConfig.triggerOn === value}
+                                onChange={() => setChatbotTriggerConfig(prev => ({ ...prev, triggerOn: value }))}
+                                className="mt-0.5 w-4 h-4"
+                              />
+                              <div>
+                                <span className="text-sm text-gray-900 dark:text-white font-medium">{label}</span>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{desc}</p>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Outcomes multiselect (when triggerOn=outcomes) */}
+                      {chatbotTriggerConfig.triggerOn === 'outcomes' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{ta('chatbotTriggerOutcomes')}</label>
+                          <div className="space-y-2">
+                            {[
+                              { value: 'booked', label: ta('chatbotTriggerOutcomeBooked') },
+                              { value: 'answered', label: ta('chatbotTriggerOutcomeAnswered') },
+                              { value: 'not_interested', label: ta('chatbotTriggerOutcomeNotInterested') },
+                              { value: 'failed', label: ta('chatbotTriggerOutcomeFailed') },
+                              { value: 'transferred', label: ta('chatbotTriggerOutcomeTransferred') },
+                              { value: 'voicemail', label: ta('chatbotTriggerOutcomeVoicemail') }
+                            ].map(({ value, label }) => (
+                              <label key={value} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={(chatbotTriggerConfig.outcomes || []).includes(value)}
+                                  onChange={(e) => {
+                                    setChatbotTriggerConfig(prev => ({
+                                      ...prev,
+                                      outcomes: e.target.checked
+                                        ? [...(prev.outcomes || []), value]
+                                        : (prev.outcomes || []).filter(o => o !== value)
+                                    }))
+                                  }}
+                                  className="w-4 h-4 rounded"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Structured data field/value (when triggerOn=structuredData) */}
+                      {chatbotTriggerConfig.triggerOn === 'structuredData' && (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('chatbotTriggerFieldName')}</label>
+                            <input
+                              type="text"
+                              value={chatbotTriggerConfig.structuredDataField}
+                              onChange={(e) => setChatbotTriggerConfig(prev => ({ ...prev, structuredDataField: e.target.value }))}
+                              placeholder="e.g. requestedWhatsApp"
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('chatbotTriggerFieldValue')}</label>
+                            <input
+                              type="text"
+                              value={chatbotTriggerConfig.structuredDataValue}
+                              onChange={(e) => setChatbotTriggerConfig(prev => ({ ...prev, structuredDataValue: e.target.value }))}
+                              placeholder="e.g. true"
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Delay */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('chatbotTriggerDelay')}</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={1440}
+                          value={chatbotTriggerConfig.delayMinutes}
+                          onChange={(e) => setChatbotTriggerConfig(prev => ({ ...prev, delayMinutes: Math.max(0, parseInt(e.target.value) || 0) }))}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ta('chatbotTriggerDelayDesc')}</p>
+                      </div>
+
+                      {/* Custom message template */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('chatbotTriggerMessage')}</label>
+                        <textarea
+                          value={chatbotTriggerConfig.messageTemplate}
+                          onChange={(e) => setChatbotTriggerConfig(prev => ({ ...prev, messageTemplate: e.target.value }))}
+                          placeholder={ta('chatbotTriggerMessagePlaceholder')}
+                          rows={3}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ta('chatbotTriggerMessageDesc')}</p>
                       </div>
                     </>
                   )}

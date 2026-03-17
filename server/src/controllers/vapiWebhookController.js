@@ -273,6 +273,105 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
 };
 
 /**
+ * Trigger a linked chatbot after a voice call ends (fire-and-forget).
+ * Sends call context (summary, outcome, customer number, structured data) to the chatbot webhook.
+ */
+const triggerChatbotPostCall = async (chatbotTriggerConfig, callData, prisma) => {
+  try {
+    if (!chatbotTriggerConfig?.enabled || !chatbotTriggerConfig.chatbotId) return;
+
+    const { outcome, summary, customerNumber, structuredData, agentName, vapiCallId } = callData;
+
+    // Check trigger condition
+    const triggerOn = chatbotTriggerConfig.triggerOn || 'always';
+    let shouldTrigger = false;
+
+    if (triggerOn === 'always') {
+      shouldTrigger = true;
+    } else if (triggerOn === 'outcomes') {
+      const configuredOutcomes = chatbotTriggerConfig.outcomes || [];
+      shouldTrigger = configuredOutcomes.includes(outcome);
+    } else if (triggerOn === 'structuredData') {
+      const field = chatbotTriggerConfig.structuredDataField;
+      const expectedValue = chatbotTriggerConfig.structuredDataValue;
+      if (field && structuredData) {
+        const parsed = typeof structuredData === 'string'
+          ? (() => { try { return JSON.parse(structuredData); } catch { return {}; } })()
+          : structuredData;
+        shouldTrigger = String(parsed[field]) === String(expectedValue);
+      }
+    }
+
+    if (!shouldTrigger) {
+      console.log(`[Chatbot Trigger] Condition not met (triggerOn=${triggerOn}, outcome=${outcome})`);
+      return;
+    }
+
+    const fire = async () => {
+      // Validate chatbot exists and is active
+      const chatbot = await prisma.chatbot.findUnique({ where: { id: chatbotTriggerConfig.chatbotId } });
+      if (!chatbot) {
+        console.error(`[Chatbot Trigger] Chatbot ${chatbotTriggerConfig.chatbotId} not found`);
+        return;
+      }
+      if (!chatbot.isActive) {
+        console.log(`[Chatbot Trigger] Chatbot ${chatbot.id} is not active — skipping`);
+        return;
+      }
+      if (!chatbot.n8nWebhookUrl) {
+        console.log(`[Chatbot Trigger] Chatbot ${chatbot.id} has no workflow — skipping`);
+        return;
+      }
+
+      // Build context message
+      const message = chatbotTriggerConfig.messageTemplate
+        ? chatbotTriggerConfig.messageTemplate
+            .replace(/\{\{customerNumber\}\}/g, customerNumber || 'unknown')
+            .replace(/\{\{outcome\}\}/g, outcome || 'unknown')
+            .replace(/\{\{summary\}\}/g, summary || 'No summary available')
+            .replace(/\{\{agentName\}\}/g, agentName || 'Voice Agent')
+        : `Post-call follow-up for ${customerNumber || 'unknown'}. Call outcome: ${outcome || 'unknown'}. Summary: ${summary || 'No summary available'}. Agent: ${agentName || 'Voice Agent'}. Please send an appropriate follow-up message to the customer.`;
+
+      const parsedSD = typeof structuredData === 'string'
+        ? (() => { try { return JSON.parse(structuredData); } catch { return null; } })()
+        : structuredData;
+
+      const body = {
+        message,
+        sessionId: `call-${vapiCallId}`,
+        contactId: customerNumber || '',
+        variables: {
+          customerNumber: customerNumber || '',
+          outcome: outcome || '',
+          summary: summary || '',
+          agentName: agentName || '',
+          structuredData: parsedSD || {}
+        }
+      };
+
+      const resp = await fetch(chatbot.n8nWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30000)
+      });
+
+      console.log(`[Chatbot Trigger] Sent to chatbot ${chatbot.id}: ${resp.status}`);
+    };
+
+    const delayMinutes = chatbotTriggerConfig.delayMinutes || 0;
+    if (delayMinutes > 0) {
+      console.log(`[Chatbot Trigger] Scheduling in ${delayMinutes} min for call ${vapiCallId}`);
+      setTimeout(() => fire().catch(err => console.error('[Chatbot Trigger] Delayed fire error:', err.message)), delayMinutes * 60 * 1000);
+    } else {
+      fire().catch(err => console.error('[Chatbot Trigger] Fire error:', err.message));
+    }
+  } catch (err) {
+    console.error('[Chatbot Trigger] Unexpected error:', err.message);
+  }
+};
+
+/**
  * Handle VAPI webhook events
  * POST /api/vapi/events
  */
@@ -453,6 +552,16 @@ const handleEvent = async (req, res) => {
       followUpController.scheduleFollowUp(prisma, callLog, agent, outcome, summary).catch(err =>
         console.error('[Follow-Up] scheduleFollowUp failed:', err.message)
       );
+
+      // 6c. Trigger chatbot post-call if configured
+      triggerChatbotPostCall(agentConfig.chatbotTriggerConfig, {
+        outcome,
+        summary,
+        customerNumber,
+        structuredData,
+        agentName: agent.name,
+        vapiCallId
+      }, prisma);
 
       // 7. Forward to user's webhook URL if configured
       const webhookUrl = agentConfig.serverUrl;
