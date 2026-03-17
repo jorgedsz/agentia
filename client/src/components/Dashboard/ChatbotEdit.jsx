@@ -423,8 +423,7 @@ export default function ChatbotEdit() {
       body: {
         type: 'object',
         properties: {
-          customerNumber: { type: 'string', description: "The customer's phone number in E.164 format (e.g., +1234567890)" },
-          customerName: { type: 'string', description: "The customer's name (optional)" }
+          customerNumber: { type: 'string', description: "The customer's phone number in E.164 format (e.g., +1234567890)" }
         },
         required: ['customerNumber']
       },
@@ -441,8 +440,7 @@ export default function ChatbotEdit() {
         type: 'object',
         properties: {
           customerNumber: { type: 'string', description: "The customer's phone number in E.164 format (e.g., +1234567890)" },
-          callbackTime: { type: 'string', description: 'When to make the call in ISO 8601 format (e.g., 2026-03-18T14:00:00)' },
-          reason: { type: 'string', description: 'Reason for the callback (optional)' }
+          callbackTime: { type: 'string', description: 'When to make the call in ISO 8601 format (e.g., 2026-03-18T14:00:00)' }
         },
         required: ['customerNumber', 'callbackTime']
       },
