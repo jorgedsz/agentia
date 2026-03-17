@@ -455,9 +455,10 @@ export default function ChatbotEdit() {
         type: 'object',
         properties: {
           customerNumber: { type: 'string', description: "The customer's phone number in E.164 format (e.g., +1234567890)" },
-          callbackTime: { type: 'string', description: 'When to make the call in ISO 8601 format (e.g., 2026-03-18T14:00:00)' }
+          callbackTime: { type: 'string', description: 'When to make the call in ISO 8601 format (e.g., 2026-03-18T14:00:00)' },
+          reason: { type: 'string', description: 'The reason the customer wants to be called back. Ask the customer why they want the call.' }
         },
-        required: ['customerNumber', 'callbackTime']
+        required: ['customerNumber', 'callbackTime', 'reason']
       },
       timeoutSeconds: 30
     })
