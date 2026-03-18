@@ -12,6 +12,18 @@ const LANGUAGES = ['English', 'Spanish', 'French', 'German', 'Italian', 'Portugu
 
 const TONES = ['Professional', 'Friendly', 'Casual', 'Formal', 'Empathetic']
 
+const AGENT_NAMES = {
+  English: ['Alex', 'Jordan', 'Sam', 'Morgan', 'Taylor', 'Casey', 'Riley', 'Avery', 'Quinn', 'Blake'],
+  Spanish: ['Carlos', 'Sofía', 'Mateo', 'Valentina', 'Diego', 'Camila', 'Andrés', 'Lucía', 'Pablo', 'Elena'],
+}
+
+const LANG_CODES = { English: 'en', Spanish: 'es', French: 'fr', German: 'de', Italian: 'it', Portuguese: 'pt' }
+
+const getRandomAgentName = (language) => {
+  const names = AGENT_NAMES[language] || AGENT_NAMES.English
+  return names[Math.floor(Math.random() * names.length)]
+}
+
 const VOICES = {
   English: [
     { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', desc: 'Female — Warm & Friendly' },
@@ -385,16 +397,25 @@ export default function DemoPage() {
       })
 
       // Start with inline assistant config
+      const agentName = getRandomAgentName(form.language)
+      const langCode = LANG_CODES[form.language] || 'en'
+
       await vapi.start({
+        name: agentName,
         model: {
           provider: 'openai',
           model: 'gpt-4o-mini',
-          messages: [{ role: 'system', content: voicebotPrompt }]
+          messages: [{ role: 'system', content: `Your name is ${agentName}. ` + voicebotPrompt }]
         },
         voice: {
           provider: '11labs',
           voiceId: selectedVoice,
           ...(form.language !== 'English' && { model: 'eleven_multilingual_v2' })
+        },
+        transcriber: {
+          provider: 'deepgram',
+          model: 'nova-2',
+          language: langCode
         },
         firstMessage: firstMessage
       })
