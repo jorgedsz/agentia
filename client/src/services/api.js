@@ -260,6 +260,11 @@ export const followUpAPI = {
   cancel: (id) => api.delete(`/follow-ups/${id}`)
 }
 
+// Demo API
+export const demoAPI = {
+  generate: (data) => api.post('/demo/generate', data)
+}
+
 // Chat API (uses fetch for SSE streaming, not axios)
 export const chatAPI = {
   sendMessage: async (messages, onChunk, onDone, onError) => {

@@ -18,4 +18,22 @@ const generalLimiter = rateLimit({
   legacyHeaders: false
 });
 
-module.exports = { authLimiter, generalLimiter };
+// Demo page limiter (generate endpoint)
+const demoLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  message: { error: 'Too many demo requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Demo chat limiter
+const demoChatLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50,
+  message: { error: 'Too many chat messages, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+module.exports = { authLimiter, generalLimiter, demoLimiter, demoChatLimiter };

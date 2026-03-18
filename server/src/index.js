@@ -38,6 +38,7 @@ const callbackRoutes = require('./routes/callbacks');
 const callbackController = require('./controllers/callbackController');
 const followUpRoutes = require('./routes/followUps');
 const followUpController = require('./controllers/followUpController');
+const demoRoutes = require('./routes/demo');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -96,6 +97,7 @@ app.use('/api/tools', toolRoutes);
 app.use('/api/chatbot-call', chatbotCallRoutes);
 app.use('/api/callbacks', callbackRoutes);
 app.use('/api/follow-ups', followUpRoutes);
+app.use('/api/demo', demoRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

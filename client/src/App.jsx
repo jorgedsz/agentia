@@ -24,6 +24,7 @@ import ChatbotEdit from './components/Dashboard/ChatbotEdit'
 import ScheduledCalls from './components/Dashboard/ScheduledCalls'
 import PrivacyPolicy from './components/Legal/PrivacyPolicy'
 import TermsOfService from './components/Legal/TermsOfService'
+import DemoPage from './components/Demo/DemoPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -96,6 +97,7 @@ function App() {
 
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/demo" element={<DemoPage />} />
 
         {/* Dashboard with nested routes */}
         <Route
