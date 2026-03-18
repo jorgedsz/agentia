@@ -5381,29 +5381,32 @@ If the customer asks to be called back at a later time:
                       {/* Chatbot selector */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('chatbotTriggerSelect')}</label>
-                        {chatbotsLoading ? (
-                          <p className="text-xs text-gray-500">{ta('common.loading') || 'Loading...'}</p>
-                        ) : chatbotsList.length === 0 ? (
-                          <p className="text-xs text-amber-600">{ta('chatbotTriggerNoChatbots')}</p>
-                        ) : (
-                          <select
-                            value={chatbotTriggerConfig.chatbotId}
-                            onChange={(e) => {
-                              const selected = chatbotsList.find(c => c.id === e.target.value)
-                              setChatbotTriggerConfig(prev => ({
-                                ...prev,
-                                chatbotId: e.target.value,
-                                chatbotName: selected?.name || ''
-                              }))
-                            }}
-                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                          >
-                            <option value="">{ta('chatbotTriggerSelectPlaceholder')}</option>
-                            {chatbotsList.map(c => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </select>
-                        )}
+                        {(() => {
+                          const ghlChatbots = chatbotsList.filter(c => c.chatbotType === 'ghl_sms' || c.chatbotType === 'ghl_whatsapp')
+                          return chatbotsLoading ? (
+                            <p className="text-xs text-gray-500">{ta('common.loading') || 'Loading...'}</p>
+                          ) : ghlChatbots.length === 0 ? (
+                            <p className="text-xs text-amber-600">{ta('chatbotTriggerNoChatbots')}</p>
+                          ) : (
+                            <select
+                              value={chatbotTriggerConfig.chatbotId}
+                              onChange={(e) => {
+                                const selected = ghlChatbots.find(c => c.id === e.target.value)
+                                setChatbotTriggerConfig(prev => ({
+                                  ...prev,
+                                  chatbotId: e.target.value,
+                                  chatbotName: selected?.name || ''
+                                }))
+                              }}
+                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                            >
+                              <option value="">{ta('chatbotTriggerSelectPlaceholder')}</option>
+                              {ghlChatbots.map(c => (
+                                <option key={c.id} value={c.id}>{c.name} ({c.chatbotType === 'ghl_sms' ? 'SMS' : 'WhatsApp'})</option>
+                              ))}
+                            </select>
+                          )
+                        })()}
                       </div>
 
                       {/* Trigger condition */}
