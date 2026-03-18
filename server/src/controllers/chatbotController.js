@@ -4,6 +4,15 @@ const n8nService = require('../services/n8nService');
 const { getN8nConfig } = require('../utils/getN8nConfig');
 const { findGhlConnection, ghlRequest } = require('./ghlController');
 
+const getServerBaseUrl = () => {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
+  if (process.env.GHL_REDIRECT_URI) {
+    try { return new URL(process.env.GHL_REDIRECT_URI).origin; } catch {}
+  }
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+  return null;
+};
+
 const parseConfig = (config) => {
   if (!config) return null;
   try {
@@ -85,7 +94,7 @@ const createChatbot = async (req, res) => {
       const n8nConfig = await getN8nConfig(req.prisma);
       if (n8nConfig) {
         n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
-        const chatbotWithDecryptedUrl = { ...chatbot, outputUrl: outputUrl || null, config: config || {} };
+        const chatbotWithDecryptedUrl = { ...chatbot, outputUrl: outputUrl || null, config: config || {}, serverBaseUrl: getServerBaseUrl() };
         const workflow = await n8nService.createWorkflow(chatbotWithDecryptedUrl);
         n8nWorkflowId = workflow.id;
         n8nWebhookUrl = `${n8nConfig.url}/webhook/chatbot-${chatbot.id}`;
@@ -166,7 +175,8 @@ const updateChatbot = async (req, res) => {
         const chatbotForN8n = {
           ...chatbot,
           outputUrl: decryptedOutputUrl,
-          config: config || parseConfig(chatbot.config) || {}
+          config: config || parseConfig(chatbot.config) || {},
+          serverBaseUrl: getServerBaseUrl()
         };
 
         if (existingChatbot.n8nWorkflowId) {
@@ -365,11 +375,9 @@ const webhookProxy = async (req, res) => {
       return res.status(422).json({ error: 'Chatbot has no workflow configured' });
     }
 
-    const isGhlType = chatbot.chatbotType?.startsWith('ghl_');
-    const resolvedContactId = contactId || sessionId || '';
-
     console.log(`Webhook proxy: chatbot ${id} (type: ${chatbot.chatbotType}) -> ${chatbot.n8nWebhookUrl}`);
 
+    const resolvedContactId = contactId || sessionId || '';
     const forwardBody = { message, sessionId: sessionId || 'default', contactId: resolvedContactId };
     if (contactName) {
       forwardBody.contactName = contactName;
@@ -399,40 +407,55 @@ const webhookProxy = async (req, res) => {
       data = { response: responseText };
     }
 
-    // For GHL chatbot types, send the AI response via GHL Conversations API
-    if (isGhlType) {
-      const aiResponse = data.response || data.output || data.text || '';
-      if (aiResponse && resolvedContactId) {
-        try {
-          const conn = await findGhlConnection(chatbot.userId, req.prisma);
-          if (conn) {
-            const messageType = chatbot.chatbotType === 'ghl_whatsapp' ? 'WhatsApp' : 'SMS';
-            await ghlRequest('/conversations/messages', conn.token, {
-              method: 'POST',
-              body: JSON.stringify({
-                type: messageType,
-                contactId: resolvedContactId,
-                message: aiResponse
-              })
-            }, '2021-04-15');
-            console.log(`GHL ${messageType} response sent to contact ${resolvedContactId}`);
-          } else {
-            console.error('GHL response failed: no GHL connection found for user', chatbot.userId);
-          }
-        } catch (ghlError) {
-          console.error('Failed to send GHL response:', ghlError.message);
-        }
-      } else {
-        if (!aiResponse) console.warn('GHL chatbot: no AI response to send');
-        if (!resolvedContactId) console.warn('GHL chatbot: no contactId provided, cannot send response');
-      }
-    }
-
     res.json(data);
   } catch (error) {
     const msg = error?.message || 'Unknown error';
     console.error('Webhook proxy error:', msg);
     res.status(500).json({ error: msg });
+  }
+};
+
+/**
+ * GHL respond endpoint — called by n8n HTTP Request node for GHL chatbot types.
+ * Sends the AI response to the contact via GHL Conversations API.
+ * POST /api/chatbots/:id/ghl-respond (public, no auth)
+ */
+const ghlRespond = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { response: aiResponse, contactId } = req.body;
+
+    if (!aiResponse || !contactId) {
+      return res.status(400).json({ error: 'response and contactId are required' });
+    }
+
+    const chatbot = await req.prisma.chatbot.findUnique({ where: { id } });
+    if (!chatbot) {
+      return res.status(404).json({ error: 'Chatbot not found' });
+    }
+
+    const messageType = chatbot.chatbotType === 'ghl_whatsapp' ? 'WhatsApp' : 'SMS';
+
+    const conn = await findGhlConnection(chatbot.userId, req.prisma);
+    if (!conn) {
+      console.error('ghlRespond: no GHL connection found for user', chatbot.userId);
+      return res.status(422).json({ error: 'No GHL connection found for this account' });
+    }
+
+    await ghlRequest('/conversations/messages', conn.token, {
+      method: 'POST',
+      body: JSON.stringify({
+        type: messageType,
+        contactId,
+        message: aiResponse
+      })
+    }, '2021-04-15');
+
+    console.log(`GHL ${messageType} response sent to contact ${contactId} (chatbot ${id})`);
+    res.json({ success: true, messageType, contactId });
+  } catch (error) {
+    console.error('ghlRespond error:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to send GHL message' });
   }
 };
 
@@ -443,5 +466,6 @@ module.exports = {
   updateChatbot,
   toggleChatbot,
   testChatbot,
-  webhookProxy
+  webhookProxy,
+  ghlRespond
 };

@@ -3,8 +3,9 @@ const router = express.Router();
 const chatbotController = require('../controllers/chatbotController');
 const authMiddleware = require('../middleware/authMiddleware');
 
-// Public webhook proxy — no auth required
+// Public endpoints — no auth required
 router.post('/:id/webhook', chatbotController.webhookProxy);
+router.post('/:id/ghl-respond', chatbotController.ghlRespond);
 
 // All other chatbot routes are protected
 router.use(authMiddleware);

@@ -262,13 +262,35 @@ class N8nService {
     };
     nodes.push(memoryNode);
 
-    // 7. Single Respond to Webhook node (used by both production and test triggers)
+    // 7. For GHL chatbot types, add HTTP Request node to send response via GHL API
+    const isGhlType = chatbot.chatbotType?.startsWith('ghl_');
+    const serverBaseUrl = chatbot.serverBaseUrl;
+
+    if (isGhlType && serverBaseUrl) {
+      const ghlRespondNode = {
+        id: 'ghl-respond',
+        name: 'Send GHL Message',
+        type: 'n8n-nodes-base.httpRequest',
+        typeVersion: 4.2,
+        position: [850, 300],
+        parameters: {
+          url: `${serverBaseUrl}/api/chatbots/${chatbot.id}/ghl-respond`,
+          method: 'POST',
+          sendBody: true,
+          specifyBody: 'json',
+          jsonBody: `={{ JSON.stringify({ response: $json.output, contactId: $('Resolve Variables').first().json.contactId }) }}`
+        }
+      };
+      nodes.push(ghlRespondNode);
+    }
+
+    // 8. Single Respond to Webhook node (used by both production and test triggers)
     const respondNode = {
       id: 'respond-webhook',
       name: 'Respond to Webhook',
       type: 'n8n-nodes-base.respondToWebhook',
       typeVersion: 1.1,
-      position: [900, 300],
+      position: [isGhlType && serverBaseUrl ? 1050 : 900, 300],
       parameters: {
         respondWith: 'json',
         responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: "${chatbot.id}" }) }}`
@@ -276,14 +298,14 @@ class N8nService {
     };
     nodes.push(respondNode);
 
-    // 8. Optionally forward to external webhook (chained after respond node)
+    // 9. Optionally forward to external webhook (chained after respond node)
     if (outputUrl) {
       const httpNode = {
         id: 'http-output',
         name: 'Send to External Webhook',
         type: 'n8n-nodes-base.httpRequest',
         typeVersion: 4.2,
-        position: [1150, 300],
+        position: [isGhlType && serverBaseUrl ? 1300 : 1150, 300],
         parameters: {
           url: outputUrl,
           method: 'POST',
@@ -309,10 +331,19 @@ class N8nService {
       main: [[{ node: 'AI Chat Agent', type: 'main', index: 0 }]]
     };
 
-    // AI Agent -> Respond to Webhook
-    connections['AI Chat Agent'] = {
-      main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]]
-    };
+    // AI Agent -> (Send GHL Message ->) Respond to Webhook
+    if (isGhlType && serverBaseUrl) {
+      connections['AI Chat Agent'] = {
+        main: [[{ node: 'Send GHL Message', type: 'main', index: 0 }]]
+      };
+      connections['Send GHL Message'] = {
+        main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]]
+      };
+    } else {
+      connections['AI Chat Agent'] = {
+        main: [[{ node: 'Respond to Webhook', type: 'main', index: 0 }]]
+      };
+    }
 
     // If external webhook configured, chain it after the respond node
     if (outputUrl) {
