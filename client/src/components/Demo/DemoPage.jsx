@@ -35,12 +35,16 @@ const VOICES = {
   ],
 }
 
+const CALENDLY_URL = 'https://calendly.com/guillermosword/30min'
+
 export default function DemoPage() {
-  const { darkMode } = useTheme()
-  const { t } = useLanguage()
+  const { darkMode, toggleDarkMode } = useTheme()
+  const { t, language, toggleLanguage } = useLanguage()
 
   const [phase, setPhase] = useState('form') // form | loading | results
   const [error, setError] = useState('')
+  const [showCalendly, setShowCalendly] = useState(false)
+  const [calendlyLoaded, setCalendlyLoaded] = useState(false)
 
   // Form state
   const [form, setForm] = useState({
@@ -79,6 +83,8 @@ export default function DemoPage() {
 
   const messagesEndRef = useRef(null)
   const chatInputRef = useRef(null)
+  const demoSectionRef = useRef(null)
+  const calendlySectionRef = useRef(null)
 
   // Derive available voices from selected language (fallback to English)
   const availableVoices = VOICES[form.language] || VOICES.English
@@ -104,6 +110,28 @@ export default function DemoPage() {
       }
     }
   }, [])
+
+  // Load Calendly widget script dynamically
+  useEffect(() => {
+    if (!showCalendly || calendlyLoaded) return
+    const script = document.createElement('script')
+    script.src = 'https://assets.calendly.com/assets/external/widget.js'
+    script.async = true
+    script.onload = () => setCalendlyLoaded(true)
+    document.body.appendChild(script)
+    return () => {
+      document.body.removeChild(script)
+    }
+  }, [showCalendly, calendlyLoaded])
+
+  // Scroll to Calendly section when it becomes visible
+  useEffect(() => {
+    if (showCalendly && calendlySectionRef.current) {
+      setTimeout(() => {
+        calendlySectionRef.current.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    }
+  }, [showCalendly])
 
   const updateForm = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -155,7 +183,6 @@ export default function DemoPage() {
     setIsSending(true)
 
     // Add a placeholder for assistant response
-    const assistantIdx = messages.length + 1
     setMessages(prev => [...prev, { role: 'assistant', content: '' }])
 
     try {
@@ -265,6 +292,16 @@ export default function DemoPage() {
     setVoiceVolume(0)
     setVoiceElapsed(0)
     setVoiceError('')
+    setShowCalendly(false)
+    setCalendlyLoaded(false)
+  }
+
+  const handleBookCall = () => {
+    setShowCalendly(true)
+  }
+
+  const scrollToDemo = () => {
+    demoSectionRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
   // ─── VOICE CALL FUNCTIONS ───
@@ -397,18 +434,153 @@ export default function DemoPage() {
     return `${mins}:${secs}`
   }
 
+  // ─── NAVBAR ───
+  const renderNavbar = () => (
+    <nav className="sticky top-0 z-50 bg-white/80 dark:bg-dark-bg/80 backdrop-blur-md border-b border-gray-200 dark:border-dark-border">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        {/* Brand */}
+        <span className="text-xl font-bold text-primary-600 dark:text-primary-400">Sword AI</span>
+
+        {/* Right side */}
+        <div className="flex items-center gap-2">
+          {/* Language toggle */}
+          <button
+            onClick={toggleLanguage}
+            className="p-2 rounded-lg bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover text-sm font-medium"
+          >
+            {language === 'en' ? 'ES' : 'EN'}
+          </button>
+
+          {/* Dark mode toggle */}
+          <button
+            onClick={toggleDarkMode}
+            className="p-2 rounded-lg bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover"
+          >
+            {darkMode ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            )}
+          </button>
+
+          {/* Try Demo CTA - hidden on mobile */}
+          <button
+            onClick={scrollToDemo}
+            className="hidden sm:inline-flex px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            Try Demo
+          </button>
+        </div>
+      </div>
+    </nav>
+  )
+
+  // ─── HERO ───
+  const renderHero = () => (
+    <section className="min-h-[80vh] flex flex-col items-center justify-center text-center px-4 sm:px-6">
+      <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 dark:text-white leading-tight max-w-4xl">
+        AI Agents That Work{' '}
+        <span className="text-primary-600 dark:text-primary-400">For Your Business</span>
+      </h1>
+      <p className="mt-6 text-lg sm:text-xl text-gray-500 dark:text-gray-400 max-w-2xl">
+        Generate a custom AI chat and voice agent for your business in seconds.
+        No code required — just describe what you need.
+      </p>
+      <button
+        onClick={scrollToDemo}
+        className="mt-10 px-8 py-3.5 bg-primary-600 text-white text-lg font-semibold rounded-xl hover:bg-primary-700 transition-colors shadow-lg shadow-primary-600/20 hover:shadow-primary-600/30"
+      >
+        Try It Free
+      </button>
+      {/* Scroll hint */}
+      <div className="mt-16 animate-bounce text-gray-400 dark:text-gray-500">
+        <svg className="w-6 h-6 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+        </svg>
+      </div>
+    </section>
+  )
+
+  // ─── FEATURES ───
+  const renderFeatures = () => {
+    const features = [
+      {
+        icon: (
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+          </svg>
+        ),
+        title: '24/7 Call Handling',
+        description: 'Never miss a call again. Your AI agent answers and handles customer inquiries around the clock.'
+      },
+      {
+        icon: (
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        ),
+        title: 'Instant Chat Support',
+        description: 'Embed a smart chatbot on your website that resolves questions and books appointments instantly.'
+      },
+      {
+        icon: (
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+        title: 'Multilingual',
+        description: 'Serve customers in English, Spanish, French, and more — your agent adapts to their language.'
+      },
+      {
+        icon: (
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        ),
+        title: 'Ready in Minutes',
+        description: 'No complex setup. Describe your business and goals — we generate a production-ready agent instantly.'
+      }
+    ]
+
+    return (
+      <section className="py-20 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-4">
+            Everything You Need
+          </h2>
+          <p className="text-center text-gray-500 dark:text-gray-400 mb-12 max-w-2xl mx-auto">
+            Powerful AI agents that handle calls, chats, and more — so you can focus on growing your business.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {features.map((feature, idx) => (
+              <div
+                key={idx}
+                className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 hover:shadow-lg transition-shadow"
+              >
+                <div className="w-12 h-12 rounded-lg bg-primary-500/10 text-primary-600 dark:text-primary-400 flex items-center justify-center mb-4">
+                  {feature.icon}
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  {feature.title}
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {feature.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   // ─── FORM PHASE ───
   const renderForm = () => (
     <div className="w-full max-w-2xl mx-auto">
-      <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Try Your AI Agent
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400">
-          Fill out the form below and we'll generate a live chatbot demo and a voice agent prompt for your business.
-        </p>
-      </div>
-
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 px-4 py-3 rounded-lg text-sm mb-4">
           {error}
@@ -584,6 +756,21 @@ export default function DemoPage() {
       <p className="text-gray-500 dark:text-gray-400 text-sm">
         This may take a moment. We're crafting the perfect prompt for your business.
       </p>
+    </div>
+  )
+
+  // ─── BOOK CALL CTA ───
+  const renderBookCallCTA = () => (
+    <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-4 text-center mt-6">
+      <p className="text-sm text-primary-600 dark:text-primary-400 mb-3">
+        Ready to deploy this AI agent for your business? Book a free call with our team.
+      </p>
+      <button
+        onClick={handleBookCall}
+        className="inline-block px-6 py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors text-sm"
+      >
+        Book Your Free Call
+      </button>
     </div>
   )
 
@@ -856,32 +1043,84 @@ export default function DemoPage() {
                 <div ref={transcriptEndRef} />
               </div>
             </div>
-
-            {/* Sign Up CTA */}
-            <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-4 text-center">
-              <p className="text-sm text-primary-600 dark:text-primary-400 mb-3">
-                Want to deploy this as a production voice agent? Sign up to make real calls with AI.
-              </p>
-              <a
-                href="/register"
-                className="inline-block px-6 py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors text-sm"
-              >
-                Sign Up Free
-              </a>
-            </div>
           </div>
         </div>
       )}
+
+      {/* Book Call CTA — shown below both tabs */}
+      {renderBookCallCTA()}
     </div>
   )
 
-  return (
-    <div className={`min-h-screen ${darkMode ? 'dark bg-dark-bg' : 'bg-gray-100'}`}>
-      <div className="p-6 sm:p-10">
-        {phase === 'form' && renderForm()}
-        {phase === 'loading' && renderLoading()}
-        {phase === 'results' && renderResults()}
+  // ─── CALENDLY ───
+  const renderCalendly = () => {
+    if (!showCalendly) return null
+
+    const calendlyUrlWithParams = darkMode
+      ? `${CALENDLY_URL}?background_color=22242a&text_color=ffffff&primary_color=636c7a`
+      : CALENDLY_URL
+
+    return (
+      <section ref={calendlySectionRef} className="py-16 px-4 sm:px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
+            Book Your Free Call
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-xl mx-auto">
+            Schedule a 30-minute call with our team. We'll walk you through deploying your AI agent and answer any questions.
+          </p>
+          <div
+            className="calendly-inline-widget"
+            data-url={calendlyUrlWithParams}
+            style={{ minWidth: '320px', height: '700px' }}
+          />
+        </div>
+      </section>
+    )
+  }
+
+  // ─── FOOTER ───
+  const renderFooter = () => (
+    <footer className="border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <span className="text-lg font-bold text-primary-600 dark:text-primary-400">Sword AI</span>
+        <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+          <a href="/privacy" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Privacy</a>
+          <a href="/terms" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Terms</a>
+          <a href="/login" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Sign In</a>
+        </div>
+        <span className="text-sm text-gray-400 dark:text-gray-500">
+          &copy; {new Date().getFullYear()} Sword AI. All rights reserved.
+        </span>
       </div>
+    </footer>
+  )
+
+  return (
+    <div className={`min-h-screen ${darkMode ? 'dark bg-dark-bg' : 'bg-gray-50'}`}>
+      {renderNavbar()}
+      {renderHero()}
+      {renderFeatures()}
+
+      {/* Demo Section */}
+      <section ref={demoSectionRef} className="py-16 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
+              Try Your AI Agent
+            </h2>
+            <p className="text-gray-500 dark:text-gray-400 max-w-xl mx-auto">
+              Fill out the form below and we'll generate a live chatbot demo and a voice agent for your business.
+            </p>
+          </div>
+          {phase === 'form' && renderForm()}
+          {phase === 'loading' && renderLoading()}
+          {phase === 'results' && renderResults()}
+        </div>
+      </section>
+
+      {renderCalendly()}
+      {renderFooter()}
     </div>
   )
 }
