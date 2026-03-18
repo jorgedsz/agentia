@@ -12,16 +12,28 @@ const LANGUAGES = ['English', 'Spanish', 'French', 'German', 'Italian', 'Portugu
 
 const TONES = ['Professional', 'Friendly', 'Casual', 'Formal', 'Empathetic']
 
-const VOICES = [
-  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', desc: 'Female — Warm & Friendly' },
-  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', desc: 'Female — Soft & Professional' },
-  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', desc: 'Female — Confident' },
-  { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily', desc: 'Female — British' },
-  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', desc: 'Male — Deep & Authoritative' },
-  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh', desc: 'Male — Narrative' },
-  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', desc: 'Male — Friendly' },
-  { id: '29vD33N1CtxCmqQRPOHJ', name: 'Drew', desc: 'Male — Confident & Warm' },
-]
+const VOICES = {
+  English: [
+    { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', desc: 'Female — Warm & Friendly' },
+    { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', desc: 'Female — Soft & Professional' },
+    { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', desc: 'Female — Confident' },
+    { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily', desc: 'Female — British' },
+    { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', desc: 'Male — Deep & Authoritative' },
+    { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh', desc: 'Male — Narrative' },
+    { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', desc: 'Male — Friendly' },
+    { id: '29vD33N1CtxCmqQRPOHJ', name: 'Drew', desc: 'Male — Confident & Warm' },
+  ],
+  Spanish: [
+    { id: 'FGY2WhFZPnopRgpkkpcg', name: 'Laura', desc: 'Femenina — Cálida y Natural' },
+    { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', desc: 'Femenina — Profesional' },
+    { id: 'Xb7hH8MSUJpSbSDYk0k2', name: 'Alice', desc: 'Femenina — Clara y Amable' },
+    { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', desc: 'Femenina — Expresiva' },
+    { id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam', desc: 'Masculina — Confiable' },
+    { id: 'nPczCjzI2devNBz1zQrb', name: 'Brian', desc: 'Masculina — Narrativo' },
+    { id: 'cjVigY5qzO86Huf0OWal', name: 'Eric', desc: 'Masculina — Amigable' },
+    { id: 'pqHfZKP75CvOlQylNhV4', name: 'Bill', desc: 'Masculina — Seguro' },
+  ],
+}
 
 export default function DemoPage() {
   const { darkMode } = useTheme()
@@ -52,7 +64,7 @@ export default function DemoPage() {
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [isSending, setIsSending] = useState(false)
-  const [selectedVoice, setSelectedVoice] = useState(VOICES[0].id)
+  const [selectedVoice, setSelectedVoice] = useState(VOICES.English[0].id)
 
   // Voice call state
   const [callStatus, setCallStatus] = useState('idle') // idle | connecting | active | ended
@@ -67,6 +79,9 @@ export default function DemoPage() {
 
   const messagesEndRef = useRef(null)
   const chatInputRef = useRef(null)
+
+  // Derive available voices from selected language (fallback to English)
+  const availableVoices = VOICES[form.language] || VOICES.English
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -121,6 +136,8 @@ export default function DemoPage() {
       setVoicebotPrompt(data.voicebotPrompt)
       setFirstMessage(data.firstMessage)
       setMessages([{ role: 'assistant', content: data.firstMessage }])
+      const voices = VOICES[form.language] || VOICES.English
+      setSelectedVoice(voices[0].id)
       setPhase('results')
     } catch (err) {
       const msg = err.response?.data?.error || 'Failed to generate demo. Please try again.'
@@ -339,7 +356,8 @@ export default function DemoPage() {
         },
         voice: {
           provider: '11labs',
-          voiceId: selectedVoice
+          voiceId: selectedVoice,
+          ...(form.language !== 'English' && { model: 'eleven_multilingual_v2' })
         },
         firstMessage: firstMessage
       })
@@ -682,7 +700,7 @@ export default function DemoPage() {
                   Select Agent Voice
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {VOICES.map(voice => (
+                  {availableVoices.map(voice => (
                     <button
                       key={voice.id}
                       type="button"
