@@ -400,12 +400,21 @@ export default function DemoPage() {
       const agentName = getRandomAgentName(form.language)
       const langCode = LANG_CODES[form.language] || 'en'
 
+      const nameInstruction = form.language === 'Spanish'
+        ? `IMPORTANTE: Tu nombre es ${agentName}. Siempre usa este nombre cuando te presentes o te pregunten tu nombre. Nunca uses otro nombre.\n\n`
+        : `IMPORTANT: Your name is ${agentName}. Always use this name when introducing yourself or when asked your name. Never use any other name.\n\n`
+
+      const patchedFirstMessage = firstMessage.replace(
+        /(?:this is|soy|me llamo|mi nombre es|I'm|I am|habla)\s+\S+/i,
+        (match) => match.replace(/\s+\S+$/, ` ${agentName}`)
+      )
+
       await vapi.start({
         name: agentName,
         model: {
           provider: 'openai',
           model: 'gpt-4o-mini',
-          messages: [{ role: 'system', content: `Your name is ${agentName}. ` + voicebotPrompt }]
+          messages: [{ role: 'system', content: nameInstruction + voicebotPrompt }]
         },
         voice: {
           provider: '11labs',
@@ -417,7 +426,7 @@ export default function DemoPage() {
           model: 'nova-2',
           language: langCode
         },
-        firstMessage: firstMessage
+        firstMessage: patchedFirstMessage
       })
     } catch (err) {
       console.error('Failed to start demo voice call:', err)
