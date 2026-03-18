@@ -33,7 +33,7 @@ Return ONLY the adapted chatbot system prompt text. No explanations, no markdown
 
 const generateDemo = async (req, res) => {
   try {
-    const { businessName, industry, agentObjective, agentType, language, tone, faq, objections } = req.body;
+    const { callerName, businessName, industry, agentObjective, agentType, language, tone, faq, objections } = req.body;
 
     // Validate required fields
     if (!businessName || !industry || !agentObjective || !agentType || !language) {
@@ -81,9 +81,12 @@ const generateDemo = async (req, res) => {
     }
 
     // Generate a clean first message for the chatbot
+    const nameOrFallback = callerName?.trim() || 'there';
     const chatFirstMessage = firstMessage
-      ? firstMessage.replace(/\{\{contact\.first_name\}\}/g, 'there').replace(/\{\{[^}]+\}\}/g, '')
-      : `Hi! Welcome to ${businessName}. How can I help you today?`;
+      ? firstMessage.replace(/\{\{contact\.first_name\}\}/g, nameOrFallback).replace(/\{\{[^}]+\}\}/g, '')
+      : callerName?.trim()
+        ? `Hi ${callerName.trim()}! Welcome to ${businessName}. How can I help you today?`
+        : `Hi! Welcome to ${businessName}. How can I help you today?`;
 
     // Store session
     const demoId = crypto.randomUUID();

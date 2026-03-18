@@ -12,6 +12,17 @@ const LANGUAGES = ['English', 'Spanish', 'French', 'German', 'Italian', 'Portugu
 
 const TONES = ['Professional', 'Friendly', 'Casual', 'Formal', 'Empathetic']
 
+const VOICES = [
+  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', desc: 'Female — Warm & Friendly' },
+  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', desc: 'Female — Soft & Professional' },
+  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', desc: 'Female — Confident' },
+  { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily', desc: 'Female — British' },
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', desc: 'Male — Deep & Authoritative' },
+  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh', desc: 'Male — Narrative' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', desc: 'Male — Friendly' },
+  { id: '29vD33N1CtxCmqQRPOHJ', name: 'Drew', desc: 'Male — Confident & Warm' },
+]
+
 export default function DemoPage() {
   const { darkMode } = useTheme()
   const { t } = useLanguage()
@@ -21,6 +32,7 @@ export default function DemoPage() {
 
   // Form state
   const [form, setForm] = useState({
+    callerName: '',
     businessName: '',
     industry: '',
     agentObjective: '',
@@ -40,7 +52,7 @@ export default function DemoPage() {
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [isSending, setIsSending] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [selectedVoice, setSelectedVoice] = useState(VOICES[0].id)
 
   // Voice call state
   const [callStatus, setCallStatus] = useState('idle') // idle | connecting | active | ended
@@ -210,24 +222,6 @@ export default function DemoPage() {
     }
   }
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(voicebotPrompt)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // fallback
-      const textarea = document.createElement('textarea')
-      textarea.value = voicebotPrompt
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
   const handleStartOver = () => {
     // Stop any active voice call
     if (vapiRef.current) {
@@ -345,7 +339,7 @@ export default function DemoPage() {
         },
         voice: {
           provider: '11labs',
-          voiceId: '21m00Tcm4TlvDq8ikWAM'
+          voiceId: selectedVoice
         },
         firstMessage: firstMessage
       })
@@ -404,6 +398,20 @@ export default function DemoPage() {
       )}
 
       <form onSubmit={handleSubmit} className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 space-y-5">
+        {/* Your Name */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Your Name
+          </label>
+          <input
+            type="text"
+            value={form.callerName}
+            onChange={(e) => updateForm('callerName', e.target.value)}
+            className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="e.g. John"
+          />
+        </div>
+
         {/* Business Name */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -659,187 +667,180 @@ export default function DemoPage() {
 
       {/* Voice Demo Tab */}
       {activeTab === 'voice' && (
-        <div className="space-y-4">
-          {/* Voice Call UI */}
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-            {voiceError && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 px-4 py-3 rounded-lg text-sm mb-4">
-                {voiceError}
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          {voiceError && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 px-4 py-3 rounded-lg text-sm mb-4">
+              {voiceError}
+            </div>
+          )}
+
+          <div className="space-y-6">
+            {/* Voice Selector */}
+            {(callStatus === 'idle' || callStatus === 'ended') && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Agent Voice
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {VOICES.map(voice => (
+                    <button
+                      key={voice.id}
+                      type="button"
+                      onClick={() => setSelectedVoice(voice.id)}
+                      className={`px-3 py-2.5 rounded-lg border text-left transition-all duration-200 ${
+                        selectedVoice === voice.id
+                          ? 'bg-primary-600 border-primary-600 text-white shadow-sm'
+                          : 'bg-gray-50 dark:bg-dark-hover border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:border-primary-400 dark:hover:border-primary-500'
+                      }`}
+                    >
+                      <span className="block text-sm font-medium">{voice.name}</span>
+                      <span className={`block text-xs mt-0.5 ${
+                        selectedVoice === voice.id
+                          ? 'text-primary-200'
+                          : 'text-gray-400 dark:text-gray-500'
+                      }`}>{voice.desc}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
-            <div className="space-y-6">
-              {/* Microphone Icon & Status */}
-              <div className="flex flex-col items-center gap-3">
-                <div className="relative">
-                  {/* Glow ring */}
-                  <div className={`absolute -inset-1 rounded-full transition-all duration-500 ${
-                    callStatus === 'active'
-                      ? 'bg-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.3)]'
-                      : callStatus === 'connecting'
-                      ? 'bg-yellow-500/20 shadow-[0_0_20px_rgba(234,179,8,0.3)]'
-                      : 'bg-primary-500/10 shadow-[0_0_15px_rgba(99,102,241,0.15)]'
-                  }`} />
-                  {/* Volume pulse ring */}
-                  {callStatus === 'active' && (
-                    <div
-                      className="absolute -inset-3 rounded-full border border-green-400/40 animate-ping"
-                      style={{ opacity: Math.min(voiceVolume * 2, 0.5), animationDuration: '1.5s' }}
-                    />
-                  )}
-                  {/* Mic circle */}
-                  <div className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    callStatus === 'active'
-                      ? 'bg-green-500/10 border-2 border-green-500/40'
-                      : callStatus === 'connecting'
-                      ? 'bg-yellow-500/10 border-2 border-yellow-500/40'
-                      : 'bg-gray-100 dark:bg-dark-hover border-2 border-gray-300 dark:border-gray-600/50'
-                  }`}>
-                    <svg className={`w-8 h-8 transition-colors duration-300 ${
-                      callStatus === 'active' ? 'text-green-500'
-                        : callStatus === 'connecting' ? 'text-yellow-500'
-                        : 'text-gray-400 dark:text-gray-500'
-                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
-                  </div>
-                </div>
-                {/* Status text */}
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {callStatus === 'idle' && 'Ready to start voice call'}
-                  {callStatus === 'connecting' && 'Connecting...'}
-                  {callStatus === 'active' && 'Call active — speak into your microphone'}
-                  {callStatus === 'ended' && 'Call ended'}
-                </span>
-                {/* Timer */}
-                {(callStatus === 'active' || callStatus === 'ended') && voiceElapsed > 0 && (
-                  <span className="text-xs font-mono text-gray-400 dark:text-gray-500">
-                    {formatElapsed(voiceElapsed)}
-                  </span>
-                )}
-              </div>
-
-              {/* Call Controls */}
-              <div className="flex items-center justify-center gap-4">
+            {/* Microphone Icon & Status */}
+            <div className="flex flex-col items-center gap-3">
+              <div className="relative">
+                {/* Glow ring */}
+                <div className={`absolute -inset-1 rounded-full transition-all duration-500 ${
+                  callStatus === 'active'
+                    ? 'bg-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.3)]'
+                    : callStatus === 'connecting'
+                    ? 'bg-yellow-500/20 shadow-[0_0_20px_rgba(234,179,8,0.3)]'
+                    : 'bg-primary-500/10 shadow-[0_0_15px_rgba(99,102,241,0.15)]'
+                }`} />
+                {/* Volume pulse ring */}
                 {callStatus === 'active' && (
-                  <button
-                    onClick={toggleVoiceMute}
-                    className={`p-3 rounded-xl transition-all duration-200 ${
-                      voiceMuted
-                        ? 'bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500/20'
-                        : 'bg-gray-100 dark:bg-dark-hover text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-dark-border hover:bg-gray-200 dark:hover:bg-dark-border'
-                    }`}
-                    title={voiceMuted ? 'Unmute' : 'Mute'}
-                  >
-                    {voiceMuted ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                      </svg>
-                    )}
-                  </button>
+                  <div
+                    className="absolute -inset-3 rounded-full border border-green-400/40 animate-ping"
+                    style={{ opacity: Math.min(voiceVolume * 2, 0.5), animationDuration: '1.5s' }}
+                  />
                 )}
-
-                {(callStatus === 'idle' || callStatus === 'ended') ? (
-                  <button
-                    onClick={startVoiceCall}
-                    className="p-4 rounded-2xl bg-green-600 text-white hover:bg-green-500 transition-all duration-200 shadow-lg shadow-green-600/20 hover:shadow-green-500/30"
-                    title="Start voice call"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                  </button>
-                ) : callStatus === 'connecting' ? (
-                  <button
-                    disabled
-                    className="p-4 rounded-2xl bg-yellow-600/80 text-white cursor-not-allowed shadow-lg"
-                  >
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  </button>
-                ) : (
-                  <button
-                    onClick={stopVoiceCall}
-                    className="p-4 rounded-2xl bg-red-600 text-white hover:bg-red-500 transition-all duration-200 shadow-lg shadow-red-600/20"
-                    title="End call"
-                  >
-                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M3.68 16.07l3.92-3.11V9.59c2.85-.93 5.94-.93 8.8 0v3.38l3.91 3.1c.46.36.66.96.5 1.52-.5 1.58-1.33 3.04-2.43 4.28-.37.42-.92.63-1.48.55-1.98-.29-3.86-.97-5.53-1.96a18.8 18.8 0 01-5.53 1.96c-.56.08-1.11-.13-1.48-.55-1.1-1.24-1.93-2.7-2.43-4.28a1.47 1.47 0 01.5-1.52h.25z" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-
-              {/* Transcript */}
-              <div className="rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-hover overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-bg">
-                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Live Transcript</span>
+                {/* Mic circle */}
+                <div className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
+                  callStatus === 'active'
+                    ? 'bg-green-500/10 border-2 border-green-500/40'
+                    : callStatus === 'connecting'
+                    ? 'bg-yellow-500/10 border-2 border-yellow-500/40'
+                    : 'bg-gray-100 dark:bg-dark-hover border-2 border-gray-300 dark:border-gray-600/50'
+                }`}>
+                  <svg className={`w-8 h-8 transition-colors duration-300 ${
+                    callStatus === 'active' ? 'text-green-500'
+                      : callStatus === 'connecting' ? 'text-yellow-500'
+                      : 'text-gray-400 dark:text-gray-500'
+                  }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
                 </div>
-                <div className="h-48 overflow-y-auto p-4 space-y-2.5">
-                  {voiceTranscript.length === 0 ? (
-                    <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
-                      {callStatus === 'idle' || callStatus === 'ended'
-                        ? 'Click the call button to start talking to your AI agent'
-                        : 'Waiting for conversation...'}
-                    </p>
+              </div>
+              {/* Status text */}
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {callStatus === 'idle' && 'Ready to start voice call'}
+                {callStatus === 'connecting' && 'Connecting...'}
+                {callStatus === 'active' && 'Call active — speak into your microphone'}
+                {callStatus === 'ended' && 'Call ended'}
+              </span>
+              {/* Timer */}
+              {(callStatus === 'active' || callStatus === 'ended') && voiceElapsed > 0 && (
+                <span className="text-xs font-mono text-gray-400 dark:text-gray-500">
+                  {formatElapsed(voiceElapsed)}
+                </span>
+              )}
+            </div>
+
+            {/* Call Controls */}
+            <div className="flex items-center justify-center gap-4">
+              {callStatus === 'active' && (
+                <button
+                  onClick={toggleVoiceMute}
+                  className={`p-3 rounded-xl transition-all duration-200 ${
+                    voiceMuted
+                      ? 'bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500/20'
+                      : 'bg-gray-100 dark:bg-dark-hover text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-dark-border hover:bg-gray-200 dark:hover:bg-dark-border'
+                  }`}
+                  title={voiceMuted ? 'Unmute' : 'Mute'}
+                >
+                  {voiceMuted ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                    </svg>
                   ) : (
-                    voiceTranscript.map((entry, i) => (
-                      <div key={i} className={`text-sm ${
-                        entry.role === 'Agent'
-                          ? 'text-primary-600 dark:text-primary-400'
-                          : entry.role === 'System'
-                          ? 'text-red-500 dark:text-red-400'
-                          : 'text-gray-700 dark:text-gray-300'
-                      }`}>
-                        <span className="font-medium">{entry.role}:</span> {entry.text}
-                      </div>
-                    ))
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    </svg>
                   )}
-                  <div ref={transcriptEndRef} />
-                </div>
+                </button>
+              )}
+
+              {(callStatus === 'idle' || callStatus === 'ended') ? (
+                <button
+                  onClick={startVoiceCall}
+                  className="p-4 rounded-2xl bg-green-600 text-white hover:bg-green-500 transition-all duration-200 shadow-lg shadow-green-600/20 hover:shadow-green-500/30"
+                  title="Start voice call"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </button>
+              ) : callStatus === 'connecting' ? (
+                <button
+                  disabled
+                  className="p-4 rounded-2xl bg-yellow-600/80 text-white cursor-not-allowed shadow-lg"
+                >
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                </button>
+              ) : (
+                <button
+                  onClick={stopVoiceCall}
+                  className="p-4 rounded-2xl bg-red-600 text-white hover:bg-red-500 transition-all duration-200 shadow-lg shadow-red-600/20"
+                  title="End call"
+                >
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3.68 16.07l3.92-3.11V9.59c2.85-.93 5.94-.93 8.8 0v3.38l3.91 3.1c.46.36.66.96.5 1.52-.5 1.58-1.33 3.04-2.43 4.28-.37.42-.92.63-1.48.55-1.98-.29-3.86-.97-5.53-1.96a18.8 18.8 0 01-5.53 1.96c-.56.08-1.11-.13-1.48-.55-1.1-1.24-1.93-2.7-2.43-4.28a1.47 1.47 0 01.5-1.52h.25z" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Transcript */}
+            <div className="rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-hover overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-bg">
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Live Transcript</span>
+              </div>
+              <div className="h-48 overflow-y-auto p-4 space-y-2.5">
+                {voiceTranscript.length === 0 ? (
+                  <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
+                    {callStatus === 'idle' || callStatus === 'ended'
+                      ? 'Select a voice and click the call button to talk to your AI agent'
+                      : 'Waiting for conversation...'}
+                  </p>
+                ) : (
+                  voiceTranscript.map((entry, i) => (
+                    <div key={i} className={`text-sm ${
+                      entry.role === 'Agent'
+                        ? 'text-primary-600 dark:text-primary-400'
+                        : entry.role === 'System'
+                        ? 'text-red-500 dark:text-red-400'
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}>
+                      <span className="font-medium">{entry.role}:</span> {entry.text}
+                    </div>
+                  ))
+                )}
+                <div ref={transcriptEndRef} />
               </div>
             </div>
-          </div>
 
-          {/* Voice Prompt Display (below call UI) */}
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Generated Voice Agent Prompt
-              </h3>
-              <button
-                onClick={handleCopy}
-                className="px-3 py-1.5 bg-gray-100 dark:bg-dark-hover border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-border rounded-lg text-sm transition-colors flex items-center gap-1.5"
-              >
-                {copied ? (
-                  <>
-                    <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Copy
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4 max-h-96 overflow-y-auto">
-              <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono leading-relaxed">
-                {voicebotPrompt}
-              </pre>
-            </div>
-
-            <div className="mt-6 bg-primary-500/10 border border-primary-500/30 rounded-lg p-4 text-center">
+            {/* Sign Up CTA */}
+            <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-4 text-center">
               <p className="text-sm text-primary-600 dark:text-primary-400 mb-3">
                 Want to deploy this as a production voice agent? Sign up to make real calls with AI.
               </p>
