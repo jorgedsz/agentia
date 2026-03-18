@@ -639,6 +639,15 @@ export default function ChatbotEdit() {
               <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-dark-hover dark:text-gray-400'}`}>
                 {isActive ? 'Active' : 'Inactive'}
               </span>
+              <select
+                value={chatbotType}
+                onChange={(e) => setChatbotType(e.target.value)}
+                className="text-xs font-medium rounded-full px-2.5 py-0.5 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
+              >
+                <option value="standard">Respond to Webhook</option>
+                <option value="ghl_sms">GHL SMS</option>
+                <option value="ghl_whatsapp">GHL WhatsApp</option>
+              </select>
             </div>
           </div>
         </div>
@@ -682,7 +691,7 @@ export default function ChatbotEdit() {
 
       <div className="space-y-6">
         {/* Icon Button Grid */}
-        <div className="grid grid-cols-4 gap-4">
+        <div className={`grid gap-4 ${chatbotType === 'ghl_sms' || chatbotType === 'ghl_whatsapp' ? 'grid-cols-4' : 'grid-cols-3'}`}>
           {/* Model Button */}
           <button
             onClick={() => setShowModelModal(true)}
@@ -716,7 +725,8 @@ export default function ChatbotEdit() {
             </svg>
           </button>
 
-          {/* Call Button */}
+          {/* Call Button - only for GHL types */}
+          {(chatbotType === 'ghl_sms' || chatbotType === 'ghl_whatsapp') && (
           <button
             onClick={() => setShowCallModal(true)}
             className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
@@ -734,6 +744,7 @@ export default function ChatbotEdit() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
           </button>
+          )}
 
           {/* Tools Button */}
           <button

@@ -1017,7 +1017,11 @@
     "callToolSelectAgent": "Select an agent...",
     "callToolPhone": "Phone Number",
     "callToolSelectPhone": "Select a phone number...",
-    "callToolPhoneNote": "This phone number will be used as the caller ID for outbound calls."
+    "callToolPhoneNote": "This phone number will be used as the caller ID for outbound calls.",
+    "chatbotTypeSetting": "Chatbot Type",
+    "chatbotTypeWebhook": "Respond to Webhook",
+    "chatbotTypeGhlSms": "GHL SMS",
+    "chatbotTypeGhlWhatsapp": "GHL WhatsApp"
   },
   "scheduledCalls": {
     "title": "Scheduled Calls",
