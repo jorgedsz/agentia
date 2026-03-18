@@ -49,10 +49,31 @@ const PORT = process.env.PORT || 5000;
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
-  crossOriginOpenerPolicy: false
+  crossOriginOpenerPolicy: false,
+  frameguard: false // handled manually below for selective iframe embedding
 }));
+
+// Allow iframe embedding from the marketing website
+app.use((req, res, next) => {
+  const websiteUrl = process.env.WEBSITE_URL || 'https://swordaisolutions.com';
+  res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${websiteUrl}`);
+  next();
+});
+
+const allowedOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:5173',
+  process.env.WEBSITE_URL || 'https://swordaisolutions.com'
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
