@@ -98,6 +98,14 @@ function App() {
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/demo" element={<DemoPage />} />
+        <Route
+          path="/"
+          element={
+            <PublicRoute>
+              <DemoPage />
+            </PublicRoute>
+          }
+        />
 
         {/* Dashboard with nested routes */}
         <Route
@@ -133,7 +141,8 @@ function App() {
           <Route path="support" element={<Support />} />
         </Route>
 
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        {/* Fallback: redirect unknown routes to landing */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
   )
