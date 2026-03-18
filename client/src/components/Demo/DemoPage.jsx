@@ -35,11 +35,23 @@ export default function DemoPage() {
   const [demoId, setDemoId] = useState(null)
   const [chatbotPrompt, setChatbotPrompt] = useState('')
   const [voicebotPrompt, setVoicebotPrompt] = useState('')
+  const [firstMessage, setFirstMessage] = useState('')
   const [activeTab, setActiveTab] = useState('chat')
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Voice call state
+  const [callStatus, setCallStatus] = useState('idle') // idle | connecting | active | ended
+  const [voiceTranscript, setVoiceTranscript] = useState([])
+  const [voiceMuted, setVoiceMuted] = useState(false)
+  const [voiceVolume, setVoiceVolume] = useState(0)
+  const [voiceElapsed, setVoiceElapsed] = useState(0)
+  const [voiceError, setVoiceError] = useState('')
+  const vapiRef = useRef(null)
+  const voiceTimerRef = useRef(null)
+  const transcriptEndRef = useRef(null)
 
   const messagesEndRef = useRef(null)
   const chatInputRef = useRef(null)
@@ -47,6 +59,24 @@ export default function DemoPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [voiceTranscript])
+
+  // Cleanup VAPI on unmount or tab switch
+  useEffect(() => {
+    return () => {
+      if (vapiRef.current) {
+        vapiRef.current.stop()
+        vapiRef.current = null
+      }
+      if (voiceTimerRef.current) {
+        clearInterval(voiceTimerRef.current)
+        voiceTimerRef.current = null
+      }
+    }
+  }, [])
 
   const updateForm = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -77,6 +107,7 @@ export default function DemoPage() {
       setDemoId(data.demoId)
       setChatbotPrompt(data.chatbotPrompt)
       setVoicebotPrompt(data.voicebotPrompt)
+      setFirstMessage(data.firstMessage)
       setMessages([{ role: 'assistant', content: data.firstMessage }])
       setPhase('results')
     } catch (err) {
@@ -198,14 +229,160 @@ export default function DemoPage() {
   }
 
   const handleStartOver = () => {
+    // Stop any active voice call
+    if (vapiRef.current) {
+      vapiRef.current.stop()
+      vapiRef.current = null
+    }
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current)
+      voiceTimerRef.current = null
+    }
+
     setPhase('form')
     setDemoId(null)
     setChatbotPrompt('')
     setVoicebotPrompt('')
+    setFirstMessage('')
     setMessages([])
     setChatInput('')
     setActiveTab('chat')
     setError('')
+    setCallStatus('idle')
+    setVoiceTranscript([])
+    setVoiceMuted(false)
+    setVoiceVolume(0)
+    setVoiceElapsed(0)
+    setVoiceError('')
+  }
+
+  // ─── VOICE CALL FUNCTIONS ───
+  const startVoiceCall = async () => {
+    try {
+      setCallStatus('connecting')
+      setVoiceTranscript([])
+      setVoiceElapsed(0)
+      setVoiceMuted(false)
+      setVoiceVolume(0)
+      setVoiceError('')
+
+      // Fetch VAPI public key
+      let publicKey
+      try {
+        const { data } = await demoAPI.getVapiKey()
+        publicKey = data.vapiPublicKey
+      } catch (err) {
+        const msg = err.response?.data?.error || 'Voice calling is not configured. Please try the chat demo instead.'
+        setVoiceError(msg)
+        setCallStatus('idle')
+        return
+      }
+
+      // Dynamic import VAPI SDK
+      const { default: Vapi } = await import('@vapi-ai/web')
+      const vapi = new Vapi(publicKey)
+      vapiRef.current = vapi
+
+      vapi.on('call-start', () => {
+        setCallStatus('active')
+        voiceTimerRef.current = setInterval(() => {
+          setVoiceElapsed(prev => prev + 1)
+        }, 1000)
+      })
+
+      vapi.on('call-end', () => {
+        setCallStatus('ended')
+        if (voiceTimerRef.current) {
+          clearInterval(voiceTimerRef.current)
+          voiceTimerRef.current = null
+        }
+      })
+
+      vapi.on('message', (msg) => {
+        if (msg.type === 'transcript') {
+          if (msg.transcriptType === 'final') {
+            setVoiceTranscript(prev => [...prev, {
+              role: msg.role === 'assistant' ? 'Agent' : 'You',
+              text: msg.transcript
+            }])
+          }
+        } else if (msg.type === 'conversation-update' && msg.conversation) {
+          const convMessages = msg.conversation
+          setVoiceTranscript(
+            convMessages
+              .filter(m => m.role === 'assistant' || m.role === 'user')
+              .map(m => ({
+                role: m.role === 'assistant' ? 'Agent' : 'You',
+                text: m.content
+              }))
+          )
+        }
+      })
+
+      vapi.on('volume-level', (level) => {
+        setVoiceVolume(level)
+      })
+
+      vapi.on('error', (err) => {
+        console.error('VAPI demo call error:', err)
+        setCallStatus('ended')
+        setVoiceTranscript(prev => [...prev, {
+          role: 'System',
+          text: `Error: ${err.message || 'Call failed'}`
+        }])
+        if (voiceTimerRef.current) {
+          clearInterval(voiceTimerRef.current)
+          voiceTimerRef.current = null
+        }
+      })
+
+      // Start with inline assistant config
+      await vapi.start({
+        model: {
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          messages: [{ role: 'system', content: voicebotPrompt }]
+        },
+        voice: {
+          provider: '11labs',
+          voiceId: '21m00Tcm4TlvDq8ikWAM'
+        },
+        firstMessage: firstMessage
+      })
+    } catch (err) {
+      console.error('Failed to start demo voice call:', err)
+      setCallStatus('ended')
+      setVoiceTranscript(prev => [...prev, {
+        role: 'System',
+        text: `Error: ${err.message || 'Failed to start call'}`
+      }])
+    }
+  }
+
+  const stopVoiceCall = () => {
+    if (vapiRef.current) {
+      vapiRef.current.stop()
+      vapiRef.current = null
+    }
+    if (voiceTimerRef.current) {
+      clearInterval(voiceTimerRef.current)
+      voiceTimerRef.current = null
+    }
+    setCallStatus('ended')
+  }
+
+  const toggleVoiceMute = () => {
+    if (vapiRef.current) {
+      const newMuted = !voiceMuted
+      vapiRef.current.setMuted(newMuted)
+      setVoiceMuted(newMuted)
+    }
+  }
+
+  const formatElapsed = (seconds) => {
+    const mins = Math.floor(seconds / 60).toString().padStart(2, '0')
+    const secs = (seconds % 60).toString().padStart(2, '0')
+    return `${mins}:${secs}`
   }
 
   // ─── FORM PHASE ───
@@ -419,7 +596,7 @@ export default function DemoPage() {
               : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
           }`}
         >
-          Voice Prompt
+          Voice Demo
         </button>
       </div>
 
@@ -480,51 +657,199 @@ export default function DemoPage() {
         </div>
       )}
 
-      {/* Voice Prompt Tab */}
+      {/* Voice Demo Tab */}
       {activeTab === 'voice' && (
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Generated Voice Agent Prompt
-            </h3>
-            <button
-              onClick={handleCopy}
-              className="px-3 py-1.5 bg-gray-100 dark:bg-dark-hover border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-border rounded-lg text-sm transition-colors flex items-center gap-1.5"
-            >
-              {copied ? (
-                <>
-                  <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                  Copy
-                </>
-              )}
-            </button>
+        <div className="space-y-4">
+          {/* Voice Call UI */}
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+            {voiceError && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-500 dark:text-red-400 px-4 py-3 rounded-lg text-sm mb-4">
+                {voiceError}
+              </div>
+            )}
+
+            <div className="space-y-6">
+              {/* Microphone Icon & Status */}
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative">
+                  {/* Glow ring */}
+                  <div className={`absolute -inset-1 rounded-full transition-all duration-500 ${
+                    callStatus === 'active'
+                      ? 'bg-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.3)]'
+                      : callStatus === 'connecting'
+                      ? 'bg-yellow-500/20 shadow-[0_0_20px_rgba(234,179,8,0.3)]'
+                      : 'bg-primary-500/10 shadow-[0_0_15px_rgba(99,102,241,0.15)]'
+                  }`} />
+                  {/* Volume pulse ring */}
+                  {callStatus === 'active' && (
+                    <div
+                      className="absolute -inset-3 rounded-full border border-green-400/40 animate-ping"
+                      style={{ opacity: Math.min(voiceVolume * 2, 0.5), animationDuration: '1.5s' }}
+                    />
+                  )}
+                  {/* Mic circle */}
+                  <div className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${
+                    callStatus === 'active'
+                      ? 'bg-green-500/10 border-2 border-green-500/40'
+                      : callStatus === 'connecting'
+                      ? 'bg-yellow-500/10 border-2 border-yellow-500/40'
+                      : 'bg-gray-100 dark:bg-dark-hover border-2 border-gray-300 dark:border-gray-600/50'
+                  }`}>
+                    <svg className={`w-8 h-8 transition-colors duration-300 ${
+                      callStatus === 'active' ? 'text-green-500'
+                        : callStatus === 'connecting' ? 'text-yellow-500'
+                        : 'text-gray-400 dark:text-gray-500'
+                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                  </div>
+                </div>
+                {/* Status text */}
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {callStatus === 'idle' && 'Ready to start voice call'}
+                  {callStatus === 'connecting' && 'Connecting...'}
+                  {callStatus === 'active' && 'Call active — speak into your microphone'}
+                  {callStatus === 'ended' && 'Call ended'}
+                </span>
+                {/* Timer */}
+                {(callStatus === 'active' || callStatus === 'ended') && voiceElapsed > 0 && (
+                  <span className="text-xs font-mono text-gray-400 dark:text-gray-500">
+                    {formatElapsed(voiceElapsed)}
+                  </span>
+                )}
+              </div>
+
+              {/* Call Controls */}
+              <div className="flex items-center justify-center gap-4">
+                {callStatus === 'active' && (
+                  <button
+                    onClick={toggleVoiceMute}
+                    className={`p-3 rounded-xl transition-all duration-200 ${
+                      voiceMuted
+                        ? 'bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500/20'
+                        : 'bg-gray-100 dark:bg-dark-hover text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-dark-border hover:bg-gray-200 dark:hover:bg-dark-border'
+                    }`}
+                    title={voiceMuted ? 'Unmute' : 'Mute'}
+                  >
+                    {voiceMuted ? (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+
+                {(callStatus === 'idle' || callStatus === 'ended') ? (
+                  <button
+                    onClick={startVoiceCall}
+                    className="p-4 rounded-2xl bg-green-600 text-white hover:bg-green-500 transition-all duration-200 shadow-lg shadow-green-600/20 hover:shadow-green-500/30"
+                    title="Start voice call"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </button>
+                ) : callStatus === 'connecting' ? (
+                  <button
+                    disabled
+                    className="p-4 rounded-2xl bg-yellow-600/80 text-white cursor-not-allowed shadow-lg"
+                  >
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopVoiceCall}
+                    className="p-4 rounded-2xl bg-red-600 text-white hover:bg-red-500 transition-all duration-200 shadow-lg shadow-red-600/20"
+                    title="End call"
+                  >
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M3.68 16.07l3.92-3.11V9.59c2.85-.93 5.94-.93 8.8 0v3.38l3.91 3.1c.46.36.66.96.5 1.52-.5 1.58-1.33 3.04-2.43 4.28-.37.42-.92.63-1.48.55-1.98-.29-3.86-.97-5.53-1.96a18.8 18.8 0 01-5.53 1.96c-.56.08-1.11-.13-1.48-.55-1.1-1.24-1.93-2.7-2.43-4.28a1.47 1.47 0 01.5-1.52h.25z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Transcript */}
+              <div className="rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-hover overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-bg">
+                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Live Transcript</span>
+                </div>
+                <div className="h-48 overflow-y-auto p-4 space-y-2.5">
+                  {voiceTranscript.length === 0 ? (
+                    <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
+                      {callStatus === 'idle' || callStatus === 'ended'
+                        ? 'Click the call button to start talking to your AI agent'
+                        : 'Waiting for conversation...'}
+                    </p>
+                  ) : (
+                    voiceTranscript.map((entry, i) => (
+                      <div key={i} className={`text-sm ${
+                        entry.role === 'Agent'
+                          ? 'text-primary-600 dark:text-primary-400'
+                          : entry.role === 'System'
+                          ? 'text-red-500 dark:text-red-400'
+                          : 'text-gray-700 dark:text-gray-300'
+                      }`}>
+                        <span className="font-medium">{entry.role}:</span> {entry.text}
+                      </div>
+                    ))
+                  )}
+                  <div ref={transcriptEndRef} />
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4 max-h-96 overflow-y-auto">
-            <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono leading-relaxed">
-              {voicebotPrompt}
-            </pre>
-          </div>
+          {/* Voice Prompt Display (below call UI) */}
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Generated Voice Agent Prompt
+              </h3>
+              <button
+                onClick={handleCopy}
+                className="px-3 py-1.5 bg-gray-100 dark:bg-dark-hover border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-border rounded-lg text-sm transition-colors flex items-center gap-1.5"
+              >
+                {copied ? (
+                  <>
+                    <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
 
-          <div className="mt-6 bg-primary-500/10 border border-primary-500/30 rounded-lg p-4 text-center">
-            <p className="text-sm text-primary-600 dark:text-primary-400 mb-3">
-              Want to try this as a live voice agent? Sign up to make real calls with AI.
-            </p>
-            <a
-              href="/register"
-              className="inline-block px-6 py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors text-sm"
-            >
-              Sign Up Free
-            </a>
+            <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4 max-h-96 overflow-y-auto">
+              <pre className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap font-mono leading-relaxed">
+                {voicebotPrompt}
+              </pre>
+            </div>
+
+            <div className="mt-6 bg-primary-500/10 border border-primary-500/30 rounded-lg p-4 text-center">
+              <p className="text-sm text-primary-600 dark:text-primary-400 mb-3">
+                Want to deploy this as a production voice agent? Sign up to make real calls with AI.
+              </p>
+              <a
+                href="/register"
+                className="inline-block px-6 py-2.5 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors text-sm"
+              >
+                Sign Up Free
+              </a>
+            </div>
           </div>
         </div>
       )}

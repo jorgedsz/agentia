@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const OpenAI = require('openai');
 const { generatePrompt } = require('../services/promptGeneratorService');
 const { getApiKeys } = require('../utils/getApiKeys');
+const { decrypt } = require('../utils/encryption');
 
 // In-memory store for demo sessions (30-min TTL)
 const demoSessions = new Map();
@@ -179,4 +180,28 @@ const chatDemo = async (req, res) => {
   }
 };
 
-module.exports = { generateDemo, chatDemo };
+const getDemoVapiKey = async (req, res) => {
+  try {
+    // 1. Check PlatformSettings
+    const settings = await req.prisma.platformSettings.findFirst();
+    if (settings?.vapiPublicKey) {
+      const decrypted = decrypt(settings.vapiPublicKey);
+      if (decrypted) {
+        return res.json({ vapiPublicKey: decrypted });
+      }
+    }
+
+    // 2. Fallback to env var
+    const envKey = process.env.VAPI_PUBLIC_KEY;
+    if (envKey) {
+      return res.json({ vapiPublicKey: envKey });
+    }
+
+    return res.status(404).json({ error: 'VAPI Public Key not configured' });
+  } catch (error) {
+    console.error('Get demo VAPI key error:', error);
+    res.status(500).json({ error: 'Failed to fetch VAPI public key' });
+  }
+};
+
+module.exports = { generateDemo, chatDemo, getDemoVapiKey };
