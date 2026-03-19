@@ -641,6 +641,7 @@ function AccountTab() {
                               })}
                             </div>
                             <PayPalCheckoutButton
+                              key={`${product.id}-${cycle}`}
                               product={product}
                               billingCycle={cycle}
                               onSuccess={handlePayPalSuccess}

@@ -36,6 +36,7 @@ export default function PayPalCheckoutButton({ product, billingCycle, onSuccess,
     // One-time payment via Orders API
     return (
       <PayPalButtons
+        forceReRender={[product.id, billingCycle]}
         style={{ layout: 'horizontal', height: 40, tagline: false, label: 'pay' }}
         disabled={processing}
         createOrder={async () => {
@@ -74,6 +75,7 @@ export default function PayPalCheckoutButton({ product, billingCycle, onSuccess,
   // Recurring subscription via Subscriptions API
   return (
     <PayPalButtons
+      forceReRender={[product.id, billingCycle]}
       style={{ layout: 'horizontal', height: 40, tagline: false, label: 'subscribe' }}
       disabled={processing}
       createSubscription={async (data, actions) => {
