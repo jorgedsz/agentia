@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI, vapiKeyPoolAPI, complianceAPI, paymentsAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 import PricingSettings from './PricingSettings'
+import PayPalCheckoutButton from './PayPalCheckoutButton'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -264,9 +265,9 @@ function AccountTab() {
   // My Products state (for CLIENT)
   const [catalogData, setCatalogData] = useState({ products: [], userProducts: [] })
   const [catalogLoading, setCatalogLoading] = useState(true)
-  const [cart, setCart] = useState({}) // { productId: billingCycle }
-  const [purchasing, setPurchasing] = useState(false)
+  const [selectedCycles, setSelectedCycles] = useState({}) // { productId: billingCycle }
   const [purchaseSuccess, setPurchaseSuccess] = useState('')
+  const [purchaseError, setPurchaseError] = useState('')
   const [editingProduct, setEditingProduct] = useState(null) // userProduct being edited
   const [editCycle, setEditCycle] = useState('')
   const [updatingProduct, setUpdatingProduct] = useState(false)
@@ -335,56 +336,20 @@ function AccountTab() {
   const ownedProductIds = new Set(catalogData.userProducts.map(up => up.productId))
   const availableProducts = catalogData.products.filter(p => !ownedProductIds.has(p.id))
 
-  const toggleCart = (productId) => {
-    setCart(prev => {
-      const next = { ...prev }
-      if (next[productId]) {
-        delete next[productId]
-      } else {
-        next[productId] = 'monthly'
-      }
-      return next
-    })
+  const setProductCycle = (productId, cycle) => {
+    setSelectedCycles(prev => ({ ...prev, [productId]: cycle }))
   }
 
-  const setCartCycle = (productId, cycle) => {
-    setCart(prev => ({ ...prev, [productId]: cycle }))
+  const handlePayPalSuccess = (result) => {
+    setPurchaseSuccess(t('payments.purchaseSuccess'))
+    setPurchaseError('')
+    fetchCatalog()
+    setTimeout(() => setPurchaseSuccess(''), 5000)
   }
 
-  const getCartSummary = () => {
-    const entries = Object.entries(cart)
-    const totalCount = ownedProductIds.size + entries.length
-    const discountPercent = totalCount >= 3 ? 5 : 0
-    let subtotal = 0
-    entries.forEach(([productId, cycle]) => {
-      const product = catalogData.products.find(p => p.id === parseInt(productId))
-      if (product) {
-        const price = cycle === 'quarterly' ? product.quarterlyPrice : cycle === 'annual' ? product.annualPrice : cycle === 'lifetime' ? product.lifetimePrice : product.monthlyPrice
-        subtotal += price
-      }
-    })
-    const discountAmount = (subtotal * discountPercent) / 100
-    return { count: entries.length, totalCount, subtotal, discountPercent, discountAmount, total: subtotal - discountAmount }
-  }
-
-  const handlePurchase = async () => {
-    setPurchasing(true)
-    setPurchaseSuccess('')
-    try {
-      const productsInput = Object.entries(cart).map(([productId, billingCycle]) => ({
-        productId: parseInt(productId),
-        billingCycle,
-      }))
-      await paymentsAPI.purchase({ products: productsInput })
-      setPurchaseSuccess(t('payments.purchaseSuccess'))
-      setCart({})
-      fetchCatalog()
-      setTimeout(() => setPurchaseSuccess(''), 5000)
-    } catch (err) {
-      console.error('Purchase failed:', err)
-    } finally {
-      setPurchasing(false)
-    }
+  const handlePayPalError = (error) => {
+    setPurchaseError(typeof error === 'string' ? error : 'Payment failed')
+    setTimeout(() => setPurchaseError(''), 5000)
   }
 
   const handleUpdateProduct = async () => {
@@ -584,11 +549,15 @@ function AccountTab() {
                   {purchaseSuccess}
                 </div>
               )}
+              {purchaseError && (
+                <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm">
+                  {purchaseError}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 {availableProducts.map(product => {
-                  const inCart = !!cart[product.id]
-                  const cycle = cart[product.id] || 'monthly'
+                  const cycle = selectedCycles[product.id] || 'monthly'
                   const slug = product.slug
                   const iconColors = {
                     chatbots: 'from-blue-500 to-blue-600',
@@ -620,25 +589,15 @@ function AccountTab() {
                   return (
                     <div
                       key={product.id}
-                      onClick={() => !comingSoon && toggleCart(product.id)}
                       className={`relative rounded-xl border-2 transition-all duration-200 overflow-hidden ${
                         comingSoon
                           ? 'border-gray-200 dark:border-dark-border opacity-75 cursor-default'
-                          : inCart
-                            ? 'border-primary-500 dark:border-primary-400 shadow-lg shadow-primary-500/10 dark:shadow-primary-400/5 scale-[1.02] cursor-pointer'
-                            : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md cursor-pointer'
+                          : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
                       }`}
                     >
                       {comingSoon && (
                         <div className="absolute top-3 right-3 px-2.5 py-1 bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-full">
                           {t('payments.comingSoon')}
-                        </div>
-                      )}
-                      {!comingSoon && inCart && (
-                        <div className="absolute top-3 right-3 w-6 h-6 bg-primary-500 rounded-full flex items-center justify-center">
-                          <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
                         </div>
                       )}
                       <div className="p-5">
@@ -661,14 +620,14 @@ function AccountTab() {
                               <span className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(currentPrice)}</span>
                               <span className="text-sm text-gray-500 dark:text-gray-400">/ {getBillingCycleLabel(cycle).toLowerCase()}</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-1.5" onClick={e => e.stopPropagation()}>
+                            <div className="grid grid-cols-2 gap-1.5 mb-4">
                               {['monthly', 'quarterly', 'annual', 'lifetime'].map(c => {
                                 const price = c === 'quarterly' ? product.quarterlyPrice : c === 'annual' ? product.annualPrice : c === 'lifetime' ? product.lifetimePrice : product.monthlyPrice
-                                const isSelected = inCart && cycle === c
+                                const isSelected = cycle === c
                                 return (
                                   <button
                                     key={c}
-                                    onClick={() => { if (!inCart) toggleCart(product.id); setCartCycle(product.id, c) }}
+                                    onClick={() => setProductCycle(product.id, c)}
                                     className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                                       isSelected
                                         ? 'bg-primary-500 text-white'
@@ -681,6 +640,13 @@ function AccountTab() {
                                 )
                               })}
                             </div>
+                            <PayPalCheckoutButton
+                              product={product}
+                              billingCycle={cycle}
+                              onSuccess={handlePayPalSuccess}
+                              onError={handlePayPalError}
+                              onCancel={() => {}}
+                            />
                           </>
                         )}
                       </div>
@@ -688,61 +654,6 @@ function AccountTab() {
                   )
                 })}
               </div>
-
-              {/* Order Summary */}
-              {Object.keys(cart).length > 0 && (() => {
-                const { count, totalCount, subtotal, discountPercent, discountAmount, total } = getCartSummary()
-                return (
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-dark-hover dark:to-dark-bg rounded-xl p-5 border border-gray-200 dark:border-dark-border">
-                    <div className="flex items-center gap-2 mb-4">
-                      <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
-                      </svg>
-                      <h3 className="font-semibold text-gray-900 dark:text-white">{t('payments.orderSummary')}</h3>
-                      <span className="ml-auto text-xs bg-primary-100 dark:bg-primary-500/10 text-primary-700 dark:text-primary-400 px-2 py-0.5 rounded-full font-medium">
-                        {count} {count === 1 ? 'item' : 'items'}
-                      </span>
-                    </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                        <span>{t('payments.subtotal')}</span>
-                        <span className="font-medium">{formatCurrency(subtotal)}</span>
-                      </div>
-                      {discountPercent > 0 && (
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                            {t('payments.bundleDiscount')} ({discountPercent}%)
-                          </span>
-                          <span className="font-medium text-green-600 dark:text-green-400">-{formatCurrency(discountAmount)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between font-bold text-lg text-gray-900 dark:text-white pt-3 border-t border-gray-300 dark:border-dark-border">
-                        <span>{t('payments.total')}</span>
-                        <span>{formatCurrency(total)}</span>
-                      </div>
-                      {totalCount >= 3 && (
-                        <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/5 rounded-lg px-3 py-2 mt-2">
-                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                          {t('payments.bundleDiscountNote')}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={handlePurchase}
-                      disabled={purchasing}
-                      className="mt-5 w-full px-4 py-3 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl hover:from-primary-700 hover:to-primary-600 disabled:opacity-50 text-sm font-semibold shadow-lg shadow-primary-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-primary-500/30"
-                    >
-                      {purchasing ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                          {t('common.saving')}
-                        </span>
-                      ) : t('payments.purchase')}
-                    </button>
-                  </div>
-                )
-              })()}
             </div>
           )}
         </div>

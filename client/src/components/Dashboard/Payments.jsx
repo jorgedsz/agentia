@@ -23,6 +23,13 @@ export default function Payments() {
   const [success, setSuccess] = useState('')
   const [activeTab, setActiveTab] = useState(user?.role === ROLES.OWNER ? 'products' : 'user-products')
 
+  // Transactions state
+  const [transactions, setTransactions] = useState([])
+  const [transactionsTotal, setTransactionsTotal] = useState(0)
+  const [transactionsPage, setTransactionsPage] = useState(1)
+  const [transactionsLoading, setTransactionsLoading] = useState(false)
+  const [syncingProductId, setSyncingProductId] = useState(null)
+
   // Product modal
   const [productModal, setProductModal] = useState(null) // null | 'create' | product object
   const [productForm, setProductForm] = useState({ name: '', slug: '', description: '', monthlyPrice: '', quarterlyPrice: '', annualPrice: '', lifetimePrice: '', sortOrder: 0, isActive: true })
@@ -64,6 +71,34 @@ export default function Payments() {
       setError(err.response?.data?.error || 'Failed to load data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchTransactions = async (page = 1) => {
+    setTransactionsLoading(true)
+    try {
+      const { data } = await paymentsAPI.getTransactionHistory({ page, limit: 50 })
+      setTransactions(data.transactions || [])
+      setTransactionsTotal(data.total || 0)
+      setTransactionsPage(page)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load transactions')
+    } finally {
+      setTransactionsLoading(false)
+    }
+  }
+
+  const syncProductToPayPal = async (productId) => {
+    setSyncingProductId(productId)
+    setError('')
+    try {
+      await paymentsAPI.syncProductToPayPal(productId)
+      setSuccess('Product synced to PayPal successfully')
+      fetchData()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to sync product to PayPal')
+    } finally {
+      setSyncingProductId(null)
     }
   }
 
@@ -304,6 +339,12 @@ export default function Payments() {
           >
             {t('payments.userProducts')}
           </button>
+          <button
+            onClick={() => { setActiveTab('transactions'); fetchTransactions() }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'transactions' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+          >
+            Transactions
+          </button>
         </div>
       )}
 
@@ -353,6 +394,13 @@ export default function Payments() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button onClick={() => openEditProduct(product)} className="text-primary-600 hover:text-primary-700 text-sm">{t('common.edit')}</button>
+                          <button
+                            onClick={() => syncProductToPayPal(product.id)}
+                            disabled={syncingProductId === product.id}
+                            className="text-blue-600 hover:text-blue-700 text-sm disabled:opacity-50"
+                          >
+                            {syncingProductId === product.id ? 'Syncing...' : product.paypalProductId ? 'Re-sync PayPal' : 'Sync PayPal'}
+                          </button>
                           <button onClick={() => deleteProduct(product)} className="text-red-500 hover:text-red-600 text-sm">{t('common.delete')}</button>
                         </div>
                       </td>
@@ -431,6 +479,96 @@ export default function Payments() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Transactions Tab */}
+      {activeTab === 'transactions' && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border">
+          <div className="p-4 border-b border-gray-200 dark:border-dark-border">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Transaction History</h2>
+          </div>
+
+          {transactionsLoading ? (
+            <div className="p-8 flex justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">No transactions yet</div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-dark-border text-left text-gray-500 dark:text-gray-400">
+                      <th className="px-4 py-3 font-medium">Date</th>
+                      <th className="px-4 py-3 font-medium">User</th>
+                      <th className="px-4 py-3 font-medium">Product</th>
+                      <th className="px-4 py-3 font-medium">Type</th>
+                      <th className="px-4 py-3 font-medium">Amount</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map(tx => (
+                      <tr key={tx.id} className="border-b border-gray-100 dark:border-dark-border/50">
+                        <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">
+                          {new Date(tx.createdAt).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-gray-900 dark:text-white text-sm">{tx.user?.name || tx.user?.email}</div>
+                          {tx.paypalPayerEmail && <div className="text-xs text-gray-400">{tx.paypalPayerEmail}</div>}
+                        </td>
+                        <td className="px-4 py-3 text-gray-900 dark:text-white">{tx.userProduct?.product?.name || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            tx.type === 'refund'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : tx.type === 'one_time'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                          }`}>
+                            {tx.type === 'subscription_payment' ? 'Subscription' : tx.type === 'one_time' ? 'One-time' : 'Refund'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-900 dark:text-white font-medium">
+                          {tx.type === 'refund' ? '-' : ''}{formatCurrency(tx.amount)} {tx.currency}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(tx.status)}`}>
+                            {tx.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {transactionsTotal > 50 && (
+                <div className="p-4 border-t border-gray-200 dark:border-dark-border flex items-center justify-between">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    Page {transactionsPage} of {Math.ceil(transactionsTotal / 50)}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => fetchTransactions(transactionsPage - 1)}
+                      disabled={transactionsPage <= 1}
+                      className="px-3 py-1 text-sm border border-gray-300 dark:border-dark-border rounded-lg disabled:opacity-50 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => fetchTransactions(transactionsPage + 1)}
+                      disabled={transactionsPage >= Math.ceil(transactionsTotal / 50)}
+                      className="px-3 py-1 text-sm border border-gray-300 dark:border-dark-border rounded-lg disabled:opacity-50 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

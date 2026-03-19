@@ -1,3 +1,5 @@
+const paypalService = require('../services/paypalService');
+
 // ── Helpers ──
 
 const SLUG_TO_FLAG = {
@@ -417,6 +419,16 @@ const selfCancelProduct = async (req, res) => {
     });
     if (!existing) return res.status(404).json({ error: 'Product not found in your subscriptions' });
 
+    // Cancel PayPal subscription if exists
+    if (existing.paypalSubscriptionId) {
+      try {
+        await paypalService.cancelSubscription(existing.paypalSubscriptionId, 'Cancelled by user');
+      } catch (err) {
+        console.error('PayPal cancel failed:', err.message);
+        // Continue with local cancel even if PayPal fails
+      }
+    }
+
     await req.prisma.userProduct.delete({
       where: { userId_productId: { userId, productId } },
     });
@@ -608,6 +620,476 @@ const previewPurchase = async (req, res) => {
   }
 };
 
+// ── PayPal: Sync Product ──
+
+const syncProductToPayPal = async (req, res) => {
+  try {
+    const product = await req.prisma.product.findUnique({
+      where: { id: parseInt(req.params.id) },
+    });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    // Create or reuse PayPal Catalog Product
+    let paypalProductId = product.paypalProductId;
+    if (!paypalProductId) {
+      const ppProduct = await paypalService.createCatalogProduct(
+        product.name,
+        product.description || product.name
+      );
+      paypalProductId = ppProduct.id;
+    }
+
+    // Create billing plans for each cycle that has a price > 0
+    const updates = { paypalProductId };
+
+    if (product.monthlyPrice > 0 && !product.paypalMonthlyPlanId) {
+      const plan = await paypalService.createBillingPlan(
+        paypalProductId, `${product.name} — Monthly`, 'monthly', product.monthlyPrice
+      );
+      updates.paypalMonthlyPlanId = plan.id;
+    }
+
+    if (product.quarterlyPrice > 0 && !product.paypalQuarterlyPlanId) {
+      const plan = await paypalService.createBillingPlan(
+        paypalProductId, `${product.name} — Quarterly`, 'quarterly', product.quarterlyPrice
+      );
+      updates.paypalQuarterlyPlanId = plan.id;
+    }
+
+    if (product.annualPrice > 0 && !product.paypalAnnualPlanId) {
+      const plan = await paypalService.createBillingPlan(
+        paypalProductId, `${product.name} — Annual`, 'annual', product.annualPrice
+      );
+      updates.paypalAnnualPlanId = plan.id;
+    }
+
+    const updated = await req.prisma.product.update({
+      where: { id: product.id },
+      data: updates,
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error('syncProductToPayPal error:', err);
+    res.status(500).json({ error: err.message || 'Failed to sync product to PayPal' });
+  }
+};
+
+// ── PayPal: Create Subscription (recurring) ──
+
+const createPayPalSubscription = async (req, res) => {
+  try {
+    const { productId, billingCycle } = req.body;
+    if (!productId || !billingCycle) {
+      return res.status(400).json({ error: 'productId and billingCycle are required' });
+    }
+    if (billingCycle === 'lifetime') {
+      return res.status(400).json({ error: 'Use createPayPalOrder for lifetime purchases' });
+    }
+
+    const product = await req.prisma.product.findUnique({ where: { id: parseInt(productId) } });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    // Get correct plan ID
+    const planIdMap = {
+      monthly: product.paypalMonthlyPlanId,
+      quarterly: product.paypalQuarterlyPlanId,
+      annual: product.paypalAnnualPlanId,
+    };
+    const planId = planIdMap[billingCycle];
+    if (!planId) {
+      return res.status(400).json({ error: `No PayPal plan configured for ${billingCycle} billing` });
+    }
+
+    const userId = req.user.id;
+    const appUrl = process.env.APP_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+    const returnUrl = `${appUrl}/settings?paypal=success&productId=${productId}&cycle=${billingCycle}`;
+    const cancelUrl = `${appUrl}/settings?paypal=cancelled`;
+    const customId = JSON.stringify({ userId, productId: parseInt(productId), billingCycle });
+
+    // Calculate discount for price override
+    const activeCount = await req.prisma.userProduct.count({ where: { userId, status: 'active' } });
+    const totalAfter = activeCount + 1;
+    const discountPercent = calculateDiscount(totalAfter);
+    let priceOverride = null;
+
+    if (discountPercent > 0) {
+      const basePrice = getPriceForCycle(product, billingCycle);
+      priceOverride = basePrice - (basePrice * discountPercent) / 100;
+    }
+
+    const subscription = await paypalService.createSubscription(
+      planId, returnUrl, cancelUrl, customId, priceOverride
+    );
+
+    res.json({
+      subscriptionId: subscription.id,
+      approvalUrl: subscription.links?.find(l => l.rel === 'approve')?.href,
+    });
+  } catch (err) {
+    console.error('createPayPalSubscription error:', err);
+    res.status(500).json({ error: err.message || 'Failed to create PayPal subscription' });
+  }
+};
+
+// ── PayPal: Create Order (one-time / lifetime) ──
+
+const createPayPalOrder = async (req, res) => {
+  try {
+    const { productId } = req.body;
+    if (!productId) return res.status(400).json({ error: 'productId is required' });
+
+    const product = await req.prisma.product.findUnique({ where: { id: parseInt(productId) } });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    if (product.lifetimePrice <= 0) {
+      return res.status(400).json({ error: 'This product has no lifetime price' });
+    }
+
+    const userId = req.user.id;
+
+    // Calculate discount
+    const activeCount = await req.prisma.userProduct.count({ where: { userId, status: 'active' } });
+    const totalAfter = activeCount + 1;
+    const discountPercent = calculateDiscount(totalAfter);
+    const basePrice = product.lifetimePrice;
+    const finalAmount = basePrice - (basePrice * discountPercent) / 100;
+
+    const customId = JSON.stringify({ userId, productId: parseInt(productId), billingCycle: 'lifetime' });
+
+    const order = await paypalService.createOrder(
+      finalAmount,
+      `${product.name} — Lifetime`,
+      customId
+    );
+
+    res.json({ orderId: order.id });
+  } catch (err) {
+    console.error('createPayPalOrder error:', err);
+    res.status(500).json({ error: err.message || 'Failed to create PayPal order' });
+  }
+};
+
+// ── PayPal: Capture Order (frontend calls after user approves) ──
+
+const capturePayPalOrder = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) return res.status(400).json({ error: 'orderId is required' });
+
+    const capture = await paypalService.captureOrder(orderId);
+
+    const captureUnit = capture.purchase_units?.[0];
+    const captureDetail = captureUnit?.payments?.captures?.[0];
+    const customId = captureUnit?.custom_id;
+
+    if (!customId) {
+      return res.status(400).json({ error: 'Missing custom_id in order' });
+    }
+
+    const { userId, productId, billingCycle } = JSON.parse(customId);
+
+    // Verify the user making the request matches the order
+    if (userId !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to this user' });
+    }
+
+    const product = await req.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    const amount = parseFloat(captureDetail?.amount?.value || product.lifetimePrice);
+
+    // Create/update UserProduct
+    const userProduct = await req.prisma.userProduct.upsert({
+      where: { userId_productId: { userId, productId } },
+      create: {
+        userId,
+        productId,
+        billingCycle: 'lifetime',
+        amount,
+        discountApplied: calculateDiscount(
+          (await req.prisma.userProduct.count({ where: { userId, status: 'active' } })) + 1
+        ),
+        status: 'active',
+        paypalOrderId: orderId,
+        paymentMethod: 'paypal',
+      },
+      update: {
+        billingCycle: 'lifetime',
+        amount,
+        status: 'active',
+        paypalOrderId: orderId,
+        paymentMethod: 'paypal',
+      },
+      include: { product: true },
+    });
+
+    // Record transaction
+    await req.prisma.transaction.create({
+      data: {
+        userId,
+        userProductId: userProduct.id,
+        paypalTransactionId: captureDetail?.id || null,
+        paypalOrderId: orderId,
+        type: 'one_time',
+        amount,
+        currency: captureDetail?.amount?.currency_code || 'USD',
+        status: 'completed',
+        paypalPayerEmail: capture.payer?.email_address || null,
+        rawPayload: JSON.stringify(capture),
+      },
+    });
+
+    await syncUserFlags(req.prisma, userId);
+
+    res.json({ userProduct, captureStatus: capture.status });
+  } catch (err) {
+    console.error('capturePayPalOrder error:', err);
+    res.status(500).json({ error: err.message || 'Failed to capture PayPal order' });
+  }
+};
+
+// ── PayPal: Webhook Handler ──
+
+const handlePayPalWebhook = async (req, res) => {
+  try {
+    // Verify webhook signature
+    const verified = await paypalService.verifyWebhookSignature(req.headers, req.body);
+    if (!verified) {
+      console.warn('PayPal webhook verification failed');
+      return res.status(400).json({ error: 'Invalid webhook signature' });
+    }
+
+    const event = req.body;
+    const eventType = event.event_type;
+    const resource = event.resource;
+
+    console.log(`PayPal webhook: ${eventType}`);
+
+    switch (eventType) {
+      case 'BILLING.SUBSCRIPTION.ACTIVATED': {
+        const subscriptionId = resource.id;
+        const customId = resource.custom_id;
+        if (!customId) break;
+
+        const { userId, productId, billingCycle } = JSON.parse(customId);
+        const product = await req.prisma.product.findUnique({ where: { id: productId } });
+        if (!product) break;
+
+        const basePrice = getPriceForCycle(product, billingCycle);
+        const activeCount = await req.prisma.userProduct.count({ where: { userId, status: 'active' } });
+        const discountPercent = calculateDiscount(activeCount + 1);
+        const amount = basePrice - (basePrice * discountPercent) / 100;
+
+        await req.prisma.userProduct.upsert({
+          where: { userId_productId: { userId, productId } },
+          create: {
+            userId,
+            productId,
+            billingCycle,
+            amount,
+            discountApplied: discountPercent,
+            status: 'active',
+            paypalSubscriptionId: subscriptionId,
+            paymentMethod: 'paypal',
+          },
+          update: {
+            billingCycle,
+            amount,
+            status: 'active',
+            paypalSubscriptionId: subscriptionId,
+            paymentMethod: 'paypal',
+          },
+        });
+
+        await syncUserFlags(req.prisma, userId);
+        break;
+      }
+
+      case 'PAYMENT.SALE.COMPLETED': {
+        const saleId = resource.id;
+        const subscriptionId = resource.billing_agreement_id;
+        const amount = parseFloat(resource.amount?.total || 0);
+        const currency = resource.amount?.currency || 'USD';
+        const payerEmail = resource.payer?.email_address || null;
+
+        // Find the UserProduct by subscription ID
+        let userProduct = null;
+        if (subscriptionId) {
+          userProduct = await req.prisma.userProduct.findFirst({
+            where: { paypalSubscriptionId: subscriptionId },
+          });
+        }
+
+        if (userProduct) {
+          // Calculate next payment date
+          const now = new Date();
+          let nextDate = new Date(now);
+          switch (userProduct.billingCycle) {
+            case 'monthly': nextDate.setMonth(nextDate.getMonth() + 1); break;
+            case 'quarterly': nextDate.setMonth(nextDate.getMonth() + 3); break;
+            case 'annual': nextDate.setFullYear(nextDate.getFullYear() + 1); break;
+          }
+
+          await req.prisma.userProduct.update({
+            where: { id: userProduct.id },
+            data: { nextPaymentDate: nextDate, status: 'active' },
+          });
+
+          await req.prisma.transaction.create({
+            data: {
+              userId: userProduct.userId,
+              userProductId: userProduct.id,
+              paypalTransactionId: saleId,
+              paypalSubscriptionId: subscriptionId,
+              type: 'subscription_payment',
+              amount,
+              currency,
+              status: 'completed',
+              paypalPayerEmail: payerEmail,
+              rawPayload: JSON.stringify(event),
+            },
+          });
+        }
+        break;
+      }
+
+      case 'BILLING.SUBSCRIPTION.CANCELLED': {
+        const subscriptionId = resource.id;
+        const userProduct = await req.prisma.userProduct.findFirst({
+          where: { paypalSubscriptionId: subscriptionId },
+        });
+        if (userProduct) {
+          await req.prisma.userProduct.update({
+            where: { id: userProduct.id },
+            data: { status: 'cancelled' },
+          });
+          await syncUserFlags(req.prisma, userProduct.userId);
+        }
+        break;
+      }
+
+      case 'BILLING.SUBSCRIPTION.SUSPENDED': {
+        const subscriptionId = resource.id;
+        const userProduct = await req.prisma.userProduct.findFirst({
+          where: { paypalSubscriptionId: subscriptionId },
+        });
+        if (userProduct) {
+          await req.prisma.userProduct.update({
+            where: { id: userProduct.id },
+            data: { status: 'past_due' },
+          });
+          await syncUserFlags(req.prisma, userProduct.userId);
+        }
+        break;
+      }
+
+      case 'BILLING.SUBSCRIPTION.PAYMENT.FAILED': {
+        const subscriptionId = resource.id;
+        const userProduct = await req.prisma.userProduct.findFirst({
+          where: { paypalSubscriptionId: subscriptionId },
+        });
+        if (userProduct) {
+          await req.prisma.userProduct.update({
+            where: { id: userProduct.id },
+            data: { status: 'past_due' },
+          });
+
+          await req.prisma.transaction.create({
+            data: {
+              userId: userProduct.userId,
+              userProductId: userProduct.id,
+              paypalSubscriptionId: subscriptionId,
+              type: 'subscription_payment',
+              amount: 0,
+              status: 'failed',
+              rawPayload: JSON.stringify(event),
+            },
+          });
+          await syncUserFlags(req.prisma, userProduct.userId);
+        }
+        break;
+      }
+
+      case 'PAYMENT.SALE.REFUNDED': {
+        const saleId = resource.sale_id;
+        const refundAmount = parseFloat(resource.amount?.total || 0);
+
+        // Find original transaction
+        const originalTx = await req.prisma.transaction.findFirst({
+          where: { paypalTransactionId: saleId },
+        });
+
+        await req.prisma.transaction.create({
+          data: {
+            userId: originalTx?.userId || 0,
+            userProductId: originalTx?.userProductId || null,
+            paypalTransactionId: resource.id,
+            type: 'refund',
+            amount: refundAmount,
+            currency: resource.amount?.currency || 'USD',
+            status: 'refunded',
+            rawPayload: JSON.stringify(event),
+          },
+        });
+        break;
+      }
+
+      case 'BILLING.SUBSCRIPTION.EXPIRED': {
+        const subscriptionId = resource.id;
+        const userProduct = await req.prisma.userProduct.findFirst({
+          where: { paypalSubscriptionId: subscriptionId },
+        });
+        if (userProduct) {
+          await req.prisma.userProduct.update({
+            where: { id: userProduct.id },
+            data: { status: 'cancelled' },
+          });
+          await syncUserFlags(req.prisma, userProduct.userId);
+        }
+        break;
+      }
+
+      default:
+        console.log(`Unhandled PayPal webhook event: ${eventType}`);
+    }
+
+    res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('handlePayPalWebhook error:', err);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+};
+
+// ── Transaction History ──
+
+const getTransactionHistory = async (req, res) => {
+  try {
+    const { page = 1, limit = 50 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const where = req.user.role === 'OWNER' ? {} : { userId: req.user.id };
+
+    const [transactions, total] = await Promise.all([
+      req.prisma.transaction.findMany({
+        where,
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          userProduct: { include: { product: { select: { name: true, slug: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: parseInt(limit),
+      }),
+      req.prisma.transaction.count({ where }),
+    ]);
+
+    res.json({ transactions, total, page: parseInt(page), limit: parseInt(limit) });
+  } catch (err) {
+    console.error('getTransactionHistory error:', err);
+    res.status(500).json({ error: 'Failed to get transactions' });
+  }
+};
+
 module.exports = {
   listProducts,
   getProduct,
@@ -624,4 +1106,11 @@ module.exports = {
   getCatalog,
   purchase,
   previewPurchase,
+  // PayPal
+  syncProductToPayPal,
+  createPayPalSubscription,
+  createPayPalOrder,
+  capturePayPalOrder,
+  handlePayPalWebhook,
+  getTransactionHistory,
 };

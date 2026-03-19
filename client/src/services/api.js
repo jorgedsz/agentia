@@ -242,6 +242,12 @@ export const paymentsAPI = {
   getCatalog: () => api.get('/payments/catalog'),
   purchase: (data) => api.post('/payments/purchase', data),
   preview: (data) => api.post('/payments/preview', data),
+  // PayPal
+  createPayPalSubscription: (data) => api.post('/payments/paypal/create-subscription', data),
+  createPayPalOrder: (data) => api.post('/payments/paypal/create-order', data),
+  capturePayPalOrder: (data) => api.post('/payments/paypal/capture-order', data),
+  syncProductToPayPal: (id) => api.post(`/payments/products/${id}/sync-paypal`),
+  getTransactionHistory: (params) => api.get('/payments/transactions', { params }),
 }
 
 // Tools API (test HTTP requests via proxy)

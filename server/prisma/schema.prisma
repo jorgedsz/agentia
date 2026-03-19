@@ -46,6 +46,7 @@ model User {
   complianceSetting    ComplianceSetting?
   chatbots             Chatbot[]
   userProducts         UserProduct[]
+  transactions         Transaction[]
 }
 
 model VapiKeyPool {
@@ -305,36 +306,44 @@ model TranscriberRate {
 }
 
 model Product {
-  id              Int            @id @default(autoincrement())
-  name            String
-  slug            String         @unique // "chatbots", "voicebots", "crm", "agent-generator"
-  description     String?
-  monthlyPrice    Float          @default(0)
-  quarterlyPrice  Float          @default(0)
-  annualPrice     Float          @default(0)
-  lifetimePrice   Float          @default(0)
-  isActive        Boolean        @default(true)
-  sortOrder       Int            @default(0)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  userProducts    UserProduct[]
+  id                    Int            @id @default(autoincrement())
+  name                  String
+  slug                  String         @unique // "chatbots", "voicebots", "crm", "agent-generator"
+  description           String?
+  monthlyPrice          Float          @default(0)
+  quarterlyPrice        Float          @default(0)
+  annualPrice           Float          @default(0)
+  lifetimePrice         Float          @default(0)
+  paypalProductId       String?        // PayPal Catalog Product ID
+  paypalMonthlyPlanId   String?        // PayPal Plan for monthly
+  paypalQuarterlyPlanId String?        // PayPal Plan for quarterly
+  paypalAnnualPlanId    String?        // PayPal Plan for annual
+  isActive              Boolean        @default(true)
+  sortOrder             Int            @default(0)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  userProducts          UserProduct[]
 }
 
 model UserProduct {
-  id              Int       @id @default(autoincrement())
-  userId          Int
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId       Int
-  product         Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
-  billingCycle    String    @default("monthly") // "monthly", "quarterly", "annual", "lifetime"
-  amount          Float
-  discountApplied Float     @default(0)
-  status          String    @default("active") // "active", "cancelled", "past_due"
-  nextPaymentDate DateTime?
-  notes           String?
-  assignedBy      Int?      // null = self-purchased
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                   Int           @id @default(autoincrement())
+  userId               Int
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId            Int
+  product              Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  billingCycle         String        @default("monthly") // "monthly", "quarterly", "annual", "lifetime"
+  amount               Float
+  discountApplied      Float         @default(0)
+  status               String        @default("active") // "active", "cancelled", "past_due"
+  nextPaymentDate      DateTime?
+  notes                String?
+  assignedBy           Int?          // null = self-purchased
+  paypalSubscriptionId String?       // PayPal Subscription ID (recurring)
+  paypalOrderId        String?       // PayPal Order ID (lifetime)
+  paymentMethod        String        @default("manual") // "manual" or "paypal"
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  transactions         Transaction[]
   @@unique([userId, productId])
 }
 
@@ -373,4 +382,26 @@ model ScheduledFollowUp {
   updatedAt       DateTime @updatedAt
 
   @@index([status, scheduledAt])
+}
+
+model Transaction {
+  id                   Int          @id @default(autoincrement())
+  userId               Int
+  user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userProductId        Int?
+  userProduct          UserProduct? @relation(fields: [userProductId], references: [id], onDelete: SetNull)
+  paypalTransactionId  String?      @unique
+  paypalSubscriptionId String?
+  paypalOrderId        String?
+  type                 String       // "subscription_payment", "one_time", "refund"
+  amount               Float
+  currency             String       @default("USD")
+  status               String       // "completed", "pending", "refunded", "failed"
+  paypalPayerEmail     String?
+  rawPayload           String?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([paypalSubscriptionId])
 }
