@@ -1713,8 +1713,8 @@ function CalendarsTab() {
         </button>
       </div>
 
-      {/* Calendly */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+      {/* Calendly - Coming Soon */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 opacity-60">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-3">
@@ -1723,50 +1723,20 @@ function CalendarsTab() {
                 <path d="M15.9 9.2c-.4-.7-1-1.2-1.7-1.5-.7-.3-1.5-.4-2.3-.2-.8.1-1.5.5-2 1.1-.6.6-.9 1.3-1 2.1-.1.8.1 1.6.4 2.3.4.7 1 1.2 1.7 1.5.7.3 1.5.4 2.3.2.5-.1 1-.3 1.4-.6l1.3 1.3c-.7.5-1.4.9-2.3 1.1-1.1.2-2.2.1-3.2-.4s-1.8-1.2-2.3-2.2c-.5-1-.7-2.1-.5-3.2.2-1.1.7-2 1.5-2.8.8-.8 1.7-1.3 2.8-1.5 1.1-.2 2.2 0 3.2.5s1.7 1.3 2.2 2.3l-1.5.7z" fill="white"/>
               </svg>
               <h3 className="text-md font-semibold text-gray-900 dark:text-white">Calendly</h3>
-              {getProviderIntegrations('calendly').length > 0 && (
-                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Connected</span>
-              )}
+              <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400">Coming Soon</span>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Connect Calendly to use your event types for scheduling.
             </p>
           </div>
         </div>
-
-        {getProviderIntegrations('calendly').length > 0 ? (
-          <div className="space-y-3">
-            {getProviderIntegrations('calendly').map(integration => (
-              <div key={integration.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="text-sm text-green-700 dark:text-green-300">{integration.accountLabel}</span>
-                </div>
-                <button onClick={() => handleDisconnect(integration)} className="text-xs text-red-500 hover:text-red-600">Disconnect</button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <button
-            onClick={() => handleOAuthConnect('calendly')}
-            disabled={connecting === 'calendly'}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm flex items-center gap-2"
-          >
-            {connecting === 'calendly' ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Redirecting...
-              </>
-            ) : (
-              'Connect Calendly'
-            )}
-          </button>
-        )}
+        <div className="text-center py-2">
+          <p className="text-sm text-gray-400 dark:text-gray-500">This integration will be available soon.</p>
+        </div>
       </div>
 
-      {/* HubSpot */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+      {/* HubSpot - Coming Soon */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 opacity-60">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-3">
@@ -1774,50 +1744,20 @@ function CalendarsTab() {
                 <path d="M17.5 8.2V5.8c.6-.3 1-.9 1-1.6 0-1-.8-1.8-1.8-1.8s-1.8.8-1.8 1.8c0 .7.4 1.3 1 1.6v2.4c-.9.2-1.7.6-2.3 1.2L7.5 5.3c0-.1.1-.3.1-.4 0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2c.4 0 .7-.1 1-.3l5.9 4c-.4.7-.6 1.5-.6 2.4 0 1.1.4 2.2 1.1 3l-1.3 1.3c-.2-.1-.4-.1-.6-.1-.8 0-1.5.7-1.5 1.5s.7 1.5 1.5 1.5 1.5-.7 1.5-1.5c0-.2 0-.4-.1-.6l1.3-1.3c.8.7 1.9 1.1 3 1.1 2.6 0 4.7-2.1 4.7-4.7 0-2.3-1.7-4.2-3.9-4.6zm-.7 7.5c-1.6 0-2.9-1.3-2.9-2.9s1.3-2.9 2.9-2.9 2.9 1.3 2.9 2.9-1.3 2.9-2.9 2.9z" fill="#FF7A59"/>
               </svg>
               <h3 className="text-md font-semibold text-gray-900 dark:text-white">HubSpot</h3>
-              {getProviderIntegrations('hubspot').length > 0 && (
-                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Connected</span>
-              )}
+              <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400">Coming Soon</span>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Connect HubSpot meetings for scheduling and booking.
             </p>
           </div>
         </div>
-
-        {getProviderIntegrations('hubspot').length > 0 ? (
-          <div className="space-y-3">
-            {getProviderIntegrations('hubspot').map(integration => (
-              <div key={integration.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="text-sm text-green-700 dark:text-green-300">{integration.accountLabel}</span>
-                </div>
-                <button onClick={() => handleDisconnect(integration)} className="text-xs text-red-500 hover:text-red-600">Disconnect</button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <button
-            onClick={() => handleOAuthConnect('hubspot')}
-            disabled={connecting === 'hubspot'}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm flex items-center gap-2"
-          >
-            {connecting === 'hubspot' ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Redirecting...
-              </>
-            ) : (
-              'Connect HubSpot'
-            )}
-          </button>
-        )}
+        <div className="text-center py-2">
+          <p className="text-sm text-gray-400 dark:text-gray-500">This integration will be available soon.</p>
+        </div>
       </div>
 
-      {/* Cal.com */}
-      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+      {/* Cal.com - Coming Soon */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 opacity-60">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-3">
@@ -1826,53 +1766,16 @@ function CalendarsTab() {
                 <path d="M6 9.5C6 7.01 8.01 5 10.5 5h3C15.99 5 18 7.01 18 9.5v5c0 2.49-2.01 4.5-4.5 4.5h-3C8.01 19 6 16.99 6 14.5v-5z" stroke="white" strokeWidth="2"/>
               </svg>
               <h3 className="text-md font-semibold text-gray-900 dark:text-white">Cal.com</h3>
-              {getProviderIntegrations('calcom').length > 0 && (
-                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-500/20 text-green-400">Connected</span>
-              )}
+              <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400">Coming Soon</span>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Connect Cal.com with your API key for scheduling.
             </p>
           </div>
         </div>
-
-        {getProviderIntegrations('calcom').length > 0 ? (
-          <div className="space-y-3">
-            {getProviderIntegrations('calcom').map(integration => (
-              <div key={integration.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="text-sm text-green-700 dark:text-green-300">{integration.accountLabel}</span>
-                </div>
-                <button onClick={() => handleDisconnect(integration)} className="text-xs text-red-500 hover:text-red-600">Disconnect</button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex gap-3">
-              <input
-                type="password"
-                value={calcomApiKey}
-                onChange={(e) => setCalcomApiKey(e.target.value)}
-                placeholder="Enter your Cal.com API key..."
-                className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
-              />
-              <button
-                onClick={handleCalcomConnect}
-                disabled={savingCalcom || !calcomApiKey.trim()}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm"
-              >
-                {savingCalcom ? 'Connecting...' : 'Connect'}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Find your API key at cal.com/settings/developer/api-keys
-            </p>
-          </div>
-        )}
+        <div className="text-center py-2">
+          <p className="text-sm text-gray-400 dark:text-gray-500">This integration will be available soon.</p>
+        </div>
       </div>
     </div>
   )
