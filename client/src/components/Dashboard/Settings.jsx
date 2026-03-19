@@ -1756,6 +1756,32 @@ function CalendarsTab() {
         </div>
       </div>
 
+      {/* Outlook - Coming Soon */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 opacity-60">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                <rect width="24" height="24" rx="3" fill="#0078D4"/>
+                <path d="M13.5 4v7.5H20V7.5L16.75 4H13.5z" fill="#28A8EA"/>
+                <path d="M13.5 11.5H20V16l-3.25 3.5H13.5V11.5z" fill="#0364B8"/>
+                <path d="M13.5 11.5H20l-6.5 8V11.5z" fill="#0078D4"/>
+                <path d="M4 7l5.5-2.5L14 7v10l-4.5 2.5L4 17V7z" fill="#0078D4"/>
+                <path d="M7.25 10.2c.55-.85 1.5-1.2 2.35-.95.85.25 1.4 1.05 1.4 1.95 0 .9-.55 1.7-1.4 1.95-.85.25-1.8-.1-2.35-.95" stroke="white" strokeWidth="1.2" fill="none"/>
+              </svg>
+              <h3 className="text-md font-semibold text-gray-900 dark:text-white">Outlook Calendar</h3>
+              <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400">Coming Soon</span>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Connect your Outlook or Microsoft 365 calendar for scheduling.
+            </p>
+          </div>
+        </div>
+        <div className="text-center py-2">
+          <p className="text-sm text-gray-400 dark:text-gray-500">This integration will be available soon.</p>
+        </div>
+      </div>
+
       {/* Cal.com - Coming Soon */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 opacity-60">
         <div className="flex items-start justify-between mb-4">
