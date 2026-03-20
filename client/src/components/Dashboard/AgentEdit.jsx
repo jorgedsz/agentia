@@ -1923,8 +1923,9 @@ If the customer asks to be called back at a later time:
       setGeneratedPrompt(data.prompt)
       setGeneratedFirstMessage(data.firstMessage || '')
     } catch (err) {
-      setError('Failed to generate prompt')
-      setTimeout(() => setError(''), 3000)
+      console.error('Generate prompt error:', err.response?.data || err.message || err)
+      setError(err.response?.data?.error || 'Failed to generate prompt')
+      setTimeout(() => setError(''), 5000)
     } finally {
       setGeneratingPrompt(false)
     }

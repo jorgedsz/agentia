@@ -33,8 +33,9 @@ const generatePrompt = async (req, res) => {
 
     res.json({ prompt: result.prompt, firstMessage: result.firstMessage });
   } catch (error) {
-    console.error('Generate prompt error:', error);
-    res.status(500).json({ error: 'Failed to generate prompt' });
+    console.error('Generate prompt error:', error.message || error);
+    if (error.response) console.error('OpenAI response:', error.response?.data);
+    res.status(500).json({ error: 'Failed to generate prompt: ' + (error.message || 'Unknown error') });
   }
 };
 
