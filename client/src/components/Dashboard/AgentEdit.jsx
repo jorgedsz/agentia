@@ -441,7 +441,7 @@ export default function AgentEdit() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { t } = useLanguage()
+  const { t, language: uiLanguage } = useLanguage()
   const ta = (key) => t('agentEdit.' + key)
 
   const [agent, setAgent] = useState(null)
@@ -1970,7 +1970,7 @@ If the customer asks to be called back at a later time:
     setWizardStep(1)
     setWizBotType('')
     setWizDirection('outbound')
-    setWizLanguage('en')
+    setWizLanguage(uiLanguage)
     setWizCompanyName('')
     setWizIndustry('')
     setWizTone('professional')
@@ -1978,7 +1978,7 @@ If the customer asks to be called back at a later time:
     setWizTypeConfig({})
     setWizAdditionalNotes('')
     setUpdateDescription('')
-    setUpdateLanguage('en')
+    setUpdateLanguage(uiLanguage)
   }
 
   // Tool management functions
@@ -2602,7 +2602,7 @@ If the customer asks to be called back at a later time:
               <label className="text-sm text-gray-600 dark:text-gray-400">{ta('systemPrompt')}</label>
               <button
                 type="button"
-                onClick={() => { setWizDirection(agentType); setShowPromptGenerator(true) }}
+                onClick={() => { setWizDirection(agentType); setWizLanguage(uiLanguage); setUpdateLanguage(uiLanguage); setShowPromptGenerator(true) }}
                 className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-purple-600 bg-purple-50 dark:bg-purple-900/20 dark:text-purple-400 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
