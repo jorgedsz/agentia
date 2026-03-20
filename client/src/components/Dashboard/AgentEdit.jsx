@@ -2130,6 +2130,17 @@ If the customer asks to be called back at a later time:
       setTools([...tools, newTool])
     }
 
+    // Auto-inject end call instructions into system prompt when adding endCall tool
+    if (toolForm.type === 'endCall' && editingToolIndex === null) {
+      const endCallSection = uiLanguage === 'es'
+        ? `\n\nInstrucciones para Finalizar Llamada:\nTienes la capacidad de colgar la llamada usando la funcion endCall. Debes usar esta funcion para finalizar la llamada en las siguientes situaciones:\n- El lead dice adios, hasta luego, o cualquier frase de despedida\n- El lead pide explicitamente que termines la llamada\n- El lead dice que no esta interesado y ya intentaste re-engancharlo (maximo 2 veces)\n- El lead se pone hostil, grosero o usa lenguaje inapropiado\n- El lead no responde despues de 3 intentos de re-enganche\n- La conversacion ha concluido naturalmente y se han confirmado los proximos pasos\nCuando uses la funcion endCall, siempre despidete de forma educada antes de activarla.`
+        : `\n\nEnd Call Instructions:\nYou have the ability to hang up the call using the endCall function. You must use this function to end the call in the following situations:\n- The lead says goodbye, bye, or any farewell phrase\n- The lead explicitly asks you to end the call\n- The lead says they are not interested and you have already tried to re-engage them (maximum 2 times)\n- The lead becomes hostile, rude, or uses inappropriate language\n- The lead is unresponsive after 3 attempts to re-engage\n- The conversation has naturally concluded and next steps have been confirmed\nWhen using the endCall function, always say a polite goodbye before triggering it.`;
+
+      if (!systemPrompt.includes('End Call Instructions:') && !systemPrompt.includes('Instrucciones para Finalizar Llamada:')) {
+        setSystemPrompt(prev => prev.trimEnd() + endCallSection)
+      }
+    }
+
     setShowToolModal(false)
     setAdvancedSubPanel(null)
     setShowAdvancedModal(true)
@@ -2138,7 +2149,15 @@ If the customer asks to be called back at a later time:
   }
 
   const handleDeleteTool = (index) => {
+    const deletedTool = tools[index]
     setTools(tools.filter((_, i) => i !== index))
+    // Remove end call instructions from prompt when endCall tool is deleted
+    if (deletedTool?.type === 'endCall') {
+      setSystemPrompt(prev => prev
+        .replace(/\n\nEnd Call Instructions:\nYou have the ability to hang up the call using the endCall function\.[\s\S]*?When using the endCall function, always say a polite goodbye before triggering it\./, '')
+        .replace(/\n\nInstrucciones para Finalizar Llamada:\nTienes la capacidad de colgar la llamada usando la funcion endCall\.[\s\S]*?Cuando uses la funcion endCall, siempre despidete de forma educada antes de activarla\./, '')
+      )
+    }
   }
 
   const handleTestRequest = async () => {
