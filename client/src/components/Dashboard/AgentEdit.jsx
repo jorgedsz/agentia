@@ -537,7 +537,8 @@ export default function AgentEdit() {
     enableCreateContact: true,
     enableCheckAvailability: true,
     enableCreateEvent: true,
-    calendars: []        // Multi-calendar: [{ id, name, scenario, provider, integrationId, calendarId, timezone, appointmentDuration }]
+    contactId: '',       // GHL contact ID for testing (optional)
+    calendars: []        // Multi-calendar: [{ id, name, scenario, provider, integrationId, calendarId, timezone, appointmentDuration, contactId }]
   })
 
   // Per-calendar-entry dropdown data: { [entryId]: { calendars: [], loading: false, error: '' } }
@@ -828,7 +829,8 @@ export default function AgentEdit() {
       integrationId: calendarConfig.integrationId,
       calendarId: calendarConfig.calendarId,
       timezone: calendarConfig.timezone,
-      appointmentDuration: calendarConfig.appointmentDuration
+      appointmentDuration: calendarConfig.appointmentDuration,
+      contactId: calendarConfig.contactId
     }]
   }
 
@@ -1296,6 +1298,11 @@ export default function AgentEdit() {
             if (cal.integrationId) {
               queryParamsObj.integrationId = cal.integrationId
             }
+          }
+
+          // Add GHL contact ID for testing if provided
+          if (cal.provider === 'ghl' && cal.contactId) {
+            queryParamsObj.contactId = cal.contactId
           }
 
           const queryParams = new URLSearchParams(queryParamsObj).toString()
@@ -3707,6 +3714,22 @@ If the customer asks to be called back at a later time:
                               <option value={90}>90 minutes</option>
                             </select>
                           </div>
+                          {/* GHL Contact ID (Test) - only for GHL provider */}
+                          {calendarConfig.provider === 'ghl' && (
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                                Contact ID <span className="text-xs font-normal text-gray-400">(Test)</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={calendarConfig.contactId || ''}
+                                onChange={(e) => setCalendarConfig({ ...calendarConfig, contactId: e.target.value.trim() })}
+                                placeholder="e.g., abc123DEFghiJKL"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                              />
+                              <p className="text-xs text-gray-400 mt-1">GHL Contact ID to use for testing. If set, bookings will use this contact instead of searching by email.</p>
+                            </div>
+                          )}
                         </>
                       )}
 
@@ -3851,6 +3874,22 @@ If the customer asks to be called back at a later time:
                                         <option value={90}>90 minutes</option>
                                       </select>
                                     </div>
+                                    {/* GHL Contact ID (Test) - only for GHL provider */}
+                                    {entry.provider === 'ghl' && (
+                                      <div>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                                          Contact ID <span className="text-xs font-normal text-gray-400">(Test)</span>
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={entry.contactId || ''}
+                                          onChange={(e) => updateCalendarEntry(entry.id, { contactId: e.target.value.trim() })}
+                                          placeholder="e.g., abc123DEFghiJKL"
+                                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                        />
+                                        <p className="text-xs text-gray-400 mt-1">GHL Contact ID for testing.</p>
+                                      </div>
+                                    )}
                                   </>
                                 )}
                               </div>

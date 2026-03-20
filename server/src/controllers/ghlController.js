@@ -516,6 +516,7 @@ const bookAppointment = async (req, res) => {
     const calendarId = req.query.calendarId || functionArgs.calendarId;
     const timezone = req.query.timezone || functionArgs.timezone;
     const userId = req.query.userId || functionArgs.userId;
+    const presetContactId = req.query.contactId || null;
 
     // Get dynamic params from function arguments (provided by LLM)
     const {
@@ -528,11 +529,11 @@ const bookAppointment = async (req, res) => {
       notes
     } = functionArgs;
 
-    console.log('Book appointment - calendarId:', calendarId, 'userId:', userId, 'startTime:', startTime, 'contactEmail:', contactEmail);
+    console.log('Book appointment - calendarId:', calendarId, 'userId:', userId, 'startTime:', startTime, 'contactEmail:', contactEmail, 'presetContactId:', presetContactId);
 
-    if (!calendarId || !startTime || !contactEmail) {
+    if (!calendarId || !startTime || (!contactEmail && !presetContactId)) {
       return res.json({
-        results: [{ error: 'calendarId, startTime, and contactEmail are required' }]
+        results: [{ error: 'calendarId, startTime, and contactEmail (or contactId) are required' }]
       });
     }
 
@@ -557,32 +558,34 @@ const bookAppointment = async (req, res) => {
     const locationId = integration.locationId;
 
     try {
-      // First, find or create the contact
-      let contactId;
+      // First, find or create the contact (skip if preset contactId from test config)
+      let contactId = presetContactId || null;
 
-      // Try to find existing contact by email
-      const searchResponse = await ghlRequest(
-        `/contacts/search?locationId=${locationId}&query=${encodeURIComponent(contactEmail)}`,
-        token
-      );
+      if (!contactId) {
+        // Try to find existing contact by email
+        const searchResponse = await ghlRequest(
+          `/contacts/search?locationId=${locationId}&query=${encodeURIComponent(contactEmail)}`,
+          token
+        );
 
-      if (searchResponse.contacts && searchResponse.contacts.length > 0) {
-        contactId = searchResponse.contacts[0].id;
-      } else {
-        // Create new contact
-        const contactData = {
-          locationId,
-          email: contactEmail,
-          name: contactName || '',
-          phone: contactPhone || ''
-        };
+        if (searchResponse.contacts && searchResponse.contacts.length > 0) {
+          contactId = searchResponse.contacts[0].id;
+        } else {
+          // Create new contact
+          const contactData = {
+            locationId,
+            email: contactEmail,
+            name: contactName || '',
+            phone: contactPhone || ''
+          };
 
-        const createContactResponse = await ghlRequest('/contacts', token, {
-          method: 'POST',
-          body: JSON.stringify(contactData)
-        });
+          const createContactResponse = await ghlRequest('/contacts', token, {
+            method: 'POST',
+            body: JSON.stringify(contactData)
+          });
 
-        contactId = createContactResponse.contact?.id;
+          contactId = createContactResponse.contact?.id;
+        }
       }
 
       if (!contactId) {
