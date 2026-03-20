@@ -485,13 +485,24 @@ export default function AgentEdit() {
 
   // Prompt generator
   const [showPromptGenerator, setShowPromptGenerator] = useState(false)
-  const [promptDescription, setPromptDescription] = useState('')
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [generatedPrompt, setGeneratedPrompt] = useState('')
   const [generatedFirstMessage, setGeneratedFirstMessage] = useState('')
-  const [promptLanguage, setPromptLanguage] = useState('en')
-  const [promptDirection, setPromptDirection] = useState('outbound')
   const [promptMode, setPromptMode] = useState('generate')
+  // Update mode state (kept as-is)
+  const [updateDescription, setUpdateDescription] = useState('')
+  const [updateLanguage, setUpdateLanguage] = useState('en')
+  // Wizard state
+  const [wizardStep, setWizardStep] = useState(1)
+  const [wizBotType, setWizBotType] = useState('')
+  const [wizDirection, setWizDirection] = useState('outbound')
+  const [wizLanguage, setWizLanguage] = useState('en')
+  const [wizCompanyName, setWizCompanyName] = useState('')
+  const [wizIndustry, setWizIndustry] = useState('')
+  const [wizTone, setWizTone] = useState('professional')
+  const [wizGoals, setWizGoals] = useState('')
+  const [wizTypeConfig, setWizTypeConfig] = useState({})
+  const [wizAdditionalNotes, setWizAdditionalNotes] = useState('')
 
   // Feature toggles
   const [showCalendarModal, setShowCalendarModal] = useState(false)
@@ -1893,15 +1904,21 @@ If the customer asks to be called back at a later time:
   }
 
   const handleGeneratePrompt = async () => {
-    if (!promptDescription.trim()) return
+    if (!wizCompanyName.trim() || !wizGoals.trim()) return
     setGeneratingPrompt(true)
     setGeneratedPrompt('')
     setGeneratedFirstMessage('')
     try {
       const { data } = await promptGeneratorAPI.generate({
-        description: promptDescription,
-        agentType: promptDirection,
-        language: promptLanguage
+        botType: wizBotType,
+        direction: wizDirection,
+        language: wizLanguage,
+        companyName: wizCompanyName,
+        industry: wizIndustry,
+        tone: wizTone,
+        goals: wizGoals,
+        typeConfig: wizTypeConfig,
+        additionalNotes: wizAdditionalNotes
       })
       setGeneratedPrompt(data.prompt)
       setGeneratedFirstMessage(data.firstMessage || '')
@@ -1914,15 +1931,15 @@ If the customer asks to be called back at a later time:
   }
 
   const handleUpdatePrompt = async () => {
-    if (!promptDescription.trim() || !systemPrompt.trim()) return
+    if (!updateDescription.trim() || !systemPrompt.trim()) return
     setGeneratingPrompt(true)
     setGeneratedPrompt('')
     setGeneratedFirstMessage('')
     try {
       const { data } = await promptGeneratorAPI.update({
         currentPrompt: systemPrompt,
-        changeDescription: promptDescription,
-        language: promptLanguage
+        changeDescription: updateDescription,
+        language: updateLanguage
       })
       setGeneratedPrompt(data.prompt)
     } catch (err) {
@@ -1938,12 +1955,29 @@ If the customer asks to be called back at a later time:
     if (generatedFirstMessage) {
       setFirstMessage(generatedFirstMessage)
     }
-    setAgentType(promptDirection)
+    if (promptMode === 'generate') {
+      setAgentType(wizDirection)
+    }
     setShowPromptGenerator(false)
-    setPromptDescription('')
     setGeneratedPrompt('')
     setGeneratedFirstMessage('')
     setPromptMode('generate')
+    resetWizard()
+  }
+
+  const resetWizard = () => {
+    setWizardStep(1)
+    setWizBotType('')
+    setWizDirection('outbound')
+    setWizLanguage('en')
+    setWizCompanyName('')
+    setWizIndustry('')
+    setWizTone('professional')
+    setWizGoals('')
+    setWizTypeConfig({})
+    setWizAdditionalNotes('')
+    setUpdateDescription('')
+    setUpdateLanguage('en')
   }
 
   // Tool management functions
@@ -2567,7 +2601,7 @@ If the customer asks to be called back at a later time:
               <label className="text-sm text-gray-600 dark:text-gray-400">{ta('systemPrompt')}</label>
               <button
                 type="button"
-                onClick={() => { setPromptDirection(agentType); setShowPromptGenerator(true) }}
+                onClick={() => { setWizDirection(agentType); setShowPromptGenerator(true) }}
                 className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-purple-600 bg-purple-50 dark:bg-purple-900/20 dark:text-purple-400 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5531,7 +5565,7 @@ If the customer asks to be called back at a later time:
         </div>
       )}
 
-      {/* AI Prompt Generator Modal */}
+      {/* AI Prompt Generator Modal - 3-Step Wizard */}
       {showPromptGenerator && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
@@ -5539,7 +5573,7 @@ If the customer asks to be called back at a later time:
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('promptGeneratorTitle')}</h3>
               <button
-                onClick={() => { setShowPromptGenerator(false); setPromptDescription(''); setGeneratedPrompt(''); setPromptMode('generate') }}
+                onClick={() => { setShowPromptGenerator(false); setGeneratedPrompt(''); setPromptMode('generate'); resetWizard() }}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5548,135 +5582,352 @@ If the customer asks to be called back at a later time:
               </button>
             </div>
 
+            {/* Mode toggle - only show if there's an existing prompt */}
+            {systemPrompt.trim() && !generatedPrompt && (
+              <div className="px-6 pt-4">
+                <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { setPromptMode('generate'); setGeneratedPrompt(''); resetWizard() }}
+                    className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptMode === 'generate' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
+                  >
+                    {ta('promptModeGenerate')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPromptMode('update'); setGeneratedPrompt(''); resetWizard() }}
+                    className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptMode === 'update' ? 'bg-orange-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
+                  >
+                    {ta('promptModeUpdate')}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Body */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-              {/* Mode toggle - only show if there's an existing prompt */}
-              {systemPrompt.trim() && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('promptMode')}</label>
-                  <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => { setPromptMode('generate'); setGeneratedPrompt(''); setPromptDescription('') }}
-                      className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptMode === 'generate' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
-                    >
-                      {ta('promptModeGenerate')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setPromptMode('update'); setGeneratedPrompt(''); setPromptDescription('') }}
-                      className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptMode === 'update' ? 'bg-orange-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
-                    >
-                      {ta('promptModeUpdate')}
-                    </button>
-                  </div>
-                </div>
-              )}
 
-              {/* Direction & Language selectors - only for generate mode */}
-              {promptMode === 'generate' && (
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('promptDirection')}</label>
-                    <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setPromptDirection('inbound')}
-                        className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptDirection === 'inbound' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
-                      >
-                        {ta('inbound')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPromptDirection('outbound')}
-                        className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptDirection === 'outbound' ? 'bg-green-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
-                      >
-                        {ta('outbound')}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex-1">
+              {/* ── UPDATE MODE (kept as-is) ── */}
+              {promptMode === 'update' && !generatedPrompt && (
+                <>
+                  <div>
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('promptLanguage')}</label>
-                    <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setPromptLanguage('en')}
-                        className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
-                      >
-                        {ta('english')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPromptLanguage('es')}
-                        className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
-                      >
-                        {ta('spanish')}
-                      </button>
+                    <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden w-48">
+                      <button type="button" onClick={() => setUpdateLanguage('en')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${updateLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>{ta('english')}</button>
+                      <button type="button" onClick={() => setUpdateLanguage('es')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${updateLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>{ta('spanish')}</button>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Language selector for update mode */}
-              {promptMode === 'update' && (
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('promptLanguage')}</label>
-                  <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden w-48">
-                    <button
-                      type="button"
-                      onClick={() => setPromptLanguage('en')}
-                      className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
-                    >
-                      {ta('english')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPromptLanguage('es')}
-                      className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
-                    >
-                      {ta('spanish')}
-                    </button>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('promptDescribeChanges')}</label>
+                    <textarea
+                      value={updateDescription}
+                      onChange={(e) => setUpdateDescription(e.target.value)}
+                      rows={4}
+                      placeholder={updateLanguage === 'es' ? ta('promptPlaceholderUpdateEs') : ta('promptPlaceholderUpdate')}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                    />
                   </div>
-                </div>
+                  <button
+                    onClick={handleUpdatePrompt}
+                    disabled={generatingPrompt || !updateDescription.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-orange-600 hover:bg-orange-700"
+                  >
+                    {generatingPrompt ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                        {ta('promptUpdating')}
+                      </>
+                    ) : ta('promptUpdate')}
+                  </button>
+                </>
               )}
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">
-                  {promptMode === 'update' ? ta('promptDescribeChanges') : ta('promptDescribeAgent')}
-                </label>
-                <textarea
-                  value={promptDescription}
-                  onChange={(e) => setPromptDescription(e.target.value)}
-                  rows={4}
-                  placeholder={promptMode === 'update'
-                    ? (promptLanguage === 'es' ? ta('promptPlaceholderUpdateEs') : ta('promptPlaceholderUpdate'))
-                    : (promptLanguage === 'es' ? ta('promptPlaceholderGenerateEs') : ta('promptPlaceholderGenerate'))
-                  }
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !generatingPrompt) { e.preventDefault(); promptMode === 'update' ? handleUpdatePrompt() : handleGeneratePrompt() } }}
-                />
-              </div>
+              {/* ── GENERATE MODE: 3-Step Wizard ── */}
+              {promptMode === 'generate' && !generatedPrompt && (
+                <>
+                  {/* Stepper */}
+                  <div className="flex items-center justify-center gap-0 mb-2">
+                    {[1, 2, 3].map((step, i) => (
+                      <div key={step} className="flex items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                          wizardStep > step ? 'bg-purple-600 text-white' :
+                          wizardStep === step ? 'bg-purple-600 text-white' :
+                          'bg-gray-200 dark:bg-dark-border text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {wizardStep > step ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          ) : step}
+                        </div>
+                        {i < 2 && <div className={`w-12 h-0.5 ${wizardStep > step ? 'bg-purple-600' : 'bg-gray-200 dark:bg-dark-border'}`} />}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-center gap-8 text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    <span className={wizardStep >= 1 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>{ta('wizStepBotType')}</span>
+                    <span className={wizardStep >= 2 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>{ta('wizStepDetails')}</span>
+                    <span className={wizardStep >= 3 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>{ta('wizStepConfig')}</span>
+                  </div>
 
-              {!generatedPrompt && (
-                <button
-                  onClick={promptMode === 'update' ? handleUpdatePrompt : handleGeneratePrompt}
-                  disabled={generatingPrompt || !promptDescription.trim()}
-                  className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${promptMode === 'update' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-purple-600 hover:bg-purple-700'}`}
-                >
-                  {generatingPrompt ? (
-                    <>
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      {promptMode === 'update' ? ta('promptUpdating') : ta('promptGenerating')}
-                    </>
-                  ) : (
-                    promptMode === 'update' ? ta('promptUpdate') : ta('promptGenerate')
+                  {/* Step 1: Bot Type + Direction + Language */}
+                  {wizardStep === 1 && (
+                    <div className="space-y-4">
+                      {/* Bot Type Cards */}
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { id: 'sales', icon: '💰', label: ta('wizBotSales'), desc: ta('wizBotSalesDesc') },
+                          { id: 'support', icon: '🎧', label: ta('wizBotSupport'), desc: ta('wizBotSupportDesc') },
+                          { id: 'booking', icon: '📅', label: ta('wizBotBooking'), desc: ta('wizBotBookingDesc') },
+                          { id: 'survey', icon: '📋', label: ta('wizBotSurvey'), desc: ta('wizBotSurveyDesc') }
+                        ].map(bt => (
+                          <button
+                            key={bt.id}
+                            type="button"
+                            onClick={() => setWizBotType(bt.id)}
+                            className={`p-4 rounded-lg border-2 text-left transition-all ${
+                              wizBotType === bt.id
+                                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+                            }`}
+                          >
+                            <div className="text-2xl mb-1">{bt.icon}</div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{bt.label}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{bt.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Direction Toggle */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('promptDirection')}</label>
+                        <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
+                          <button type="button" onClick={() => setWizDirection('inbound')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${wizDirection === 'inbound' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>{ta('wizDirectionInbound')}</button>
+                          <button type="button" onClick={() => setWizDirection('outbound')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${wizDirection === 'outbound' ? 'bg-green-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>{ta('wizDirectionOutbound')}</button>
+                        </div>
+                      </div>
+
+                      {/* Language Toggle */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizLanguage')}</label>
+                        <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden w-48">
+                          <button type="button" onClick={() => setWizLanguage('en')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${wizLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>{ta('english')}</button>
+                          <button type="button" onClick={() => setWizLanguage('es')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${wizLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>{ta('spanish')}</button>
+                        </div>
+                      </div>
+                    </div>
                   )}
-                </button>
+
+                  {/* Step 2: Business Details */}
+                  {wizardStep === 2 && (
+                    <div className="space-y-4">
+                      {/* Company Name */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizCompanyName')} *</label>
+                        <input
+                          type="text"
+                          value={wizCompanyName}
+                          onChange={(e) => setWizCompanyName(e.target.value)}
+                          placeholder={ta('wizCompanyNamePlaceholder')}
+                          className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                        />
+                      </div>
+
+                      {/* Industry Dropdown */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizIndustry')}</label>
+                        <select
+                          value={wizIndustry}
+                          onChange={(e) => setWizIndustry(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        >
+                          <option value="">{ta('wizSelectIndustry')}</option>
+                          {['Healthcare', 'RealEstate', 'Legal', 'Finance', 'Education', 'Automotive', 'Restaurant', 'Ecommerce', 'Saas', 'Insurance', 'HomeServices', 'Other'].map(ind => (
+                            <option key={ind} value={ind.toLowerCase()}>{ta(`wizIndustry${ind}`)}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Tone Pills */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizTone')}</label>
+                        <div className="flex flex-wrap gap-2">
+                          {['professional', 'friendly', 'casual', 'formal', 'energetic'].map(t => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setWizTone(t)}
+                              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                wizTone === t
+                                  ? 'bg-purple-600 text-white'
+                                  : 'bg-gray-100 dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-border'
+                              }`}
+                            >
+                              {ta(`wizTone${t.charAt(0).toUpperCase() + t.slice(1)}`)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Goals */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizGoals')} *</label>
+                        <textarea
+                          value={wizGoals}
+                          onChange={(e) => setWizGoals(e.target.value)}
+                          rows={3}
+                          placeholder={wizLanguage === 'es' ? ta('wizGoalsPlaceholderEs') : ta('wizGoalsPlaceholder')}
+                          className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 3: Type-Specific Config + Generate */}
+                  {wizardStep === 3 && (
+                    <div className="space-y-4">
+                      {/* Sales-specific fields */}
+                      {wizBotType === 'sales' && (
+                        <>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizQualifyingQuestions')}</label>
+                            <textarea
+                              value={wizTypeConfig.qualifyingQuestions || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, qualifyingQuestions: e.target.value }))}
+                              rows={3}
+                              placeholder={ta('wizQualifyingQuestionsPlaceholder')}
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizCommonObjections')}</label>
+                            <textarea
+                              value={wizTypeConfig.commonObjections || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, commonObjections: e.target.value }))}
+                              rows={3}
+                              placeholder={ta('wizCommonObjectionsPlaceholder')}
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Support-specific fields */}
+                      {wizBotType === 'support' && (
+                        <>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizCommonIssues')}</label>
+                            <textarea
+                              value={wizTypeConfig.commonIssues || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, commonIssues: e.target.value }))}
+                              rows={3}
+                              placeholder={ta('wizCommonIssuesPlaceholder')}
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizEscalationRules')}</label>
+                            <textarea
+                              value={wizTypeConfig.escalationRules || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, escalationRules: e.target.value }))}
+                              rows={3}
+                              placeholder={ta('wizEscalationRulesPlaceholder')}
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Booking-specific fields */}
+                      {wizBotType === 'booking' && (
+                        <>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizServicesOffered')}</label>
+                            <textarea
+                              value={wizTypeConfig.servicesOffered || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, servicesOffered: e.target.value }))}
+                              rows={3}
+                              placeholder={ta('wizServicesOfferedPlaceholder')}
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizAvailabilityNotes')}</label>
+                            <textarea
+                              value={wizTypeConfig.availabilityNotes || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, availabilityNotes: e.target.value }))}
+                              rows={3}
+                              placeholder={ta('wizAvailabilityNotesPlaceholder')}
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Survey-specific fields */}
+                      {wizBotType === 'survey' && (
+                        <>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizSurveyQuestions')}</label>
+                            <textarea
+                              value={wizTypeConfig.surveyQuestions || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, surveyQuestions: e.target.value }))}
+                              rows={3}
+                              placeholder={ta('wizSurveyQuestionsPlaceholder')}
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizRatingScale')}</label>
+                            <div className="flex gap-2">
+                              {['1-5', '1-10', 'yes/no'].map(scale => (
+                                <button
+                                  key={scale}
+                                  type="button"
+                                  onClick={() => setWizTypeConfig(prev => ({ ...prev, ratingScale: scale }))}
+                                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                    (wizTypeConfig.ratingScale || '1-5') === scale
+                                      ? 'bg-purple-600 text-white'
+                                      : 'bg-gray-100 dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-border'
+                                  }`}
+                                >
+                                  {scale === '1-5' ? ta('wizRatingScale1to5') : scale === '1-10' ? ta('wizRatingScale1to10') : ta('wizRatingScaleYesNo')}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Additional Notes (always shown) */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{ta('wizAdditionalNotes')}</label>
+                        <textarea
+                          value={wizAdditionalNotes}
+                          onChange={(e) => setWizAdditionalNotes(e.target.value)}
+                          rows={2}
+                          placeholder={ta('wizAdditionalNotesPlaceholder')}
+                          className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                        />
+                      </div>
+
+                      {/* Generate Button */}
+                      <button
+                        onClick={handleGeneratePrompt}
+                        disabled={generatingPrompt}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-purple-600 hover:bg-purple-700"
+                      >
+                        {generatingPrompt ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                            {ta('wizGenerating')}
+                          </>
+                        ) : ta('wizGenerate')}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
 
+              {/* ── Generated Result (both modes) ── */}
               {generatedPrompt && (
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
@@ -5690,24 +5941,37 @@ If the customer asks to be called back at a later time:
             </div>
 
             {/* Footer */}
+            {/* Wizard navigation for generate mode (no result yet) */}
+            {promptMode === 'generate' && !generatedPrompt && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+                <button
+                  onClick={() => setWizardStep(prev => Math.max(1, prev - 1))}
+                  disabled={wizardStep === 1}
+                  className="flex items-center gap-1 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  {t('common.back')}
+                </button>
+                {wizardStep < 3 && (
+                  <button
+                    onClick={() => setWizardStep(prev => Math.min(3, prev + 1))}
+                    disabled={(wizardStep === 1 && !wizBotType) || (wizardStep === 2 && (!wizCompanyName.trim() || !wizGoals.trim()))}
+                    className="flex items-center gap-1 px-5 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {t('common.next')}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Result footer (regenerate + use) */}
             {generatedPrompt && (
               <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
                 <button
-                  onClick={promptMode === 'update' ? handleUpdatePrompt : handleGeneratePrompt}
+                  onClick={() => { setGeneratedPrompt(''); if (promptMode === 'generate') { setWizardStep(3) } }}
                   disabled={generatingPrompt}
                   className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-50 transition-colors"
                 >
-                  {generatingPrompt ? (
-                    <>
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      {promptMode === 'update' ? ta('promptUpdating') : ta('promptRegenerating')}
-                    </>
-                  ) : (
-                    promptMode === 'update' ? ta('promptUpdateAgain') : ta('promptRegenerate')
-                  )}
+                  {promptMode === 'update' ? ta('promptUpdateAgain') : ta('promptRegenerate')}
                 </button>
                 <button
                   onClick={handleUseGeneratedPrompt}

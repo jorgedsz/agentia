@@ -3,20 +3,33 @@ const { getApiKeys } = require('../utils/getApiKeys');
 
 const generatePrompt = async (req, res) => {
   try {
-    const { description, agentType, language } = req.body;
+    const { botType, direction, language, companyName, industry, tone, goals, typeConfig, additionalNotes } = req.body;
 
-    if (!description || !description.trim()) {
-      return res.status(400).json({ error: 'Description is required' });
+    if (!botType || !['sales', 'support', 'booking', 'survey'].includes(botType)) {
+      return res.status(400).json({ error: 'Valid botType is required (sales, support, booking, survey)' });
+    }
+    if (!companyName || !companyName.trim()) {
+      return res.status(400).json({ error: 'Company name is required' });
+    }
+    if (!goals || !goals.trim()) {
+      return res.status(400).json({ error: 'Goals are required' });
     }
 
     const { openaiApiKey } = await getApiKeys(req.prisma);
 
-    const result = await promptGeneratorService.generatePrompt(
-      description.trim(),
-      agentType || 'outbound',
-      language || 'en',
-      openaiApiKey
-    );
+    const wizardData = {
+      botType,
+      direction: direction || 'outbound',
+      language: language || 'en',
+      companyName: companyName.trim(),
+      industry: industry || '',
+      tone: tone || 'professional',
+      goals: goals.trim(),
+      typeConfig: typeConfig || {},
+      additionalNotes: additionalNotes ? additionalNotes.trim() : ''
+    };
+
+    const result = await promptGeneratorService.generatePrompt(wizardData, openaiApiKey);
 
     res.json({ prompt: result.prompt, firstMessage: result.firstMessage });
   } catch (error) {
