@@ -317,8 +317,7 @@ class VapiService {
     // Voicemail Detection
     if (config.voicemailDetectionEnabled) {
       agentConfig.voicemailDetection = {
-        provider: 'vapi',
-        enabled: true
+        provider: 'vapi'
       };
     }
 
@@ -525,8 +524,7 @@ class VapiService {
     // Voicemail Detection
     if (config.voicemailDetectionEnabled) {
       updateData.voicemailDetection = {
-        provider: 'vapi',
-        enabled: true
+        provider: 'vapi'
       };
     } else {
       updateData.voicemailDetection = null;
