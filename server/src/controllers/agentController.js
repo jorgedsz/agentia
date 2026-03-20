@@ -143,9 +143,10 @@ const createAgent = async (req, res) => {
       req
     });
 
+    const isOwner = req.user.role === 'OWNER';
     res.status(201).json({
-      message: vapiWarning || 'Agent created successfully',
-      vapiWarning,
+      message: vapiWarning ? (isOwner ? vapiWarning : 'Agent saved') : 'Agent created successfully',
+      vapiWarning: isOwner ? vapiWarning : (vapiWarning ? 'Agent saved' : null),
       agent: { ...agent, config: parseConfig(agent.config) }
     });
   } catch (error) {
@@ -266,10 +267,11 @@ const updateAgent = async (req, res) => {
       req
     });
 
+    const isOwner = req.user.role === 'OWNER';
     res.json({
-      message: vapiWarning || 'Agent updated successfully',
-      vapiWarning,
-      vapiSyncInfo,
+      message: vapiWarning ? (isOwner ? vapiWarning : 'Agent saved') : 'Agent updated successfully',
+      vapiWarning: isOwner ? vapiWarning : (vapiWarning ? 'Agent saved' : null),
+      vapiSyncInfo: isOwner ? vapiSyncInfo : null,
       agent: { ...agent, config: parseConfig(agent.config) }
     });
   } catch (error) {
