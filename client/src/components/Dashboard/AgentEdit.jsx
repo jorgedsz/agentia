@@ -1608,13 +1608,28 @@ After the function returns success, confirm: "Your appointment is booked for [da
       // Generate transfer instructions if transfer is enabled
       if (transferConfig.enabled) {
         const activeTransfers = getActiveTransfers().filter(e => e.destinationValue)
+        const isEs = uiLanguage === 'es'
 
         if (activeTransfers.length >= 2) {
           const transferList = activeTransfers.map((entry) => {
-            return `- **${entry.name || entry.destinationValue}**: ${entry.scenario || 'No scenario specified'} → destination: "${entry.destinationValue}"`
+            const noScenario = isEs ? 'Sin escenario especificado' : 'No scenario specified'
+            return `- **${entry.name || entry.destinationValue}**: ${entry.scenario || noScenario} → destination: "${entry.destinationValue}"`
           }).join('\n')
 
-          const transferInstructions = `
+          const transferInstructions = isEs ? `
+
+## INSTRUCCIONES DE TRANSFERENCIA DE LLAMADA
+
+Tienes la capacidad de transferir esta llamada usando la herramienta "transferCall". Pasa el destino correcto segun la situacion.
+
+### Destinos Disponibles
+${transferList}
+
+### Reglas de Transferencia
+- Solo transfiere cuando la situacion coincida claramente con uno de los escenarios anteriores.
+- Antes de transferir, informa brevemente al llamante (ej: "Permitame conectarlo con el departamento adecuado").
+- Si no estas seguro de que destino usar, haz una pregunta aclaratoria al llamante.
+- NUNCA transfieras sin una razon clara que coincida con un escenario anterior.` : `
 
 ## CALL TRANSFER INSTRUCTIONS
 
@@ -1632,14 +1647,29 @@ ${transferList}
           finalSystemPrompt = finalSystemPrompt + transferInstructions
         } else if (activeTransfers.length === 1) {
           const entry = activeTransfers[0]
-          const transferInstructions = `
+          const defaultScenario = isEs
+            ? 'Transferir cuando el llamante solicite ser conectado con otra persona o departamento.'
+            : 'Transfer when the caller requests to be connected to another person or department.'
+
+          const transferInstructions = isEs ? `
+
+## INSTRUCCIONES DE TRANSFERENCIA DE LLAMADA
+
+Tienes la capacidad de transferir esta llamada. Usa la herramienta "transferCall" cuando sea apropiado.
+
+### Cuando Transferir
+${entry.scenario || entry.description || defaultScenario}
+
+### Reglas de Transferencia
+- Antes de transferir, informa brevemente al llamante (ej: "Permitame conectarlo ahora").
+- Solo transfiere cuando la situacion lo justifique claramente.` : `
 
 ## CALL TRANSFER INSTRUCTIONS
 
 You have the ability to transfer this call. Use the "transferCall" tool when appropriate.
 
 ### When to Transfer
-${entry.scenario || entry.description || 'Transfer when the caller requests to be connected to another person or department.'}
+${entry.scenario || entry.description || defaultScenario}
 
 ### Transfer Rules
 - Before transferring, briefly inform the caller (e.g., "Let me connect you now").
