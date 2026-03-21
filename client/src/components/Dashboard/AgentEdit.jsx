@@ -4999,68 +4999,109 @@ If the customer asks to be called back at a later time:
             {/* Grid View (default) */}
             {!advancedSubPanel && (
               <>
-                <div className="p-6 pb-3">
+                <div className="p-6 pb-4">
+                  <div className="flex items-center justify-center gap-3 mb-1">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-sm">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                      </svg>
+                    </div>
+                  </div>
                   <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">{ta('actionsAfterCall')}</h3>
                   <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">Configure post-call actions and integrations</p>
                 </div>
-                <div className="p-6 pt-4">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="px-5 pb-2 space-y-2">
                     {/* Webhook */}
-                    <button onClick={() => setAdvancedSubPanel('webhook')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('postCallWebhook')}</span>
-                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
-                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setAdvancedSubPanel('webhook')}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30 transition-colors">
+                        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                         </svg>
                       </div>
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('postCallWebhook')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Send call data to external URL</p>
+                      </div>
+                      {serverConfig.serverUrl && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">Active</span>}
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* Structured Data */}
-                    <button onClick={() => { setAdvancedSubPanel('structuredData'); fetchGhlCrmData() }} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('structuredData')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${serverConfig.structuredDataEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${serverConfig.structuredDataEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => { setAdvancedSubPanel('structuredData'); fetchGhlCrmData() }}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${serverConfig.structuredDataEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30'}`}>
+                        <svg className={`w-5 h-5 ${serverConfig.structuredDataEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
                         </svg>
                       </div>
-                      {serverConfig.structuredDataEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('structuredData')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Extract structured info from calls</p>
+                      </div>
+                      {serverConfig.structuredDataEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* GHL CRM */}
-                    <button onClick={() => { setAdvancedSubPanel('ghlCrm'); fetchGhlCrmData() }} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('ghlCrm')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${ghlCrmConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${ghlCrmConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => { setAdvancedSubPanel('ghlCrm'); fetchGhlCrmData() }}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${ghlCrmConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30'}`}>
+                        <svg className={`w-5 h-5 ${ghlCrmConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
                       </div>
-                      {ghlCrmConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('ghlCrm')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Sync data to GoHighLevel CRM</p>
+                      </div>
+                      {ghlCrmConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* Follow-ups */}
-                    <button onClick={() => setAdvancedSubPanel('followUps')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('followUps')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${followUpConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${followUpConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setAdvancedSubPanel('followUps')}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${followUpConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30'}`}>
+                        <svg className={`w-5 h-5 ${followUpConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                       </div>
-                      {followUpConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('followUps')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Schedule automated follow-up calls</p>
+                      </div>
+                      {followUpConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* Chatbot Trigger */}
-                    <button onClick={() => { setAdvancedSubPanel('chatbotTrigger'); if (chatbotsList.length === 0) { setChatbotsLoading(true); chatbotsAPI.list().then(r => setChatbotsList(r.data.chatbots || [])).catch(() => {}).finally(() => setChatbotsLoading(false)) } }} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('chatbotTrigger')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${chatbotTriggerConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${chatbotTriggerConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => { setAdvancedSubPanel('chatbotTrigger'); if (chatbotsList.length === 0) { setChatbotsLoading(true); chatbotsAPI.list().then(r => setChatbotsList(r.data.chatbots || [])).catch(() => {}).finally(() => setChatbotsLoading(false)) } }}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${chatbotTriggerConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30'}`}>
+                        <svg className={`w-5 h-5 ${chatbotTriggerConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                         </svg>
                       </div>
-                      {chatbotTriggerConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('chatbotTrigger')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Trigger a chatbot after the call</p>
+                      </div>
+                      {chatbotTriggerConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
-                  </div>
                 </div>
-                <div className="p-5 pt-2">
+                <div className="p-5 pt-4">
                   <button
                     onClick={() => { setAdvancedSubPanel(null); setShowAfterCallModal(false) }}
                     className="w-full py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 shadow-sm hover:shadow transition-all duration-200 font-medium"
