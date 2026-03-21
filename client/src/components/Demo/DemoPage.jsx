@@ -36,13 +36,13 @@ const VOICES = {
     { id: '29vD33N1CtxCmqQRPOHJ', name: 'Drew', desc: 'Male — Confident & Warm' },
   ],
   Spanish: [
-    { id: 'FGY2WhFZPnopRgpkkpcg', name: 'Laura', desc: 'Femenina — Cálida y Natural' },
-    { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', desc: 'Femenina — Profesional' },
+    { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', desc: 'Femenina — Cálida y Natural' },
     { id: 'Xb7hH8MSUJpSbSDYk0k2', name: 'Alice', desc: 'Femenina — Clara y Amable' },
-    { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', desc: 'Femenina — Expresiva' },
+    { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', desc: 'Femenina — Suave y Profesional' },
+    { id: 'LcfcDJNUP1GQjkzn1xUU', name: 'Emily', desc: 'Femenina — Tranquila' },
     { id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam', desc: 'Masculina — Confiable' },
     { id: 'nPczCjzI2devNBz1zQrb', name: 'Brian', desc: 'Masculina — Narrativo' },
-    { id: 'cjVigY5qzO86Huf0OWal', name: 'Eric', desc: 'Masculina — Amigable' },
+    { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', desc: 'Masculina — Profundo' },
     { id: 'pqHfZKP75CvOlQylNhV4', name: 'Bill', desc: 'Masculina — Seguro' },
   ],
 }
