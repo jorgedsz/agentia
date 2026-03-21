@@ -4363,113 +4363,180 @@ If the customer asks to be called back at a later time:
             {/* Grid View (default) */}
             {!advancedSubPanel && (
               <>
-                <div className="p-6 pb-3">
+                <div className="p-6 pb-4">
+                  <div className="flex items-center justify-center gap-3 mb-1">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-sm">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M12 6.253v11.494M8.464 8.464a5 5 0 000 7.072M17.95 6.05a8 8 0 010 11.9M6.05 6.05a8 8 0 000 11.9" />
+                      </svg>
+                    </div>
+                  </div>
                   <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">{ta('actionsInCall')}</h3>
                   <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">Configure in-call behavior and tools</p>
                 </div>
-                <div className="p-6 pt-4">
-                  <div className="grid grid-cols-3 gap-4">
+                <div className="px-5 pb-2 space-y-2">
                     {/* Voice Model */}
-                    <button onClick={() => setAdvancedSubPanel('voiceModel')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('voiceModel')}</span>
-                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
-                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setAdvancedSubPanel('voiceModel')}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30 transition-colors">
+                        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
                         </svg>
                       </div>
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('voiceModel')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Select voice synthesis engine</p>
+                      </div>
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* Voice Tuning */}
-                    <button onClick={() => setAdvancedSubPanel('voiceTuning')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('voiceTuning')}</span>
-                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
-                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setAdvancedSubPanel('voiceTuning')}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30 transition-colors">
+                        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                         </svg>
                       </div>
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('voiceTuning')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Adjust stability, speed & style</p>
+                      </div>
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* Background Sound */}
-                    <button onClick={() => setAdvancedSubPanel('bgSound')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('backgroundSound')}</span>
-                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
-                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setAdvancedSubPanel('bgSound')}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30 transition-colors">
+                        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                         </svg>
                       </div>
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('backgroundSound')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Add ambient background noise</p>
+                      </div>
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* Agent Tools */}
-                    <button onClick={() => setAdvancedSubPanel('tools')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('agentTools')}</span>
-                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
-                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setAdvancedSubPanel('tools')}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30 transition-colors">
+                        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
                       </div>
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('agentTools')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Configure API tools & functions</p>
+                      </div>
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* Stop Speaking */}
-                    <button onClick={() => setAdvancedSubPanel('stopSpeaking')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('stopSpeaking')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.stopSpeakingEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${callBehaviorSettings.stopSpeakingEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setAdvancedSubPanel('stopSpeaking')}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${callBehaviorSettings.stopSpeakingEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30'}`}>
+                        <svg className={`w-5 h-5 ${callBehaviorSettings.stopSpeakingEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                         </svg>
                       </div>
-                      {callBehaviorSettings.stopSpeakingEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('stopSpeaking')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Control interruption behavior</p>
+                      </div>
+                      {callBehaviorSettings.stopSpeakingEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* Start Speaking */}
-                    <button onClick={() => setAdvancedSubPanel('startSpeaking')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('startSpeaking')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.startSpeakingEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${callBehaviorSettings.startSpeakingEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setAdvancedSubPanel('startSpeaking')}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${callBehaviorSettings.startSpeakingEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30'}`}>
+                        <svg className={`w-5 h-5 ${callBehaviorSettings.startSpeakingEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       </div>
-                      {callBehaviorSettings.startSpeakingEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('startSpeaking')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Configure response timing</p>
+                      </div>
+                      {callBehaviorSettings.startSpeakingEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* Voicemail Detection */}
-                    <button onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, voicemailDetectionEnabled: !callBehaviorSettings.voicemailDetectionEnabled })} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('voicemail')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callBehaviorSettings.voicemailDetectionEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${callBehaviorSettings.voicemailDetectionEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, voicemailDetectionEnabled: !callBehaviorSettings.voicemailDetectionEnabled })}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${callBehaviorSettings.voicemailDetectionEnabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30'}`}>
+                        <svg className={`w-5 h-5 ${callBehaviorSettings.voicemailDetectionEnabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <title>{ta('tipVoicemail')}</title>
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
                       </div>
-                      {callBehaviorSettings.voicemailDetectionEnabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('voicemail')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Detect & handle voicemail</p>
+                      </div>
+                      {callBehaviorSettings.voicemailDetectionEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
                     </button>
 
                     {/* Call Timeouts */}
-                    <button onClick={() => setAdvancedSubPanel('callTimeouts')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('callTimeouts')}</span>
-                      <div className="w-14 h-14 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40 transition-colors">
-                        <svg className="w-7 h-7 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setAdvancedSubPanel('callTimeouts')}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center flex-shrink-0 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30 transition-colors">
+                        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       </div>
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('callTimeouts')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Set call duration limits</p>
+                      </div>
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
                     {/* Callbacks */}
-                    <button onClick={() => setAdvancedSubPanel('callbacks')} className="flex flex-col items-center gap-2 group">
-                      <span className="text-xs text-primary-600 dark:text-primary-400 text-center">{ta('callbacks')}</span>
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors ${callbackConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/40'}`}>
-                        <svg className={`w-7 h-7 ${callbackConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setAdvancedSubPanel('callbacks')}
+                      className="w-full flex items-center gap-3.5 p-3.5 rounded-xl border border-gray-200 dark:border-dark-border hover:border-primary-300 dark:hover:border-primary-700 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200 group"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${callbackConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary-50 dark:bg-primary-900/20 group-hover:bg-primary-100 dark:group-hover:bg-primary-900/30'}`}>
+                        <svg className={`w-5 h-5 ${callbackConfig.enabled ? 'text-green-600' : 'text-primary-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 3h5m0 0v5m0-5l-6 6" />
                         </svg>
                       </div>
-                      {callbackConfig.enabled && <span className="text-[10px] text-green-600 font-medium -mt-1">ON</span>}
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('callbacks')}</span>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Enable callback scheduling</p>
+                      </div>
+                      {callbackConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
-                  </div>
                 </div>
-                <div className="p-5 pt-2">
+                <div className="p-5 pt-3">
                   <button
                     onClick={() => { setAdvancedSubPanel(null); setShowAdvancedModal(false) }}
                     className="w-full py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 shadow-sm hover:shadow transition-all duration-200 font-medium"
@@ -4483,19 +4550,25 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Voice Model */}
             {advancedSubPanel === 'voiceModel' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceModel')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceModel')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Choose the voice synthesis engine</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'voiceModel' ? null : 'voiceModel')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'voiceModel' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipVoiceModel')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('tipVoiceModel')}</div>
                 )}
-                <div className="p-4 space-y-3">
+                <div className="px-5 pb-5 space-y-3">
                   {[
                     { value: 'eleven_multilingual_v2', label: ta('voiceModelMultilingualV2'), desc: ta('voiceModelMultilingualV2Desc') },
                     { value: 'eleven_flash_v2_5', label: ta('voiceModelFlashV25'), desc: ta('voiceModelFlashV25Desc') },
@@ -4506,7 +4579,7 @@ If the customer asks to be called back at a later time:
                     <button
                       key={model.value}
                       onClick={() => setVoiceSettings({ ...voiceSettings, model: model.value })}
-                      className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${voiceSettings.model === model.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all duration-200 text-left ${voiceSettings.model === model.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
                     >
                       <div>
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{model.label}</span>
@@ -4524,26 +4597,32 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Voice Tuning */}
             {advancedSubPanel === 'voiceTuning' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceTuning')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceTuning')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Fine-tune voice parameters</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'voiceTuning' ? null : 'voiceTuning')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'voiceTuning' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipVoiceTuning')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('tipVoiceTuning')}</div>
                 )}
-                <div className="p-4 space-y-5">
+                <div className="px-5 pb-5 space-y-3">
                   {[
                     { key: 'stability', label: ta('stability'), min: 0, max: 1, step: 0.05, left: ta('variable'), right: ta('stable'), fmt: v => v.toFixed(2) },
                     { key: 'similarityBoost', label: ta('similarityBoost'), min: 0, max: 1, step: 0.05, left: ta('low'), right: ta('high'), fmt: v => v.toFixed(2) },
                     { key: 'speed', label: ta('speed'), min: 0.5, max: 1.2, step: 0.1, left: ta('slower'), right: ta('faster'), fmt: v => v.toFixed(1) },
                     { key: 'style', label: ta('styleExaggeration'), min: 0, max: 1, step: 0.05, left: ta('none'), right: ta('exaggerated'), fmt: v => v.toFixed(2) }
                   ].map(s => (
-                    <div key={s.key}>
+                    <div key={s.key} className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                       <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
                         <span>{s.label}</span>
                         <span className="text-primary-600 font-medium">{s.fmt(voiceSettings[s.key])}</span>
@@ -4555,7 +4634,7 @@ If the customer asks to be called back at a later time:
                       <div className="flex justify-between text-[10px] text-gray-400 mt-0.5"><span>{s.left}</span><span>{s.right}</span></div>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-dark-border">
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border flex items-center justify-between">
                     <div>
                       <span className="text-sm text-gray-700 dark:text-gray-300">{ta('useSpeakerBoost')}</span>
                       <p className="text-xs text-gray-400">{ta('similarityBoost')}</p>
@@ -4574,19 +4653,25 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Background Sound */}
             {advancedSubPanel === 'bgSound' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('backgroundSound')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('backgroundSound')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Ambient noise settings</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'bgSound' ? null : 'bgSound')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'bgSound' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipBgSound')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('tipBgSound')}</div>
                 )}
-                <div className="p-4 space-y-3">
+                <div className="px-5 pb-5 space-y-3">
                   {[
                     { value: 'off', label: 'Off', desc: 'No background noise' },
                     { value: 'office', label: 'Office', desc: 'Subtle office ambience' }
@@ -4594,7 +4679,7 @@ If the customer asks to be called back at a later time:
                     <button
                       key={opt.value}
                       onClick={() => setVoiceSettings({ ...voiceSettings, backgroundSound: opt.value })}
-                      className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors text-left ${voiceSettings.backgroundSound === opt.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all duration-200 text-left ${voiceSettings.backgroundSound === opt.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
                     >
                       <div>
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{opt.label}</span>
@@ -4612,24 +4697,28 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Agent Tools */}
             {advancedSubPanel === 'tools' && (
               <>
-                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('agentTools')}</h3>
-                    <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'tools' ? null : 'tools')} className="text-gray-400 hover:text-primary-500 transition-colors">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    </button>
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   </div>
-                  <button onClick={openAddToolModal} className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700">+ {ta('add')}</button>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('agentTools')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Manage in-call tools and functions</p>
+                  </div>
+                  <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'tools' ? null : 'tools')} className="text-gray-400 hover:text-primary-500 transition-colors">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </button>
+                  <button onClick={openAddToolModal} className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-xl hover:bg-primary-700">+ {ta('add')}</button>
                 </div>
                 {advancedInfoPopup === 'tools' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipAgentTools')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('tipAgentTools')}</div>
                 )}
-                <div className="p-4">
+                <div className="px-5 pb-5">
                   {tools.length === 0 ? (
-                    <div className="text-center py-8 bg-gray-50 dark:bg-dark-hover rounded-lg border border-dashed border-gray-300 dark:border-dark-border">
+                    <div className="text-center py-8 bg-gray-50 dark:bg-dark-hover rounded-xl border border-dashed border-gray-300 dark:border-dark-border">
                       <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                       <p className="text-sm text-gray-500">{ta('noToolsConfigured')}</p>
                       <p className="text-xs text-gray-400 mt-1">{ta('addToolsDesc')}</p>
@@ -4652,7 +4741,7 @@ If the customer asks to be called back at a later time:
                           return tb.type
                         }
                         return (
-                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg border border-gray-200 dark:border-dark-border">
+                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-xl border border-gray-200 dark:border-dark-border">
                             <div>
                               <span className="font-medium text-sm text-gray-900 dark:text-white">{getToolLabel(tool)}</span>
                               <span className={`ml-2 px-2 py-0.5 text-xs rounded ${tool.type.startsWith('ghl.') ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'}`}>{getToolBadge(tool)}</span>
@@ -4677,20 +4766,26 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Stop Speaking */}
             {advancedSubPanel === 'stopSpeaking' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('stopSpeakingPlan')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('stopSpeakingPlan')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">When to stop on user interruption</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'stopSpeaking' ? null : 'stopSpeaking')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'stopSpeaking' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('stopSpeakingDesc')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('stopSpeakingDesc')}</div>
                 )}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
-                  <div className="flex items-center justify-between">
+                <div className="px-5 pb-5 space-y-4 overflow-y-auto max-h-[60vh]">
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border flex items-center justify-between">
                     <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStopSpeaking')}</span>
                     <button
                       onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingEnabled: !callBehaviorSettings.stopSpeakingEnabled })}
@@ -4701,8 +4796,8 @@ If the customer asks to be called back at a later time:
                   </div>
 
                   {callBehaviorSettings.stopSpeakingEnabled && (
-                    <div className="space-y-4">
-                      <div>
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                         <div className="flex justify-between mb-1">
                           <label className="text-xs text-gray-600 dark:text-gray-400">{ta('numberOfWords')}</label>
                           <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingNumWords}</span>
@@ -4719,7 +4814,7 @@ If the customer asks to be called back at a later time:
                         <p className="text-xs text-gray-400 mt-0.5">{ta('wordsBeforeStop')}</p>
                       </div>
 
-                      <div>
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                         <div className="flex justify-between mb-1">
                           <label className="text-xs text-gray-600 dark:text-gray-400">{ta('voiceSeconds')}</label>
                           <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingVoiceSeconds}s</span>
@@ -4736,7 +4831,7 @@ If the customer asks to be called back at a later time:
                         <p className="text-xs text-gray-400 mt-0.5">{ta('voiceActivityDuration')}</p>
                       </div>
 
-                      <div>
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                         <div className="flex justify-between mb-1">
                           <label className="text-xs text-gray-600 dark:text-gray-400">{ta('backoffSeconds')}</label>
                           <span className="text-xs text-gray-500">{callBehaviorSettings.stopSpeakingBackoffSeconds}s</span>
@@ -4761,21 +4856,27 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Start Speaking */}
             {advancedSubPanel === 'startSpeaking' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('startSpeakingPlan')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('startSpeakingPlan')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">When to begin AI response</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'startSpeaking' ? null : 'startSpeaking')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'startSpeaking' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('startSpeakingDesc')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('startSpeakingDesc')}</div>
                 )}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-5 pb-5 space-y-4 overflow-y-auto max-h-[60vh]">
 
-                  <div className="flex items-center justify-between">
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border flex items-center justify-between">
                     <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStartSpeaking')}</span>
                     <button
                       onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingEnabled: !callBehaviorSettings.startSpeakingEnabled })}
@@ -4786,8 +4887,8 @@ If the customer asks to be called back at a later time:
                   </div>
 
                   {callBehaviorSettings.startSpeakingEnabled && (
-                    <div className="space-y-4">
-                      <div>
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                         <div className="flex justify-between mb-1">
                           <label className="text-xs text-gray-600 dark:text-gray-400">{ta('waitSeconds')}</label>
                           <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingWaitSeconds}s</span>
@@ -4804,7 +4905,7 @@ If the customer asks to be called back at a later time:
                         <p className="text-xs text-gray-400 mt-0.5">{ta('waitSecondsDesc')}</p>
                       </div>
 
-                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-sm text-gray-700 dark:text-gray-300">{ta('smartEndpointing')}</span>
                           <button
@@ -4835,10 +4936,10 @@ If the customer asks to be called back at a later time:
                       </div>
 
                       {!callBehaviorSettings.startSpeakingSmartEndpointing && (
-                        <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-4">
+                        <div className="space-y-3">
                           <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{ta('transcriptionEndpointing')}</p>
 
-                          <div>
+                          <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                             <div className="flex justify-between mb-1">
                               <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onPunctuation')}</label>
                               <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnPunctuationSeconds}s</span>
@@ -4855,7 +4956,7 @@ If the customer asks to be called back at a later time:
                             <p className="text-xs text-gray-400 mt-0.5">{ta('onPunctuationDesc')}</p>
                           </div>
 
-                          <div>
+                          <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                             <div className="flex justify-between mb-1">
                               <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onNoPunctuation')}</label>
                               <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnNoPunctuationSeconds}s</span>
@@ -4872,7 +4973,7 @@ If the customer asks to be called back at a later time:
                             <p className="text-xs text-gray-400 mt-0.5">{ta('onNoPunctuationDesc')}</p>
                           </div>
 
-                          <div>
+                          <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                             <div className="flex justify-between mb-1">
                               <label className="text-xs text-gray-600 dark:text-gray-400">{ta('onNumber')}</label>
                               <span className="text-xs text-gray-500">{callBehaviorSettings.startSpeakingOnNumberSeconds}s</span>
@@ -4899,27 +5000,33 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Callbacks */}
             {advancedSubPanel === 'callbacks' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callbacks')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callbacks')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Schedule return calls automatically</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'callbacks' ? null : 'callbacks')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'callbacks' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('callbacksInfo')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('callbacksInfo')}</div>
                 )}
-                <div className="p-4 space-y-4">
-                  <div className="flex items-center justify-between">
+                <div className="px-5 pb-5 space-y-4">
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-900 dark:text-white">{ta('callbacksEnable')}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('callbacksDesc')}</p>
                     </div>
                     <button
                       onClick={() => setCallbackConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${callbackConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${callbackConfig.enabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${callbackConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
@@ -4936,21 +5043,27 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Call Timeouts */}
             {advancedSubPanel === 'callTimeouts' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callTimeouts')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callTimeouts')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Duration and silence limits</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'callTimeouts' ? null : 'callTimeouts')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'callTimeouts' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('callTimeoutsDesc')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('callTimeoutsDesc')}</div>
                 )}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-5 pb-5 space-y-3 overflow-y-auto max-h-[60vh]">
 
-                  <div>
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                     <div className="flex justify-between mb-1">
                       <label className="text-xs text-gray-600 dark:text-gray-400">{ta('maxCallDuration')}</label>
                       <span className="text-xs text-gray-500">{Math.floor(callBehaviorSettings.maxDurationSeconds / 60)} {ta('min')}</span>
@@ -4967,7 +5080,7 @@ If the customer asks to be called back at a later time:
                     <p className="text-xs text-gray-400 mt-0.5">{ta('maxCallDurationDesc')} ({callBehaviorSettings.maxDurationSeconds}s)</p>
                   </div>
 
-                  <div>
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                     <div className="flex justify-between mb-1">
                       <label className="text-xs text-gray-600 dark:text-gray-400">{ta('silenceTimeoutLabel')}</label>
                       <span className="text-xs text-gray-500">{callBehaviorSettings.silenceTimeoutSeconds}s</span>
