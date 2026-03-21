@@ -2939,28 +2939,38 @@ If the customer asks to be called back at a later time:
 
       {/* Call Modal */}
       {showCallModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Launch A Call</h3>
-              <button onClick={() => setShowCallModal(false)} className="text-gray-500 hover:text-gray-700">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-xl">
+                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Launch A Call</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Make an outbound call</p>
+                </div>
+              </div>
+              <button onClick={() => setShowCallModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-5 space-y-4">
               {userCredits !== null && (
                 <div className={`text-sm ${userCredits > 0 ? 'text-green-600' : 'text-red-600'}`}>
                   Available Credits: ${userCredits.toFixed(2)}
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">From Phone Number</label>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">From Phone Number</label>
                 <select
                   value={selectedPhone}
                   onChange={(e) => setSelectedPhone(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                 >
                   {phoneNumbers.map((phone) => (
                     <option key={phone.id} value={phone.id}>
@@ -2970,23 +2980,23 @@ If the customer asks to be called back at a later time:
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Customer Phone Number</label>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Customer Phone Number</label>
                 <input
                   type="tel"
                   value={customerNumber}
                   onChange={(e) => setCustomerNumber(e.target.value)}
                   placeholder="+1234567890"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Customer Name (Optional)</label>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Customer Name (Optional)</label>
                 <input
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="John Doe"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                 />
               </div>
               {callStatus && (
@@ -2995,17 +3005,17 @@ If the customer asks to be called back at a later time:
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
+            <div className="flex justify-end gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
               <button
                 onClick={() => setShowCallModal(false)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCall}
                 disabled={calling || !customerNumber}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 shadow-sm hover:shadow transition-all duration-200"
               >
                 {calling ? 'Calling...' : 'Start Call'}
               </button>
@@ -3021,25 +3031,35 @@ If the customer asks to be called back at a later time:
 
       {/* Tool Modal */}
       {showToolModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editingTool ? ta('editTool') : ta('addTool')}
-              </h3>
-              <button onClick={() => { setShowToolModal(false); resetToolForm(); setAdvancedSubPanel(null); setShowAdvancedModal(true); }} className="text-gray-500 hover:text-gray-700">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary-50 dark:bg-primary-900/20 rounded-xl">
+                  <svg className="w-5 h-5 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {editingTool ? ta('editTool') : ta('addTool')}
+                  </h3>
+                </div>
+              </div>
+              <button onClick={() => { setShowToolModal(false); resetToolForm(); setAdvancedSubPanel(null); setShowAdvancedModal(true); }} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('toolType')}</label>
                 <select
                   value={toolForm.type}
                   onChange={(e) => setToolForm({ ...toolForm, type: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                 >
                   {TOOL_TYPES.map(tt => (
                     <option key={tt.id} value={tt.id}>{tt.label}</option>
@@ -3056,7 +3076,7 @@ If the customer asks to be called back at a later time:
                       value={toolForm.functionName}
                       onChange={(e) => setToolForm({ ...toolForm, functionName: e.target.value })}
                       placeholder="book_appointment"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                     />
                   </div>
                   <div>
@@ -3066,7 +3086,7 @@ If the customer asks to be called back at a later time:
                       value={toolForm.functionDescription}
                       onChange={(e) => setToolForm({ ...toolForm, functionDescription: e.target.value })}
                       placeholder="Schedule a customer appointment"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                     />
                   </div>
                   <div className="grid grid-cols-5 gap-3">
@@ -3075,7 +3095,7 @@ If the customer asks to be called back at a later time:
                       <select
                         value={toolForm.httpMethod}
                         onChange={(e) => setToolForm({ ...toolForm, httpMethod: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                       >
                         {HTTP_METHODS.map(m => (
                           <option key={m} value={m}>{m}</option>
@@ -3089,7 +3109,7 @@ If the customer asks to be called back at a later time:
                         value={toolForm.webhookUrl}
                         onChange={(e) => setToolForm({ ...toolForm, webhookUrl: e.target.value })}
                         placeholder="https://your-api.com/endpoint"
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                       />
                     </div>
                   </div>
@@ -3108,7 +3128,7 @@ If the customer asks to be called back at a later time:
                               setToolForm({ ...toolForm, httpHeaders: updated })
                             }}
                             placeholder={ta('headerKey')}
-                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                           />
                           <input
                             type="text"
@@ -3119,7 +3139,7 @@ If the customer asks to be called back at a later time:
                               setToolForm({ ...toolForm, httpHeaders: updated })
                             }}
                             placeholder={ta('headerValue')}
-                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                           />
                           <button
                             type="button"
@@ -3159,7 +3179,7 @@ If the customer asks to be called back at a later time:
                               setToolForm({ ...toolForm, httpBodyFields: updated })
                             }}
                             placeholder={ta('paramName')}
-                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                           />
                           <select
                             value={field.type}
@@ -3168,7 +3188,7 @@ If the customer asks to be called back at a later time:
                               updated[idx] = { ...updated[idx], type: e.target.value }
                               setToolForm({ ...toolForm, httpBodyFields: updated })
                             }}
-                            className="w-28 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                            className="w-28 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                           >
                             <option value="string">string</option>
                             <option value="number">number</option>
@@ -3184,7 +3204,7 @@ If the customer asks to be called back at a later time:
                               setToolForm({ ...toolForm, httpBodyFields: updated })
                             }}
                             placeholder={ta('paramDescription')}
-                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                           />
                           <button
                             type="button"
@@ -3218,9 +3238,9 @@ If the customer asks to be called back at a later time:
                     <button
                       type="button"
                       onClick={() => setToolForm({ ...toolForm, async: !toolForm.async })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${!toolForm.async ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${!toolForm.async ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'}`}
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${!toolForm.async ? 'translate-x-6' : 'translate-x-1'}`} />
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${!toolForm.async ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
 
@@ -3266,7 +3286,7 @@ If the customer asks to be called back at a later time:
                                     setTestRequestState(prev => ({ ...prev, testFields: updated }))
                                   }}
                                   placeholder={`Value for ${field.key}`}
-                                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                  className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                 />
                               </div>
                             ))}
@@ -3360,21 +3380,21 @@ If the customer asks to be called back at a later time:
                     value={toolForm.endCallMessage}
                     onChange={(e) => setToolForm({ ...toolForm, endCallMessage: e.target.value })}
                     placeholder="Goodbye! Have a great day."
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                   />
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
+            <div className="flex justify-end gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
               <button
                 onClick={() => { setShowToolModal(false); resetToolForm(); setAdvancedSubPanel(null); setShowAdvancedModal(true); }}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
               >
                 {ta('cancel')}
               </button>
               <button
                 onClick={handleSaveTool}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 shadow-sm hover:shadow transition-all duration-200"
               >
                 {editingTool ? ta('update') : ta('save')}
               </button>
@@ -4067,12 +4087,23 @@ If the customer asks to be called back at a later time:
         const isMultiTransferMode = transferConfig.transfers && transferConfig.transfers.length >= 2
 
         return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Transfer Options</h3>
-              <button onClick={() => setShowTransferModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                  <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 3h5m0 0v5m0-5l-6 6" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Transfer Options</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Configure call routing</p>
+                </div>
+              </div>
+              <button onClick={() => setShowTransferModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -4080,16 +4111,26 @@ If the customer asks to be called back at a later time:
             </div>
 
             {/* Body */}
-            <div className="p-4 overflow-y-auto flex-1 space-y-4">
+            <div className="p-5 overflow-y-auto flex-1 space-y-4">
               {/* Enable Toggle */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">Enable Call Transfer</span>
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-hover rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-lg ${transferConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-200 dark:bg-dark-border'}`}>
+                    <svg className={`w-4 h-4 ${transferConfig.enabled ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Enable Call Transfer</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{transferConfig.enabled ? 'Transfer is active' : 'Transfer is disabled'}</p>
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => setTransferConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${transferConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${transferConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${transferConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${transferConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
               </div>
 
@@ -4106,7 +4147,7 @@ If the customer asks to be called back at a later time:
                           value={transferConfig.description}
                           onChange={(e) => setTransferConfig(prev => ({ ...prev, description: e.target.value }))}
                           placeholder="e.g., When customer wants to speak with a human agent"
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                         />
                       </div>
 
@@ -4116,7 +4157,7 @@ If the customer asks to be called back at a later time:
                         <select
                           value={transferConfig.destinationType}
                           onChange={(e) => setTransferConfig(prev => ({ ...prev, destinationType: e.target.value, destinationValue: '' }))}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow appearance-none cursor-pointer"
                         >
                           <option value="number">Phone Number</option>
                           <option value="sip">SIP URI</option>
@@ -4134,7 +4175,7 @@ If the customer asks to be called back at a later time:
                           value={transferConfig.destinationValue}
                           onChange={(e) => setTransferConfig(prev => ({ ...prev, destinationValue: e.target.value }))}
                           placeholder={transferConfig.destinationType === 'number' ? '+1234567890' : transferConfig.destinationType === 'sip' ? 'sip:user@domain.com' : 'Assistant name'}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                         />
                       </div>
 
@@ -4146,7 +4187,7 @@ If the customer asks to be called back at a later time:
                           value={transferConfig.message}
                           onChange={(e) => setTransferConfig(prev => ({ ...prev, message: e.target.value }))}
                           placeholder="e.g., Let me connect you now, please hold..."
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                         />
                       </div>
 
@@ -4154,7 +4195,7 @@ If the customer asks to be called back at a later time:
                       <button
                         type="button"
                         onClick={addTransferEntry}
-                        className="w-full py-2.5 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                        className="w-full py-2.5 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-xl text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200"
                       >
                         + Add another transfer destination
                       </button>
@@ -4165,7 +4206,7 @@ If the customer asks to be called back at a later time:
                       {transferConfig.transfers.map((entry) => {
                         const isExpanded = expandedTransferEntry === entry.id
                         return (
-                          <div key={entry.id} className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+                          <div key={entry.id} className={`border rounded-lg overflow-hidden transition-all duration-200 ${isExpanded ? 'border-primary-200 dark:border-primary-800 shadow-sm' : 'border-gray-200 dark:border-dark-border'}`}>
                             {/* Collapsed Header */}
                             <button
                               type="button"
@@ -4207,7 +4248,7 @@ If the customer asks to be called back at a later time:
                                     value={entry.name}
                                     onChange={(e) => updateTransferEntry(entry.id, { name: e.target.value })}
                                     placeholder="e.g., Sales Department"
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
                                 </div>
 
@@ -4219,7 +4260,7 @@ If the customer asks to be called back at a later time:
                                     value={entry.scenario}
                                     onChange={(e) => updateTransferEntry(entry.id, { scenario: e.target.value })}
                                     placeholder="e.g., When customer wants to speak with sales"
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
                                 </div>
 
@@ -4229,7 +4270,7 @@ If the customer asks to be called back at a later time:
                                   <select
                                     value={entry.destinationType}
                                     onChange={(e) => updateTransferEntry(entry.id, { destinationType: e.target.value, destinationValue: '' })}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow appearance-none cursor-pointer"
                                   >
                                     <option value="number">Phone Number</option>
                                     <option value="sip">SIP URI</option>
@@ -4247,7 +4288,7 @@ If the customer asks to be called back at a later time:
                                     value={entry.destinationValue}
                                     onChange={(e) => updateTransferEntry(entry.id, { destinationValue: e.target.value })}
                                     placeholder={entry.destinationType === 'number' ? '+1234567890' : entry.destinationType === 'sip' ? 'sip:user@domain.com' : 'Assistant name'}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
                                 </div>
 
@@ -4259,7 +4300,7 @@ If the customer asks to be called back at a later time:
                                     value={entry.message}
                                     onChange={(e) => updateTransferEntry(entry.id, { message: e.target.value })}
                                     placeholder="e.g., Let me connect you now..."
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
                                 </div>
                               </div>
@@ -4272,7 +4313,7 @@ If the customer asks to be called back at a later time:
                       <button
                         type="button"
                         onClick={addTransferEntry}
-                        className="w-full py-2.5 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                        className="w-full py-2.5 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-xl text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200"
                       >
                         + Add Transfer
                       </button>
@@ -4292,11 +4333,17 @@ If the customer asks to be called back at a later time:
               })()
 
               return (
-                <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
+                <div className="flex justify-end gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
+                  <button
+                    onClick={() => setShowTransferModal(false)}
+                    className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+                  >
+                    Cancel
+                  </button>
                   <button
                     onClick={() => setShowTransferModal(false)}
                     disabled={!isValid}
-                    className={`px-4 py-2 rounded-lg ${isValid ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                    className={`px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isValid ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm hover:shadow' : 'bg-gray-100 dark:bg-dark-hover text-gray-400 cursor-not-allowed'}`}
                   >
                     Done
                   </button>
@@ -4310,14 +4357,15 @@ If the customer asks to be called back at a later time:
 
       {/* Actions in Call Modal */}
       {showAdvancedModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
 
             {/* Grid View (default) */}
             {!advancedSubPanel && (
               <>
-                <div className="p-6 pb-2">
+                <div className="p-6 pb-3">
                   <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">{ta('actionsInCall')}</h3>
+                  <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">Configure in-call behavior and tools</p>
                 </div>
                 <div className="p-6 pt-4">
                   <div className="grid grid-cols-3 gap-4">
@@ -4421,10 +4469,10 @@ If the customer asks to be called back at a later time:
 
                   </div>
                 </div>
-                <div className="p-4 pt-2">
+                <div className="p-5 pt-2">
                   <button
                     onClick={() => { setAdvancedSubPanel(null); setShowAdvancedModal(false) }}
-                    className="w-full py-2.5 text-primary-600 border border-primary-600 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors font-medium"
+                    className="w-full py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 shadow-sm hover:shadow transition-all duration-200 font-medium"
                   >
                     {ta('close')}
                   </button>
@@ -4436,7 +4484,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'voiceModel' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceModel')}</h3>
@@ -4477,7 +4525,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'voiceTuning' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceTuning')}</h3>
@@ -4514,9 +4562,9 @@ If the customer asks to be called back at a later time:
                     </div>
                     <button
                       onClick={() => setVoiceSettings({ ...voiceSettings, useSpeakerBoost: !voiceSettings.useSpeakerBoost })}
-                      className={`w-11 h-6 rounded-full transition-colors ${voiceSettings.useSpeakerBoost ? 'bg-primary-600' : 'bg-gray-300'}`}
+                      className={`w-11 h-6 rounded-full transition-colors duration-200 ${voiceSettings.useSpeakerBoost ? 'bg-primary-600' : 'bg-gray-300'}`}
                     >
-                      <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${voiceSettings.useSpeakerBoost ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${voiceSettings.useSpeakerBoost ? 'translate-x-5' : 'translate-x-0.5'}`} />
                     </button>
                   </div>
                 </div>
@@ -4527,7 +4575,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'bgSound' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('backgroundSound')}</h3>
@@ -4630,7 +4678,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'stopSpeaking' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('stopSpeakingPlan')}</h3>
@@ -4646,9 +4694,9 @@ If the customer asks to be called back at a later time:
                     <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStopSpeaking')}</span>
                     <button
                       onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingEnabled: !callBehaviorSettings.stopSpeakingEnabled })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.stopSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${callBehaviorSettings.stopSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.stopSpeakingEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${callBehaviorSettings.stopSpeakingEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
 
@@ -4714,7 +4762,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'startSpeaking' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('startSpeakingPlan')}</h3>
@@ -4731,9 +4779,9 @@ If the customer asks to be called back at a later time:
                     <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStartSpeaking')}</span>
                     <button
                       onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingEnabled: !callBehaviorSettings.startSpeakingEnabled })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.startSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${callBehaviorSettings.startSpeakingEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.startSpeakingEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${callBehaviorSettings.startSpeakingEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
 
@@ -4761,9 +4809,9 @@ If the customer asks to be called back at a later time:
                           <span className="text-sm text-gray-700 dark:text-gray-300">{ta('smartEndpointing')}</span>
                           <button
                             onClick={() => setCallBehaviorSettings({ ...callBehaviorSettings, startSpeakingSmartEndpointing: !callBehaviorSettings.startSpeakingSmartEndpointing })}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
                           >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'translate-x-6' : 'translate-x-1'}`} />
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${callBehaviorSettings.startSpeakingSmartEndpointing ? 'translate-x-6' : 'translate-x-1'}`} />
                           </button>
                         </div>
                         <p className="text-xs text-gray-400 mb-3">{ta('smartEndpointingDesc')}</p>
@@ -4852,7 +4900,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'callbacks' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callbacks')}</h3>
@@ -4871,9 +4919,9 @@ If the customer asks to be called back at a later time:
                     </div>
                     <button
                       onClick={() => setCallbackConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callbackConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${callbackConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callbackConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${callbackConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
                   {callbackConfig.enabled && (
@@ -4889,7 +4937,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'callTimeouts' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callTimeouts')}</h3>
@@ -4945,14 +4993,15 @@ If the customer asks to be called back at a later time:
 
       {/* Actions After Call Modal */}
       {showAfterCallModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
 
             {/* Grid View (default) */}
             {!advancedSubPanel && (
               <>
-                <div className="p-6 pb-2">
+                <div className="p-6 pb-3">
                   <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">{ta('actionsAfterCall')}</h3>
+                  <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">Configure post-call actions and integrations</p>
                 </div>
                 <div className="p-6 pt-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -5011,10 +5060,10 @@ If the customer asks to be called back at a later time:
                     </button>
                   </div>
                 </div>
-                <div className="p-4 pt-2">
+                <div className="p-5 pt-2">
                   <button
                     onClick={() => { setAdvancedSubPanel(null); setShowAfterCallModal(false) }}
-                    className="w-full py-2.5 text-primary-600 border border-primary-600 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors font-medium"
+                    className="w-full py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 shadow-sm hover:shadow transition-all duration-200 font-medium"
                   >
                     {ta('close')}
                   </button>
@@ -5026,7 +5075,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'webhook' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('postCallWebhook')}</h3>
@@ -5045,7 +5094,7 @@ If the customer asks to be called back at a later time:
                       value={serverConfig.serverUrl}
                       onChange={(e) => setServerConfig({ ...serverConfig, serverUrl: e.target.value })}
                       placeholder="https://your-server.com/webhook"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                     />
                     <p className="text-xs text-gray-400 mt-1">{ta('receivesCallData')}</p>
                   </div>
@@ -5056,7 +5105,7 @@ If the customer asks to be called back at a later time:
                       value={serverConfig.serverUrlSecret}
                       onChange={(e) => setServerConfig({ ...serverConfig, serverUrlSecret: e.target.value })}
                       placeholder="Secret for authentication"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                     />
                   </div>
                 </div>
@@ -5067,7 +5116,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'structuredData' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('structuredData')}</h3>
@@ -5085,9 +5134,9 @@ If the customer asks to be called back at a later time:
                     <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStructuredDataToggle')}</span>
                     <button
                       onClick={() => setServerConfig({ ...serverConfig, structuredDataEnabled: !serverConfig.structuredDataEnabled })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${serverConfig.structuredDataEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${serverConfig.structuredDataEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${serverConfig.structuredDataEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${serverConfig.structuredDataEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
 
@@ -5269,7 +5318,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'ghlCrm' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('ghlCrm')}</h3>
@@ -5452,7 +5501,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'followUps' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('followUps')}</h3>
@@ -5472,9 +5521,9 @@ If the customer asks to be called back at a later time:
                     </div>
                     <button
                       onClick={() => setFollowUpConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${followUpConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${followUpConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${followUpConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${followUpConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
 
@@ -5596,7 +5645,7 @@ If the customer asks to be called back at a later time:
             {advancedSubPanel === 'chatbotTrigger' && (
               <>
                 <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('chatbotTrigger')}</h3>
@@ -5616,9 +5665,9 @@ If the customer asks to be called back at a later time:
                     </div>
                     <button
                       onClick={() => setChatbotTriggerConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${chatbotTriggerConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${chatbotTriggerConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
                     >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${chatbotTriggerConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${chatbotTriggerConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
 
@@ -6448,38 +6497,45 @@ If the customer asks to be called back at a later time:
       )}
       {/* Agent Info Modal */}
       {showAgentInfoModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAgentInfoModal(false)}>
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent Info</h3>
-              <button onClick={() => setShowAgentInfoModal(false)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowAgentInfoModal(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary-50 dark:bg-primary-900/20 rounded-xl">
+                  <svg className="w-5 h-5 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent Info</h3>
+              </div>
+              <button onClick={() => setShowAgentInfoModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-5 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Name</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                   placeholder="Agent name"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Description</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow resize-none"
                   placeholder="Short description of this agent's purpose..."
                 />
               </div>
               {assignedPhoneId && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agent Type</label>
+                  <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Agent Type</label>
                   <div className="flex gap-2">
                     {[
                       { value: 'outbound', label: 'Outbound', desc: 'Makes outgoing calls only' },
@@ -6500,10 +6556,10 @@ If the customer asks to be called back at a later time:
                 </div>
               )}
             </div>
-            <div className="p-4 border-t border-gray-200 dark:border-dark-border">
+            <div className="p-5 border-t border-gray-100 dark:border-dark-border">
               <button
                 onClick={() => setShowAgentInfoModal(false)}
-                className="w-full py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-sm"
+                className="w-full py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 shadow-sm hover:shadow transition-all duration-200 font-medium text-sm"
               >
                 Done
               </button>
