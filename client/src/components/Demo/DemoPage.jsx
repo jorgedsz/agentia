@@ -57,6 +57,7 @@ export default function DemoPage() {
   const [error, setError] = useState('')
   const [showCalendly, setShowCalendly] = useState(false)
   const [calendlyLoaded, setCalendlyLoaded] = useState(false)
+  const [branding, setBranding] = useState({ companyName: null, companyLogo: null, companyTagline: null })
 
   // Form state
   const [form, setForm] = useState({
@@ -144,6 +145,13 @@ export default function DemoPage() {
       }, 100)
     }
   }, [showCalendly])
+
+  // Fetch branding on mount
+  useEffect(() => {
+    demoAPI.getBranding().then(res => {
+      if (res.data) setBranding(res.data)
+    }).catch(() => {})
+  }, [])
 
   const updateForm = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -469,7 +477,14 @@ export default function DemoPage() {
     <nav className="sticky top-0 z-50 bg-white/80 dark:bg-dark-bg/80 backdrop-blur-md border-b border-gray-200 dark:border-dark-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand */}
-        <span className="text-xl font-bold text-primary-600 dark:text-primary-400">Sword AI</span>
+        <div className="flex items-center gap-2">
+          {branding.companyLogo && (
+            <img src={branding.companyLogo} alt={branding.companyName || 'Logo'} className="h-8 w-auto object-contain" />
+          )}
+          <span className="text-xl font-bold text-primary-600 dark:text-primary-400">
+            {branding.companyName || 'AI Demo'}
+          </span>
+        </div>
 
         {/* Right side */}
         <div className="flex items-center gap-2">
@@ -1113,14 +1128,21 @@ export default function DemoPage() {
   const renderFooter = () => (
     <footer className="border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <span className="text-lg font-bold text-primary-600 dark:text-primary-400">Sword AI</span>
+        <div className="flex items-center gap-2">
+          {branding.companyLogo && (
+            <img src={branding.companyLogo} alt={branding.companyName || 'Logo'} className="h-6 w-auto object-contain" />
+          )}
+          <span className="text-lg font-bold text-primary-600 dark:text-primary-400">
+            {branding.companyName || 'AI Demo'}
+          </span>
+        </div>
         <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
           <a href="/privacy" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Privacy</a>
           <a href="/terms" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Terms</a>
           <a href="/login" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Sign In</a>
         </div>
         <span className="text-sm text-gray-400 dark:text-gray-500">
-          &copy; {new Date().getFullYear()} Sword AI. All rights reserved.
+          &copy; {new Date().getFullYear()} {branding.companyName || 'AI Demo'}. All rights reserved.
         </span>
       </div>
     </footer>
