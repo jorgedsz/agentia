@@ -50,18 +50,28 @@ const generateDemo = async (req, res) => {
       return res.status(500).json({ error: 'OpenAI API key not configured' });
     }
 
-    // Compose rich description from all fields
-    let description = `Business Name: ${businessName}\nIndustry: ${industry}\nAgent Objective: ${agentObjective}`;
-    if (tone) description += `\nTone/Style: ${tone}`;
-    if (faq) description += `\nFrequently Asked Questions:\n${faq}`;
-    if (objections) description += `\nCommon Objections to Handle:\n${objections}`;
-
     // Map language codes
     const langMap = { English: 'en', Spanish: 'es', French: 'fr', German: 'de', Italian: 'it', Portuguese: 'pt' };
     const langCode = langMap[language] || 'en';
 
+    // Build wizardData for the updated generatePrompt signature
+    const wizardData = {
+      botType: 'sales',
+      direction: agentType === 'inbound' ? 'inbound' : 'outbound',
+      language: langCode,
+      companyName: businessName,
+      industry: industry || '',
+      tone: tone || 'professional',
+      goals: agentObjective,
+      typeConfig: {
+        ...(faq ? { qualifyingQuestions: faq } : {}),
+        ...(objections ? { commonObjections: objections } : {})
+      },
+      additionalNotes: ''
+    };
+
     // Generate voicebot prompt using existing service
-    const { prompt: voicebotPrompt, firstMessage } = await generatePrompt(description, agentType, langCode, openaiApiKey);
+    const { prompt: voicebotPrompt, firstMessage } = await generatePrompt(wizardData, openaiApiKey);
 
     // Adapt voice prompt to chatbot prompt
     const openai = new OpenAI({ apiKey: openaiApiKey });
