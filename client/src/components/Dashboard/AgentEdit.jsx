@@ -5115,38 +5115,50 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Webhook */}
             {advancedSubPanel === 'webhook' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('postCallWebhook')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('postCallWebhook')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Send call data to your server endpoint</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'webhook' ? null : 'webhook')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'webhook' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipWebhook')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('tipWebhook')}</div>
                 )}
-                <div className="p-4 space-y-4">
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('webhookUrlLabel')}</label>
+                <div className="px-5 pb-5 space-y-4">
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                      {ta('webhookUrlLabel')}
+                    </label>
                     <input
                       type="url"
                       value={serverConfig.serverUrl}
                       onChange={(e) => setServerConfig({ ...serverConfig, serverUrl: e.target.value })}
                       placeholder="https://your-server.com/webhook"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                     />
-                    <p className="text-xs text-gray-400 mt-1">{ta('receivesCallData')}</p>
+                    <p className="text-xs text-gray-400 mt-1.5">{ta('receivesCallData')}</p>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">{ta('webhookSecret')}</label>
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                      {ta('webhookSecret')}
+                    </label>
                     <input
                       type="password"
                       value={serverConfig.serverUrlSecret}
                       onChange={(e) => setServerConfig({ ...serverConfig, serverUrlSecret: e.target.value })}
                       placeholder="Secret for authentication"
-                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                     />
                   </div>
                 </div>
@@ -5156,29 +5168,37 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Structured Data */}
             {advancedSubPanel === 'structuredData' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('structuredData')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('structuredData')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Extract structured fields from conversations</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'structuredData' ? null : 'structuredData')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'structuredData' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('tipStructuredData')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('tipStructuredData')}</div>
                 )}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-5 pb-5 space-y-4 overflow-y-auto max-h-[60vh]">
 
                   {/* Enable toggle */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStructuredDataToggle')}</span>
-                    <button
-                      onClick={() => setServerConfig({ ...serverConfig, structuredDataEnabled: !serverConfig.structuredDataEnabled })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${serverConfig.structuredDataEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${serverConfig.structuredDataEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{ta('enableStructuredDataToggle')}</span>
+                      <button
+                        onClick={() => setServerConfig({ ...serverConfig, structuredDataEnabled: !serverConfig.structuredDataEnabled })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${serverConfig.structuredDataEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-dark-hover'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${serverConfig.structuredDataEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
                   </div>
 
                   {serverConfig.structuredDataEnabled && (
@@ -5254,22 +5274,25 @@ If the customer asks to be called back at a later time:
                       </div>
 
                       {/* Extraction Prompt */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{ta('extractionInstructions')}</label>
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">{ta('extractionInstructions')}</label>
                         <textarea
                           value={serverConfig.structuredDataPrompt}
                           onChange={(e) => setServerConfig({ ...serverConfig, structuredDataPrompt: e.target.value })}
                           rows={3}
                           placeholder="Extract the customer's name, appointment date they requested, and the issue they described..."
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
+                          className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all duration-200"
                         />
-                        <p className="text-xs text-gray-400 mt-1">{ta('extractionInstructionsDesc')}</p>
+                        <p className="text-xs text-gray-400 mt-1.5">{ta('extractionInstructionsDesc')}</p>
                       </div>
 
                       {/* GHL Custom Fields */}
-                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{ta('ghlCrmCustomFields')}</label>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{ta('ghlCrmCustomFieldsDesc')}</p>
+                      <div className="border-t border-gray-200 dark:border-dark-border pt-5 mt-5">
+                        <div className="flex items-center gap-2 mb-1">
+                          <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" /></svg>
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">{ta('ghlCrmCustomFields')}</label>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmCustomFieldsDesc')}</p>
                         {ghlCrmLoading ? (
                           <div className="flex items-center gap-2 text-xs text-gray-500 py-3">
                             <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -5358,22 +5381,32 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: GHL CRM */}
             {advancedSubPanel === 'ghlCrm' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('ghlCrm')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('ghlCrm')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Sync call outcomes with GoHighLevel CRM</p>
+                  </div>
                 </div>
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-5 pb-5 space-y-4 overflow-y-auto max-h-[60vh]">
 
                   {/* Enable toggle */}
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <div className={`w-10 h-5 rounded-full transition-colors relative ${ghlCrmConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                      onClick={() => setGhlCrmConfig(c => ({ ...c, enabled: !c.enabled }))}>
-                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${ghlCrmConfig.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                    </div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('ghlCrmEnable')}</span>
-                  </label>
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('ghlCrmEnable')}</span>
+                      <button
+                        onClick={() => setGhlCrmConfig(c => ({ ...c, enabled: !c.enabled }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${ghlCrmConfig.enabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${ghlCrmConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </label>
+                  </div>
 
                   {ghlCrmLoading && (
                     <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -5390,7 +5423,10 @@ If the customer asks to be called back at a later time:
                     <>
                       {/* --- Tag Mapping --- */}
                       <div>
-                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{ta('ghlCrmTagMapping')}</h4>
+                        <div className="flex items-center gap-2 mb-2">
+                          <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{ta('ghlCrmTagMapping')}</h4>
+                        </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmTagMappingDesc')}</p>
 
                         {['booked', 'answered', 'not_interested', 'failed', 'transferred', 'voicemail'].map(outcome => (
@@ -5470,8 +5506,11 @@ If the customer asks to be called back at a later time:
                       </div>
 
                       {/* --- Pipeline Mapping --- */}
-                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">{ta('ghlCrmPipelineMapping')}</h4>
+                      <div className="border-t border-gray-200 dark:border-dark-border pt-5 mt-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg>
+                          <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{ta('ghlCrmPipelineMapping')}</h4>
+                        </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmPipelineMappingDesc')}</p>
 
                         {/* Pipeline selector */}
@@ -5541,38 +5580,46 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Follow-ups */}
             {advancedSubPanel === 'followUps' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('followUps')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('followUps')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Automatically retry calls based on outcomes</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'followUps' ? null : 'followUps')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'followUps' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('followUpsInfo')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('followUpsInfo')}</div>
                 )}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-5 pb-5 space-y-4 overflow-y-auto max-h-[60vh]">
                   {/* Enable toggle */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{ta('followUpsEnable')}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('followUpsDesc')}</p>
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{ta('followUpsEnable')}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('followUpsDesc')}</p>
+                      </div>
+                      <button
+                        onClick={() => setFollowUpConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${followUpConfig.enabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${followUpConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setFollowUpConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${followUpConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${followUpConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
                   </div>
 
                   {followUpConfig.enabled && (
                     <>
                       {/* Max attempts */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('followUpsMaxAttempts')}</label>
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{ta('followUpsMaxAttempts')}</label>
                         <input
                           type="number"
                           min={1}
@@ -5586,7 +5633,7 @@ If the customer asks to be called back at a later time:
                               return { ...prev, maxAttempts: newMax, intervals: newIntervals }
                             })
                           }}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                         />
                       </div>
 
@@ -5607,7 +5654,7 @@ If the customer asks to be called back at a later time:
                                     return { ...prev, intervals: newIntervals }
                                   })
                                 }}
-                                className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                className="flex-1 px-2 py-1.5 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                               >
                                 <option value={15}>15 min</option>
                                 <option value={30}>30 min</option>
@@ -5633,7 +5680,7 @@ If the customer asks to be called back at a later time:
                                       customIntervals: { ...(prev.customIntervals || {}), [i]: mins }
                                     }))
                                   }}
-                                  className="w-20 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                  className="w-20 px-2 py-1.5 border border-gray-200 dark:border-dark-border rounded-xl bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                                 />
                               )}
                             </div>
@@ -5642,7 +5689,7 @@ If the customer asks to be called back at a later time:
                       </div>
 
                       {/* Outcomes checkboxes */}
-                      <div>
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{ta('followUpsOutcomes')}</label>
                         <div className="space-y-2">
                           {[
@@ -5673,7 +5720,7 @@ If the customer asks to be called back at a later time:
                       </div>
 
                       {/* Context note */}
-                      <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
                         <p className="text-xs text-blue-700 dark:text-blue-300">{ta('followUpsContextNote')}</p>
                       </div>
                     </>
@@ -5685,38 +5732,46 @@ If the customer asks to be called back at a later time:
             {/* Sub-panel: Chatbot Trigger */}
             {advancedSubPanel === 'chatbotTrigger' && (
               <>
-                <div className="flex items-center gap-3 p-4 border-b border-gray-200 dark:border-dark-border">
-                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-2 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <div className="flex items-center gap-3 p-5 pb-4">
+                  <button onClick={() => { setAdvancedSubPanel(null); setAdvancedInfoPopup(null) }} className="p-1.5 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-all duration-200 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('chatbotTrigger')}</h3>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('chatbotTrigger')}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Trigger a chatbot conversation after the call</p>
+                  </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'chatbotTrigger' ? null : 'chatbotTrigger')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
                 </div>
                 {advancedInfoPopup === 'chatbotTrigger' && (
-                  <div className="mx-4 mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-xs text-blue-700 dark:text-blue-300">{ta('chatbotTriggerInfo')}</div>
+                  <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('chatbotTriggerInfo')}</div>
                 )}
-                <div className="p-4 space-y-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-5 pb-5 space-y-4 overflow-y-auto max-h-[60vh]">
                   {/* Enable toggle */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">{ta('chatbotTriggerEnable')}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('chatbotTriggerDesc')}</p>
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{ta('chatbotTriggerEnable')}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('chatbotTriggerDesc')}</p>
+                      </div>
+                      <button
+                        onClick={() => setChatbotTriggerConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${chatbotTriggerConfig.enabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${chatbotTriggerConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setChatbotTriggerConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${chatbotTriggerConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${chatbotTriggerConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
                   </div>
 
                   {chatbotTriggerConfig.enabled && (
                     <>
                       {/* Chatbot selector */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('chatbotTriggerSelect')}</label>
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{ta('chatbotTriggerSelect')}</label>
                         {(() => {
                           const availableChatbots = chatbotsList
                           return chatbotsLoading ? (
@@ -5734,7 +5789,7 @@ If the customer asks to be called back at a later time:
                                   chatbotName: selected?.name || ''
                                 }))
                               }}
-                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                              className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                             >
                               <option value="">{ta('chatbotTriggerSelectPlaceholder')}</option>
                               {availableChatbots.map(c => (
@@ -5746,21 +5801,21 @@ If the customer asks to be called back at a later time:
                       </div>
 
                       {/* Trigger condition */}
-                      <div>
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{ta('chatbotTriggerCondition')}</label>
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                           {[
                             { value: 'always', label: ta('chatbotTriggerAlways'), desc: ta('chatbotTriggerAlwaysDesc') },
                             { value: 'outcomes', label: ta('chatbotTriggerByOutcome'), desc: ta('chatbotTriggerByOutcomeDesc') },
                             { value: 'structuredData', label: ta('chatbotTriggerByStructuredData'), desc: ta('chatbotTriggerByStructuredDataDesc') }
                           ].map(({ value, label, desc }) => (
-                            <label key={value} className="flex items-start gap-2 cursor-pointer">
+                            <label key={value} className="flex items-start gap-2 cursor-pointer p-2 rounded-lg hover:bg-white dark:hover:bg-dark-card transition-colors duration-150">
                               <input
                                 type="radio"
                                 name="chatbotTriggerOn"
                                 checked={chatbotTriggerConfig.triggerOn === value}
                                 onChange={() => setChatbotTriggerConfig(prev => ({ ...prev, triggerOn: value }))}
-                                className="mt-0.5 w-4 h-4"
+                                className="mt-0.5 w-4 h-4 text-primary-600 focus:ring-primary-500"
                               />
                               <div>
                                 <span className="text-sm text-gray-900 dark:text-white font-medium">{label}</span>
@@ -5773,7 +5828,7 @@ If the customer asks to be called back at a later time:
 
                       {/* Outcomes multiselect (when triggerOn=outcomes) */}
                       {chatbotTriggerConfig.triggerOn === 'outcomes' && (
-                        <div>
+                        <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{ta('chatbotTriggerOutcomes')}</label>
                           <div className="space-y-2">
                             {[
@@ -5796,7 +5851,7 @@ If the customer asks to be called back at a later time:
                                         : (prev.outcomes || []).filter(o => o !== value)
                                     }))
                                   }}
-                                  className="w-4 h-4 rounded"
+                                  className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                                 />
                                 <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
                               </label>
@@ -5807,7 +5862,7 @@ If the customer asks to be called back at a later time:
 
                       {/* Structured data field/value (when triggerOn=structuredData) */}
                       {chatbotTriggerConfig.triggerOn === 'structuredData' && (
-                        <div className="space-y-3">
+                        <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border space-y-3">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('chatbotTriggerFieldName')}</label>
                             <input
@@ -5815,7 +5870,7 @@ If the customer asks to be called back at a later time:
                               value={chatbotTriggerConfig.structuredDataField}
                               onChange={(e) => setChatbotTriggerConfig(prev => ({ ...prev, structuredDataField: e.target.value }))}
                               placeholder="e.g. requestedWhatsApp"
-                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                              className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                             />
                           </div>
                           <div>
@@ -5825,37 +5880,37 @@ If the customer asks to be called back at a later time:
                               value={chatbotTriggerConfig.structuredDataValue}
                               onChange={(e) => setChatbotTriggerConfig(prev => ({ ...prev, structuredDataValue: e.target.value }))}
                               placeholder="e.g. true"
-                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                              className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                             />
                           </div>
                         </div>
                       )}
 
                       {/* Delay */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('chatbotTriggerDelay')}</label>
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{ta('chatbotTriggerDelay')}</label>
                         <input
                           type="number"
                           min={0}
                           max={1440}
                           value={chatbotTriggerConfig.delayMinutes}
                           onChange={(e) => setChatbotTriggerConfig(prev => ({ ...prev, delayMinutes: Math.max(0, parseInt(e.target.value) || 0) }))}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                          className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                         />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ta('chatbotTriggerDelayDesc')}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">{ta('chatbotTriggerDelayDesc')}</p>
                       </div>
 
                       {/* Custom message template */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{ta('chatbotTriggerMessage')}</label>
+                      <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{ta('chatbotTriggerMessage')}</label>
                         <textarea
                           value={chatbotTriggerConfig.messageTemplate}
                           onChange={(e) => setChatbotTriggerConfig(prev => ({ ...prev, messageTemplate: e.target.value }))}
                           placeholder={ta('chatbotTriggerMessagePlaceholder')}
                           rows={3}
-                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none"
+                          className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                         />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ta('chatbotTriggerMessageDesc')}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">{ta('chatbotTriggerMessageDesc')}</p>
                       </div>
                     </>
                   )}
