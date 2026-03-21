@@ -477,12 +477,19 @@ export default function DemoPage() {
     <nav className="sticky top-0 z-50 bg-white/80 dark:bg-dark-bg/80 backdrop-blur-md border-b border-gray-200 dark:border-dark-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand */}
-        <div className="flex items-center gap-2">
-          {branding.companyLogo && (
-            <img src={branding.companyLogo} alt={branding.companyName || 'Logo'} className="h-8 w-auto object-contain" />
+        <div className="flex items-center gap-2.5">
+          {branding.companyLogo ? (
+            <img src={branding.companyLogo} alt={branding.companyName || 'Logo'} className="h-8 w-8 rounded-lg object-contain bg-white dark:bg-dark-hover" onError={(e) => { e.target.style.display = 'none' }} />
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-sm">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L3 9l9 13 9-13-9-7z" fill="white" opacity="0.9"/>
+                <path d="M12 2L3 9h18L12 2z" fill="white"/>
+              </svg>
+            </div>
           )}
           <span className="text-xl font-bold text-primary-600 dark:text-primary-400">
-            {branding.companyName || 'AI Demo'}
+            {branding.companyName || 'Sword AI'}
           </span>
         </div>
 
@@ -1129,11 +1136,18 @@ export default function DemoPage() {
     <footer className="border-t border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          {branding.companyLogo && (
-            <img src={branding.companyLogo} alt={branding.companyName || 'Logo'} className="h-6 w-auto object-contain" />
+          {branding.companyLogo ? (
+            <img src={branding.companyLogo} alt={branding.companyName || 'Logo'} className="h-6 w-6 rounded-md object-contain bg-white dark:bg-dark-hover" onError={(e) => { e.target.style.display = 'none' }} />
+          ) : (
+            <div className="w-6 h-6 rounded-md bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L3 9l9 13 9-13-9-7z" fill="white" opacity="0.9"/>
+                <path d="M12 2L3 9h18L12 2z" fill="white"/>
+              </svg>
+            </div>
           )}
           <span className="text-lg font-bold text-primary-600 dark:text-primary-400">
-            {branding.companyName || 'AI Demo'}
+            {branding.companyName || 'Sword AI'}
           </span>
         </div>
         <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
@@ -1142,7 +1156,7 @@ export default function DemoPage() {
           <a href="/login" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Sign In</a>
         </div>
         <span className="text-sm text-gray-400 dark:text-gray-500">
-          &copy; {new Date().getFullYear()} {branding.companyName || 'AI Demo'}. All rights reserved.
+          &copy; {new Date().getFullYear()} {branding.companyName || 'Sword AI'}. All rights reserved.
         </span>
       </div>
     </footer>
