@@ -538,7 +538,8 @@ export default function AgentEdit() {
     enableCheckAvailability: true,
     enableCreateEvent: true,
     contactId: '',       // GHL contact ID for testing (optional)
-    calendars: []        // Multi-calendar: [{ id, name, scenario, provider, integrationId, calendarId, timezone, appointmentDuration, contactId }]
+    requiredFields: { contactName: true, contactEmail: true, contactPhone: false }, // Which contact fields the agent must collect
+    calendars: []        // Multi-calendar: [{ id, name, scenario, provider, integrationId, calendarId, timezone, appointmentDuration, contactId, requiredFields }]
   })
 
   // Per-calendar-entry dropdown data: { [entryId]: { calendars: [], loading: false, error: '' } }
@@ -830,7 +831,8 @@ export default function AgentEdit() {
       calendarId: calendarConfig.calendarId,
       timezone: calendarConfig.timezone,
       appointmentDuration: calendarConfig.appointmentDuration,
-      contactId: calendarConfig.contactId
+      contactId: calendarConfig.contactId,
+      requiredFields: calendarConfig.requiredFields
     }]
   }
 
@@ -1339,42 +1341,51 @@ export default function AgentEdit() {
             ]
           })
 
-          // Book Appointment Tool
+          // Book Appointment Tool - build properties and required fields based on config
+          const rf = cal.requiredFields || { contactName: true, contactEmail: true, contactPhone: false }
+          const bookProperties = {
+            startTime: {
+              type: 'string',
+              description: 'The appointment start time in ISO 8601 format (e.g., 2026-02-08T10:00:00)'
+            },
+            endTime: {
+              type: 'string',
+              description: 'The appointment end time in ISO 8601 format (e.g., 2026-02-08T10:30:00). Defaults to 30 minutes after startTime if not provided.'
+            }
+          }
+          const bookRequired = ['startTime']
+
+          if (rf.contactName) {
+            bookProperties.contactName = { type: 'string', description: 'The customer\'s full name' }
+            bookRequired.push('contactName')
+          }
+          if (rf.contactEmail) {
+            bookProperties.contactEmail = { type: 'string', description: 'The customer\'s email address' }
+            bookRequired.push('contactEmail')
+          }
+          if (rf.contactPhone) {
+            bookProperties.contactPhone = { type: 'string', description: 'The customer\'s phone number' }
+            bookRequired.push('contactPhone')
+          }
+          bookProperties.notes = { type: 'string', description: 'Any additional notes for the appointment (optional)' }
+
+          // Build description listing what data to collect
+          const collectFields = []
+          if (rf.contactName) collectFields.push('name')
+          if (rf.contactEmail) collectFields.push('email')
+          if (rf.contactPhone) collectFields.push('phone')
+          const collectText = collectFields.length > 0 ? ` and collecting customer ${collectFields.join(', ')}` : ''
+
           calendarTools.push({
             type: 'apiRequest',
             method: 'POST',
             url: bookUrl,
             name: `book_appointment_${toolSuffix}`,
-            description: `${descPrefix}Book an appointment for the customer. Use this after confirming the date, time, and collecting customer contact information.`,
+            description: `${descPrefix}Book an appointment for the customer. Use this after confirming the date, time${collectText}.`,
             body: {
               type: 'object',
-              properties: {
-                startTime: {
-                  type: 'string',
-                  description: 'The appointment start time in ISO 8601 format (e.g., 2026-02-08T10:00:00)'
-                },
-                endTime: {
-                  type: 'string',
-                  description: 'The appointment end time in ISO 8601 format (e.g., 2026-02-08T10:30:00). Defaults to 30 minutes after startTime if not provided.'
-                },
-                contactName: {
-                  type: 'string',
-                  description: 'The customer\'s full name'
-                },
-                contactEmail: {
-                  type: 'string',
-                  description: 'The customer\'s email address'
-                },
-                contactPhone: {
-                  type: 'string',
-                  description: 'The customer\'s phone number (optional)'
-                },
-                notes: {
-                  type: 'string',
-                  description: 'Any additional notes for the appointment (optional)'
-                }
-              },
-              required: ['startTime', 'contactName', 'contactEmail']
+              properties: bookProperties,
+              required: bookRequired
             },
             timeoutSeconds: 30,
             messages: [
@@ -3714,6 +3725,41 @@ If the customer asks to be called back at a later time:
                               <option value={90}>90 minutes</option>
                             </select>
                           </div>
+                          {/* Required Contact Fields - for non-GHL providers */}
+                          {calendarConfig.provider && calendarConfig.provider !== 'ghl' && (
+                            <div>
+                              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Required Contact Data</label>
+                              <p className="text-xs text-gray-400 mb-3">Select which information the agent must collect from the caller before booking.</p>
+                              <div className="space-y-2">
+                                {[
+                                  { key: 'contactName', label: 'Name' },
+                                  { key: 'contactEmail', label: 'Email' },
+                                  { key: 'contactPhone', label: 'Phone' }
+                                ].map(field => {
+                                  const rf = calendarConfig.requiredFields || { contactName: true, contactEmail: true, contactPhone: false }
+                                  return (
+                                    <label key={field.key} className="flex items-center gap-3 cursor-pointer">
+                                      <button
+                                        type="button"
+                                        onClick={() => setCalendarConfig({
+                                          ...calendarConfig,
+                                          requiredFields: { ...rf, [field.key]: !rf[field.key] }
+                                        })}
+                                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                          rf[field.key] ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
+                                        }`}
+                                      >
+                                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                          rf[field.key] ? 'translate-x-4' : 'translate-x-0.5'
+                                        }`} />
+                                      </button>
+                                      <span className="text-sm text-gray-700 dark:text-gray-300">{field.label}</span>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
                           {/* GHL Contact ID (Test) - only for GHL provider */}
                           {calendarConfig.provider === 'ghl' && (
                             <div>
@@ -3874,6 +3920,39 @@ If the customer asks to be called back at a later time:
                                         <option value={90}>90 minutes</option>
                                       </select>
                                     </div>
+                                    {/* Required Contact Fields - for non-GHL providers */}
+                                    {entry.provider && entry.provider !== 'ghl' && (
+                                      <div>
+                                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Required Contact Data</label>
+                                        <div className="space-y-2">
+                                          {[
+                                            { key: 'contactName', label: 'Name' },
+                                            { key: 'contactEmail', label: 'Email' },
+                                            { key: 'contactPhone', label: 'Phone' }
+                                          ].map(field => {
+                                            const rf = entry.requiredFields || { contactName: true, contactEmail: true, contactPhone: false }
+                                            return (
+                                              <label key={field.key} className="flex items-center gap-3 cursor-pointer">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => updateCalendarEntry(entry.id, {
+                                                    requiredFields: { ...rf, [field.key]: !rf[field.key] }
+                                                  })}
+                                                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                                                    rf[field.key] ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
+                                                  }`}
+                                                >
+                                                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                                    rf[field.key] ? 'translate-x-4' : 'translate-x-0.5'
+                                                  }`} />
+                                                </button>
+                                                <span className="text-sm text-gray-700 dark:text-gray-300">{field.label}</span>
+                                              </label>
+                                            )
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
                                     {/* GHL Contact ID (Test) - only for GHL provider */}
                                     {entry.provider === 'ghl' && (
                                       <div>
