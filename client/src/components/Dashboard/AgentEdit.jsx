@@ -3634,40 +3634,103 @@ If the customer asks to be called back at a later time:
           )
         }
 
+        // Shared helper: render required contact data toggles
+        const renderRequiredFields = (rf, onToggle) => (
+          <div className="bg-gray-50 dark:bg-dark-hover rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Required Contact Data</span>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">What the agent must collect before booking.</p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'contactName', label: 'Name', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+                { key: 'contactEmail', label: 'Email', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+                { key: 'contactPhone', label: 'Phone', icon: 'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z' }
+              ].map(field => (
+                <button
+                  key={field.key}
+                  type="button"
+                  onClick={() => onToggle(field.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+                    rf[field.key]
+                      ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 ring-1 ring-primary-300 dark:ring-primary-700'
+                      : 'bg-white dark:bg-dark-card text-gray-400 ring-1 ring-gray-200 dark:ring-dark-border hover:ring-gray-300'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={field.icon} />
+                  </svg>
+                  {field.label}
+                  {rf[field.key] && (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+
         return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border z-10">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Calendar Options</h3>
-              <button onClick={() => setShowCalendarModal(false)} className="text-gray-500 hover:text-gray-700">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-dark-card rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center gap-3 p-5 border-b border-gray-100 dark:border-dark-border">
+              <div className="p-2 bg-primary-50 dark:bg-primary-900/20 rounded-xl">
+                <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Calendar Options</h3>
+                <p className="text-xs text-gray-400">Configure booking integration for this agent</p>
+              </div>
+              <button onClick={() => setShowCalendarModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="p-4 space-y-4">
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
               {/* Enable Calendar Integration toggle */}
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Calendar Integration</label>
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-dark-hover rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-lg transition-colors duration-200 ${calendarConfig.enabled ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-200 dark:bg-gray-700'}`}>
+                    <svg className={`w-4 h-4 transition-colors duration-200 ${calendarConfig.enabled ? 'text-green-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Enable Calendar</span>
+                    <p className="text-xs text-gray-400">{calendarConfig.enabled ? 'Agent can book appointments' : 'Booking disabled'}</p>
+                  </div>
+                </div>
                 <button
                   onClick={() => setCalendarConfig({ ...calendarConfig, enabled: !calendarConfig.enabled })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    calendarConfig.enabled ? 'bg-green-600' : 'bg-gray-300'
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
+                    calendarConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
                   }`}
                 >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
                     calendarConfig.enabled ? 'translate-x-6' : 'translate-x-1'
                   }`} />
                 </button>
               </div>
 
               {calendarConfig.enabled && (
-                <>
+                <div className="space-y-4">
                   {/* ===== SINGLE CALENDAR MODE ===== */}
                   {!isMultiCalendarMode && (
-                    <>
-                      <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar Provider *</label>
+                    <div className="space-y-4">
+                      {/* Provider */}
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">Calendar Provider *</label>
                         {renderProviderDropdown(
                           calendarConfig.provider,
                           calendarConfig.integrationId,
@@ -3687,6 +3750,7 @@ If the customer asks to be called back at a later time:
 
                       {renderNotConnectedWarning(calendarConfig.provider, calendarConfig.integrationId)}
 
+                      {/* Calendar */}
                       {renderCalendarDropdown(
                         calendarConfig.provider,
                         calendarConfig.integrationId,
@@ -3698,207 +3762,197 @@ If the customer asks to be called back at a later time:
 
                       {calendarConfig.provider && (
                         <>
-                          <div>
-                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
-                            <select
-                              value={calendarConfig.timezone}
-                              onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
-                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
-                            >
-                              {TIMEZONES.map(tz => (
-                                <option key={tz} value={tz}>{tz}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Appointment Duration</label>
-                            <select
-                              value={calendarConfig.appointmentDuration || 30}
-                              onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
-                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
-                            >
-                              <option value={10}>10 minutes</option>
-                              <option value={15}>15 minutes</option>
-                              <option value={30}>30 minutes</option>
-                              <option value={45}>45 minutes</option>
-                              <option value={60}>60 minutes</option>
-                              <option value={90}>90 minutes</option>
-                            </select>
-                          </div>
-                          {/* Required Contact Fields - for non-GHL providers */}
-                          {calendarConfig.provider && calendarConfig.provider !== 'ghl' && (
+                          {/* Timezone & Duration side by side */}
+                          <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Required Contact Data</label>
-                              <p className="text-xs text-gray-400 mb-3">Select which information the agent must collect from the caller before booking.</p>
-                              <div className="space-y-2">
-                                {[
-                                  { key: 'contactName', label: 'Name' },
-                                  { key: 'contactEmail', label: 'Email' },
-                                  { key: 'contactPhone', label: 'Phone' }
-                                ].map(field => {
-                                  const rf = calendarConfig.requiredFields || { contactName: true, contactEmail: true, contactPhone: false }
-                                  return (
-                                    <label key={field.key} className="flex items-center gap-3 cursor-pointer">
-                                      <button
-                                        type="button"
-                                        onClick={() => setCalendarConfig({
-                                          ...calendarConfig,
-                                          requiredFields: { ...rf, [field.key]: !rf[field.key] }
-                                        })}
-                                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                                          rf[field.key] ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
-                                        }`}
-                                      >
-                                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                          rf[field.key] ? 'translate-x-4' : 'translate-x-0.5'
-                                        }`} />
-                                      </button>
-                                      <span className="text-sm text-gray-700 dark:text-gray-300">{field.label}</span>
-                                    </label>
-                                  )
-                                })}
-                              </div>
+                              <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Timezone</label>
+                              <select
+                                value={calendarConfig.timezone}
+                                onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                              >
+                                {TIMEZONES.map(tz => (
+                                  <option key={tz} value={tz}>{tz}</option>
+                                ))}
+                              </select>
                             </div>
-                          )}
-                          {/* GHL Contact ID (Test) - only for GHL provider */}
-                          {calendarConfig.provider === 'ghl' && (
                             <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                                Contact ID <span className="text-xs font-normal text-gray-400">(Test)</span>
-                              </label>
+                              <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Duration</label>
+                              <select
+                                value={calendarConfig.appointmentDuration || 30}
+                                onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                              >
+                                <option value={10}>10 min</option>
+                                <option value={15}>15 min</option>
+                                <option value={30}>30 min</option>
+                                <option value={45}>45 min</option>
+                                <option value={60}>60 min</option>
+                                <option value={90}>90 min</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Required Contact Fields - for non-GHL providers */}
+                          {calendarConfig.provider !== 'ghl' && (() => {
+                            const rf = calendarConfig.requiredFields || { contactName: true, contactEmail: true, contactPhone: false }
+                            return renderRequiredFields(rf, (key) => setCalendarConfig({
+                              ...calendarConfig,
+                              requiredFields: { ...rf, [key]: !rf[key] }
+                            }))
+                          })()}
+
+                          {/* GHL Contact ID (Test) */}
+                          {calendarConfig.provider === 'ghl' && (
+                            <div className="bg-gray-50 dark:bg-dark-hover rounded-xl p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0" />
+                                </svg>
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Contact ID</span>
+                                <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded font-medium">Test</span>
+                              </div>
                               <input
                                 type="text"
                                 value={calendarConfig.contactId || ''}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, contactId: e.target.value.trim() })}
                                 placeholder="e.g., abc123DEFghiJKL"
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                               />
-                              <p className="text-xs text-gray-400 mt-1">GHL Contact ID to use for testing. If set, bookings will use this contact instead of searching by email.</p>
+                              <p className="text-xs text-gray-400 mt-1.5">Uses this contact directly instead of searching by email.</p>
                             </div>
                           )}
                         </>
                       )}
 
-                      {/* Add another calendar button (only when a calendar is already configured) */}
+                      {/* Add another calendar */}
                       {calendarConfig.provider && calendarConfig.calendarId && (
                         <button
                           type="button"
                           onClick={addCalendarEntry}
-                          className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
+                          className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-dark-border rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200"
                         >
                           + Add another calendar
                         </button>
                       )}
-                    </>
+                    </div>
                   )}
 
                   {/* ===== MULTI CALENDAR MODE ===== */}
                   {isMultiCalendarMode && (
-                    <>
-                      <div className="border-t border-gray-200 dark:border-dark-border pt-4 space-y-4">
-                        {calendarConfig.calendars.map((entry, idx) => {
-                          const isExpanded = expandedCalendarEntry === entry.id
-                          const providerLabel = PROVIDER_NAMES[entry.provider] || ''
-                          const subtitle = entry.name || `Calendar ${idx + 1}`
+                    <div className="space-y-3">
+                      {calendarConfig.calendars.map((entry, idx) => {
+                        const isExpanded = expandedCalendarEntry === entry.id
+                        const providerLabel = PROVIDER_NAMES[entry.provider] || ''
+                        const subtitle = entry.name || `Calendar ${idx + 1}`
 
-                          return (
-                          <div key={entry.id} className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
-                            {/* Collapsible header */}
+                        return (
+                        <div key={entry.id} className={`border rounded-xl overflow-hidden transition-all duration-200 ${isExpanded ? 'border-primary-200 dark:border-primary-800 shadow-sm' : 'border-gray-200 dark:border-dark-border'}`}>
+                          {/* Collapsible header */}
+                          <button
+                            type="button"
+                            onClick={() => setExpandedCalendarEntry(isExpanded ? null : entry.id)}
+                            className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors duration-200 ${isExpanded ? 'bg-primary-50/50 dark:bg-primary-900/10' : 'bg-gray-50 dark:bg-dark-hover hover:bg-gray-100 dark:hover:bg-dark-border'}`}
+                          >
+                            <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            {entry.provider && PROVIDER_ICONS[entry.provider] && (
+                              <span className="flex-shrink-0">{PROVIDER_ICONS[entry.provider]}</span>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">{subtitle}</span>
+                              {providerLabel && (
+                                <span className="text-xs text-gray-400 ml-2">{providerLabel}</span>
+                              )}
+                            </div>
+                            {entry.calendarId ? (
+                              <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                Ready
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Not configured</span>
+                            )}
                             <button
                               type="button"
-                              onClick={() => setExpandedCalendarEntry(isExpanded ? null : entry.id)}
-                              className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-dark-hover text-left hover:bg-gray-100 dark:hover:bg-dark-border transition-colors"
+                              onClick={(e) => { e.stopPropagation(); removeCalendarEntry(entry.id) }}
+                              className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 flex-shrink-0"
+                              title="Remove calendar"
                             >
-                              <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                               </svg>
-                              <div className="flex-1 min-w-0">
-                                <span className="text-sm font-semibold text-gray-900 dark:text-white">{subtitle}</span>
-                                {providerLabel && (
-                                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{providerLabel}</span>
-                                )}
-                              </div>
-                              {entry.calendarId && (
-                                <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                              )}
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); removeCalendarEntry(entry.id) }}
-                                className="p-1 text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
-                                title="Remove calendar"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
                             </button>
+                          </button>
 
-                            {/* Expandable content */}
-                            {isExpanded && (
-                              <div className="p-4 space-y-3 border-t border-gray-200 dark:border-dark-border">
-                                {/* Name */}
+                          {/* Expandable content */}
+                          {isExpanded && (
+                            <div className="p-4 space-y-4 border-t border-gray-100 dark:border-dark-border bg-white dark:bg-dark-card">
+                              {/* Name & Scenario */}
+                              <div className="grid grid-cols-1 gap-3">
                                 <div>
-                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Name *</label>
+                                  <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Name *</label>
                                   <input
                                     type="text"
                                     value={entry.name}
                                     onChange={(e) => updateCalendarEntry(entry.id, { name: e.target.value })}
                                     placeholder="e.g., Sales Consultation"
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
                                 </div>
-
-                                {/* Scenario */}
                                 <div>
-                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Scenario *</label>
+                                  <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Scenario *</label>
                                   <textarea
                                     value={entry.scenario}
                                     onChange={(e) => updateCalendarEntry(entry.id, { scenario: e.target.value })}
                                     placeholder="e.g., Use when customer wants a sales demo"
                                     rows={2}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
                                 </div>
+                              </div>
 
-                                {/* Provider */}
-                                <div>
-                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Provider *</label>
-                                  {renderProviderDropdown(
-                                    entry.provider,
-                                    entry.integrationId,
-                                    (provider, integrationId) => {
-                                      updateCalendarEntry(entry.id, { provider, integrationId, calendarId: '' })
-                                      if (provider === 'ghl' && !integrationId) {
-                                        fetchGhlCalendars()
-                                      } else if (integrationId) {
-                                        fetchCalendarsForEntry(entry.id, integrationId)
-                                      }
-                                    },
-                                    `multi-${entry.id}`
-                                  )}
-                                </div>
-
-                                {renderNotConnectedWarning(entry.provider, entry.integrationId)}
-
-                                {/* Calendar dropdown */}
-                                {renderCalendarDropdown(
+                              {/* Provider */}
+                              <div>
+                                <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Provider *</label>
+                                {renderProviderDropdown(
                                   entry.provider,
                                   entry.integrationId,
-                                  entry.calendarId,
-                                  entry.timezone,
-                                  (calendarId, timezone) => updateCalendarEntry(entry.id, { calendarId, timezone }),
-                                  entry.id
+                                  (provider, integrationId) => {
+                                    updateCalendarEntry(entry.id, { provider, integrationId, calendarId: '' })
+                                    if (provider === 'ghl' && !integrationId) {
+                                      fetchGhlCalendars()
+                                    } else if (integrationId) {
+                                      fetchCalendarsForEntry(entry.id, integrationId)
+                                    }
+                                  },
+                                  `multi-${entry.id}`
                                 )}
+                              </div>
 
-                                {/* Timezone & Duration */}
-                                {entry.provider && (
-                                  <>
+                              {renderNotConnectedWarning(entry.provider, entry.integrationId)}
+
+                              {/* Calendar dropdown */}
+                              {renderCalendarDropdown(
+                                entry.provider,
+                                entry.integrationId,
+                                entry.calendarId,
+                                entry.timezone,
+                                (calendarId, timezone) => updateCalendarEntry(entry.id, { calendarId, timezone }),
+                                entry.id
+                              )}
+
+                              {/* Timezone & Duration */}
+                              {entry.provider && (
+                                <>
+                                  <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
+                                      <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Timezone</label>
                                       <select
                                         value={entry.timezone}
                                         onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                       >
                                         {TIMEZONES.map(tz => (
                                           <option key={tz} value={tz}>{tz}</option>
@@ -3906,107 +3960,97 @@ If the customer asks to be called back at a later time:
                                       </select>
                                     </div>
                                     <div>
-                                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Duration</label>
+                                      <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Duration</label>
                                       <select
                                         value={entry.appointmentDuration || 30}
                                         onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                       >
-                                        <option value={10}>10 minutes</option>
-                                        <option value={15}>15 minutes</option>
-                                        <option value={30}>30 minutes</option>
-                                        <option value={45}>45 minutes</option>
-                                        <option value={60}>60 minutes</option>
-                                        <option value={90}>90 minutes</option>
+                                        <option value={10}>10 min</option>
+                                        <option value={15}>15 min</option>
+                                        <option value={30}>30 min</option>
+                                        <option value={45}>45 min</option>
+                                        <option value={60}>60 min</option>
+                                        <option value={90}>90 min</option>
                                       </select>
                                     </div>
-                                    {/* Required Contact Fields - for non-GHL providers */}
-                                    {entry.provider && entry.provider !== 'ghl' && (
-                                      <div>
-                                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Required Contact Data</label>
-                                        <div className="space-y-2">
-                                          {[
-                                            { key: 'contactName', label: 'Name' },
-                                            { key: 'contactEmail', label: 'Email' },
-                                            { key: 'contactPhone', label: 'Phone' }
-                                          ].map(field => {
-                                            const rf = entry.requiredFields || { contactName: true, contactEmail: true, contactPhone: false }
-                                            return (
-                                              <label key={field.key} className="flex items-center gap-3 cursor-pointer">
-                                                <button
-                                                  type="button"
-                                                  onClick={() => updateCalendarEntry(entry.id, {
-                                                    requiredFields: { ...rf, [field.key]: !rf[field.key] }
-                                                  })}
-                                                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                                                    rf[field.key] ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'
-                                                  }`}
-                                                >
-                                                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                                                    rf[field.key] ? 'translate-x-4' : 'translate-x-0.5'
-                                                  }`} />
-                                                </button>
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">{field.label}</span>
-                                              </label>
-                                            )
-                                          })}
-                                        </div>
-                                      </div>
-                                    )}
-                                    {/* GHL Contact ID (Test) - only for GHL provider */}
-                                    {entry.provider === 'ghl' && (
-                                      <div>
-                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
-                                          Contact ID <span className="text-xs font-normal text-gray-400">(Test)</span>
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={entry.contactId || ''}
-                                          onChange={(e) => updateCalendarEntry(entry.id, { contactId: e.target.value.trim() })}
-                                          placeholder="e.g., abc123DEFghiJKL"
-                                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                                        />
-                                        <p className="text-xs text-gray-400 mt-1">GHL Contact ID for testing.</p>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          )
-                        })}
+                                  </div>
 
-                        {/* Add Calendar button */}
-                        <button
-                          type="button"
-                          onClick={addCalendarEntry}
-                          className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
-                        >
-                          + Add Calendar
-                        </button>
-                      </div>
-                    </>
+                                  {/* Required Contact Fields - non-GHL */}
+                                  {entry.provider !== 'ghl' && (() => {
+                                    const rf = entry.requiredFields || { contactName: true, contactEmail: true, contactPhone: false }
+                                    return renderRequiredFields(rf, (key) => updateCalendarEntry(entry.id, {
+                                      requiredFields: { ...rf, [key]: !rf[key] }
+                                    }))
+                                  })()}
+
+                                  {/* GHL Contact ID (Test) */}
+                                  {entry.provider === 'ghl' && (
+                                    <div className="bg-gray-50 dark:bg-dark-hover rounded-xl p-4">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0" />
+                                        </svg>
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Contact ID</span>
+                                        <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded font-medium">Test</span>
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={entry.contactId || ''}
+                                        onChange={(e) => updateCalendarEntry(entry.id, { contactId: e.target.value.trim() })}
+                                        placeholder="e.g., abc123DEFghiJKL"
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                                      />
+                                      <p className="text-xs text-gray-400 mt-1.5">Uses this contact directly instead of searching by email.</p>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        )
+                      })}
+
+                      {/* Add Calendar button */}
+                      <button
+                        type="button"
+                        onClick={addCalendarEntry}
+                        className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-dark-border rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200"
+                      >
+                        + Add Calendar
+                      </button>
+                    </div>
                   )}
-                </>
+                </div>
               )}
             </div>
+
+            {/* Footer */}
             {(() => {
-              // Validate: all calendars must be fully configured
               const isValid = !calendarConfig.enabled || (() => {
                 if (isMultiCalendarMode) {
                   return calendarConfig.calendars.every(c => c.name && c.scenario && c.provider && c.calendarId)
                 }
-                // Single mode: just need provider + calendarId (or not enabled)
                 return !calendarConfig.provider || calendarConfig.calendarId
               })()
 
               return (
-                <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
+                <div className="flex justify-end gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
+                  <button
+                    onClick={() => setShowCalendarModal(false)}
+                    className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+                  >
+                    Cancel
+                  </button>
                   <button
                     onClick={() => setShowCalendarModal(false)}
                     disabled={!isValid}
-                    className={`px-4 py-2 rounded-lg ${isValid ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
+                    className={`px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      isValid
+                        ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm hover:shadow'
+                        : 'bg-gray-100 dark:bg-dark-hover text-gray-400 cursor-not-allowed'
+                    }`}
                   >
                     Done
                   </button>
