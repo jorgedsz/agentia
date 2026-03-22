@@ -780,7 +780,7 @@ const capturePayPalOrder = async (req, res) => {
 
     const captureUnit = capture.purchase_units?.[0];
     const captureDetail = captureUnit?.payments?.captures?.[0];
-    const customId = captureUnit?.custom_id;
+    const customId = captureDetail?.custom_id || captureUnit?.custom_id;
 
     if (!customId) {
       return res.status(400).json({ error: 'Missing custom_id in order' });
@@ -1143,7 +1143,7 @@ const captureCreditOrder = async (req, res) => {
 
     const captureUnit = capture.purchase_units?.[0];
     const captureDetail = captureUnit?.payments?.captures?.[0];
-    const customId = captureUnit?.custom_id;
+    const customId = captureDetail?.custom_id || captureUnit?.custom_id;
 
     if (!customId) {
       return res.status(400).json({ error: 'Missing custom_id in order' });
