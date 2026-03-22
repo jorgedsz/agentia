@@ -334,10 +334,14 @@ function LoadCreditsSection({ creditAmount, setCreditAmount, customCreditAmount,
       </div>
 
       {/* PayPal Button */}
-      {isValidAmount && !isPending && (
+      {isValidAmount && (
         <div className="mt-2">
+          {isPending ? (
+            <div className="h-11 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
+            </div>
+          ) : (
           <PayPalButtons
-            key={effectiveAmount}
             forceReRender={[effectiveAmount]}
             style={{ layout: 'horizontal', height: 40, tagline: false, label: 'pay' }}
             disabled={creditProcessing}
@@ -376,12 +380,7 @@ function LoadCreditsSection({ creditAmount, setCreditAmount, customCreditAmount,
               setCreditError(err.message || t('settings.creditPurchaseError'))
             }}
           />
-        </div>
-      )}
-
-      {isPending && (
-        <div className="h-11 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
+          )}
         </div>
       )}
     </div>
