@@ -1069,9 +1069,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
       {/* ===== MODEL MODAL ===== */}
       {showModelModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Select Model</h3>
               <button onClick={() => setShowModelModal(false)} className="text-gray-500 hover:text-gray-700">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1285,9 +1285,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
         }
 
         return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border z-10">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border z-10">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Calendar Options</h3>
                 <button onClick={() => setShowCalendarModal(false)} className="text-gray-500 hover:text-gray-700">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1591,7 +1591,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   </>
                 )}
               </div>
-              <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
+              <div className="flex justify-end gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
                 <button
                   onClick={() => setShowCalendarModal(false)}
                   className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700"
@@ -1606,9 +1606,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
       {/* ===== CALL TOOL MODAL ===== */}
       {showCallModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Tool</h3>
               <button onClick={() => setShowCallModal(false)} className="text-gray-500 hover:text-gray-700">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1676,7 +1676,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 </>
               )}
             </div>
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-dark-border">
+            <div className="flex justify-end gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
               <button
                 onClick={() => setShowCallModal(false)}
                 className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700"
@@ -1690,9 +1690,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
       {/* ===== TOOLS MODAL ===== */}
       {showToolsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border z-10">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border z-10">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tools</h3>
               <div className="flex items-center gap-2">
                 <button
@@ -1746,7 +1746,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 )
               })()}
             </div>
-            <div className="flex justify-end p-4 border-t border-gray-200 dark:border-dark-border">
+            <div className="flex justify-end p-5 border-t border-gray-100 dark:border-dark-border">
               <button
                 onClick={() => setShowToolsModal(false)}
                 className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700"
@@ -1760,8 +1760,8 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
       {/* Tool Add/Edit Modal */}
       {showToolEditModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-lg p-6">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editingToolIndex !== null ? 'Edit Tool' : 'Add Tool'}
@@ -1858,10 +1858,10 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
       {/* AI Prompt Generator Modal - 3-Step Wizard */}
       {showPromptGenerator && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">AI Prompt Generator</h3>
               <button
                 onClick={() => { setShowPromptGenerator(false); setGeneratedPrompt(''); setPromptMode('generate'); resetWizard() }}
@@ -2234,7 +2234,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
             {/* Footer */}
             {/* Wizard navigation for generate mode (no result yet) */}
             {promptMode === 'generate' && !generatedPrompt && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+              <div className="flex items-center justify-between p-5 border-t border-gray-100 dark:border-dark-border">
                 <button
                   onClick={() => setWizardStep(prev => Math.max(1, prev - 1))}
                   disabled={wizardStep === 1}
@@ -2256,7 +2256,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
             {/* Result footer (regenerate + use) */}
             {generatedPrompt && (
-              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+              <div className="flex items-center justify-between p-5 border-t border-gray-100 dark:border-dark-border">
                 <button
                   onClick={() => { setGeneratedPrompt(''); if (promptMode === 'generate') { setWizardStep(3) } }}
                   disabled={generatingPrompt}
