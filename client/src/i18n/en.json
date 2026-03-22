@@ -120,7 +120,8 @@
     "viewingAs": "Viewing as:",
     "language": "Language",
     "english": "English",
-    "spanish": "Español"
+    "spanish": "Español",
+    "addCredits": "Add Credits"
   },
   "dashboardContent": {
     "manageAgentsAndClients": "Manage your AI agents and clients",

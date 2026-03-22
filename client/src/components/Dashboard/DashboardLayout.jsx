@@ -3,7 +3,8 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { twilioAPI, creditsAPI, agentsAPI, chatbotsAPI } from '../../services/api'
+import { twilioAPI, creditsAPI, agentsAPI, chatbotsAPI, paymentsAPI } from '../../services/api'
+import { PayPalButtons, usePayPalScriptReducer } from '@paypal/react-paypal-js'
 import ChatAssistant from './ChatAssistant'
 
 const ROLES = {
@@ -135,6 +136,12 @@ export default function DashboardLayout() {
   const [switchingBack, setSwitchingBack] = useState(false)
   const [balances, setBalances] = useState({ twilio: null, vapi: null })
   const [userCredits, setUserCredits] = useState(null)
+  const [showCreditModal, setShowCreditModal] = useState(false)
+  const [creditAmount, setCreditAmount] = useState(null)
+  const [customCreditAmount, setCustomCreditAmount] = useState('')
+  const [creditProcessing, setCreditProcessing] = useState(false)
+  const [creditSuccess, setCreditSuccess] = useState('')
+  const [creditError, setCreditError] = useState('')
   useEffect(() => {
     fetchBalances()
     fetchCredits()
@@ -311,11 +318,20 @@ export default function DashboardLayout() {
             </div>
             <div className="space-y-1">
               {userCredits !== null && (
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600 dark:text-gray-400">Credits</span>
-                  <span className={`font-medium ${userCredits <= 0 ? 'text-red-500' : 'text-green-500'}`}>
-                    ${userCredits?.toFixed(2) || '0.00'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`font-medium ${userCredits <= 0 ? 'text-red-500' : 'text-green-500'}`}>
+                      ${userCredits?.toFixed(2) || '0.00'}
+                    </span>
+                    <button
+                      onClick={() => setShowCreditModal(true)}
+                      title={t('sidebar.addCredits') || 'Add Credits'}
+                      className="w-5 h-5 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center text-xs font-bold transition-colors leading-none"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               )}
               {balances.twilio !== null && (
@@ -538,6 +554,164 @@ export default function DashboardLayout() {
 
       {/* Floating Chat Assistant */}
       <ChatAssistant />
+
+      {/* Add Credits Modal */}
+      {showCreditModal && (
+        <AddCreditsModal
+          showCreditModal={showCreditModal}
+          setShowCreditModal={setShowCreditModal}
+          creditAmount={creditAmount}
+          setCreditAmount={setCreditAmount}
+          customCreditAmount={customCreditAmount}
+          setCustomCreditAmount={setCustomCreditAmount}
+          creditProcessing={creditProcessing}
+          setCreditProcessing={setCreditProcessing}
+          creditSuccess={creditSuccess}
+          setCreditSuccess={setCreditSuccess}
+          creditError={creditError}
+          setCreditError={setCreditError}
+          t={t}
+        />
+      )}
+    </div>
+  )
+}
+
+const CREDIT_PRESETS = [5, 10, 25, 50, 100]
+
+function AddCreditsModal({ setShowCreditModal, creditAmount, setCreditAmount, customCreditAmount, setCustomCreditAmount, creditProcessing, setCreditProcessing, creditSuccess, setCreditSuccess, creditError, setCreditError, t }) {
+  const [{ isPending }] = usePayPalScriptReducer()
+
+  const effectiveAmount = creditAmount === 'custom'
+    ? parseFloat(customCreditAmount) || 0
+    : (creditAmount || 0)
+
+  const isValidAmount = effectiveAmount >= 1 && effectiveAmount <= 500
+
+  const closeModal = () => {
+    setShowCreditModal(false)
+    setCreditAmount(null)
+    setCustomCreditAmount('')
+    setCreditError('')
+    setCreditSuccess('')
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) closeModal() }}>
+      <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-dark-border">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('sidebar.addCredits') || 'Add Credits'}</h2>
+          <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5">
+          {creditSuccess && (
+            <div className="mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 p-3 rounded-lg text-sm flex items-center gap-2">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              {creditSuccess}
+            </div>
+          )}
+          {creditError && (
+            <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm">
+              {creditError}
+            </div>
+          )}
+
+          {/* Preset amounts */}
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t('settings.selectAmount')}</p>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {CREDIT_PRESETS.map(amount => (
+              <button
+                key={amount}
+                onClick={() => { setCreditAmount(amount); setCustomCreditAmount(''); setCreditError('') }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  creditAmount === amount
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                }`}
+              >
+                ${amount}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom amount */}
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t('settings.customAmount')}</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm">$</span>
+              <input
+                type="number"
+                min="1"
+                max="500"
+                step="0.01"
+                value={customCreditAmount}
+                onFocus={() => { setCreditAmount('custom'); setCreditError('') }}
+                onChange={(e) => { setCustomCreditAmount(e.target.value); setCreditAmount('custom'); setCreditError('') }}
+                placeholder={t('settings.customAmountPlaceholder')}
+                className={`w-full pl-7 pr-3 py-2 rounded-lg border text-sm bg-white dark:bg-dark-bg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+                  creditAmount === 'custom' ? 'border-primary-500' : 'border-gray-300 dark:border-dark-border'
+                }`}
+              />
+            </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t('settings.minCreditAmount')} — {t('settings.maxCreditAmount')}</p>
+          </div>
+
+          {/* PayPal Button */}
+          {isValidAmount && (
+            <div className="mt-2">
+              {isPending ? (
+                <div className="h-11 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
+                </div>
+              ) : (
+                <PayPalButtons
+                  forceReRender={[effectiveAmount]}
+                  style={{ layout: 'horizontal', height: 40, tagline: false, label: 'pay' }}
+                  disabled={creditProcessing}
+                  createOrder={async () => {
+                    setCreditProcessing(true)
+                    setCreditError('')
+                    try {
+                      const { data } = await paymentsAPI.createCreditOrder({ amount: effectiveAmount })
+                      return data.orderId
+                    } catch (err) {
+                      setCreditProcessing(false)
+                      setCreditError(err.response?.data?.error || t('settings.creditPurchaseError'))
+                      throw err
+                    }
+                  }}
+                  onApprove={async (data) => {
+                    try {
+                      await paymentsAPI.captureCreditOrder({ orderId: data.orderID })
+                      setCreditProcessing(false)
+                      setCreditSuccess(t('settings.creditPurchaseSuccess'))
+                      setCreditAmount(null)
+                      setCustomCreditAmount('')
+                      window.dispatchEvent(new CustomEvent('creditsUpdated'))
+                      setTimeout(() => closeModal(), 2000)
+                    } catch (err) {
+                      setCreditProcessing(false)
+                      setCreditError(err.response?.data?.error || t('settings.creditPurchaseError'))
+                    }
+                  }}
+                  onCancel={() => setCreditProcessing(false)}
+                  onError={() => {
+                    setCreditProcessing(false)
+                    setCreditError(t('settings.creditPurchaseError'))
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
