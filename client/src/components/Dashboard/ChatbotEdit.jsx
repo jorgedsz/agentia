@@ -100,12 +100,17 @@ export default function ChatbotEdit() {
   const [showPromptGenerator, setShowPromptGenerator] = useState(false)
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [generatedPrompt, setGeneratedPrompt] = useState('')
+  const [promptMode, setPromptMode] = useState('generate')
+  const [updateDescription, setUpdateDescription] = useState('')
+  const [updateLanguage, setUpdateLanguage] = useState('en')
+  const [wizardStep, setWizardStep] = useState(1)
   const [wizBotType, setWizBotType] = useState('')
   const [wizLanguage, setWizLanguage] = useState('en')
   const [wizCompanyName, setWizCompanyName] = useState('')
   const [wizIndustry, setWizIndustry] = useState('')
   const [wizTone, setWizTone] = useState('professional')
   const [wizGoals, setWizGoals] = useState('')
+  const [wizTypeConfig, setWizTypeConfig] = useState({})
   const [wizAdditionalNotes, setWizAdditionalNotes] = useState('')
 
   // Model modal
@@ -544,6 +549,7 @@ export default function ChatbotEdit() {
         industry: wizIndustry,
         tone: wizTone,
         goals: wizGoals,
+        typeConfig: wizTypeConfig,
         additionalNotes: wizAdditionalNotes,
       })
       setGeneratedPrompt(data.prompt || '')
@@ -552,6 +558,45 @@ export default function ChatbotEdit() {
     } finally {
       setGeneratingPrompt(false)
     }
+  }
+
+  const handleUpdatePrompt = async () => {
+    if (!updateDescription.trim() || !systemPrompt.trim()) return
+    setGeneratingPrompt(true)
+    setGeneratedPrompt('')
+    try {
+      const { data } = await promptGeneratorAPI.update({
+        currentPrompt: systemPrompt,
+        changeDescription: updateDescription,
+        language: updateLanguage
+      })
+      setGeneratedPrompt(data.prompt || '')
+    } catch (err) {
+      setError('Failed to update prompt')
+      setTimeout(() => setError(''), 3000)
+    } finally {
+      setGeneratingPrompt(false)
+    }
+  }
+
+  const handleUseGeneratedPrompt = () => {
+    setSystemPrompt(generatedPrompt)
+    setShowPromptGenerator(false)
+    setGeneratedPrompt('')
+    setPromptMode('generate')
+    resetWizard()
+  }
+
+  const resetWizard = () => {
+    setWizardStep(1)
+    setWizBotType('')
+    setWizLanguage('en')
+    setWizCompanyName('')
+    setWizIndustry('')
+    setWizTone('professional')
+    setWizGoals('')
+    setWizTypeConfig({})
+    setWizAdditionalNotes('')
   }
 
   // Tool management
@@ -1811,160 +1856,422 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
         />
       )}
 
-      {/* Prompt Generator Modal */}
+      {/* AI Prompt Generator Modal - 3-Step Wizard */}
       {showPromptGenerator && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate Prompt with AI</h3>
-              <button onClick={() => setShowPromptGenerator(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">AI Prompt Generator</h3>
+              <button
+                onClick={() => { setShowPromptGenerator(false); setGeneratedPrompt(''); setPromptMode('generate'); resetWizard() }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="space-y-4">
-              {/* Bot Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chatbot Type</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'support', label: 'Support', icon: '🎧', desc: 'Customer support & FAQ' },
-                    { id: 'sales', label: 'Sales', icon: '💰', desc: 'Lead generation & sales' },
-                    { id: 'booking', label: 'Booking', icon: '📅', desc: 'Appointment scheduling' },
-                    { id: 'survey', label: 'Survey', icon: '📋', desc: 'Feedback & surveys' },
-                  ].map(bt => (
-                    <button
-                      key={bt.id}
-                      type="button"
-                      onClick={() => setWizBotType(bt.id)}
-                      className={`p-3 rounded-lg border-2 text-left transition-all ${
-                        wizBotType === bt.id
-                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                          : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{bt.icon}</span>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{bt.label}</span>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{bt.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              {/* Company Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name <span className="text-red-400">*</span></label>
-                <input
-                  type="text"
-                  value={wizCompanyName}
-                  onChange={(e) => setWizCompanyName(e.target.value)}
-                  placeholder="e.g. Acme Inc."
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                />
-              </div>
-
-              {/* Industry */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Industry</label>
-                <input
-                  type="text"
-                  value={wizIndustry}
-                  onChange={(e) => setWizIndustry(e.target.value)}
-                  placeholder="e.g. E-commerce, Healthcare, SaaS"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                />
-              </div>
-
-              {/* Language & Tone */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Language</label>
-                  <select
-                    value={wizLanguage}
-                    onChange={(e) => setWizLanguage(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+            {/* Mode toggle - only show if there's an existing prompt */}
+            {systemPrompt.trim() && !generatedPrompt && (
+              <div className="px-6 pt-4">
+                <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { setPromptMode('generate'); setGeneratedPrompt(''); resetWizard() }}
+                    className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptMode === 'generate' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
                   >
-                    <option value="en">English</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                    <option value="pt">Portuguese</option>
-                    <option value="it">Italian</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tone</label>
-                  <select
-                    value={wizTone}
-                    onChange={(e) => setWizTone(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    Generate New
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPromptMode('update'); setGeneratedPrompt(''); resetWizard() }}
+                    className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptMode === 'update' ? 'bg-orange-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
                   >
-                    <option value="professional">Professional</option>
-                    <option value="friendly">Friendly</option>
-                    <option value="casual">Casual</option>
-                    <option value="formal">Formal</option>
-                  </select>
+                    Update Current
+                  </button>
                 </div>
               </div>
+            )}
 
-              {/* Goals */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Goals <span className="text-red-400">*</span></label>
-                <textarea
-                  value={wizGoals}
-                  onChange={(e) => setWizGoals(e.target.value)}
-                  placeholder="What should this chatbot achieve? e.g. Answer billing questions, help with password resets, collect customer feedback..."
-                  rows={3}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none text-sm"
-                />
-              </div>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
 
-              {/* Additional Notes */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Additional Notes</label>
-                <textarea
-                  value={wizAdditionalNotes}
-                  onChange={(e) => setWizAdditionalNotes(e.target.value)}
-                  placeholder="Any extra instructions, constraints, or context..."
-                  rows={2}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none text-sm"
-                />
-              </div>
-
-              <button
-                onClick={handleGeneratePrompt}
-                disabled={generatingPrompt || !wizBotType || !wizCompanyName.trim() || !wizGoals.trim()}
-                className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
-              >
-                {generatingPrompt ? 'Generating...' : 'Generate Prompt'}
-              </button>
-              {generatedPrompt && (
-                <div className="space-y-3">
+              {/* ── UPDATE MODE ── */}
+              {promptMode === 'update' && !generatedPrompt && (
+                <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Generated System Prompt</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Language</label>
+                    <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden w-48">
+                      <button type="button" onClick={() => setUpdateLanguage('en')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${updateLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>English</button>
+                      <button type="button" onClick={() => setUpdateLanguage('es')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${updateLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>Spanish</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Describe the changes you want to make:</label>
                     <textarea
-                      value={generatedPrompt}
-                      onChange={(e) => setGeneratedPrompt(e.target.value)}
-                      rows={12}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono"
+                      value={updateDescription}
+                      onChange={(e) => setUpdateDescription(e.target.value)}
+                      rows={4}
+                      placeholder={updateLanguage === 'es' ? 'Describe los cambios que quieres hacer al prompt actual...' : 'Describe the changes you want to make to the current prompt...'}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                     />
                   </div>
                   <button
-                    onClick={() => {
-                      setSystemPrompt(generatedPrompt)
-                      setShowPromptGenerator(false)
-                      setGeneratedPrompt('')
-                    }}
-                    className="w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
+                    onClick={handleUpdatePrompt}
+                    disabled={generatingPrompt || !updateDescription.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-orange-600 hover:bg-orange-700"
                   >
-                    Apply to Chatbot
+                    {generatingPrompt ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                        Updating...
+                      </>
+                    ) : 'Update Prompt'}
                   </button>
+                </>
+              )}
+
+              {/* ── GENERATE MODE: 3-Step Wizard ── */}
+              {promptMode === 'generate' && !generatedPrompt && (
+                <>
+                  {/* Stepper */}
+                  <div className="flex items-center justify-center gap-0 mb-2">
+                    {[1, 2, 3].map((step, i) => (
+                      <div key={step} className="flex items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                          wizardStep > step ? 'bg-purple-600 text-white' :
+                          wizardStep === step ? 'bg-purple-600 text-white' :
+                          'bg-gray-200 dark:bg-dark-border text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {wizardStep > step ? (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          ) : step}
+                        </div>
+                        {i < 2 && <div className={`w-12 h-0.5 ${wizardStep > step ? 'bg-purple-600' : 'bg-gray-200 dark:bg-dark-border'}`} />}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-center gap-8 text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    <span className={wizardStep >= 1 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>Bot Type</span>
+                    <span className={wizardStep >= 2 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>Business Details</span>
+                    <span className={wizardStep >= 3 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>Configuration</span>
+                  </div>
+
+                  {/* Step 1: Bot Type + Language */}
+                  {wizardStep === 1 && (
+                    <div className="space-y-4">
+                      {/* Bot Type Cards */}
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { id: 'sales', icon: '💰', label: 'Sales', desc: 'Qualify leads and close deals' },
+                          { id: 'support', icon: '🎧', label: 'Support', desc: 'Help customers with issues' },
+                          { id: 'booking', icon: '📅', label: 'Booking', desc: 'Schedule appointments' },
+                          { id: 'survey', icon: '📋', label: 'Survey', desc: 'Collect feedback and data' }
+                        ].map(bt => (
+                          <button
+                            key={bt.id}
+                            type="button"
+                            onClick={() => setWizBotType(bt.id)}
+                            className={`p-4 rounded-lg border-2 text-left transition-all ${
+                              wizBotType === bt.id
+                                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+                            }`}
+                          >
+                            <div className="text-2xl mb-1">{bt.icon}</div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{bt.label}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{bt.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Language Toggle */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Language</label>
+                        <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden w-48">
+                          <button type="button" onClick={() => setWizLanguage('en')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${wizLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>English</button>
+                          <button type="button" onClick={() => setWizLanguage('es')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${wizLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>Spanish</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 2: Business Details */}
+                  {wizardStep === 2 && (
+                    <div className="space-y-4">
+                      {/* Company Name */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Company Name *</label>
+                        <input
+                          type="text"
+                          value={wizCompanyName}
+                          onChange={(e) => setWizCompanyName(e.target.value)}
+                          placeholder="e.g. Bright Smiles Dental"
+                          className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                        />
+                      </div>
+
+                      {/* Industry Dropdown */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Industry</label>
+                        <select
+                          value={wizIndustry}
+                          onChange={(e) => setWizIndustry(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        >
+                          <option value="">Select an industry</option>
+                          <option value="healthcare">Healthcare</option>
+                          <option value="realestate">Real Estate</option>
+                          <option value="legal">Legal</option>
+                          <option value="finance">Finance</option>
+                          <option value="education">Education</option>
+                          <option value="automotive">Automotive</option>
+                          <option value="restaurant">Restaurant</option>
+                          <option value="ecommerce">E-commerce</option>
+                          <option value="saas">SaaS</option>
+                          <option value="insurance">Insurance</option>
+                          <option value="homeservices">Home Services</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+
+                      {/* Tone Pills */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Tone</label>
+                        <div className="flex flex-wrap gap-2">
+                          {['professional', 'friendly', 'casual', 'formal', 'energetic'].map(t => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setWizTone(t)}
+                              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                wizTone === t
+                                  ? 'bg-purple-600 text-white'
+                                  : 'bg-gray-100 dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-border'
+                              }`}
+                            >
+                              {t.charAt(0).toUpperCase() + t.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Goals */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Goals / Objectives *</label>
+                        <textarea
+                          value={wizGoals}
+                          onChange={(e) => setWizGoals(e.target.value)}
+                          rows={3}
+                          placeholder={wizLanguage === 'es' ? 'Describe los objetivos principales de este chatbot...' : 'Describe the main goals for this chatbot. E.g. Answer billing questions, help with password resets...'}
+                          className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 3: Type-Specific Config + Generate */}
+                  {wizardStep === 3 && (
+                    <div className="space-y-4">
+                      {/* Sales-specific fields */}
+                      {wizBotType === 'sales' && (
+                        <>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Qualifying Questions</label>
+                            <textarea
+                              value={wizTypeConfig.qualifyingQuestions || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, qualifyingQuestions: e.target.value }))}
+                              rows={3}
+                              placeholder="List the questions the chatbot should ask to qualify leads..."
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Common Objections</label>
+                            <textarea
+                              value={wizTypeConfig.commonObjections || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, commonObjections: e.target.value }))}
+                              rows={3}
+                              placeholder="List common objections and how to handle them..."
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Support-specific fields */}
+                      {wizBotType === 'support' && (
+                        <>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Common Issues</label>
+                            <textarea
+                              value={wizTypeConfig.commonIssues || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, commonIssues: e.target.value }))}
+                              rows={3}
+                              placeholder="List common support issues the chatbot should handle..."
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Escalation Rules</label>
+                            <textarea
+                              value={wizTypeConfig.escalationRules || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, escalationRules: e.target.value }))}
+                              rows={3}
+                              placeholder="Describe when and how to escalate to a human..."
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Booking-specific fields */}
+                      {wizBotType === 'booking' && (
+                        <>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Services Offered</label>
+                            <textarea
+                              value={wizTypeConfig.servicesOffered || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, servicesOffered: e.target.value }))}
+                              rows={3}
+                              placeholder="List the services available for booking..."
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Availability Notes</label>
+                            <textarea
+                              value={wizTypeConfig.availabilityNotes || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, availabilityNotes: e.target.value }))}
+                              rows={3}
+                              placeholder="Describe availability hours, booking rules, etc..."
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Survey-specific fields */}
+                      {wizBotType === 'survey' && (
+                        <>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Survey Questions</label>
+                            <textarea
+                              value={wizTypeConfig.surveyQuestions || ''}
+                              onChange={(e) => setWizTypeConfig(prev => ({ ...prev, surveyQuestions: e.target.value }))}
+                              rows={3}
+                              placeholder="List the survey questions the chatbot should ask..."
+                              className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Rating Scale</label>
+                            <div className="flex gap-2">
+                              {['1-5', '1-10', 'yes/no'].map(scale => (
+                                <button
+                                  key={scale}
+                                  type="button"
+                                  onClick={() => setWizTypeConfig(prev => ({ ...prev, ratingScale: scale }))}
+                                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                    (wizTypeConfig.ratingScale || '1-5') === scale
+                                      ? 'bg-purple-600 text-white'
+                                      : 'bg-gray-100 dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-border'
+                                  }`}
+                                >
+                                  {scale}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Additional Notes (always shown) */}
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Additional Notes</label>
+                        <textarea
+                          value={wizAdditionalNotes}
+                          onChange={(e) => setWizAdditionalNotes(e.target.value)}
+                          rows={2}
+                          placeholder="Any extra context or instructions for the AI..."
+                          className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                        />
+                      </div>
+
+                      {/* Generate Button */}
+                      <button
+                        onClick={handleGeneratePrompt}
+                        disabled={generatingPrompt}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors bg-purple-600 hover:bg-purple-700"
+                      >
+                        {generatingPrompt ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                            Generating...
+                          </>
+                        ) : 'Generate Prompt'}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ── Generated Result (both modes) ── */}
+              {generatedPrompt && (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
+                    {promptMode === 'update' ? 'Updated Prompt:' : 'Generated Prompt:'}
+                  </label>
+                  <div className="p-4 rounded-lg bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border max-h-[50vh] overflow-y-auto">
+                    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{generatedPrompt}</p>
+                  </div>
                 </div>
               )}
             </div>
+
+            {/* Footer */}
+            {/* Wizard navigation for generate mode (no result yet) */}
+            {promptMode === 'generate' && !generatedPrompt && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+                <button
+                  onClick={() => setWizardStep(prev => Math.max(1, prev - 1))}
+                  disabled={wizardStep === 1}
+                  className="flex items-center gap-1 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Back
+                </button>
+                {wizardStep < 3 && (
+                  <button
+                    onClick={() => setWizardStep(prev => Math.min(3, prev + 1))}
+                    disabled={(wizardStep === 1 && !wizBotType) || (wizardStep === 2 && (!wizCompanyName.trim() || !wizGoals.trim()))}
+                    className="flex items-center gap-1 px-5 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Result footer (regenerate + use) */}
+            {generatedPrompt && (
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+                <button
+                  onClick={() => { setGeneratedPrompt(''); if (promptMode === 'generate') { setWizardStep(3) } }}
+                  disabled={generatingPrompt}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-50 transition-colors"
+                >
+                  {promptMode === 'update' ? 'Update Again' : 'Regenerate'}
+                </button>
+                <button
+                  onClick={handleUseGeneratedPrompt}
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Use This Prompt
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
