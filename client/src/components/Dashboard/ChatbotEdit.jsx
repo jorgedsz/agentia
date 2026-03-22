@@ -96,11 +96,17 @@ export default function ChatbotEdit() {
     timeoutSeconds: 20
   })
 
-  // Prompt generator
+  // Prompt generator wizard
   const [showPromptGenerator, setShowPromptGenerator] = useState(false)
-  const [promptDescription, setPromptDescription] = useState('')
   const [generatingPrompt, setGeneratingPrompt] = useState(false)
   const [generatedPrompt, setGeneratedPrompt] = useState('')
+  const [wizBotType, setWizBotType] = useState('')
+  const [wizLanguage, setWizLanguage] = useState('en')
+  const [wizCompanyName, setWizCompanyName] = useState('')
+  const [wizIndustry, setWizIndustry] = useState('')
+  const [wizTone, setWizTone] = useState('professional')
+  const [wizGoals, setWizGoals] = useState('')
+  const [wizAdditionalNotes, setWizAdditionalNotes] = useState('')
 
   // Model modal
   const [showModelModal, setShowModelModal] = useState(false)
@@ -526,14 +532,21 @@ export default function ChatbotEdit() {
 
   // Prompt generator
   const handleGeneratePrompt = async () => {
-    if (!promptDescription.trim()) return
+    if (!wizCompanyName.trim() || !wizGoals.trim() || !wizBotType) return
     setGeneratingPrompt(true)
+    setGeneratedPrompt('')
     try {
       const { data } = await promptGeneratorAPI.generate({
-        description: promptDescription,
-        direction: 'chatbot'
+        botType: wizBotType,
+        direction: 'chatbot',
+        language: wizLanguage,
+        companyName: wizCompanyName,
+        industry: wizIndustry,
+        tone: wizTone,
+        goals: wizGoals,
+        additionalNotes: wizAdditionalNotes,
       })
-      setGeneratedPrompt(data.systemPrompt || '')
+      setGeneratedPrompt(data.prompt || '')
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to generate prompt')
     } finally {
@@ -1811,19 +1824,122 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
               </button>
             </div>
             <div className="space-y-4">
-              <textarea
-                value={promptDescription}
-                onChange={(e) => setPromptDescription(e.target.value)}
-                placeholder="Describe what your chatbot should do. Example: A customer support chatbot for a SaaS company that helps with billing questions and password resets."
-                rows={5}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none text-sm"
-              />
+              {/* Bot Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chatbot Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'support', label: 'Support', icon: '🎧', desc: 'Customer support & FAQ' },
+                    { id: 'sales', label: 'Sales', icon: '💰', desc: 'Lead generation & sales' },
+                    { id: 'booking', label: 'Booking', icon: '📅', desc: 'Appointment scheduling' },
+                    { id: 'survey', label: 'Survey', icon: '📋', desc: 'Feedback & surveys' },
+                  ].map(bt => (
+                    <button
+                      key={bt.id}
+                      type="button"
+                      onClick={() => setWizBotType(bt.id)}
+                      className={`p-3 rounded-lg border-2 text-left transition-all ${
+                        wizBotType === bt.id
+                          ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                          : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{bt.icon}</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{bt.label}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{bt.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Company Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name <span className="text-red-400">*</span></label>
+                <input
+                  type="text"
+                  value={wizCompanyName}
+                  onChange={(e) => setWizCompanyName(e.target.value)}
+                  placeholder="e.g. Acme Inc."
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+              </div>
+
+              {/* Industry */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Industry</label>
+                <input
+                  type="text"
+                  value={wizIndustry}
+                  onChange={(e) => setWizIndustry(e.target.value)}
+                  placeholder="e.g. E-commerce, Healthcare, SaaS"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+              </div>
+
+              {/* Language & Tone */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Language</label>
+                  <select
+                    value={wizLanguage}
+                    onChange={(e) => setWizLanguage(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  >
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="it">Italian</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tone</label>
+                  <select
+                    value={wizTone}
+                    onChange={(e) => setWizTone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  >
+                    <option value="professional">Professional</option>
+                    <option value="friendly">Friendly</option>
+                    <option value="casual">Casual</option>
+                    <option value="formal">Formal</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Goals */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Goals <span className="text-red-400">*</span></label>
+                <textarea
+                  value={wizGoals}
+                  onChange={(e) => setWizGoals(e.target.value)}
+                  placeholder="What should this chatbot achieve? e.g. Answer billing questions, help with password resets, collect customer feedback..."
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none text-sm"
+                />
+              </div>
+
+              {/* Additional Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Additional Notes</label>
+                <textarea
+                  value={wizAdditionalNotes}
+                  onChange={(e) => setWizAdditionalNotes(e.target.value)}
+                  placeholder="Any extra instructions, constraints, or context..."
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none text-sm"
+                />
+              </div>
+
               <button
                 onClick={handleGeneratePrompt}
-                disabled={generatingPrompt || !promptDescription.trim()}
+                disabled={generatingPrompt || !wizBotType || !wizCompanyName.trim() || !wizGoals.trim()}
                 className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
               >
-                {generatingPrompt ? 'Generating...' : 'Generate'}
+                {generatingPrompt ? 'Generating...' : 'Generate Prompt'}
               </button>
               {generatedPrompt && (
                 <div className="space-y-3">
