@@ -11,7 +11,6 @@ import './index.css'
 const paypalOptions = {
   clientId: import.meta.env.VITE_PAYPAL_CLIENT_ID || 'test',
   currency: 'USD',
-  intent: 'subscription',
   vault: true,
 }
 
