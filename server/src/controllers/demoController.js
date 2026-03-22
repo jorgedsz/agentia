@@ -217,4 +217,21 @@ const getDemoVapiKey = async (req, res) => {
   }
 };
 
-module.exports = { generateDemo, chatDemo, getDemoVapiKey };
+const getDemoBranding = async (req, res) => {
+  try {
+    const owner = await req.prisma.user.findFirst({
+      where: { role: 'OWNER' },
+      select: { companyName: true, companyLogo: true, companyTagline: true }
+    });
+    res.json({
+      companyName: owner?.companyName || null,
+      companyLogo: owner?.companyLogo || null,
+      companyTagline: owner?.companyTagline || null
+    });
+  } catch (error) {
+    console.error('Get demo branding error:', error);
+    res.json({ companyName: null, companyLogo: null, companyTagline: null });
+  }
+};
+
+module.exports = { generateDemo, chatDemo, getDemoVapiKey, getDemoBranding };

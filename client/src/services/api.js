@@ -269,7 +269,8 @@ export const followUpAPI = {
 // Demo API
 export const demoAPI = {
   generate: (data) => api.post('/demo/generate', data),
-  getVapiKey: () => api.get('/demo/vapi-key')
+  getVapiKey: () => api.get('/demo/vapi-key'),
+  getBranding: () => api.get('/demo/branding')
 }
 
 // Chat API (uses fetch for SSE streaming, not axios)

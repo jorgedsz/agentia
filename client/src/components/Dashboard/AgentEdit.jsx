@@ -774,7 +774,7 @@ export default function AgentEdit() {
       const response = await ghlAPI.getCalendars()
       setGhlCalendars(response.data.calendars || [])
     } catch (err) {
-      setGhlError(err.response?.data?.error || 'Failed to fetch calendars')
+      setGhlError(err.response?.data?.error || ta('failedFetchCalendars'))
       setGhlCalendars([])
     } finally {
       setGhlCalendarsLoading(false)
@@ -788,7 +788,7 @@ export default function AgentEdit() {
       const response = await calendarAPI.getCalendars(integrationId)
       setProviderCalendars(response.data.calendars || [])
     } catch (err) {
-      setProviderError(err.response?.data?.error || 'Failed to fetch calendars')
+      setProviderError(err.response?.data?.error || ta('failedFetchCalendars'))
       setProviderCalendars([])
     } finally {
       setProviderCalendarsLoading(false)
@@ -877,7 +877,7 @@ export default function AgentEdit() {
     } catch (err) {
       setProviderCalendarsMap(prev => ({
         ...prev,
-        [entryId]: { calendars: [], loading: false, error: err.response?.data?.error || 'Failed to fetch calendars' }
+        [entryId]: { calendars: [], loading: false, error: err.response?.data?.error || ta('failedFetchCalendars') }
       }))
     }
   }
@@ -1041,7 +1041,7 @@ export default function AgentEdit() {
         setGhlCrmError(errors[0] + (errors[0].includes('reconnect') ? '' : ' Try reconnecting GHL in Settings to grant CRM permissions.'))
       }
     } catch (err) {
-      setGhlCrmError('Failed to load GHL data. Please check your GHL connection in Settings.')
+      setGhlCrmError(ta('failedLoadGhlData'))
     } finally {
       setGhlCrmLoading(false)
     }
@@ -1213,7 +1213,7 @@ export default function AgentEdit() {
       }
 
     } catch (err) {
-      setError('Failed to load agent')
+      setError(ta('failedLoadAgent'))
       console.error(err)
     } finally {
       setLoading(false)
@@ -1253,11 +1253,11 @@ export default function AgentEdit() {
       }
       setAssignedPhoneId(newPhoneId)
       await fetchPhoneNumbers()
-      setSuccess(newPhoneId ? 'Phone number assigned successfully' : 'Phone number unassigned')
+      setSuccess(newPhoneId ? ta('phoneAssignedSuccess') : ta('phoneUnassignedSuccess'))
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       console.error('Failed to assign phone number:', err)
-      setError(err.response?.data?.error || 'Failed to assign phone number')
+      setError(err.response?.data?.error || ta('failedAssignPhone'))
       await fetchPhoneNumbers()
     } finally {
       setAssigningPhone(false)
@@ -1799,15 +1799,15 @@ If the customer asks to be called back at a later time:
         setError(response.data.vapiWarning)
         setTimeout(() => setError(''), 10000)
       } else if (syncInfo) {
-        const webhookStatus = syncInfo.webhookUrl && syncInfo.webhookUrl !== 'NOT SET' ? '' : ' | Webhook: NOT SET (billing disabled!)'
-        setSuccess(`Agent saved & synced (${syncInfo.savedTools} tools, prompt: ${syncInfo.savedPromptLength} chars${webhookStatus})`)
+        const webhookStatus = syncInfo.webhookUrl && syncInfo.webhookUrl !== 'NOT SET' ? '' : ` | ${ta('webhookNotSet')}`
+        setSuccess(`${ta('agentSavedSynced')} (${syncInfo.savedTools} ${ta('tools')}, ${ta('prompt')}: ${syncInfo.savedPromptLength} ${ta('chars')}${webhookStatus})`)
         setTimeout(() => setSuccess(''), 8000)
       } else {
-        setSuccess('Agent saved successfully')
+        setSuccess(ta('agentSavedSuccess'))
         setTimeout(() => setSuccess(''), 3000)
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save agent')
+      setError(err.response?.data?.error || ta('failedSaveAgent'))
     } finally {
       setSaving(false)
     }
@@ -1815,18 +1815,18 @@ If the customer asks to be called back at a later time:
 
   const handleCall = async () => {
     if (!selectedPhone || !customerNumber) {
-      setCallStatus('Please select a phone number and enter customer number')
+      setCallStatus(ta('callSelectPhoneAndNumber'))
       return
     }
 
     if (!agent?.vapiId) {
-      setCallStatus('Agent is not synced. Please save the agent first.')
+      setCallStatus(ta('callAgentNotSynced'))
       return
     }
 
     const selectedPhoneData = phoneNumbers.find(p => p.id.toString() === selectedPhone)
     if (!selectedPhoneData?.vapiPhoneNumberId) {
-      setCallStatus('Selected phone number is not synced.')
+      setCallStatus(ta('callPhoneNotSynced'))
       return
     }
 
@@ -1840,11 +1840,11 @@ If the customer asks to be called back at a later time:
         customerNumber,
         customerName
       })
-      setCallStatus(`Call initiated! Call ID: ${response.data.call.id}`)
+      setCallStatus(`${ta('callInitiated')} ${response.data.call.id}`)
       setCustomerNumber('')
       setCustomerName('')
     } catch (err) {
-      setCallStatus(err.response?.data?.error || 'Failed to initiate call')
+      setCallStatus(err.response?.data?.error || ta('failedInitiateCall'))
     } finally {
       setCalling(false)
     }
@@ -1947,7 +1947,7 @@ If the customer asks to be called back at a later time:
 
   const copyPrompt = () => {
     navigator.clipboard.writeText(systemPrompt)
-    setSuccess('Prompt copied to clipboard')
+    setSuccess(ta('promptCopied'))
     setTimeout(() => setSuccess(''), 2000)
   }
 
@@ -1972,7 +1972,7 @@ If the customer asks to be called back at a later time:
       setGeneratedFirstMessage(data.firstMessage || '')
     } catch (err) {
       console.error('Generate prompt error:', err.response?.data || err.message || err)
-      setError(err.response?.data?.error || 'Failed to generate prompt')
+      setError(err.response?.data?.error || ta('failedGeneratePrompt'))
       setTimeout(() => setError(''), 5000)
     } finally {
       setGeneratingPrompt(false)
@@ -1992,7 +1992,7 @@ If the customer asks to be called back at a later time:
       })
       setGeneratedPrompt(data.prompt)
     } catch (err) {
-      setError('Failed to update prompt')
+      setError(ta('failedUpdatePrompt'))
       setTimeout(() => setError(''), 3000)
     } finally {
       setGeneratingPrompt(false)
@@ -2126,7 +2126,7 @@ If the customer asks to be called back at a later time:
 
     if (toolForm.type === 'apiRequest') {
       if (!toolForm.functionName || !toolForm.functionDescription || !toolForm.webhookUrl) {
-        setError('Name, description, and URL are required')
+        setError(ta('toolRequiredFields'))
         return
       }
 
@@ -2295,7 +2295,7 @@ If the customer asks to be called back at a later time:
             </h1>
             <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">ID: {agent.id}</span>
             <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${agentType === 'inbound' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : assignedPhoneId ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'}`}>
-              {agentType === 'inbound' ? ta('inbound') : assignedPhoneId ? 'Inbound & Outbound' : ta('outbound')}
+              {agentType === 'inbound' ? ta('inbound') : assignedPhoneId ? ta('typeInboundOutbound') : ta('outbound')}
             </span>
             <span className={`px-2 py-0.5 text-xs rounded-full ${agent.vapiId ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
               {agent.vapiId ? ta('connected') : ta('local')}
@@ -2315,7 +2315,7 @@ If the customer asks to be called back at a later time:
           <button
             onClick={() => setShowAgentInfoModal(true)}
             className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg"
-            title="Edit agent info"
+            title={ta('editAgentInfoTitle')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -2415,7 +2415,7 @@ If the customer asks to be called back at a later time:
                 type="text"
                 value={firstMessage}
                 onChange={(e) => setFirstMessage(e.target.value)}
-                placeholder="Hello! How can I help you today?"
+                placeholder={ta('greetingPlaceholder')}
                 className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
@@ -2623,10 +2623,10 @@ If the customer asks to be called back at a later time:
               {transferConfig.enabled && (
                 <p className="text-xs mt-1 text-green-600">
                   {transferConfig.transfers && transferConfig.transfers.length >= 2
-                    ? `${transferConfig.transfers.length} transfers configured`
+                    ? `${transferConfig.transfers.length} ${ta('transfersConfiguredCount')}`
                     : transferConfig.destinationValue
-                      ? `${transferConfig.destinationType === 'sip' ? 'SIP' : transferConfig.destinationType === 'assistant' ? 'Assistant' : 'Phone'}: ${transferConfig.destinationValue}`
-                      : 'Enabled'
+                      ? `${transferConfig.destinationType === 'sip' ? ta('destSipShort') : transferConfig.destinationType === 'assistant' ? ta('destAssistant') : ta('destPhoneShort')}: ${transferConfig.destinationValue}`
+                      : ta('enabledLabel')
                   }
                 </p>
               )}
@@ -2714,7 +2714,7 @@ If the customer asks to be called back at a later time:
                 <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">cURL Example</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{ta('curlExample')}</span>
               </button>
               {expandedSection === 'triggerCurl' && (() => {
                 const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
@@ -2735,27 +2735,27 @@ If the customer asks to be called back at a later time:
                   <div className="px-5 pb-4 space-y-3">
                     <div className="relative">
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Copy and customize this command</span>
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{ta('curlCopyDesc')}</span>
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(curlExample)
-                            setSuccess('cURL copied!')
+                            setSuccess(ta('curlCopied'))
                             setTimeout(() => setSuccess(''), 2000)
                           }}
                           className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium"
                         >
-                          Copy
+                          {ta('copy')}
                         </button>
                       </div>
                       <pre className="px-3 py-3 rounded-lg bg-gray-900 text-green-400 text-xs font-mono overflow-x-auto whitespace-pre">{curlExample}</pre>
                     </div>
                     <div className="text-xs text-gray-400 dark:text-gray-500 space-y-1">
-                      <p><strong className="text-gray-500 dark:text-gray-400">x-api-key</strong> (required) — Trigger API key from Account Settings</p>
-                      <p><strong className="text-gray-500 dark:text-gray-400">agentId</strong> (required) — This agent's ID (auto-filled)</p>
-                      <p><strong className="text-gray-500 dark:text-gray-400">clientId</strong> (required) — Your account ID (auto-filled)</p>
-                      <p><strong className="text-gray-500 dark:text-gray-400">from</strong> (required) — Caller phone number in E.164 format</p>
-                      <p><strong className="text-gray-500 dark:text-gray-400">to</strong> (required) — Destination phone number in E.164 format</p>
-                      <p className="pt-1 text-gray-400 dark:text-gray-500 italic">Any extra fields in the body become variable overrides.</p>
+                      <p><strong className="text-gray-500 dark:text-gray-400">x-api-key</strong> — {ta('paramApiKey')}</p>
+                      <p><strong className="text-gray-500 dark:text-gray-400">agentId</strong> — {ta('paramAgentId')}</p>
+                      <p><strong className="text-gray-500 dark:text-gray-400">clientId</strong> — {ta('paramClientId')}</p>
+                      <p><strong className="text-gray-500 dark:text-gray-400">from</strong> — {ta('paramFrom')}</p>
+                      <p><strong className="text-gray-500 dark:text-gray-400">to</strong> — {ta('paramTo')}</p>
+                      <p className="pt-1 text-gray-400 dark:text-gray-500 italic">{ta('paramOverrides')}</p>
                     </div>
                   </div>
                 )
@@ -2776,14 +2776,14 @@ If the customer asks to be called back at a later time:
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9l.879 2.121z" />
                 </svg>
-                <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Variables</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{ta('variablesLabel')}</span>
                 {variables.length > 0 && (
                   <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded-full bg-green-500 text-white">{variables.length}</span>
                 )}
               </button>
               {expandedSection === 'variables' && (
                 <div className="px-5 pb-4 space-y-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Define extra variables to pass via the API trigger. These become variable overrides and appear in the cURL example above.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('variablesDesc')}</p>
                   {variables.length > 0 && (
                     <div className="space-y-2">
                       {variables.map((v, i) => (
@@ -2791,7 +2791,7 @@ If the customer asks to be called back at a later time:
                           <div className="flex-1 min-w-0">
                             <span className="text-sm font-medium text-gray-900 dark:text-white font-mono">{v.name}</span>
                             {v.defaultValue && (
-                              <span className="text-xs text-gray-400 ml-2">default: {v.defaultValue}</span>
+                              <span className="text-xs text-gray-400 ml-2">{ta('defaultPrefix')}{v.defaultValue}</span>
                             )}
                           </div>
                           <button
@@ -2808,22 +2808,22 @@ If the customer asks to be called back at a later time:
                   )}
                   <div className="flex items-end gap-2">
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{ta('varName')}</label>
                       <input
                         type="text"
                         value={newVarName}
                         onChange={(e) => setNewVarName(e.target.value)}
-                        placeholder="e.g. customerName"
+                        placeholder={ta('varNamePlaceholder')}
                         className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Default value</label>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{ta('varDefaultValue')}</label>
                       <input
                         type="text"
                         value={newVarDefault}
                         onChange={(e) => setNewVarDefault(e.target.value)}
-                        placeholder="optional"
+                        placeholder={ta('optionalLabel')}
                         className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
                       />
                     </div>
@@ -2838,7 +2838,7 @@ If the customer asks to be called back at a later time:
                       disabled={!newVarName.trim()}
                       className="px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 text-sm font-medium flex-shrink-0"
                     >
-                      Add
+                      {ta('addVar')}
                     </button>
                   </div>
                 </div>
@@ -2865,12 +2865,12 @@ If the customer asks to be called back at a later time:
                     disabled={assigningPhone}
                     className="pl-3 pr-8 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer disabled:opacity-50"
                   >
-                    <option value="">No phone assigned</option>
+                    <option value="">{ta('noPhoneAssigned')}</option>
                     {phoneNumbers.map((phone) => {
                       const assignedToOther = phone.agentId && phone.agentId !== id
                       return (
                         <option key={phone.id} value={phone.id.toString()} disabled={assignedToOther}>
-                          {phone.phoneNumber}{assignedToOther ? ` (${phone.agent?.name || 'other agent'})` : ''}
+                          {phone.phoneNumber}{assignedToOther ? ` (${phone.agent?.name || ta('otherAgent')})` : ''}
                         </option>
                       )
                     })}
@@ -2889,11 +2889,11 @@ If the customer asks to be called back at a later time:
                   </div>
                 </div>
                 {assignedPhoneId && (
-                  <span className="text-xs text-green-600 dark:text-green-400 flex-shrink-0">Inbound</span>
+                  <span className="text-xs text-green-600 dark:text-green-400 flex-shrink-0">{ta('inboundLabel')}</span>
                 )}
               </>
             ) : (
-              <span className="text-sm text-gray-400">No phone numbers</span>
+              <span className="text-sm text-gray-400">{ta('noPhoneNumbersAvail')}</span>
             )}
           </div>
 
@@ -2949,8 +2949,8 @@ If the customer asks to be called back at a later time:
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Launch A Call</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Make an outbound call</p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('launchCall')}</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('launchCallSubtitle')}</p>
                 </div>
               </div>
               <button onClick={() => setShowCallModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
@@ -2962,11 +2962,11 @@ If the customer asks to be called back at a later time:
             <div className="p-5 space-y-4">
               {userCredits !== null && (
                 <div className={`text-sm ${userCredits > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  Available Credits: ${userCredits.toFixed(2)}
+                  {ta('availableCredits')}{userCredits.toFixed(2)}
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">From Phone Number</label>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{ta('fromPhone')}</label>
                 <select
                   value={selectedPhone}
                   onChange={(e) => setSelectedPhone(e.target.value)}
@@ -2980,7 +2980,7 @@ If the customer asks to be called back at a later time:
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Customer Phone Number</label>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{ta('customerPhone')}</label>
                 <input
                   type="tel"
                   value={customerNumber}
@@ -2990,12 +2990,12 @@ If the customer asks to be called back at a later time:
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Customer Name (Optional)</label>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{ta('customerName')}</label>
                 <input
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="John Doe"
+                  placeholder={ta('customerNamePlaceholder')}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                 />
               </div>
@@ -3010,14 +3010,14 @@ If the customer asks to be called back at a later time:
                 onClick={() => setShowCallModal(false)}
                 className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
               >
-                Cancel
+                {ta('cancel')}
               </button>
               <button
                 onClick={handleCall}
                 disabled={calling || !customerNumber}
                 className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 shadow-sm hover:shadow transition-all duration-200"
               >
-                {calling ? 'Calling...' : 'Start Call'}
+                {calling ? ta('calling') : ta('startCall')}
               </button>
             </div>
           </div>
@@ -3062,7 +3062,7 @@ If the customer asks to be called back at a later time:
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                 >
                   {TOOL_TYPES.map(tt => (
-                    <option key={tt.id} value={tt.id}>{tt.label}</option>
+                    <option key={tt.id} value={tt.id}>{ta(`toolType_${tt.id}`) || tt.label}</option>
                   ))}
                 </select>
               </div>
@@ -3075,7 +3075,7 @@ If the customer asks to be called back at a later time:
                       type="text"
                       value={toolForm.functionName}
                       onChange={(e) => setToolForm({ ...toolForm, functionName: e.target.value })}
-                      placeholder="book_appointment"
+                      placeholder={ta('toolFuncNamePlaceholder')}
                       className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                     />
                   </div>
@@ -3085,13 +3085,13 @@ If the customer asks to be called back at a later time:
                       type="text"
                       value={toolForm.functionDescription}
                       onChange={(e) => setToolForm({ ...toolForm, functionDescription: e.target.value })}
-                      placeholder="Schedule a customer appointment"
+                      placeholder={ta('toolDescPlaceholder')}
                       className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                     />
                   </div>
                   <div className="grid grid-cols-5 gap-3">
                     <div className="col-span-1">
-                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Method *</label>
+                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('toolMethod')} *</label>
                       <select
                         value={toolForm.httpMethod}
                         onChange={(e) => setToolForm({ ...toolForm, httpMethod: e.target.value })}
@@ -3103,12 +3103,12 @@ If the customer asks to be called back at a later time:
                       </select>
                     </div>
                     <div className="col-span-4">
-                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">URL *</label>
+                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('toolUrl')} *</label>
                       <input
                         type="url"
                         value={toolForm.webhookUrl}
                         onChange={(e) => setToolForm({ ...toolForm, webhookUrl: e.target.value })}
-                        placeholder="https://your-api.com/endpoint"
+                        placeholder={ta('toolApiUrlPlaceholder')}
                         className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                       />
                     </div>
@@ -3285,13 +3285,13 @@ If the customer asks to be called back at a later time:
                                     updated[idx] = { ...updated[idx], value: e.target.value }
                                     setTestRequestState(prev => ({ ...prev, testFields: updated }))
                                   }}
-                                  placeholder={`Value for ${field.key}`}
+                                  placeholder={`${ta('toolValueFor')} ${field.key}`}
                                   className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                 />
                               </div>
                             ))}
                             {(testRequestState.testFields || []).length === 0 && (
-                              <p className="text-xs text-gray-400 dark:text-gray-500 italic">Add body parameters above to fill in test values here.</p>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 italic">{ta('toolTestEmpty')}</p>
                             )}
                           </div>
                         </div>
@@ -3327,13 +3327,13 @@ If the customer asks to be called back at a later time:
                                 <p className="text-xs text-gray-500 dark:text-gray-400 break-all">{testRequestState.result.request.url}</p>
                                 {testRequestState.result.request.headers && Object.keys(testRequestState.result.request.headers).length > 0 && (
                                   <details className="text-xs">
-                                    <summary className="cursor-pointer text-gray-500 dark:text-gray-400">Headers</summary>
+                                    <summary className="cursor-pointer text-gray-500 dark:text-gray-400">{ta('toolHeaders')}</summary>
                                     <pre className="mt-1 p-2 bg-gray-100 dark:bg-dark-bg rounded text-gray-700 dark:text-gray-300 overflow-x-auto">{JSON.stringify(testRequestState.result.request.headers, null, 2)}</pre>
                                   </details>
                                 )}
                                 {testRequestState.result.request.body && (
                                   <details className="text-xs">
-                                    <summary className="cursor-pointer text-gray-500 dark:text-gray-400">Body</summary>
+                                    <summary className="cursor-pointer text-gray-500 dark:text-gray-400">{ta('toolBody')}</summary>
                                     <pre className="mt-1 p-2 bg-gray-100 dark:bg-dark-bg rounded text-gray-700 dark:text-gray-300 overflow-x-auto">{typeof testRequestState.result.request.body === 'string' ? testRequestState.result.request.body : JSON.stringify(testRequestState.result.request.body, null, 2)}</pre>
                                   </details>
                                 )}
@@ -3354,12 +3354,12 @@ If the customer asks to be called back at a later time:
                               <div className="p-3 space-y-2">
                                 {testRequestState.result.response.headers && (
                                   <details className="text-xs">
-                                    <summary className="cursor-pointer text-gray-500 dark:text-gray-400">Headers</summary>
+                                    <summary className="cursor-pointer text-gray-500 dark:text-gray-400">{ta('toolHeaders')}</summary>
                                     <pre className="mt-1 p-2 bg-gray-100 dark:bg-dark-bg rounded text-gray-700 dark:text-gray-300 overflow-x-auto">{JSON.stringify(testRequestState.result.response.headers, null, 2)}</pre>
                                   </details>
                                 )}
                                 <div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Body</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{ta('toolBody')}</p>
                                   <pre className="p-2 bg-gray-100 dark:bg-dark-bg rounded text-xs text-gray-700 dark:text-gray-300 overflow-x-auto max-h-60 overflow-y-auto">{typeof testRequestState.result.response.body === 'string' ? testRequestState.result.response.body : JSON.stringify(testRequestState.result.response.body, null, 2)}</pre>
                                 </div>
                               </div>
@@ -3379,7 +3379,7 @@ If the customer asks to be called back at a later time:
                     type="text"
                     value={toolForm.endCallMessage}
                     onChange={(e) => setToolForm({ ...toolForm, endCallMessage: e.target.value })}
-                    placeholder="Goodbye! Have a great day."
+                    placeholder={ta('endCallMessagePlaceholder')}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                   />
                 </div>
@@ -3440,11 +3440,11 @@ If the customer asks to be called back at a later time:
         }
 
         const PROVIDER_NAMES = {
-          ghl: 'GoHighLevel',
-          google: 'Google Calendar',
-          calendly: 'Calendly',
-          hubspot: 'HubSpot',
-          calcom: 'Cal.com'
+          ghl: ta('providerGHL'),
+          google: ta('providerGoogle'),
+          calendly: ta('providerCalendly'),
+          hubspot: ta('providerHubSpot'),
+          calcom: ta('providerCalcom')
         }
 
         // Build connected accounts list (shared across single & multi modes)
@@ -3504,10 +3504,10 @@ If the customer asks to be called back at a later time:
                   <>
                     {PROVIDER_ICONS[currentNotConnected]}
                     <span className="text-sm text-gray-900 dark:text-white">{PROVIDER_NAMES[currentNotConnected]}</span>
-                    <span className="text-xs text-red-400 ml-auto">Not connected</span>
+                    <span className="text-xs text-red-400 ml-auto">{ta('notConnected')}</span>
                   </>
                 ) : (
-                  <span className="text-sm text-gray-400">Select a provider</span>
+                  <span className="text-sm text-gray-400">{ta('selectProvider')}</span>
                 )}
                 <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 ml-auto transition-transform ${showProviderDropdown === dropdownId ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -3517,7 +3517,7 @@ If the customer asks to be called back at a later time:
               <div className={`${showProviderDropdown === dropdownId ? '' : 'hidden'} mt-1 w-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg max-h-64 overflow-y-auto`}>
                 {connectedAccounts.length > 0 && (
                   <>
-                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">Connected</div>
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">{ta('connected')}</div>
                     {connectedAccounts.map(account => (
                       <button
                         key={account.key}
@@ -3546,7 +3546,7 @@ If the customer asks to be called back at a later time:
                 )}
                 {notConnectedProviders.length > 0 && (
                   <>
-                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide border-t border-gray-100 dark:border-dark-border mt-1">Not Connected</div>
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide border-t border-gray-100 dark:border-dark-border mt-1">{ta('notConnectedSection')}</div>
                     {notConnectedProviders.map(providerId => (
                       <button
                         key={providerId}
@@ -3559,7 +3559,7 @@ If the customer asks to be called back at a later time:
                       >
                         {PROVIDER_ICONS[providerId]}
                         <span className="text-sm text-gray-900 dark:text-white">{PROVIDER_NAMES[providerId]}</span>
-                        <span className="text-xs text-gray-400 ml-auto">Setup required</span>
+                        <span className="text-xs text-gray-400 ml-auto">{ta('setupRequired')}</span>
                       </button>
                     ))}
                   </>
@@ -3594,7 +3594,7 @@ If the customer asks to be called back at a later time:
 
           return (
             <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar *</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('calendarLabel')}</label>
               {error && (
                 <div className="p-2 mb-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
                   <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
@@ -3603,7 +3603,7 @@ If the customer asks to be called back at a later time:
               {loading ? (
                 <div className="flex items-center gap-2 py-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
-                  <span className="text-sm text-gray-500">Loading calendars...</span>
+                  <span className="text-sm text-gray-500">{ta('loadingCalendars')}</span>
                 </div>
               ) : calendars.length > 0 ? (
                 <select
@@ -3614,14 +3614,14 @@ If the customer asks to be called back at a later time:
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                 >
-                  <option value="">Select a calendar</option>
+                  <option value="">{ta('selectCalendarOption')}</option>
                   {calendars.map(cal => (
                     <option key={cal.id} value={cal.id}>{cal.name}</option>
                   ))}
                 </select>
               ) : (
                 <div className="text-sm text-gray-500 py-2">
-                  No calendars found for this account.
+                  {ta('noCalendarsFound')}
                 </div>
               )}
             </div>
@@ -3639,7 +3639,7 @@ If the customer asks to be called back at a later time:
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <div className="flex-1">
-                <p className="text-sm text-yellow-700 dark:text-yellow-300">This provider is not connected yet.</p>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">{ta('providerNotConnected')}</p>
               </div>
               <button
                 onClick={() => {
@@ -3648,7 +3648,7 @@ If the customer asks to be called back at a later time:
                 }}
                 className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-xs font-medium whitespace-nowrap"
               >
-                Go to Settings
+                {ta('goToSettings')}
               </button>
             </div>
           )
@@ -3661,14 +3661,14 @@ If the customer asks to be called back at a later time:
               <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Required Contact Data</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('requiredContactData')}</span>
             </div>
-            <p className="text-xs text-gray-400 mb-3">What the agent must collect before booking.</p>
+            <p className="text-xs text-gray-400 mb-3">{ta('requiredContactDataDesc')}</p>
             <div className="flex flex-wrap gap-2">
               {[
-                { key: 'contactName', label: 'Name', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-                { key: 'contactEmail', label: 'Email', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
-                { key: 'contactPhone', label: 'Phone', icon: 'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z' }
+                { key: 'contactName', label: ta('fieldNameLabel'), icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+                { key: 'contactEmail', label: ta('fieldEmail'), icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
+                { key: 'contactPhone', label: ta('fieldPhone'), icon: 'M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z' }
               ].map(field => (
                 <button
                   key={field.key}
@@ -3706,8 +3706,8 @@ If the customer asks to be called back at a later time:
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Calendar Options</h3>
-                <p className="text-xs text-gray-400">Configure booking integration for this agent</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('calendarOptions')}</h3>
+                <p className="text-xs text-gray-400">{ta('calendarSubtitle')}</p>
               </div>
               <button onClick={() => setShowCalendarModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3727,8 +3727,8 @@ If the customer asks to be called back at a later time:
                     </svg>
                   </div>
                   <div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Enable Calendar</span>
-                    <p className="text-xs text-gray-400">{calendarConfig.enabled ? 'Agent can book appointments' : 'Booking disabled'}</p>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('enableCalendar')}</span>
+                    <p className="text-xs text-gray-400">{calendarConfig.enabled ? ta('calendarEnabled') : ta('calendarDisabled')}</p>
                   </div>
                 </div>
                 <button
@@ -3750,7 +3750,7 @@ If the customer asks to be called back at a later time:
                     <div className="space-y-4">
                       {/* Provider */}
                       <div>
-                        <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">Calendar Provider *</label>
+                        <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">{ta('calendarProvider')} *</label>
                         {renderProviderDropdown(
                           calendarConfig.provider,
                           calendarConfig.integrationId,
@@ -3785,7 +3785,7 @@ If the customer asks to be called back at a later time:
                           {/* Timezone & Duration side by side */}
                           <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Timezone</label>
+                              <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('timezone')}</label>
                               <select
                                 value={calendarConfig.timezone}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
@@ -3797,18 +3797,18 @@ If the customer asks to be called back at a later time:
                               </select>
                             </div>
                             <div>
-                              <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Duration</label>
+                              <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('duration')}</label>
                               <select
                                 value={calendarConfig.appointmentDuration || 30}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                               >
-                                <option value={10}>10 min</option>
-                                <option value={15}>15 min</option>
-                                <option value={30}>30 min</option>
-                                <option value={45}>45 min</option>
-                                <option value={60}>60 min</option>
-                                <option value={90}>90 min</option>
+                                <option value={10}>{ta('dur10')}</option>
+                                <option value={15}>{ta('dur15')}</option>
+                                <option value={30}>{ta('dur30')}</option>
+                                <option value={45}>{ta('dur45')}</option>
+                                <option value={60}>{ta('dur60')}</option>
+                                <option value={90}>{ta('dur90')}</option>
                               </select>
                             </div>
                           </div>
@@ -3829,17 +3829,17 @@ If the customer asks to be called back at a later time:
                                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0" />
                                 </svg>
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Contact ID</span>
-                                <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded font-medium">Test</span>
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('contactId')}</span>
+                                <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded font-medium">{ta('testBadge')}</span>
                               </div>
                               <input
                                 type="text"
                                 value={calendarConfig.contactId || ''}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, contactId: e.target.value.trim() })}
-                                placeholder="e.g., abc123DEFghiJKL"
+                                placeholder={ta('contactIdPlaceholder')}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                               />
-                              <p className="text-xs text-gray-400 mt-1.5">Uses this contact directly instead of searching by email.</p>
+                              <p className="text-xs text-gray-400 mt-1.5">{ta('contactIdHelp')}</p>
                             </div>
                           )}
                         </>
@@ -3852,7 +3852,7 @@ If the customer asks to be called back at a later time:
                           onClick={addCalendarEntry}
                           className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-dark-border rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200"
                         >
-                          + Add another calendar
+                          {ta('addAnotherCalendar')}
                         </button>
                       )}
                     </div>
@@ -3864,7 +3864,7 @@ If the customer asks to be called back at a later time:
                       {calendarConfig.calendars.map((entry, idx) => {
                         const isExpanded = expandedCalendarEntry === entry.id
                         const providerLabel = PROVIDER_NAMES[entry.provider] || ''
-                        const subtitle = entry.name || `Calendar ${idx + 1}`
+                        const subtitle = entry.name || `${ta('calendarLabel')} ${idx + 1}`
 
                         return (
                         <div key={entry.id} className={`border rounded-xl overflow-hidden transition-all duration-200 ${isExpanded ? 'border-primary-200 dark:border-primary-800 shadow-sm' : 'border-gray-200 dark:border-dark-border'}`}>
@@ -3889,16 +3889,16 @@ If the customer asks to be called back at a later time:
                             {entry.calendarId ? (
                               <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                Ready
+                                {ta('statusReady')}
                               </span>
                             ) : (
-                              <span className="text-xs text-gray-400">Not configured</span>
+                              <span className="text-xs text-gray-400">{ta('notConfigured')}</span>
                             )}
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); removeCalendarEntry(entry.id) }}
                               className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 flex-shrink-0"
-                              title="Remove calendar"
+                              title={ta('removeCalendar')}
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -3912,21 +3912,21 @@ If the customer asks to be called back at a later time:
                               {/* Name & Scenario */}
                               <div className="grid grid-cols-1 gap-3">
                                 <div>
-                                  <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Name *</label>
+                                  <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('nameRequired')}</label>
                                   <input
                                     type="text"
                                     value={entry.name}
                                     onChange={(e) => updateCalendarEntry(entry.id, { name: e.target.value })}
-                                    placeholder="e.g., Sales Consultation"
+                                    placeholder={ta('calendarNamePlaceholder')}
                                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Scenario *</label>
+                                  <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('scenarioRequired')}</label>
                                   <textarea
                                     value={entry.scenario}
                                     onChange={(e) => updateCalendarEntry(entry.id, { scenario: e.target.value })}
-                                    placeholder="e.g., Use when customer wants a sales demo"
+                                    placeholder={ta('calendarScenarioPlaceholder')}
                                     rows={2}
                                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
@@ -3935,7 +3935,7 @@ If the customer asks to be called back at a later time:
 
                               {/* Provider */}
                               <div>
-                                <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Provider *</label>
+                                <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('providerRequired')}</label>
                                 {renderProviderDropdown(
                                   entry.provider,
                                   entry.integrationId,
@@ -3968,7 +3968,7 @@ If the customer asks to be called back at a later time:
                                 <>
                                   <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                      <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Timezone</label>
+                                      <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('timezone')}</label>
                                       <select
                                         value={entry.timezone}
                                         onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
@@ -3980,7 +3980,7 @@ If the customer asks to be called back at a later time:
                                       </select>
                                     </div>
                                     <div>
-                                      <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">Duration</label>
+                                      <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('duration')}</label>
                                       <select
                                         value={entry.appointmentDuration || 30}
                                         onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
@@ -4011,17 +4011,17 @@ If the customer asks to be called back at a later time:
                                         <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0" />
                                         </svg>
-                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Contact ID</span>
-                                        <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded font-medium">Test</span>
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{ta('contactId')}</span>
+                                        <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded font-medium">{ta('testBadge')}</span>
                                       </div>
                                       <input
                                         type="text"
                                         value={entry.contactId || ''}
                                         onChange={(e) => updateCalendarEntry(entry.id, { contactId: e.target.value.trim() })}
-                                        placeholder="e.g., abc123DEFghiJKL"
+                                        placeholder={ta('contactIdPlaceholder')}
                                         className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                       />
-                                      <p className="text-xs text-gray-400 mt-1.5">Uses this contact directly instead of searching by email.</p>
+                                      <p className="text-xs text-gray-400 mt-1.5">{ta('contactIdHelp')}</p>
                                     </div>
                                   )}
                                 </>
@@ -4038,7 +4038,7 @@ If the customer asks to be called back at a later time:
                         onClick={addCalendarEntry}
                         className="w-full py-3 border-2 border-dashed border-gray-200 dark:border-dark-border rounded-xl text-sm text-gray-400 hover:border-primary-300 hover:text-primary-500 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200"
                       >
-                        + Add Calendar
+                        {ta('addCalendar')}
                       </button>
                     </div>
                   )}
@@ -4061,7 +4061,7 @@ If the customer asks to be called back at a later time:
                     onClick={() => setShowCalendarModal(false)}
                     className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
                   >
-                    Cancel
+                    {ta('cancel')}
                   </button>
                   <button
                     onClick={() => setShowCalendarModal(false)}
@@ -4072,7 +4072,7 @@ If the customer asks to be called back at a later time:
                         : 'bg-gray-100 dark:bg-dark-hover text-gray-400 cursor-not-allowed'
                     }`}
                   >
-                    Done
+                    {ta('done')}
                   </button>
                 </div>
               )
@@ -4099,8 +4099,8 @@ If the customer asks to be called back at a later time:
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Transfer Options</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Configure call routing</p>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('transferOptions')}</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{ta('transferSubtitle')}</p>
                 </div>
               </div>
               <button onClick={() => setShowTransferModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
@@ -4121,8 +4121,8 @@ If the customer asks to be called back at a later time:
                     </svg>
                   </div>
                   <div>
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Enable Call Transfer</span>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{transferConfig.enabled ? 'Transfer is active' : 'Transfer is disabled'}</p>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('enableTransfer')}</span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{transferConfig.enabled ? ta('transferActive') : ta('transferDisabled')}</p>
                   </div>
                 </div>
                 <button
@@ -4141,34 +4141,34 @@ If the customer asks to be called back at a later time:
                     <div className="space-y-4">
                       {/* Description / When to transfer */}
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">When to transfer</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{ta('whenToTransfer')}</label>
                         <input
                           type="text"
                           value={transferConfig.description}
                           onChange={(e) => setTransferConfig(prev => ({ ...prev, description: e.target.value }))}
-                          placeholder="e.g., When customer wants to speak with a human agent"
+                          placeholder={ta('transferScenarioPlaceholder')}
                           className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                         />
                       </div>
 
                       {/* Destination Type */}
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Destination type</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{ta('destinationType')}</label>
                         <select
                           value={transferConfig.destinationType}
                           onChange={(e) => setTransferConfig(prev => ({ ...prev, destinationType: e.target.value, destinationValue: '' }))}
                           className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow appearance-none cursor-pointer"
                         >
-                          <option value="number">Phone Number</option>
-                          <option value="sip">SIP URI</option>
-                          <option value="assistant">Assistant</option>
+                          <option value="number">{ta('destPhone')}</option>
+                          <option value="sip">{ta('destSip')}</option>
+                          <option value="assistant">{ta('destAssistant')}</option>
                         </select>
                       </div>
 
                       {/* Destination Value */}
                       <div>
                         <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                          {transferConfig.destinationType === 'number' ? 'Phone number' : transferConfig.destinationType === 'sip' ? 'SIP URI' : 'Assistant name or ID'}
+                          {transferConfig.destinationType === 'number' ? ta('destPhoneLabel') : transferConfig.destinationType === 'sip' ? ta('destSip') : ta('destAssistantLabel')}
                         </label>
                         <input
                           type="text"
@@ -4181,12 +4181,12 @@ If the customer asks to be called back at a later time:
 
                       {/* Transfer Message */}
                       <div>
-                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Message before transferring</label>
+                        <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">{ta('transferMessage')}</label>
                         <input
                           type="text"
                           value={transferConfig.message}
                           onChange={(e) => setTransferConfig(prev => ({ ...prev, message: e.target.value }))}
-                          placeholder="e.g., Let me connect you now, please hold..."
+                          placeholder={ta('transferMsgPlaceholder')}
                           className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                         />
                       </div>
@@ -4197,7 +4197,7 @@ If the customer asks to be called back at a later time:
                         onClick={addTransferEntry}
                         className="w-full py-2.5 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-xl text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200"
                       >
-                        + Add another transfer destination
+                        {ta('addTransferDest')}
                       </button>
                     </div>
                   ) : (
@@ -4218,11 +4218,11 @@ If the customer asks to be called back at a later time:
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
                                 <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                  {entry.name || 'Untitled Transfer'}
+                                  {entry.name || ta('untitledTransfer')}
                                 </span>
                                 {entry.destinationValue && (
                                   <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                    ({entry.destinationType === 'sip' ? 'SIP' : entry.destinationType === 'assistant' ? 'Asst' : 'Phone'}: {entry.destinationValue})
+                                    ({entry.destinationType === 'sip' ? ta('destSipShort') : entry.destinationType === 'assistant' ? ta('destAsstShort') : ta('destPhoneShort')}: {entry.destinationValue})
                                   </span>
                                 )}
                               </div>
@@ -4242,46 +4242,46 @@ If the customer asks to be called back at a later time:
                               <div className="p-3 space-y-3 border-t border-gray-200 dark:border-dark-border">
                                 {/* Name */}
                                 <div>
-                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Name</label>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ta('transferName')}</label>
                                   <input
                                     type="text"
                                     value={entry.name}
                                     onChange={(e) => updateTransferEntry(entry.id, { name: e.target.value })}
-                                    placeholder="e.g., Sales Department"
+                                    placeholder={ta('transferEntryNamePlaceholder')}
                                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
                                 </div>
 
                                 {/* Scenario */}
                                 <div>
-                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Scenario (when to use)</label>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ta('transferScenario')}</label>
                                   <input
                                     type="text"
                                     value={entry.scenario}
                                     onChange={(e) => updateTransferEntry(entry.id, { scenario: e.target.value })}
-                                    placeholder="e.g., When customer wants to speak with sales"
+                                    placeholder={ta('transferEntryScenarioPlaceholder')}
                                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
                                 </div>
 
                                 {/* Destination Type */}
                                 <div>
-                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Destination type</label>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ta('destinationType')}</label>
                                   <select
                                     value={entry.destinationType}
                                     onChange={(e) => updateTransferEntry(entry.id, { destinationType: e.target.value, destinationValue: '' })}
                                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow appearance-none cursor-pointer"
                                   >
-                                    <option value="number">Phone Number</option>
-                                    <option value="sip">SIP URI</option>
-                                    <option value="assistant">Assistant</option>
+                                    <option value="number">{ta('destPhone')}</option>
+                                    <option value="sip">{ta('destSip')}</option>
+                                    <option value="assistant">{ta('destAssistant')}</option>
                                   </select>
                                 </div>
 
                                 {/* Destination Value */}
                                 <div>
                                   <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                                    {entry.destinationType === 'number' ? 'Phone number' : entry.destinationType === 'sip' ? 'SIP URI' : 'Assistant name or ID'}
+                                    {entry.destinationType === 'number' ? ta('destPhoneLabel') : entry.destinationType === 'sip' ? ta('destSip') : ta('destAssistantLabel')}
                                   </label>
                                   <input
                                     type="text"
@@ -4294,12 +4294,12 @@ If the customer asks to be called back at a later time:
 
                                 {/* Transfer Message */}
                                 <div>
-                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Message before transferring</label>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ta('transferMessage')}</label>
                                   <input
                                     type="text"
                                     value={entry.message}
                                     onChange={(e) => updateTransferEntry(entry.id, { message: e.target.value })}
-                                    placeholder="e.g., Let me connect you now..."
+                                    placeholder={ta('transferEntryMsgPlaceholder')}
                                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                                   />
                                 </div>
@@ -4315,7 +4315,7 @@ If the customer asks to be called back at a later time:
                         onClick={addTransferEntry}
                         className="w-full py-2.5 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-xl text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-all duration-200"
                       >
-                        + Add Transfer
+                        {ta('addTransfer')}
                       </button>
                     </div>
                   )}
@@ -4338,14 +4338,14 @@ If the customer asks to be called back at a later time:
                     onClick={() => setShowTransferModal(false)}
                     className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
                   >
-                    Cancel
+                    {ta('cancel')}
                   </button>
                   <button
                     onClick={() => setShowTransferModal(false)}
                     disabled={!isValid}
                     className={`px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isValid ? 'bg-primary-600 text-white hover:bg-primary-700 shadow-sm hover:shadow' : 'bg-gray-100 dark:bg-dark-hover text-gray-400 cursor-not-allowed'}`}
                   >
-                    Done
+                    {ta('done')}
                   </button>
                 </div>
               )
@@ -4372,7 +4372,7 @@ If the customer asks to be called back at a later time:
                     </div>
                   </div>
                   <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">{ta('actionsInCall')}</h3>
-                  <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">Configure in-call behavior and tools</p>
+                  <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">{ta('inCallSubtitle')}</p>
                 </div>
                 <div className="px-5 pb-2 space-y-2">
                     {/* Voice Model */}
@@ -4387,7 +4387,7 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('voiceModel')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Select voice synthesis engine</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('voiceModelCardDesc')}</p>
                       </div>
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
@@ -4404,7 +4404,7 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('voiceTuning')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Adjust stability, speed & style</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('voiceTuningCardDesc')}</p>
                       </div>
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
@@ -4421,7 +4421,7 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('backgroundSound')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Add ambient background noise</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('bgSoundCardDesc')}</p>
                       </div>
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
@@ -4439,7 +4439,7 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('agentTools')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Configure API tools & functions</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('agentToolsCardDesc')}</p>
                       </div>
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
@@ -4456,9 +4456,9 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('stopSpeaking')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Control interruption behavior</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('stopSpeakingCardDesc')}</p>
                       </div>
-                      {callBehaviorSettings.stopSpeakingEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      {callBehaviorSettings.stopSpeakingEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">{ta('statusOn')}</span>}
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
@@ -4475,9 +4475,9 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('startSpeaking')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Configure response timing</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('startSpeakingCardDesc')}</p>
                       </div>
-                      {callBehaviorSettings.startSpeakingEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      {callBehaviorSettings.startSpeakingEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">{ta('statusOn')}</span>}
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
@@ -4494,9 +4494,9 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('voicemail')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Detect & handle voicemail</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('voicemailCardDesc')}</p>
                       </div>
-                      {callBehaviorSettings.voicemailDetectionEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      {callBehaviorSettings.voicemailDetectionEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">{ta('statusOn')}</span>}
                     </button>
 
                     {/* Call Timeouts */}
@@ -4511,7 +4511,7 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('callTimeouts')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Set call duration limits</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('callTimeoutsCardDesc')}</p>
                       </div>
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
@@ -4529,9 +4529,9 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('callbacks')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Enable callback scheduling</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('callbacksCardDesc')}</p>
                       </div>
-                      {callbackConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      {callbackConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">{ta('statusOn')}</span>}
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
@@ -4559,7 +4559,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceModel')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Choose the voice synthesis engine</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('voiceModelSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'voiceModel' ? null : 'voiceModel')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -4606,7 +4606,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('voiceTuning')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Fine-tune voice parameters</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('voiceTuningSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'voiceTuning' ? null : 'voiceTuning')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -4662,7 +4662,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('backgroundSound')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Ambient noise settings</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('bgSoundSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'bgSound' ? null : 'bgSound')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -4673,8 +4673,8 @@ If the customer asks to be called back at a later time:
                 )}
                 <div className="px-5 pb-5 space-y-3">
                   {[
-                    { value: 'off', label: 'Off', desc: 'No background noise' },
-                    { value: 'office', label: 'Office', desc: 'Subtle office ambience' }
+                    { value: 'off', label: ta('bgSoundOff'), desc: ta('bgSoundOffDesc') },
+                    { value: 'office', label: ta('bgSoundOffice'), desc: ta('bgSoundOfficeDesc') }
                   ].map(opt => (
                     <button
                       key={opt.value}
@@ -4706,7 +4706,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('agentTools')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Manage in-call tools and functions</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('agentToolsSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'tools' ? null : 'tools')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -4727,7 +4727,7 @@ If the customer asks to be called back at a later time:
                     <div className="space-y-2">
                       {tools.map((tool, index) => {
                         const getToolLabel = (tl) => {
-                          if (tl.type === 'apiRequest') return tl.name || 'API Request'
+                          if (tl.type === 'apiRequest') return tl.name || ta('toolType_apiRequest')
                           if (tl.type === 'function') return tl.function?.name || ta('function')
                           if (tl.type === 'ghl.contact.get') return ta('getContact')
                           if (tl.type === 'ghl.contact.create') return ta('createContact')
@@ -4775,7 +4775,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('stopSpeakingPlan')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">When to stop on user interruption</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('stopSpeakingSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'stopSpeaking' ? null : 'stopSpeaking')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -4865,7 +4865,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('startSpeakingPlan')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">When to begin AI response</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('startSpeakingSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'startSpeaking' ? null : 'startSpeaking')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -5009,7 +5009,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callbacks')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Schedule return calls automatically</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('callbacksSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'callbacks' ? null : 'callbacks')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -5052,7 +5052,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('callTimeouts')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Duration and silence limits</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('callTimeoutsSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'callTimeouts' ? null : 'callTimeouts')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -5121,7 +5121,7 @@ If the customer asks to be called back at a later time:
                     </div>
                   </div>
                   <h3 className="text-lg font-bold text-center text-gray-900 dark:text-white">{ta('actionsAfterCall')}</h3>
-                  <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">Configure post-call actions and integrations</p>
+                  <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-1">{ta('afterCallSubtitle')}</p>
                 </div>
                 <div className="px-5 pb-2 space-y-2">
                     {/* Webhook */}
@@ -5136,9 +5136,9 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('postCallWebhook')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Send call data to external URL</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('webhookCardDesc')}</p>
                       </div>
-                      {serverConfig.serverUrl && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">Active</span>}
+                      {serverConfig.serverUrl && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">{ta('statusActive')}</span>}
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
@@ -5154,9 +5154,9 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('structuredData')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Extract structured info from calls</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('structuredDataCardDesc')}</p>
                       </div>
-                      {serverConfig.structuredDataEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      {serverConfig.structuredDataEnabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">{ta('statusOn')}</span>}
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
@@ -5172,9 +5172,9 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('ghlCrm')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Sync data to GoHighLevel CRM</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('ghlCrmCardDesc')}</p>
                       </div>
-                      {ghlCrmConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      {ghlCrmConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">{ta('statusOn')}</span>}
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
@@ -5190,9 +5190,9 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('followUps')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Schedule automated follow-up calls</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('followUpsCardDesc')}</p>
                       </div>
-                      {followUpConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      {followUpConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">{ta('statusOn')}</span>}
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
 
@@ -5208,9 +5208,9 @@ If the customer asks to be called back at a later time:
                       </div>
                       <div className="flex-1 text-left">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('chatbotTrigger')}</span>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">Trigger a chatbot after the call</p>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{ta('chatbotTriggerCardDesc')}</p>
                       </div>
-                      {chatbotTriggerConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">ON</span>}
+                      {chatbotTriggerConfig.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">{ta('statusOn')}</span>}
                       <svg className="w-4 h-4 text-gray-400 group-hover:text-primary-500 transition-colors flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
                 </div>
@@ -5237,7 +5237,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('postCallWebhook')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Send call data to your server endpoint</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('webhookSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'webhook' ? null : 'webhook')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -5256,7 +5256,7 @@ If the customer asks to be called back at a later time:
                       type="url"
                       value={serverConfig.serverUrl}
                       onChange={(e) => setServerConfig({ ...serverConfig, serverUrl: e.target.value })}
-                      placeholder="https://your-server.com/webhook"
+                      placeholder={ta('webhookUrlPlaceholder')}
                       className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                     />
                     <p className="text-xs text-gray-400 mt-1.5">{ta('receivesCallData')}</p>
@@ -5270,7 +5270,7 @@ If the customer asks to be called back at a later time:
                       type="password"
                       value={serverConfig.serverUrlSecret}
                       onChange={(e) => setServerConfig({ ...serverConfig, serverUrlSecret: e.target.value })}
-                      placeholder="Secret for authentication"
+                      placeholder={ta('webhookSecretPlaceholder')}
                       className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                     />
                   </div>
@@ -5290,7 +5290,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('structuredData')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Extract structured fields from conversations</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('structuredDataSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'structuredData' ? null : 'structuredData')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -5393,7 +5393,7 @@ If the customer asks to be called back at a later time:
                           value={serverConfig.structuredDataPrompt}
                           onChange={(e) => setServerConfig({ ...serverConfig, structuredDataPrompt: e.target.value })}
                           rows={3}
-                          placeholder="Extract the customer's name, appointment date they requested, and the issue they described..."
+                          placeholder={ta('structuredDataPromptPlaceholder')}
                           className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all duration-200"
                         />
                         <p className="text-xs text-gray-400 mt-1.5">{ta('extractionInstructionsDesc')}</p>
@@ -5503,7 +5503,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('ghlCrm')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Sync call outcomes with GoHighLevel CRM</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('ghlCrmSubtitle')}</p>
                   </div>
                 </div>
                 <div className="px-5 pb-5 space-y-4 overflow-y-auto max-h-[60vh]">
@@ -5702,7 +5702,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('followUps')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Automatically retry calls based on outcomes</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('followUpsSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'followUps' ? null : 'followUps')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -5784,7 +5784,7 @@ If the customer asks to be called back at a later time:
                                 <input
                                   type="number"
                                   min={1}
-                                  placeholder="min"
+                                  placeholder={ta('minLabel')}
                                   value={(followUpConfig.customIntervals || {})[i] || ''}
                                   onChange={(e) => {
                                     const mins = Math.max(1, parseInt(e.target.value) || 1)
@@ -5854,7 +5854,7 @@ If the customer asks to be called back at a later time:
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('chatbotTrigger')}</h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Trigger a chatbot conversation after the call</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{ta('chatbotTriggerSubtitle')}</p>
                   </div>
                   <button onClick={() => setAdvancedInfoPopup(advancedInfoPopup === 'chatbotTrigger' ? null : 'chatbotTrigger')} className="text-gray-400 hover:text-primary-500 transition-colors">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -5982,7 +5982,7 @@ If the customer asks to be called back at a later time:
                               type="text"
                               value={chatbotTriggerConfig.structuredDataField}
                               onChange={(e) => setChatbotTriggerConfig(prev => ({ ...prev, structuredDataField: e.target.value }))}
-                              placeholder="e.g. requestedWhatsApp"
+                              placeholder={ta('customFieldKeyPlaceholder')}
                               className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                             />
                           </div>
@@ -5992,7 +5992,7 @@ If the customer asks to be called back at a later time:
                               type="text"
                               value={chatbotTriggerConfig.structuredDataValue}
                               onChange={(e) => setChatbotTriggerConfig(prev => ({ ...prev, structuredDataValue: e.target.value }))}
-                              placeholder="e.g. true"
+                              placeholder={ta('customFieldValuePlaceholder')}
                               className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                             />
                           </div>
@@ -6461,7 +6461,7 @@ If the customer asks to be called back at a later time:
           <div className="bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Choose a Voice</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('chooseVoice')}</h2>
               <button onClick={closeVoicePicker} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -6476,86 +6476,86 @@ If the customer asks to be called back at a later time:
                 onChange={(e) => setVoiceProviderFilter(e.target.value)}
                 className="pl-2 pr-7 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
               >
-                <option value="all">All Voices</option>
-                <option value="11labs">ElevenLabs</option>
-                <option value="custom">Custom</option>
+                <option value="all">{ta('allVoicesOption')}</option>
+                <option value="11labs">{ta('elevenLabsOption')}</option>
+                <option value="custom">{ta('customOption')}</option>
               </select>
               <select
                 value={voiceGenderFilter}
                 onChange={(e) => setVoiceGenderFilter(e.target.value)}
                 className="pl-2 pr-7 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
               >
-                <option value="all">All Genders</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
+                <option value="all">{ta('allGendersOption')}</option>
+                <option value="male">{ta('maleOption')}</option>
+                <option value="female">{ta('femaleOption')}</option>
               </select>
               <select
                 value={voiceAccentFilter}
                 onChange={(e) => setVoiceAccentFilter(e.target.value)}
                 className="pl-2 pr-7 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
               >
-                <option value="all">All Accents</option>
-                <option value="american">American</option>
-                <option value="british">British</option>
-                <option value="australian">Australian</option>
-                <option value="swedish">Swedish</option>
-                <option value="transatlantic">Transatlantic</option>
-                <option value="mexican">Mexican</option>
-                <option value="colombian">Colombian</option>
-                <option value="argentinian">Argentinian</option>
-                <option value="chilean">Chilean</option>
-                <option value="peruvian">Peruvian</option>
-                <option value="venezuelan">Venezuelan</option>
-                <option value="cuban">Cuban</option>
-                <option value="dominican">Dominican</option>
-                <option value="puerto rican">Puerto Rican</option>
-                <option value="ecuadorian">Ecuadorian</option>
-                <option value="uruguayan">Uruguayan</option>
-                <option value="paraguayan">Paraguayan</option>
-                <option value="bolivian">Bolivian</option>
-                <option value="costarrican">Costa Rican</option>
-                <option value="panamanian">Panamanian</option>
-                <option value="guatemalan">Guatemalan</option>
-                <option value="honduran">Honduran</option>
-                <option value="salvadoran">Salvadoran</option>
-                <option value="nicaraguan">Nicaraguan</option>
-                <option value="spanish">Spanish (Spain)</option>
+                <option value="all">{ta('allAccentsOption')}</option>
+                <option value="american">{ta('accentAmerican')}</option>
+                <option value="british">{ta('accentBritish')}</option>
+                <option value="australian">{ta('accentAustralian')}</option>
+                <option value="swedish">{ta('accentSwedish')}</option>
+                <option value="transatlantic">{ta('accentTransatlantic')}</option>
+                <option value="mexican">{ta('accentMexican')}</option>
+                <option value="colombian">{ta('accentColombian')}</option>
+                <option value="argentinian">{ta('accentArgentinian')}</option>
+                <option value="chilean">{ta('accentChilean')}</option>
+                <option value="peruvian">{ta('accentPeruvian')}</option>
+                <option value="venezuelan">{ta('accentVenezuelan')}</option>
+                <option value="cuban">{ta('accentCuban')}</option>
+                <option value="dominican">{ta('accentDominican')}</option>
+                <option value="puerto rican">{ta('accentPuertoRican')}</option>
+                <option value="ecuadorian">{ta('accentEcuadorian')}</option>
+                <option value="uruguayan">{ta('accentUruguayan')}</option>
+                <option value="paraguayan">{ta('accentParaguayan')}</option>
+                <option value="bolivian">{ta('accentBolivian')}</option>
+                <option value="costarrican">{ta('accentCostaRican')}</option>
+                <option value="panamanian">{ta('accentPanamanian')}</option>
+                <option value="guatemalan">{ta('accentGuatemalan')}</option>
+                <option value="honduran">{ta('accentHonduran')}</option>
+                <option value="salvadoran">{ta('accentSalvadoran')}</option>
+                <option value="nicaraguan">{ta('accentNicaraguan')}</option>
+                <option value="spanish">{ta('accentSpanishSpain')}</option>
               </select>
               <select
                 value={voiceLanguageFilter}
                 onChange={(e) => setVoiceLanguageFilter(e.target.value)}
                 className="pl-2 pr-7 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 appearance-none cursor-pointer"
               >
-                <option value="all">All Languages</option>
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="it">Italian</option>
-                <option value="pt">Portuguese</option>
-                <option value="pl">Polish</option>
-                <option value="nl">Dutch</option>
-                <option value="ru">Russian</option>
-                <option value="ja">Japanese</option>
-                <option value="zh">Chinese</option>
-                <option value="ko">Korean</option>
-                <option value="hi">Hindi</option>
-                <option value="ar">Arabic</option>
-                <option value="sv">Swedish</option>
-                <option value="da">Danish</option>
-                <option value="fi">Finnish</option>
-                <option value="no">Norwegian</option>
-                <option value="tr">Turkish</option>
-                <option value="el">Greek</option>
-                <option value="cs">Czech</option>
-                <option value="ro">Romanian</option>
-                <option value="hu">Hungarian</option>
-                <option value="sk">Slovak</option>
-                <option value="uk">Ukrainian</option>
-                <option value="vi">Vietnamese</option>
-                <option value="id">Indonesian</option>
-                <option value="ms">Malay</option>
-                <option value="he">Hebrew</option>
+                <option value="all">{ta('allLanguagesOption')}</option>
+                <option value="en">{ta('langEnglish')}</option>
+                <option value="es">{ta('langSpanish')}</option>
+                <option value="fr">{ta('langFrench')}</option>
+                <option value="de">{ta('langGerman')}</option>
+                <option value="it">{ta('langItalian')}</option>
+                <option value="pt">{ta('langPortuguese')}</option>
+                <option value="pl">{ta('langPolish')}</option>
+                <option value="nl">{ta('langDutch')}</option>
+                <option value="ru">{ta('langRussian')}</option>
+                <option value="ja">{ta('langJapanese')}</option>
+                <option value="zh">{ta('langChinese')}</option>
+                <option value="ko">{ta('langKorean')}</option>
+                <option value="hi">{ta('langHindi')}</option>
+                <option value="ar">{ta('langArabic')}</option>
+                <option value="sv">{ta('langSwedish')}</option>
+                <option value="da">{ta('langDanish')}</option>
+                <option value="fi">{ta('langFinnish')}</option>
+                <option value="no">{ta('langNorwegian')}</option>
+                <option value="tr">{ta('langTurkish')}</option>
+                <option value="el">{ta('langGreek')}</option>
+                <option value="cs">{ta('langCzech')}</option>
+                <option value="ro">{ta('langRomanian')}</option>
+                <option value="hu">{ta('langHungarian')}</option>
+                <option value="sk">{ta('langSlovak')}</option>
+                <option value="uk">{ta('langUkrainian')}</option>
+                <option value="vi">{ta('langVietnamese')}</option>
+                <option value="id">{ta('langIndonesian')}</option>
+                <option value="ms">{ta('langMalay')}</option>
+                <option value="he">{ta('langHebrew')}</option>
               </select>
               <div className="relative flex-1 min-w-[150px]">
                 <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6565,7 +6565,7 @@ If the customer asks to be called back at a later time:
                   type="text"
                   value={voiceSearch}
                   onChange={(e) => setVoiceSearch(e.target.value)}
-                  placeholder="Search..."
+                  placeholder={ta('searchVoices')}
                   className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 />
               </div>
@@ -6582,15 +6582,15 @@ If the customer asks to be called back at a later time:
                   {/* Manual Voice ID Card */}
                   <div className={`rounded-lg border border-dashed p-3 flex flex-col justify-between ${addVoiceManually && customVoiceId ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-1 ring-primary-500' : 'border-gray-300 dark:border-dark-border'}`}>
                     <div className="mb-2">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Add Voice ID Manually</span>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Paste an ElevenLabs voice ID</p>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('addVoiceManually')}</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('pasteVoiceIdDesc')}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <input
                         type="text"
                         value={customVoiceId}
                         onChange={(e) => setCustomVoiceId(e.target.value)}
-                        placeholder="Voice ID..."
+                        placeholder={ta('voiceIdPlaceholder')}
                         onClick={(e) => e.stopPropagation()}
                         className="flex-1 min-w-0 px-2 py-1.5 rounded-md border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
                       />
@@ -6606,7 +6606,7 @@ If the customer asks to be called back at a later time:
                         }}
                         className="px-2.5 py-1.5 rounded-md bg-primary-600 text-white text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                       >
-                        Use
+                        {ta('useVoice')}
                       </button>
                     </div>
                   </div>
@@ -6643,7 +6643,7 @@ If the customer asks to be called back at a later time:
                                 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                                 : 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
                             }`}>
-                              {voice.isCustom ? 'Custom' : 'ElevenLabs'}
+                              {voice.isCustom ? ta('customOption') : ta('elevenLabsOption')}
                             </span>
                             {voice.gender && (
                               <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
@@ -6661,7 +6661,7 @@ If the customer asks to be called back at a later time:
                             )}
                             {(voice.languages || []).length > 3 ? (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400">
-                                {voice.languages.length} langs
+                                {voice.languages.length} {ta('langsCount')}
                               </span>
                             ) : (voice.languages || []).map(lang => (
                               <span key={lang} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700/30 dark:text-gray-400">
@@ -6698,7 +6698,7 @@ If the customer asks to be called back at a later time:
                 </div>
               )}
               {!voicesLoading && getFilteredPickerVoices().length === 0 && (
-                <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">No voices match your filters</p>
+                <p className="text-center text-gray-500 dark:text-gray-400 py-8 text-sm">{ta('noVoicesMatch')}</p>
               )}
             </div>
           </div>
@@ -6715,7 +6715,7 @@ If the customer asks to be called back at a later time:
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Agent Info</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('agentInfo')}</h3>
               </div>
               <button onClick={() => setShowAgentInfoModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -6723,32 +6723,32 @@ If the customer asks to be called back at a later time:
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Name</label>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{ta('agentInfoName')}</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
-                  placeholder="Agent name"
+                  placeholder={ta('agentInfoNamePlaceholder')}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Description</label>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{ta('agentInfoDescription')}</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow resize-none"
-                  placeholder="Short description of this agent's purpose..."
+                  placeholder={ta('agentInfoDescPlaceholder')}
                 />
               </div>
               {assignedPhoneId && (
                 <div>
-                  <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Agent Type</label>
+                  <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{ta('agentInfoType')}</label>
                   <div className="flex gap-2">
                     {[
-                      { value: 'outbound', label: 'Outbound', desc: 'Makes outgoing calls only' },
-                      { value: 'inbound', label: 'Inbound & Outbound', desc: 'Receives and makes calls' }
+                      { value: 'outbound', label: ta('agentInfoOutbound'), desc: ta('agentInfoOutboundDesc') },
+                      { value: 'inbound', label: ta('agentInfoInboundOutbound'), desc: ta('agentInfoInboundOutboundDesc') }
                     ].map(opt => (
                       <button
                         key={opt.value}
@@ -6770,7 +6770,7 @@ If the customer asks to be called back at a later time:
                 onClick={() => setShowAgentInfoModal(false)}
                 className="w-full py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 shadow-sm hover:shadow transition-all duration-200 font-medium text-sm"
               >
-                Done
+                {ta('done')}
               </button>
             </div>
           </div>
