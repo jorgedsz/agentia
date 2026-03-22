@@ -5,6 +5,7 @@ import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettin
 import { useLanguage } from '../../context/LanguageContext'
 import PricingSettings from './PricingSettings'
 import PayPalCheckoutButton from './PayPalCheckoutButton'
+import { PayPalButtons, usePayPalScriptReducer } from '@paypal/react-paypal-js'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -246,6 +247,147 @@ function BillingTab() {
   )
 }
 
+// Load Credits Section (used inside AccountTab)
+const CREDIT_PRESETS = [5, 10, 25, 50, 100]
+
+function LoadCreditsSection({ creditAmount, setCreditAmount, customCreditAmount, setCustomCreditAmount, creditSuccess, setCreditSuccess, creditError, setCreditError, creditProcessing, setCreditProcessing, t }) {
+  const [{ isPending }] = usePayPalScriptReducer()
+
+  const effectiveAmount = creditAmount === 'custom'
+    ? parseFloat(customCreditAmount) || 0
+    : (creditAmount || 0)
+
+  const isValidAmount = effectiveAmount >= 1 && effectiveAmount <= 500
+
+  const handlePresetClick = (amount) => {
+    setCreditAmount(amount)
+    setCustomCreditAmount('')
+    setCreditError('')
+  }
+
+  const handleCustomFocus = () => {
+    setCreditAmount('custom')
+    setCreditError('')
+  }
+
+  return (
+    <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">{t('settings.loadCredits')}</h2>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">{t('settings.loadCreditsDesc')}</p>
+
+      {creditSuccess && (
+        <div className="mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 p-3 rounded-lg text-sm flex items-center gap-2">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          {creditSuccess}
+        </div>
+      )}
+      {creditError && (
+        <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm">
+          {creditError}
+        </div>
+      )}
+
+      {/* Preset amounts */}
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t('settings.selectAmount')}</p>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {CREDIT_PRESETS.map(amount => (
+          <button
+            key={amount}
+            onClick={() => handlePresetClick(amount)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              creditAmount === amount
+                ? 'bg-primary-600 text-white'
+                : 'bg-gray-100 dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            ${amount}
+          </button>
+        ))}
+      </div>
+
+      {/* Custom amount */}
+      <div className="mb-4">
+        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t('settings.customAmount')}</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 text-sm">$</span>
+          <input
+            type="number"
+            min="1"
+            max="500"
+            step="0.01"
+            value={customCreditAmount}
+            onFocus={handleCustomFocus}
+            onChange={(e) => {
+              setCustomCreditAmount(e.target.value)
+              setCreditAmount('custom')
+              setCreditError('')
+            }}
+            placeholder={t('settings.customAmountPlaceholder')}
+            className={`w-full pl-7 pr-3 py-2 rounded-lg border text-sm bg-white dark:bg-dark-bg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
+              creditAmount === 'custom'
+                ? 'border-primary-500'
+                : 'border-gray-300 dark:border-dark-border'
+            }`}
+          />
+        </div>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t('settings.minCreditAmount')} — {t('settings.maxCreditAmount')}</p>
+      </div>
+
+      {/* PayPal Button */}
+      {isValidAmount && !isPending && (
+        <div className="mt-2">
+          <PayPalButtons
+            key={effectiveAmount}
+            forceReRender={[effectiveAmount]}
+            style={{ layout: 'horizontal', height: 40, tagline: false, label: 'pay' }}
+            disabled={creditProcessing}
+            createOrder={async () => {
+              setCreditProcessing(true)
+              setCreditError('')
+              try {
+                const { data } = await paymentsAPI.createCreditOrder({ amount: effectiveAmount })
+                return data.orderId
+              } catch (err) {
+                setCreditProcessing(false)
+                setCreditError(err.response?.data?.error || t('settings.creditPurchaseError'))
+                throw err
+              }
+            }}
+            onApprove={async (data) => {
+              try {
+                const { data: result } = await paymentsAPI.captureCreditOrder({ orderId: data.orderID })
+                setCreditProcessing(false)
+                setCreditSuccess(t('settings.creditPurchaseSuccess'))
+                setCreditAmount(null)
+                setCustomCreditAmount('')
+                setTimeout(() => setCreditSuccess(''), 5000)
+                // Dispatch event to update sidebar balance
+                window.dispatchEvent(new CustomEvent('creditsUpdated'))
+              } catch (err) {
+                setCreditProcessing(false)
+                setCreditError(err.response?.data?.error || t('settings.creditPurchaseError'))
+              }
+            }}
+            onCancel={() => {
+              setCreditProcessing(false)
+            }}
+            onError={(err) => {
+              setCreditProcessing(false)
+              setCreditError(err.message || t('settings.creditPurchaseError'))
+            }}
+          />
+        </div>
+      )}
+
+      {isPending && (
+        <div className="h-11 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Account Tab
 function AccountTab() {
   const { user, isTeamMember, teamMember } = useAuth()
@@ -272,6 +414,13 @@ function AccountTab() {
   const [editCycle, setEditCycle] = useState('')
   const [updatingProduct, setUpdatingProduct] = useState(false)
   const [cancellingProductId, setCancellingProductId] = useState(null)
+
+  // Credit loading state
+  const [creditAmount, setCreditAmount] = useState(null) // selected preset or custom
+  const [customCreditAmount, setCustomCreditAmount] = useState('')
+  const [creditSuccess, setCreditSuccess] = useState('')
+  const [creditError, setCreditError] = useState('')
+  const [creditProcessing, setCreditProcessing] = useState(false)
 
   const canEditKeys = !isTeamMember || teamMember?.teamRole === 'admin'
 
@@ -433,6 +582,21 @@ function AccountTab() {
           </div>
         </div>
       </div>
+
+      {/* Load Credits */}
+      <LoadCreditsSection
+        creditAmount={creditAmount}
+        setCreditAmount={setCreditAmount}
+        customCreditAmount={customCreditAmount}
+        setCustomCreditAmount={setCustomCreditAmount}
+        creditSuccess={creditSuccess}
+        setCreditSuccess={setCreditSuccess}
+        creditError={creditError}
+        setCreditError={setCreditError}
+        creditProcessing={creditProcessing}
+        setCreditProcessing={setCreditProcessing}
+        t={t}
+      />
 
       {/* My Products (CLIENT only) */}
       {user?.role === ROLES.CLIENT && (

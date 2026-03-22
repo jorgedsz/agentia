@@ -1049,6 +1049,51 @@ const handlePayPalWebhook = async (req, res) => {
         break;
       }
 
+      case 'CHECKOUT.ORDER.COMPLETED': {
+        // Safety net for credit purchases: if frontend capture call failed but payment went through
+        const orderUnit = resource.purchase_units?.[0];
+        const orderCustomId = orderUnit?.custom_id;
+        if (!orderCustomId) break;
+
+        try {
+          const orderParsed = JSON.parse(orderCustomId);
+          if (orderParsed.type !== 'credit_purchase') break;
+
+          const orderId = resource.id;
+          // Check if already recorded
+          const existing = await req.prisma.creditPurchase.findUnique({
+            where: { paypalOrderId: orderId },
+          });
+          if (existing) break; // Already captured via frontend
+
+          const captureDetail = orderUnit?.payments?.captures?.[0];
+
+          await req.prisma.$transaction([
+            req.prisma.creditPurchase.create({
+              data: {
+                userId: orderParsed.userId,
+                amount: orderParsed.amount,
+                credits: orderParsed.amount,
+                paypalOrderId: orderId,
+                paypalTransactionId: captureDetail?.id || null,
+                paypalPayerEmail: resource.payer?.email_address || null,
+                status: 'completed',
+                rawPayload: JSON.stringify(event),
+              },
+            }),
+            req.prisma.user.update({
+              where: { id: orderParsed.userId },
+              data: { vapiCredits: { increment: orderParsed.amount } },
+            }),
+          ]);
+
+          console.log(`Credit purchase webhook: added $${orderParsed.amount} credits for user ${orderParsed.userId}`);
+        } catch (parseErr) {
+          console.error('CHECKOUT.ORDER.COMPLETED handling error:', parseErr);
+        }
+        break;
+      }
+
       default:
         console.log(`Unhandled PayPal webhook event: ${eventType}`);
     }
@@ -1057,6 +1102,96 @@ const handlePayPalWebhook = async (req, res) => {
   } catch (err) {
     console.error('handlePayPalWebhook error:', err);
     res.status(500).json({ error: 'Webhook processing failed' });
+  }
+};
+
+// ── Credit Loading: Create Order ──
+
+const createCreditOrder = async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const parsed = parseFloat(amount);
+
+    if (!amount || isNaN(parsed) || parsed < 1 || parsed > 500) {
+      return res.status(400).json({ error: 'Amount must be between $1.00 and $500.00' });
+    }
+
+    const userId = req.user.id;
+    const customId = JSON.stringify({ userId, type: 'credit_purchase', amount: parsed });
+
+    const order = await paypalService.createOrder(
+      parsed,
+      `Credit Load — $${parsed.toFixed(2)}`,
+      customId
+    );
+
+    res.json({ orderId: order.id });
+  } catch (err) {
+    console.error('createCreditOrder error:', err);
+    res.status(500).json({ error: err.message || 'Failed to create credit order' });
+  }
+};
+
+// ── Credit Loading: Capture Order ──
+
+const captureCreditOrder = async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (!orderId) return res.status(400).json({ error: 'orderId is required' });
+
+    const capture = await paypalService.captureOrder(orderId);
+
+    const captureUnit = capture.purchase_units?.[0];
+    const captureDetail = captureUnit?.payments?.captures?.[0];
+    const customId = captureUnit?.custom_id;
+
+    if (!customId) {
+      return res.status(400).json({ error: 'Missing custom_id in order' });
+    }
+
+    const parsed = JSON.parse(customId);
+
+    if (parsed.type !== 'credit_purchase') {
+      return res.status(400).json({ error: 'This order is not a credit purchase' });
+    }
+
+    if (parsed.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to this user' });
+    }
+
+    const creditAmount = parsed.amount;
+
+    // Create CreditPurchase record and increment user credits atomically
+    const [creditPurchase, updatedUser] = await req.prisma.$transaction([
+      req.prisma.creditPurchase.create({
+        data: {
+          userId: parsed.userId,
+          amount: creditAmount,
+          credits: creditAmount,
+          paypalOrderId: orderId,
+          paypalTransactionId: captureDetail?.id || null,
+          paypalPayerEmail: capture.payer?.email_address || null,
+          status: 'completed',
+          rawPayload: JSON.stringify(capture),
+        },
+      }),
+      req.prisma.user.update({
+        where: { id: parsed.userId },
+        data: { vapiCredits: { increment: creditAmount } },
+      }),
+    ]);
+
+    res.json({
+      creditPurchase,
+      newBalance: updatedUser.vapiCredits,
+    });
+  } catch (err) {
+    // Handle duplicate paypalOrderId (already captured)
+    if (err.code === 'P2002') {
+      return res.status(409).json({ error: 'This order has already been captured' });
+    }
+    console.error('captureCreditOrder error:', err);
+    res.status(500).json({ error: err.message || 'Failed to capture credit order' });
   }
 };
 
@@ -1107,6 +1242,8 @@ module.exports = {
   purchase,
   previewPurchase,
   // PayPal
+  createCreditOrder,
+  captureCreditOrder,
   syncProductToPayPal,
   createPayPalSubscription,
   createPayPalOrder,

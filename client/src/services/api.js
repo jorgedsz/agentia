@@ -248,6 +248,9 @@ export const paymentsAPI = {
   capturePayPalOrder: (data) => api.post('/payments/paypal/capture-order', data),
   syncProductToPayPal: (id) => api.post(`/payments/products/${id}/sync-paypal`),
   getTransactionHistory: (params) => api.get('/payments/transactions', { params }),
+  // Credit loading
+  createCreditOrder: (data) => api.post('/payments/paypal/create-credit-order', data),
+  captureCreditOrder: (data) => api.post('/payments/paypal/capture-credit-order', data),
 }
 
 // Tools API (test HTTP requests via proxy)

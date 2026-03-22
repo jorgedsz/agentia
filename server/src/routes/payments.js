@@ -41,6 +41,10 @@ router.post('/paypal/create-subscription', paymentController.createPayPalSubscri
 router.post('/paypal/create-order', paymentController.createPayPalOrder);
 router.post('/paypal/capture-order', paymentController.capturePayPalOrder);
 
+// Credit loading via PayPal
+router.post('/paypal/create-credit-order', paymentController.createCreditOrder);
+router.post('/paypal/capture-credit-order', paymentController.captureCreditOrder);
+
 // Transactions
 router.get('/transactions', paymentController.getTransactionHistory);
 

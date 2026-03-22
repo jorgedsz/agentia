@@ -47,6 +47,7 @@ model User {
   chatbots             Chatbot[]
   userProducts         UserProduct[]
   transactions         Transaction[]
+  creditPurchases      CreditPurchase[]
 }
 
 model VapiKeyPool {
@@ -382,6 +383,23 @@ model ScheduledFollowUp {
   updatedAt       DateTime @updatedAt
 
   @@index([status, scheduledAt])
+}
+
+model CreditPurchase {
+  id                  Int      @id @default(autoincrement())
+  userId              Int
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount              Float    // USD amount paid
+  credits             Float    // Credits added (equal to amount)
+  paypalOrderId       String?  @unique
+  paypalTransactionId String?
+  paypalPayerEmail    String?
+  status              String   // "completed", "pending", "failed"
+  rawPayload          String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId, createdAt])
 }
 
 model Transaction {
