@@ -58,7 +58,7 @@ export default function ChatbotList() {
   }
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) return
+    if (!window.confirm(`Are you sure you want to archive "${name}"? The chatbot will be deactivated and its n8n workflow preserved.`)) return
     try {
       await chatbotsAPI.delete(id)
       setChatbots(chatbots.filter(c => c.id !== id))

@@ -133,6 +133,7 @@ model Chatbot {
   outputUrl       String?  // Encrypted - destination URL for external_webhook/http_request
   config          String?  // JSON string (prompt, model, voice, tools, etc.)
   isActive        Boolean  @default(true)
+  isArchived      Boolean  @default(false)
   userId          Int
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime @default(now())

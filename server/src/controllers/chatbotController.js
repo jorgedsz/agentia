@@ -25,7 +25,7 @@ const parseConfig = (config) => {
 const getChatbots = async (req, res) => {
   try {
     const chatbots = await req.prisma.chatbot.findMany({
-      where: { userId: req.user.id },
+      where: { userId: req.user.id, isArchived: false },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -47,7 +47,7 @@ const getChatbot = async (req, res) => {
     const { id } = req.params;
 
     const chatbot = await req.prisma.chatbot.findFirst({
-      where: { id: id, userId: req.user.id }
+      where: { id: id, userId: req.user.id, isArchived: false }
     });
 
     if (!chatbot) {
@@ -471,34 +471,37 @@ const deleteChatbot = async (req, res) => {
       return res.status(404).json({ error: 'Chatbot not found' });
     }
 
-    // Delete n8n workflow if it exists
+    // Deactivate n8n workflow (preserve it instead of deleting)
     if (chatbot.n8nWorkflowId) {
       try {
         const n8nConfig = await getN8nConfig(req.prisma);
         if (n8nConfig) {
           n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
-          await n8nService.deleteWorkflow(chatbot.n8nWorkflowId);
+          await n8nService.deactivateWorkflow(chatbot.n8nWorkflowId);
         }
       } catch (n8nError) {
-        console.error('n8n workflow deletion failed:', n8nError.message);
+        console.error('n8n workflow deactivation failed:', n8nError.message);
       }
     }
 
-    await req.prisma.chatbot.delete({ where: { id: id } });
+    await req.prisma.chatbot.update({
+      where: { id: id },
+      data: { isArchived: true, isActive: false }
+    });
 
     logAudit(req.prisma, {
       userId: req.user.id,
       actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
       actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
       actorType: req.isTeamMember ? 'team_member' : 'user',
-      action: 'chatbot.delete',
+      action: 'chatbot.archive',
       resourceType: 'chatbot',
       resourceId: id,
       details: { name: chatbot.name },
       req
     });
 
-    res.json({ message: 'Chatbot deleted successfully' });
+    res.json({ message: 'Chatbot archived successfully' });
   } catch (error) {
     console.error('Delete chatbot error:', error);
     res.status(500).json({ error: 'Failed to delete chatbot' });
