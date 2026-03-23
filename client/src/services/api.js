@@ -58,6 +58,7 @@ export const chatbotsAPI = {
   create: (data) => api.post('/chatbots', data),
   update: (id, data) => api.put(`/chatbots/${id}`, data),
   toggle: (id) => api.post(`/chatbots/${id}/toggle`),
+  delete: (id) => api.delete(`/chatbots/${id}`),
   test: (id, message, sessionId) => api.post(`/chatbots/${id}/test`, { message, sessionId })
 }
 
