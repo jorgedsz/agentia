@@ -339,4 +339,17 @@ export const chatAPI = {
   }
 }
 
+// WhatsApp API
+export const whatsappAPI = {
+  listSessions: () => api.get('/whatsapp/sessions'),
+  createSession: (sessionId) => api.post('/whatsapp/sessions', { sessionId }),
+  deleteSession: (sessionId) => api.delete(`/whatsapp/sessions/${sessionId}`),
+  getQR: (sessionId) => api.get(`/whatsapp/sessions/${sessionId}/qr`),
+  getGroups: (sessionId) => api.get(`/whatsapp/sessions/${sessionId}/groups`),
+  getMessages: (sessionId, groupId, limit = 50) =>
+    api.get(`/whatsapp/sessions/${sessionId}/groups/${encodeURIComponent(groupId)}/messages`, { params: { limit } }),
+  sendMessage: (sessionId, groupId, body) =>
+    api.post(`/whatsapp/sessions/${sessionId}/groups/${encodeURIComponent(groupId)}/messages`, { body }),
+}
+
 export default api

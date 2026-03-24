@@ -1,9 +1,12 @@
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
 const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
+const { Server: SocketIOServer } = require('socket.io');
+const { Client: WAClient, LocalAuth } = require('whatsapp-web.js');
 
 const authRoutes = require('./routes/auth');
 const agentRoutes = require('./routes/agents');
@@ -42,8 +45,90 @@ const demoRoutes = require('./routes/demo');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
+const server = http.createServer(app);
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
+
+// ── Socket.IO ──────────────────────────────────────────────
+const allowedOrigins = [
+  process.env.CLIENT_URL || 'http://localhost:5173',
+  process.env.WEBSITE_URL || 'https://swordaisolutions.com'
+].filter(Boolean);
+
+const io = new SocketIOServer(server, {
+  cors: { origin: allowedOrigins, credentials: true }
+});
+
+// ── WhatsApp session store ─────────────────────────────────
+// Map<sessionId, { client, status, qr }>
+const waSessions = new Map();
+
+function createWhatsAppClient(sessionId) {
+  if (waSessions.has(sessionId)) return waSessions.get(sessionId);
+
+  const entry = { client: null, status: 'initializing', qr: null };
+  waSessions.set(sessionId, entry);
+
+  const client = new WAClient({
+    authStrategy: new LocalAuth({ clientId: sessionId }),
+    puppeteer: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] }
+  });
+
+  entry.client = client;
+
+  client.on('qr', (qr) => {
+    entry.qr = qr;
+    entry.status = 'qr';
+    io.emit('whatsapp:qr', { sessionId, qr });
+  });
+
+  client.on('ready', () => {
+    entry.status = 'ready';
+    entry.qr = null;
+    io.emit('whatsapp:ready', { sessionId });
+    console.log(`[WA] Session ${sessionId} ready`);
+  });
+
+  client.on('authenticated', () => {
+    entry.status = 'authenticated';
+    io.emit('whatsapp:authenticated', { sessionId });
+  });
+
+  client.on('auth_failure', () => {
+    entry.status = 'auth_failure';
+    io.emit('whatsapp:auth_failure', { sessionId });
+  });
+
+  client.on('disconnected', (reason) => {
+    entry.status = 'disconnected';
+    io.emit('whatsapp:disconnected', { sessionId, reason });
+    waSessions.delete(sessionId);
+  });
+
+  // Forward every message (sent & received) to connected clients
+  client.on('message_create', (msg) => {
+    // Only forward group messages
+    if (!msg.from.endsWith('@g.us') && !msg.to?.endsWith('@g.us')) return;
+    const groupId = msg.from.endsWith('@g.us') ? msg.from : msg.to;
+    io.emit('whatsapp:message', {
+      sessionId,
+      groupId,
+      message: {
+        id: msg.id._serialized,
+        body: msg.body,
+        from: msg.from,
+        fromMe: msg.fromMe,
+        timestamp: msg.timestamp,
+        author: msg.author || null
+      }
+    });
+  });
+
+  client.initialize();
+  return entry;
+}
+
+const authMiddleware = require('./middleware/authMiddleware');
 
 // Middleware
 app.use(helmet({
@@ -59,11 +144,6 @@ app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${websiteUrl}`);
   next();
 });
-
-const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:5173',
-  process.env.WEBSITE_URL || 'https://swordaisolutions.com'
-].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -120,6 +200,106 @@ app.use('/api/callbacks', callbackRoutes);
 app.use('/api/follow-ups', followUpRoutes);
 app.use('/api/demo', demoRoutes);
 
+// ── WhatsApp API endpoints ─────────────────────────────────
+
+// Create / start a session
+app.post('/api/whatsapp/sessions', authMiddleware, (req, res) => {
+  const sessionId = req.body.sessionId || `wa-${req.user.id}-${Date.now()}`;
+  const entry = createWhatsAppClient(sessionId);
+  res.json({ sessionId, status: entry.status });
+});
+
+// List active sessions
+app.get('/api/whatsapp/sessions', authMiddleware, (req, res) => {
+  const sessions = [];
+  for (const [id, entry] of waSessions) {
+    sessions.push({ sessionId: id, status: entry.status });
+  }
+  res.json({ sessions });
+});
+
+// Get QR for a session
+app.get('/api/whatsapp/sessions/:sessionId/qr', authMiddleware, (req, res) => {
+  const entry = waSessions.get(req.params.sessionId);
+  if (!entry) return res.status(404).json({ error: 'Session not found' });
+  res.json({ qr: entry.qr, status: entry.status });
+});
+
+// Delete / destroy a session
+app.delete('/api/whatsapp/sessions/:sessionId', authMiddleware, async (req, res) => {
+  const entry = waSessions.get(req.params.sessionId);
+  if (!entry) return res.status(404).json({ error: 'Session not found' });
+  try { await entry.client.destroy(); } catch (_) { /* ignore */ }
+  waSessions.delete(req.params.sessionId);
+  res.json({ ok: true });
+});
+
+// List groups for a session
+app.get('/api/whatsapp/sessions/:sessionId/groups', authMiddleware, async (req, res) => {
+  const entry = waSessions.get(req.params.sessionId);
+  if (!entry || entry.status !== 'ready') {
+    return res.status(400).json({ error: 'Session not ready' });
+  }
+  try {
+    const chats = await entry.client.getChats();
+    const groups = chats
+      .filter(c => c.isGroup)
+      .map(c => ({ id: c.id._serialized, name: c.name, participantCount: c.participants?.length || 0 }));
+    res.json({ groups });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get messages for a group
+app.get('/api/whatsapp/sessions/:sessionId/groups/:groupId/messages', authMiddleware, async (req, res) => {
+  const entry = waSessions.get(req.params.sessionId);
+  if (!entry || entry.status !== 'ready') {
+    return res.status(400).json({ error: 'Session not ready' });
+  }
+  try {
+    const chat = await entry.client.getChatById(req.params.groupId);
+    const limit = parseInt(req.query.limit) || 50;
+    const msgs = await chat.fetchMessages({ limit });
+    const messages = msgs.map(m => ({
+      id: m.id._serialized,
+      body: m.body,
+      from: m.from,
+      fromMe: m.fromMe,
+      timestamp: m.timestamp,
+      author: m.author || null
+    }));
+    res.json({ messages });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Send a message to a group
+app.post('/api/whatsapp/sessions/:sessionId/groups/:groupId/messages', authMiddleware, async (req, res) => {
+  const entry = waSessions.get(req.params.sessionId);
+  if (!entry || entry.status !== 'ready') {
+    return res.status(400).json({ error: 'Session not ready' });
+  }
+  const { body } = req.body;
+  if (!body) return res.status(400).json({ error: 'body is required' });
+  try {
+    const sent = await entry.client.sendMessage(req.params.groupId, body);
+    res.json({
+      message: {
+        id: sent.id._serialized,
+        body: sent.body,
+        from: sent.from,
+        fromMe: true,
+        timestamp: sent.timestamp,
+        author: null
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), appUrl: process.env.APP_URL || 'NOT SET' });
@@ -149,7 +329,7 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   callbackController.startScheduler(prisma);
   followUpController.startScheduler(prisma);

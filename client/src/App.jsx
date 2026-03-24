@@ -22,6 +22,7 @@ import Payments from './components/Dashboard/Payments'
 import ChatbotList from './components/Dashboard/ChatbotList'
 import ChatbotEdit from './components/Dashboard/ChatbotEdit'
 import ScheduledCalls from './components/Dashboard/ScheduledCalls'
+import WhatsAppPage from './components/Dashboard/WhatsAppPage'
 import PrivacyPolicy from './components/Legal/PrivacyPolicy'
 import TermsOfService from './components/Legal/TermsOfService'
 import DemoPage from './components/Demo/DemoPage'
@@ -138,6 +139,7 @@ function App() {
           <Route path="payments" element={<Payments />} />
           <Route path="tutorials/:lang" element={<Training />} />
           <Route path="training" element={<Navigate to="/dashboard/tutorials/en" replace />} />
+          <Route path="whatsapp" element={<WhatsAppPage />} />
           <Route path="support" element={<Support />} />
         </Route>
 
