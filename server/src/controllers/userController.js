@@ -26,6 +26,17 @@ const getAllUsers = async (req, res) => {
         },
         _count: {
           select: { clients: true, agents: true }
+        },
+        waProjects: {
+          select: {
+            id: true,
+            nombre: true,
+            estado: true,
+            whatsappChatId: true,
+            totalMensajes: true,
+            alertasCount: true,
+            ultimaActividad: true
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -79,6 +90,17 @@ const getAgencyClients = async (req, res) => {
         createdAt: true,
         _count: {
           select: { agents: true }
+        },
+        waProjects: {
+          select: {
+            id: true,
+            nombre: true,
+            estado: true,
+            whatsappChatId: true,
+            totalMensajes: true,
+            alertasCount: true,
+            ultimaActividad: true
+          }
         }
       },
       orderBy: { createdAt: 'desc' }

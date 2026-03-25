@@ -48,6 +48,7 @@ model User {
   userProducts         UserProduct[]
   transactions         Transaction[]
   creditPurchases      CreditPurchase[]
+  waProjects           WaProject[]        @relation("UserWaProjects")
 }
 
 model VapiKeyPool {
@@ -423,4 +424,18 @@ model Transaction {
 
   @@index([userId, createdAt])
   @@index([paypalSubscriptionId])
+}
+
+model WaProject {
+  id              Int      @id @default(autoincrement())
+  nombre          String   // Group name
+  whatsappChatId  String   @unique // e.g. "120363XXXXX@g.us"
+  estado          String   @default("active") // active, archived
+  totalMensajes   Int      @default(0)
+  alertasCount    Int      @default(0)
+  ultimaActividad DateTime?
+  clientId        Int?
+  client          User?    @relation("UserWaProjects", fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

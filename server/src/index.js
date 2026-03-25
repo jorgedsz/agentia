@@ -300,6 +300,72 @@ app.post('/api/whatsapp/sessions/:sessionId/groups/:groupId/messages', authMiddl
   }
 });
 
+// Fetch DWY groups for a session (groups with "DWY" in name)
+app.get('/api/whatsapp/sessions/:sessionId/dwy-groups', authMiddleware, async (req, res) => {
+  const entry = waSessions.get(req.params.sessionId);
+  if (!entry || entry.status !== 'ready') {
+    return res.status(400).json({ error: 'Session not ready' });
+  }
+  try {
+    const chats = await entry.client.getChats();
+    const dwyChats = chats.filter(c => c.isGroup && c.name && c.name.toUpperCase().includes('DWY'));
+
+    // Look up existing WaProject records for these chats
+    const chatIds = dwyChats.map(c => c.id._serialized);
+    const existingProjects = await prisma.waProject.findMany({
+      where: { whatsappChatId: { in: chatIds } },
+      include: { client: { select: { id: true, name: true, email: true } } }
+    });
+    const projectMap = {};
+    existingProjects.forEach(p => { projectMap[p.whatsappChatId] = p; });
+
+    const groups = dwyChats.map(c => {
+      const chatId = c.id._serialized;
+      const project = projectMap[chatId];
+      return {
+        id: chatId,
+        name: c.name,
+        participantCount: c.participants?.length || 0,
+        projectId: project?.id || null,
+        clientId: project?.clientId || null,
+        clientName: project?.client?.name || project?.client?.email || null
+      };
+    });
+
+    res.json({ groups });
+  } catch (err) {
+    console.error('[DWY groups] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Link a WhatsApp group to a client (user)
+app.post('/api/whatsapp/link-group', authMiddleware, async (req, res) => {
+  const { whatsappChatId, groupName, clientId } = req.body;
+  if (!whatsappChatId || !groupName) {
+    return res.status(400).json({ error: 'whatsappChatId and groupName are required' });
+  }
+  try {
+    const project = await prisma.waProject.upsert({
+      where: { whatsappChatId },
+      create: {
+        whatsappChatId,
+        nombre: groupName,
+        clientId: clientId || null
+      },
+      update: {
+        clientId: clientId || null,
+        nombre: groupName
+      },
+      include: { client: { select: { id: true, name: true, email: true } } }
+    });
+    res.json({ project });
+  } catch (err) {
+    console.error('[Link group] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), appUrl: process.env.APP_URL || 'NOT SET' });

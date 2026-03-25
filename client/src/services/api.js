@@ -350,6 +350,8 @@ export const whatsappAPI = {
     api.get(`/whatsapp/sessions/${sessionId}/groups/${encodeURIComponent(groupId)}/messages`, { params: { limit } }),
   sendMessage: (sessionId, groupId, body) =>
     api.post(`/whatsapp/sessions/${sessionId}/groups/${encodeURIComponent(groupId)}/messages`, { body }),
+  getDwyGroups: (sessionId) => api.get(`/whatsapp/sessions/${sessionId}/dwy-groups`),
+  linkGroup: (data) => api.post('/whatsapp/link-group', data),
 }
 
 export default api
