@@ -42,7 +42,6 @@ const callbackController = require('./controllers/callbackController');
 const followUpRoutes = require('./routes/followUps');
 const followUpController = require('./controllers/followUpController');
 const demoRoutes = require('./routes/demo');
-const googleCalendarRoutes = require('./routes/googleCalendar');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -64,10 +63,10 @@ const io = new SocketIOServer(server, {
 // Map<sessionId, { client, status, qr }>
 const waSessions = new Map();
 
-function createWhatsAppClient(sessionId, userId) {
+function createWhatsAppClient(sessionId) {
   if (waSessions.has(sessionId)) return waSessions.get(sessionId);
 
-  const entry = { client: null, status: 'initializing', qr: null, userId: userId || null };
+  const entry = { client: null, status: 'initializing', qr: null };
   waSessions.set(sessionId, entry);
 
   const client = new WAClient({
@@ -107,7 +106,7 @@ function createWhatsAppClient(sessionId, userId) {
   });
 
   // Forward every message (sent & received) to connected clients
-  client.on('message_create', async (msg) => {
+  client.on('message_create', (msg) => {
     // Only forward group messages
     if (!msg.from.endsWith('@g.us') && !msg.to?.endsWith('@g.us')) return;
     const groupId = msg.from.endsWith('@g.us') ? msg.from : msg.to;
@@ -123,12 +122,6 @@ function createWhatsAppClient(sessionId, userId) {
         author: msg.author || null
       }
     });
-
-    // Process message through bot service
-    if (entry.userId) {
-      const { handleBotMessage } = require('./services/whatsappBotService');
-      await handleBotMessage(prisma, io, entry.userId, sessionId, msg);
-    }
   });
 
   client.initialize();
@@ -206,17 +199,13 @@ app.use('/api/chatbot-call', chatbotCallRoutes);
 app.use('/api/callbacks', callbackRoutes);
 app.use('/api/follow-ups', followUpRoutes);
 app.use('/api/demo', demoRoutes);
-app.use('/api/google-calendar', googleCalendarRoutes);
-app.use('/api/wa-projects', require('./routes/waProjects'));
-app.use('/api/wa-alerts', require('./routes/waAlerts'));
-app.use('/api/wa-bot-config', require('./routes/waBotConfig'));
 
 // ── WhatsApp API endpoints ─────────────────────────────────
 
 // Create / start a session
 app.post('/api/whatsapp/sessions', authMiddleware, (req, res) => {
   const sessionId = req.body.sessionId || `wa-${req.user.id}-${Date.now()}`;
-  const entry = createWhatsAppClient(sessionId, req.user.id);
+  const entry = createWhatsAppClient(sessionId);
   res.json({ sessionId, status: entry.status });
 });
 

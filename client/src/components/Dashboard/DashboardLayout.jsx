@@ -215,7 +215,6 @@ export default function DashboardLayout() {
     if (path === '/dashboard') return 'overview'
     if (path.startsWith('/dashboard/agent/')) return 'agents'
     if (path.startsWith('/dashboard/chatbot/')) return 'chatbots'
-    if (path.startsWith('/dashboard/wa-projects/')) return 'wa-projects'
     const tab = path.replace('/dashboard/', '')
     return tab || 'overview'
   }
@@ -273,19 +272,6 @@ export default function DashboardLayout() {
       title: 'Messaging',
       items: [
         { id: 'whatsapp', path: '/dashboard/whatsapp', label: 'WhatsApp', icon: Icons.WhatsApp, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-      ]
-    },
-    {
-      title: 'Calendar',
-      items: [
-        { id: 'calendar', path: '/dashboard/calendar', label: 'Calendar', icon: Icons.ScheduledCalls, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-      ]
-    },
-    {
-      title: 'Project Monitoring',
-      items: [
-        { id: 'wa-projects', path: '/dashboard/wa-projects', label: 'Projects', icon: Icons.Logs, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'wa-alerts', path: '/dashboard/wa-alerts', label: 'Alerts', icon: Icons.Support, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     },
     {
