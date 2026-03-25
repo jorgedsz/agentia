@@ -48,6 +48,7 @@ model User {
   userProducts         UserProduct[]
   transactions         Transaction[]
   creditPurchases      CreditPurchase[]
+  waProjects           WaProject[]
 }
 
 model VapiKeyPool {
@@ -423,4 +424,80 @@ model Transaction {
 
   @@index([userId, createdAt])
   @@index([paypalSubscriptionId])
+}
+
+model GoogleCalendarToken {
+  id           Int      @id @default(1)
+  accessToken  String
+  refreshToken String
+  expiryDate   BigInt?
+  email        String?
+  updatedAt    DateTime @updatedAt
+}
+
+model WaProject {
+  id                Int              @id @default(autoincrement())
+  nombre            String
+  cliente           String?
+  estado            String           @default("activo")
+  prioridad         String           @default("media")
+  responsable       String?
+  progreso          Int              @default(0)
+  whatsappChatId    String?
+  totalMensajes     Int              @default(0)
+  alertasCount      Int              @default(0)
+  ultimoMensaje     String?
+  ultimaActividad   DateTime?
+  colorEmoji        String?
+  projectType       String?
+  descripcionEmpresa String?
+  objetivoProyecto  String?
+  userId            Int
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages          WaProjectMessage[]
+  alerts            WaProjectAlert[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  @@unique([userId, whatsappChatId])
+  @@index([userId, estado])
+}
+
+model WaProjectMessage {
+  id              Int              @id @default(autoincrement())
+  projectId       Int
+  project         WaProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  fuente          String           @default("whatsapp")
+  sender          String
+  contenido       String
+  timestamp       DateTime
+  esDelCliente    Boolean          @default(true)
+  metadata        String?
+  alerts          WaProjectAlert[]
+  createdAt       DateTime         @default(now())
+  @@index([projectId, timestamp])
+}
+
+model WaProjectAlert {
+  id              Int              @id @default(autoincrement())
+  projectId       Int
+  project         WaProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messageId       Int?
+  message         WaProjectMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  tipo            String
+  nivel           String
+  descripcion     String
+  resuelta        Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  @@index([projectId, resuelta])
+}
+
+model WaBotConfig {
+  id              Int              @id @default(autoincrement())
+  userId          Int              @unique
+  teamKeywords    String           @default("[]")
+  blockedGroups   String           @default("[]")
+  alertRules      String?
+  enabled         Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }

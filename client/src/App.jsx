@@ -23,6 +23,10 @@ import ChatbotList from './components/Dashboard/ChatbotList'
 import ChatbotEdit from './components/Dashboard/ChatbotEdit'
 import ScheduledCalls from './components/Dashboard/ScheduledCalls'
 import WhatsAppPage from './components/Dashboard/WhatsAppPage'
+import WaProjectsDashboard from './components/Dashboard/WaProjectsDashboard'
+import WaProjectDetail from './components/Dashboard/WaProjectDetail'
+import WaAlertsDashboard from './components/Dashboard/WaAlertsDashboard'
+import CalendarPage from './components/Calendar/CalendarPage'
 import PrivacyPolicy from './components/Legal/PrivacyPolicy'
 import TermsOfService from './components/Legal/TermsOfService'
 import DemoPage from './components/Demo/DemoPage'
@@ -140,6 +144,10 @@ function App() {
           <Route path="tutorials/:lang" element={<Training />} />
           <Route path="training" element={<Navigate to="/dashboard/tutorials/en" replace />} />
           <Route path="whatsapp" element={<WhatsAppPage />} />
+          <Route path="wa-projects" element={<WaProjectsDashboard />} />
+          <Route path="wa-projects/:id" element={<WaProjectDetail />} />
+          <Route path="wa-alerts" element={<WaAlertsDashboard />} />
+          <Route path="calendar" element={<CalendarPage />} />
           <Route path="support" element={<Support />} />
         </Route>
 

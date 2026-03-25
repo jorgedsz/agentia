@@ -277,6 +277,15 @@ export const demoAPI = {
   getBranding: () => api.get('/demo/branding')
 }
 
+// Google Calendar API
+export const googleCalendarAPI = {
+  getStatus: () => api.get('/google-calendar/status'),
+  connect: () => api.get('/google-calendar/connect'),
+  disconnect: () => api.post('/google-calendar/disconnect'),
+  getEvents: (params) => api.get('/google-calendar/events', { params }),
+  getEventsForClient: (clientId, params) => api.get(`/google-calendar/events/client/${clientId}`, { params }),
+}
+
 // Chat API (uses fetch for SSE streaming, not axios)
 export const chatAPI = {
   sendMessage: async (messages, onChunk, onDone, onError) => {
@@ -337,6 +346,87 @@ export const chatAPI = {
       onError(err.message || 'Network error')
     }
   }
+}
+
+// WA Projects API
+export const waProjectsAPI = {
+  list: (params) => api.get('/wa-projects', { params }),
+  getStats: () => api.get('/wa-projects/stats'),
+  get: (id) => api.get(`/wa-projects/${id}`),
+  update: (id, data) => api.put(`/wa-projects/${id}`, data),
+  getMessages: (id, params) => api.get(`/wa-projects/${id}/messages`, { params }),
+  getAlerts: (id) => api.get(`/wa-projects/${id}/alerts`),
+  chat: async (id, messages, onChunk, onDone, onError) => {
+    try {
+      const token = localStorage.getItem('token')
+      const baseURL = import.meta.env.VITE_API_URL || '/api'
+      const response = await fetch(`${baseURL}/wa-projects/${id}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ messages })
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'Request failed' }))
+        onError(err.error || 'Request failed')
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed || !trimmed.startsWith('data: ')) continue
+          const data = trimmed.slice(6)
+          if (data === '[DONE]') {
+            onDone()
+            return
+          }
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.error) {
+              onError(parsed.error)
+              return
+            }
+            if (parsed.content) {
+              onChunk(parsed.content)
+            }
+          } catch {
+            // skip malformed lines
+          }
+        }
+      }
+      onDone()
+    } catch (err) {
+      onError(err.message || 'Network error')
+    }
+  }
+}
+
+// WA Alerts API
+export const waAlertsAPI = {
+  list: () => api.get('/wa-alerts'),
+  resolve: (id) => api.patch(`/wa-alerts/${id}/resolve`),
+  resolveAllForProject: (projectId) => api.patch(`/wa-alerts/project/${projectId}/resolve-all`)
+}
+
+// WA Bot Config API
+export const waBotConfigAPI = {
+  get: () => api.get('/wa-bot-config'),
+  update: (data) => api.put('/wa-bot-config', data)
 }
 
 // WhatsApp API
