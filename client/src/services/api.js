@@ -152,6 +152,14 @@ export const calendarAPI = {
   getOAuthUrl: (provider) => api.get(`/calendar/oauth/${provider}/authorize`)
 }
 
+// Google Workspace API (for file pickers in ChatbotEdit)
+export const googleWorkspaceAPI = {
+  listSpreadsheets: (integrationId, query) =>
+    api.get(`/google-workspace/integrations/${integrationId}/spreadsheets`, { params: { q: query } }),
+  listDocuments: (integrationId, query) =>
+    api.get(`/google-workspace/integrations/${integrationId}/documents`, { params: { q: query } }),
+}
+
 // VAPI Key Pool API (OWNER only)
 export const vapiKeyPoolAPI = {
   list: () => api.get('/vapi-key-pool'),
@@ -352,6 +360,18 @@ export const whatsappAPI = {
     api.post(`/whatsapp/sessions/${sessionId}/groups/${encodeURIComponent(groupId)}/messages`, { body }),
   getDwyGroups: (sessionId) => api.get(`/whatsapp/sessions/${sessionId}/dwy-groups`),
   linkGroup: (data) => api.post('/whatsapp/link-group', data),
+}
+
+// Portal API (public, no auth interceptor)
+const portalAxios = axios.create({
+  baseURL: API_URL,
+  headers: { 'Content-Type': 'application/json' }
+})
+
+export const portalAPI = {
+  getClient: (token) => portalAxios.get(`/portal/${token}`),
+  getSession: (token, sessionId) => portalAxios.get(`/portal/${token}/sessions/${sessionId}`),
+  generateToken: (clientId) => api.post(`/portal/generate/${clientId}`),
 }
 
 export default api

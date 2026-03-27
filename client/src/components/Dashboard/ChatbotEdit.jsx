@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { chatbotsAPI, promptGeneratorAPI, calendarAPI, agentsAPI, phoneNumbersAPI } from '../../services/api'
+import { chatbotsAPI, promptGeneratorAPI, calendarAPI, agentsAPI, phoneNumbersAPI, googleWorkspaceAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { MODELS_BY_PROVIDER } from '../../constants/models'
 import TestChatbotModal from './TestChatbotModal'
@@ -156,6 +156,20 @@ export default function ChatbotEdit() {
   const [providerCalendarsMap, setProviderCalendarsMap] = useState({})
   const [expandedCalendarEntry, setExpandedCalendarEntry] = useState(null)
 
+  // Google Sheets settings
+  const [showSheetsModal, setShowSheetsModal] = useState(false)
+  const [sheetsConfig, setSheetsConfig] = useState({ enabled: false, integrationId: '', spreadsheetId: '', spreadsheetName: '' })
+  const [sheetFiles, setSheetFiles] = useState([])
+  const [sheetFilesLoading, setSheetFilesLoading] = useState(false)
+  const [sheetSearch, setSheetSearch] = useState('')
+
+  // Google Docs settings
+  const [showDocsModal, setShowDocsModal] = useState(false)
+  const [docsConfig, setDocsConfig] = useState({ enabled: false, integrationId: '', documentId: '', documentName: '' })
+  const [docFiles, setDocFiles] = useState([])
+  const [docFilesLoading, setDocFilesLoading] = useState(false)
+  const [docSearch, setDocSearch] = useState('')
+
   // Load chatbot data
   useEffect(() => {
     fetchChatbot()
@@ -206,6 +220,12 @@ export default function ChatbotEdit() {
       }
       if (config.callConfig) {
         setCallConfig(config.callConfig)
+      }
+      if (config.sheetsConfig) {
+        setSheetsConfig(config.sheetsConfig)
+      }
+      if (config.docsConfig) {
+        setDocsConfig(config.docsConfig)
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load chatbot')
@@ -477,6 +497,176 @@ export default function ChatbotEdit() {
     return callTools
   }
 
+  // Build Google Sheets tools for saving
+  const buildSheetsTools = () => {
+    const sheetsTools = []
+    if (!sheetsConfig.enabled || !sheetsConfig.integrationId) return sheetsTools
+
+    const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+    const qp = new URLSearchParams({
+      userId: user?.id?.toString() || '',
+      integrationId: sheetsConfig.integrationId
+    }).toString()
+    const base = `${apiBaseUrl}/google-workspace`
+    const defaultNote = sheetsConfig.spreadsheetId
+      ? ` Default spreadsheet: "${sheetsConfig.spreadsheetName}" (ID: ${sheetsConfig.spreadsheetId})`
+      : ''
+
+    sheetsTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/sheets/list?${qp}`,
+      name: 'list_spreadsheets',
+      description: 'Search or browse Google Spreadsheets accessible to the user.',
+      body: { type: 'object', properties: {
+        query: { type: 'string', description: 'Optional search term to filter spreadsheets by name' }
+      }},
+      timeoutSeconds: 30
+    })
+
+    sheetsTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/sheets/get?${qp}`,
+      name: 'get_spreadsheet_info',
+      description: `Get metadata for a spreadsheet including all sheet/tab names.${defaultNote}`,
+      body: { type: 'object', properties: {
+        spreadsheetId: { type: 'string', description: `The spreadsheet ID.${sheetsConfig.spreadsheetId ? ` Default: ${sheetsConfig.spreadsheetId}` : ''}` }
+      }, required: ['spreadsheetId']},
+      timeoutSeconds: 30
+    })
+
+    sheetsTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/sheets/read?${qp}`,
+      name: 'read_sheet_data',
+      description: `Read data from a Google Sheet using A1 notation (e.g. "Sheet1!A1:D10").${defaultNote}`,
+      body: { type: 'object', properties: {
+        spreadsheetId: { type: 'string', description: `The spreadsheet ID.${sheetsConfig.spreadsheetId ? ` Default: ${sheetsConfig.spreadsheetId}` : ''}` },
+        range: { type: 'string', description: 'A1 notation range (e.g. "Sheet1!A1:D10")' }
+      }, required: ['spreadsheetId', 'range']},
+      timeoutSeconds: 30
+    })
+
+    sheetsTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/sheets/write?${qp}`,
+      name: 'write_sheet_data',
+      description: `Write/overwrite data in a Google Sheet range.${defaultNote}`,
+      body: { type: 'object', properties: {
+        spreadsheetId: { type: 'string', description: `The spreadsheet ID.${sheetsConfig.spreadsheetId ? ` Default: ${sheetsConfig.spreadsheetId}` : ''}` },
+        range: { type: 'string', description: 'A1 notation range to write to' },
+        values: { type: 'array', description: 'A 2D array of values (rows of cells), e.g. [["Name","Age"],["Alice","30"]]' }
+      }, required: ['spreadsheetId', 'range', 'values']},
+      timeoutSeconds: 30
+    })
+
+    sheetsTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/sheets/append?${qp}`,
+      name: 'append_sheet_rows',
+      description: `Append rows to the end of data in a Google Sheet.${defaultNote}`,
+      body: { type: 'object', properties: {
+        spreadsheetId: { type: 'string', description: `The spreadsheet ID.${sheetsConfig.spreadsheetId ? ` Default: ${sheetsConfig.spreadsheetId}` : ''}` },
+        range: { type: 'string', description: 'A1 notation range (e.g. "Sheet1!A:E") to append under' },
+        values: { type: 'array', description: 'A 2D array of rows to append, e.g. [["Alice","30"],["Bob","25"]]' }
+      }, required: ['spreadsheetId', 'range', 'values']},
+      timeoutSeconds: 30
+    })
+
+    sheetsTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/sheets/create?${qp}`,
+      name: 'create_spreadsheet',
+      description: 'Create a new Google Spreadsheet.',
+      body: { type: 'object', properties: {
+        title: { type: 'string', description: 'Title for the new spreadsheet' }
+      }, required: ['title']},
+      timeoutSeconds: 30
+    })
+
+    return sheetsTools
+  }
+
+  // Build Google Docs tools for saving
+  const buildDocsTools = () => {
+    const docsTools = []
+    if (!docsConfig.enabled || !docsConfig.integrationId) return docsTools
+
+    const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+    const qp = new URLSearchParams({
+      userId: user?.id?.toString() || '',
+      integrationId: docsConfig.integrationId
+    }).toString()
+    const base = `${apiBaseUrl}/google-workspace`
+    const defaultNote = docsConfig.documentId
+      ? ` Default document: "${docsConfig.documentName}" (ID: ${docsConfig.documentId})`
+      : ''
+
+    docsTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/docs/list?${qp}`,
+      name: 'list_google_docs',
+      description: 'Search or browse Google Docs accessible to the user.',
+      body: { type: 'object', properties: {
+        query: { type: 'string', description: 'Optional search term to filter documents by name' }
+      }},
+      timeoutSeconds: 30
+    })
+
+    docsTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/docs/read?${qp}`,
+      name: 'read_google_doc',
+      description: `Read the full text content of a Google Doc.${defaultNote}`,
+      body: { type: 'object', properties: {
+        documentId: { type: 'string', description: `The document ID.${docsConfig.documentId ? ` Default: ${docsConfig.documentId}` : ''}` }
+      }, required: ['documentId']},
+      timeoutSeconds: 30
+    })
+
+    docsTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/docs/create?${qp}`,
+      name: 'create_google_doc',
+      description: 'Create a new Google Doc.',
+      body: { type: 'object', properties: {
+        title: { type: 'string', description: 'Title for the new document' }
+      }, required: ['title']},
+      timeoutSeconds: 30
+    })
+
+    docsTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/docs/append?${qp}`,
+      name: 'append_to_google_doc',
+      description: `Append text to the end of a Google Doc.${defaultNote}`,
+      body: { type: 'object', properties: {
+        documentId: { type: 'string', description: `The document ID.${docsConfig.documentId ? ` Default: ${docsConfig.documentId}` : ''}` },
+        text: { type: 'string', description: 'Text content to append' }
+      }, required: ['documentId', 'text']},
+      timeoutSeconds: 30
+    })
+
+    return docsTools
+  }
+
+  // Fetch spreadsheets for file picker
+  const fetchSpreadsheets = async (integrationId, query) => {
+    if (!integrationId) return
+    setSheetFilesLoading(true)
+    try {
+      const { data } = await googleWorkspaceAPI.listSpreadsheets(integrationId, query)
+      setSheetFiles(data.files || [])
+    } catch (err) {
+      console.error('Failed to list spreadsheets:', err)
+    } finally {
+      setSheetFilesLoading(false)
+    }
+  }
+
+  // Fetch documents for file picker
+  const fetchDocuments = async (integrationId, query) => {
+    if (!integrationId) return
+    setDocFilesLoading(true)
+    try {
+      const { data } = await googleWorkspaceAPI.listDocuments(integrationId, query)
+      setDocFiles(data.files || [])
+    } catch (err) {
+      console.error('Failed to list documents:', err)
+    } finally {
+      setDocFilesLoading(false)
+    }
+  }
+
   const handleSave = async (e) => {
     e?.preventDefault()
     setSaving(true)
@@ -484,17 +674,24 @@ export default function ChatbotEdit() {
     setSuccess('')
 
     try {
-      // Merge manual tools with auto-generated calendar + call tools
+      // Merge manual tools with auto-generated calendar + call + sheets + docs tools
       const calendarTools = buildCalendarTools()
       const callTools = buildCallTools()
+      const sheetsTools = buildSheetsTools()
+      const docsTools = buildDocsTools()
       // Filter out old auto-generated tools from manual tools list
+      const autoNames = new Set([
+        'make_call_now', 'schedule_call_later',
+        'list_spreadsheets', 'get_spreadsheet_info', 'read_sheet_data',
+        'write_sheet_data', 'append_sheet_rows', 'create_spreadsheet',
+        'list_google_docs', 'read_google_doc', 'create_google_doc', 'append_to_google_doc',
+      ])
       const manualTools = tools.filter(t =>
         !t.name?.startsWith('check_calendar_availability_') &&
         !t.name?.startsWith('book_appointment_') &&
-        t.name !== 'make_call_now' &&
-        t.name !== 'schedule_call_later'
+        !autoNames.has(t.name)
       )
-      const allTools = [...manualTools, ...calendarTools, ...callTools]
+      const allTools = [...manualTools, ...calendarTools, ...callTools, ...sheetsTools, ...docsTools]
 
       await chatbotsAPI.update(id, {
         name,
@@ -510,6 +707,8 @@ export default function ChatbotEdit() {
           variables,
           calendarConfig,
           callConfig,
+          sheetsConfig,
+          docsConfig,
           outputType: 'respond_to_webhook',
           outputUrl: outputUrl || '',
         }
@@ -749,7 +948,7 @@ export default function ChatbotEdit() {
 
       <div className="space-y-6">
         {/* Icon Button Grid */}
-        <div className="grid gap-4 grid-cols-4">
+        <div className="grid gap-4 grid-cols-3 sm:grid-cols-6">
           {/* Model Button */}
           <button
             onClick={() => setShowModelModal(true)}
@@ -819,6 +1018,50 @@ export default function ChatbotEdit() {
             <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+
+          {/* Sheets Button */}
+          <button
+            onClick={() => {
+              setShowSheetsModal(true)
+              if (sheetsConfig.integrationId) fetchSpreadsheets(sheetsConfig.integrationId, '')
+            }}
+            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
+              sheetsConfig.enabled && sheetsConfig.integrationId
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Sheets {sheetsConfig.enabled && sheetsConfig.integrationId && (
+                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">6</span>
+              )}
+            </span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 013-3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6z" />
+            </svg>
+          </button>
+
+          {/* Docs Button */}
+          <button
+            onClick={() => {
+              setShowDocsModal(true)
+              if (docsConfig.integrationId) fetchDocuments(docsConfig.integrationId, '')
+            }}
+            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
+              docsConfig.enabled && docsConfig.integrationId
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              Docs {docsConfig.enabled && docsConfig.integrationId && (
+                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">4</span>
+              )}
+            </span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </button>
         </div>
@@ -2272,6 +2515,290 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Google Sheets Modal */}
+      {showSheetsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 013-3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6z" />
+                </svg>
+                Google Sheets
+              </h3>
+              <button onClick={() => setShowSheetsModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto">
+              {/* Enable toggle */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div
+                  className={`w-10 h-5 rounded-full relative transition-colors ${sheetsConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                  onClick={() => setSheetsConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${sheetsConfig.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
+                </div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Google Sheets tools</span>
+              </label>
+
+              {sheetsConfig.enabled && (
+                <>
+                  {/* Google account selector */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Google Account</label>
+                    {calendarIntegrations.filter(i => i.provider === 'google').length === 0 ? (
+                      <p className="text-xs text-red-500">No Google accounts connected. Connect one in Calendar settings first.</p>
+                    ) : (
+                      <select
+                        value={sheetsConfig.integrationId}
+                        onChange={e => {
+                          const newId = e.target.value
+                          setSheetsConfig(prev => ({ ...prev, integrationId: newId, spreadsheetId: '', spreadsheetName: '' }))
+                          if (newId) fetchSpreadsheets(newId, '')
+                        }}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                      >
+                        <option value="">Select account...</option>
+                        {calendarIntegrations.filter(i => i.provider === 'google').map(i => (
+                          <option key={i.id} value={i.id}>{i.accountLabel || i.externalAccountId || `Google #${i.id}`}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Spreadsheet picker */}
+                  {sheetsConfig.integrationId && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                        Default Spreadsheet <span className="text-gray-400">(optional)</span>
+                      </label>
+                      <div className="relative mb-2">
+                        <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                          value={sheetSearch}
+                          onChange={e => {
+                            setSheetSearch(e.target.value)
+                            clearTimeout(window._sheetSearchTimeout)
+                            window._sheetSearchTimeout = setTimeout(() => fetchSpreadsheets(sheetsConfig.integrationId, e.target.value), 400)
+                          }}
+                          placeholder="Search spreadsheets..."
+                          className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-dark-border">
+                        {sheetFilesLoading ? (
+                          <div className="flex items-center justify-center py-6">
+                            <svg className="w-5 h-5 animate-spin text-green-500" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          </div>
+                        ) : sheetFiles.length === 0 ? (
+                          <p className="text-xs text-center py-4 text-gray-400">No spreadsheets found</p>
+                        ) : (
+                          sheetFiles.map(f => (
+                            <button
+                              key={f.id}
+                              onClick={() => setSheetsConfig(prev => ({ ...prev, spreadsheetId: f.id, spreadsheetName: f.name }))}
+                              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-dark-hover transition ${
+                                f.id === sheetsConfig.spreadsheetId ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'
+                              }`}
+                            >
+                              <svg className={`w-4 h-4 flex-shrink-0 ${f.id === sheetsConfig.spreadsheetId ? 'text-green-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 013-3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6z" />
+                              </svg>
+                              <span className="truncate flex-1">{f.name}</span>
+                              {f.id === sheetsConfig.spreadsheetId && (
+                                <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                      {sheetsConfig.spreadsheetId && (
+                        <button
+                          onClick={() => setSheetsConfig(prev => ({ ...prev, spreadsheetId: '', spreadsheetName: '' }))}
+                          className="mt-2 text-xs text-red-500 hover:underline"
+                        >
+                          Clear selection (AI will use list tool to find files)
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tools summary */}
+                  <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
+                    <p className="text-xs text-gray-400 mb-1">This will add 6 tools:</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      list_spreadsheets, get_spreadsheet_info, read_sheet_data, write_sheet_data, append_sheet_rows, create_spreadsheet
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-dark-border">
+              <button
+                onClick={() => setShowSheetsModal(false)}
+                className="px-4 py-2 text-sm rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-hover transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google Docs Modal */}
+      {showDocsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Google Docs
+              </h3>
+              <button onClick={() => setShowDocsModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 overflow-y-auto">
+              {/* Enable toggle */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div
+                  className={`w-10 h-5 rounded-full relative transition-colors ${docsConfig.enabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                  onClick={() => setDocsConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
+                >
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${docsConfig.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
+                </div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Google Docs tools</span>
+              </label>
+
+              {docsConfig.enabled && (
+                <>
+                  {/* Google account selector */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Google Account</label>
+                    {calendarIntegrations.filter(i => i.provider === 'google').length === 0 ? (
+                      <p className="text-xs text-red-500">No Google accounts connected. Connect one in Calendar settings first.</p>
+                    ) : (
+                      <select
+                        value={docsConfig.integrationId}
+                        onChange={e => {
+                          const newId = e.target.value
+                          setDocsConfig(prev => ({ ...prev, integrationId: newId, documentId: '', documentName: '' }))
+                          if (newId) fetchDocuments(newId, '')
+                        }}
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                      >
+                        <option value="">Select account...</option>
+                        {calendarIntegrations.filter(i => i.provider === 'google').map(i => (
+                          <option key={i.id} value={i.id}>{i.accountLabel || i.externalAccountId || `Google #${i.id}`}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Document picker */}
+                  {docsConfig.integrationId && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
+                        Default Document <span className="text-gray-400">(optional)</span>
+                      </label>
+                      <div className="relative mb-2">
+                        <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                          value={docSearch}
+                          onChange={e => {
+                            setDocSearch(e.target.value)
+                            clearTimeout(window._docSearchTimeout)
+                            window._docSearchTimeout = setTimeout(() => fetchDocuments(docsConfig.integrationId, e.target.value), 400)
+                          }}
+                          placeholder="Search documents..."
+                          className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-dark-border">
+                        {docFilesLoading ? (
+                          <div className="flex items-center justify-center py-6">
+                            <svg className="w-5 h-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                          </div>
+                        ) : docFiles.length === 0 ? (
+                          <p className="text-xs text-center py-4 text-gray-400">No documents found</p>
+                        ) : (
+                          docFiles.map(f => (
+                            <button
+                              key={f.id}
+                              onClick={() => setDocsConfig(prev => ({ ...prev, documentId: f.id, documentName: f.name }))}
+                              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-dark-hover transition ${
+                                f.id === docsConfig.documentId ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
+                              }`}
+                            >
+                              <svg className={`w-4 h-4 flex-shrink-0 ${f.id === docsConfig.documentId ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span className="truncate flex-1">{f.name}</span>
+                              {f.id === docsConfig.documentId && (
+                                <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                      {docsConfig.documentId && (
+                        <button
+                          onClick={() => setDocsConfig(prev => ({ ...prev, documentId: '', documentName: '' }))}
+                          className="mt-2 text-xs text-red-500 hover:underline"
+                        >
+                          Clear selection (AI will use list tool to find docs)
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Tools summary */}
+                  <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
+                    <p className="text-xs text-gray-400 mb-1">This will add 4 tools:</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      list_google_docs, read_google_doc, create_google_doc, append_to_google_doc
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-dark-border">
+              <button
+                onClick={() => setShowDocsModal(false)}
+                className="px-4 py-2 text-sm rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-hover transition"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

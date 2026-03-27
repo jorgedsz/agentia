@@ -42,6 +42,8 @@ const callbackController = require('./controllers/callbackController');
 const followUpRoutes = require('./routes/followUps');
 const followUpController = require('./controllers/followUpController');
 const demoRoutes = require('./routes/demo');
+const portalRoutes = require('./routes/portal');
+const googleWorkspaceRoutes = require('./routes/googleWorkspace');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -199,6 +201,8 @@ app.use('/api/chatbot-call', chatbotCallRoutes);
 app.use('/api/callbacks', callbackRoutes);
 app.use('/api/follow-ups', followUpRoutes);
 app.use('/api/demo', demoRoutes);
+app.use('/api/portal', portalRoutes);
+app.use('/api/google-workspace', googleWorkspaceRoutes);
 
 // ── WhatsApp API endpoints ─────────────────────────────────
 
