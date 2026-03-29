@@ -269,12 +269,6 @@ export default function DashboardLayout() {
       ]
     },
     {
-      title: 'Messaging',
-      items: [
-        { id: 'whatsapp', path: '/dashboard/whatsapp', label: 'WhatsApp', icon: Icons.WhatsApp, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-      ]
-    },
-    {
       title: t('sidebar.sectionSystem'),
       items: [
         { id: 'call-logs', path: '/dashboard/call-logs', label: t('sidebar.callLogs'), icon: Icons.Logs, roles: [ROLES.OWNER, ROLES.AGENCY] },
