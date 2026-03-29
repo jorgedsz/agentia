@@ -26,6 +26,8 @@ import WhatsAppPage from './components/Dashboard/WhatsAppPage'
 import PrivacyPolicy from './components/Legal/PrivacyPolicy'
 import TermsOfService from './components/Legal/TermsOfService'
 import DemoPage from './components/Demo/DemoPage'
+import ClientPortalPage from './components/Portal/ClientPortalPage'
+import SessionPortalPage from './components/Portal/SessionPortalPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -99,6 +101,8 @@ function App() {
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/demo" element={<DemoPage />} />
+        <Route path="/portal/:token" element={<ClientPortalPage />} />
+        <Route path="/portal/:token/sessions/:sessionId" element={<SessionPortalPage />} />
         <Route
           path="/"
           element={

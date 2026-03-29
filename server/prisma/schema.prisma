@@ -30,6 +30,7 @@ model User {
   agentGeneratorEnabled Boolean        @default(false)
   callsPaused        Boolean           @default(false)
   messagesPaused     Boolean           @default(false)
+  portalToken        String?           @unique // Shareable read-only portal token
   agencyId          Int?               // If CLIENT, belongs to this agency
   agency            User?              @relation("AgencyClients", fields: [agencyId], references: [id])
   clients           User[]             @relation("AgencyClients") // If AGENCY, these are their clients

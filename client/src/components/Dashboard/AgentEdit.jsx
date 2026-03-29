@@ -5913,6 +5913,29 @@ If the customer asks to be called back at a later time:
                         })()}
                       </div>
 
+                      {/* Chatbot type info banner */}
+                      {(() => {
+                        if (!chatbotTriggerConfig.chatbotId) return null
+                        const selectedChatbot = chatbotsList.find(c => c.id === chatbotTriggerConfig.chatbotId)
+                        if (!selectedChatbot) return null
+                        const isGHL = selectedChatbot.chatbotType === 'ghl_sms' || selectedChatbot.chatbotType === 'ghl_whatsapp'
+                        return isGHL ? (
+                          <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 dark:border-amber-500">
+                            <svg className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <p className="text-sm text-amber-800 dark:text-amber-200">
+                              This chatbot uses <span className="font-semibold">GoHighLevel</span>. The contact ID from the call will be used to send the follow-up message via GHL {selectedChatbot.chatbotType === 'ghl_sms' ? 'SMS' : 'WhatsApp'}.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 dark:border-blue-500">
+                            <svg className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <p className="text-sm text-blue-800 dark:text-blue-200">
+                              This chatbot will be triggered via <span className="font-semibold">webhook forwarding</span>. The call data will be sent to the chatbot's webhook and the response will be routed through the chatbot's configured output.
+                            </p>
+                          </div>
+                        )
+                      })()}
+
                       {/* Trigger condition */}
                       <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{ta('chatbotTriggerCondition')}</label>
