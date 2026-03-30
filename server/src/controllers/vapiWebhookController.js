@@ -181,6 +181,7 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
             method: 'POST',
             body: JSON.stringify({
               locationId,
+              pageLimit: 1,
               filters: [{
                 field: 'phone',
                 operator: 'eq',
