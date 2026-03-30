@@ -18,8 +18,8 @@ if (!fs.existsSync(recordingsDir)) {
 }
 
 // Categorize outcome (same logic as callController)
-const categorizeOutcome = (call) => {
-  const reason = call.endedReason;
+const categorizeOutcome = (call, overrideReason) => {
+  const reason = overrideReason || call.endedReason;
 
   const noAnswerReasons = [
     'customer-did-not-answer', 'voicemail', 'customer-busy'
@@ -517,7 +517,7 @@ const handleEvent = async (req, res) => {
 
     const durationMinutes = durationSeconds / 60;
     const cost = durationMinutes * rate;
-    const outcome = categorizeOutcome(call);
+    const outcome = categorizeOutcome(call, endedReason);
 
     // 4. Update or create CallLog (encrypt PHI fields before DB write)
     const existingLog = await prisma.callLog.findUnique({ where: { vapiCallId } });
