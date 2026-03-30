@@ -21,6 +21,11 @@ if (!fs.existsSync(recordingsDir)) {
 const categorizeOutcome = (call) => {
   const reason = call.endedReason;
 
+  const noAnswerReasons = [
+    'customer-did-not-answer', 'voicemail', 'customer-busy'
+  ];
+  if (noAnswerReasons.includes(reason)) return 'no_answer';
+
   const failedReasons = [
     'assistant-error', 'assistant-not-found', 'db-error', 'no-server-available',
     'pipeline-error-extra-function-failed', 'pipeline-error-first-message-failed',
@@ -29,13 +34,12 @@ const categorizeOutcome = (call) => {
     'pipeline-error-openai-voice-failed', 'pipeline-error-cartesia-voice-failed',
     'pipeline-error-eleven-labs-voice-failed', 'pipeline-error-deepgram-transcriber-failed',
     'pipeline-no-available-model', 'server-shutdown', 'twilio-failed-to-connect-call',
-    'assistant-join-timed-out', 'customer-busy', 'customer-did-not-answer',
+    'assistant-join-timed-out',
     'customer-did-not-give-microphone-permission', 'manually-canceled',
     'phone-call-provider-closed-websocket'
   ];
 
   if (failedReasons.includes(reason)) return 'failed';
-  if (reason === 'voicemail') return 'voicemail';
   if (reason === 'assistant-forwarded-call') return 'transferred';
 
   const structured = call.analysis?.structuredData;
@@ -70,6 +74,7 @@ const categorizeOutcome = (call) => {
   ];
   if (answeredReasons.includes(reason)) return 'answered';
 
+  console.log(`[Outcome] Unrecognized endedReason: "${reason}" — returning unknown`);
   return 'unknown';
 };
 

@@ -12,8 +12,9 @@ const OUTCOME_COLORS = {
   answered: '#3b82f6',
   transferred: '#8b5cf6',
   not_interested: '#f59e0b',
+  no_answer: '#f97316',
   failed: '#ef4444',
-  voicemail: '#6b7280',
+  voicemail: '#f97316',
   unknown: '#9ca3af'
 }
 
@@ -22,8 +23,9 @@ const OUTCOME_LABELS = {
   answered: 'Answered',
   transferred: 'Transferred',
   not_interested: 'Not Interested',
+  no_answer: 'No Answer',
   failed: 'Failed',
-  voicemail: 'Voicemail',
+  voicemail: 'No Answer',
   unknown: 'Unknown'
 }
 
@@ -315,8 +317,8 @@ function CallsTab({ data, advancedCalls, t }) {
                 <Bar dataKey="answered" stackId="a" fill={OUTCOME_COLORS.answered} />
                 <Bar dataKey="transferred" stackId="a" fill={OUTCOME_COLORS.transferred} />
                 <Bar dataKey="not_interested" stackId="a" fill={OUTCOME_COLORS.not_interested} />
+                <Bar dataKey="no_answer" stackId="a" fill={OUTCOME_COLORS.no_answer} />
                 <Bar dataKey="failed" stackId="a" fill={OUTCOME_COLORS.failed} />
-                <Bar dataKey="voicemail" stackId="a" fill={OUTCOME_COLORS.voicemail} />
               </BarChart>
             </ResponsiveContainer>
           ) : (

@@ -555,11 +555,11 @@ export default function AgentEdit() {
     pipelineName: '',
     tagMapping: {
       booked: [], answered: [], not_interested: [],
-      failed: [], transferred: [], voicemail: []
+      no_answer: [], failed: [], transferred: []
     },
     pipelineMapping: {
       booked: '', answered: '', not_interested: '',
-      failed: '', transferred: '', voicemail: ''
+      no_answer: '', failed: '', transferred: ''
     }
   })
   const [ghlPipelines, setGhlPipelines] = useState([])
@@ -578,7 +578,7 @@ export default function AgentEdit() {
     enabled: false,
     maxAttempts: 3,
     intervals: [120, 120, 120],
-    outcomes: ['failed', 'voicemail']
+    outcomes: ['no_answer', 'failed']
   })
 
   // Chatbot trigger config
@@ -5542,7 +5542,7 @@ If the customer asks to be called back at a later time:
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{ta('ghlCrmTagMappingDesc')}</p>
 
-                        {['booked', 'answered', 'not_interested', 'failed', 'transferred', 'voicemail'].map(outcome => (
+                        {['booked', 'answered', 'not_interested', 'no_answer', 'failed', 'transferred'].map(outcome => (
                           <div key={outcome} className="mb-3">
                             <label className="text-xs font-medium text-gray-600 dark:text-gray-400 capitalize mb-1 block">{outcome.replace('_', ' ')}</label>
                             <div className="flex flex-wrap gap-1.5 p-2 border border-gray-200 dark:border-dark-border rounded-lg min-h-[36px] bg-white dark:bg-dark-hover">
@@ -5658,7 +5658,7 @@ If the customer asks to be called back at a later time:
                           const stages = selectedPipeline?.stages || []
                           return (
                             <div className="space-y-2">
-                              {['booked', 'answered', 'not_interested', 'failed', 'transferred', 'voicemail'].map(outcome => (
+                              {['booked', 'answered', 'not_interested', 'no_answer', 'failed', 'transferred'].map(outcome => (
                                 <div key={outcome} className="flex items-center gap-3 bg-gray-50 dark:bg-dark-hover rounded-xl px-3 py-2.5 border border-gray-200 dark:border-dark-border">
                                   <span className="text-xs font-medium text-gray-600 dark:text-gray-400 capitalize w-28 shrink-0">{outcome.replace('_', ' ')}</span>
                                   <div className="relative flex-1">
@@ -5806,8 +5806,8 @@ If the customer asks to be called back at a later time:
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{ta('followUpsOutcomes')}</label>
                         <div className="space-y-2">
                           {[
+                            { value: 'no_answer', label: ta('followUpsOutcomesNoAnswer') || 'No Answer' },
                             { value: 'failed', label: ta('followUpsOutcomesFailed') },
-                            { value: 'voicemail', label: ta('followUpsOutcomesVoicemail') },
                             { value: 'answered', label: ta('followUpsOutcomesAnswered') },
                             { value: 'not_interested', label: ta('followUpsOutcomesNotInterested') },
                             { value: 'unknown', label: ta('followUpsOutcomesUnknown') }
@@ -5971,9 +5971,9 @@ If the customer asks to be called back at a later time:
                               { value: 'booked', label: ta('chatbotTriggerOutcomeBooked') },
                               { value: 'answered', label: ta('chatbotTriggerOutcomeAnswered') },
                               { value: 'not_interested', label: ta('chatbotTriggerOutcomeNotInterested') },
+                              { value: 'no_answer', label: ta('chatbotTriggerOutcomeNoAnswer') || 'No Answer' },
                               { value: 'failed', label: ta('chatbotTriggerOutcomeFailed') },
-                              { value: 'transferred', label: ta('chatbotTriggerOutcomeTransferred') },
-                              { value: 'voicemail', label: ta('chatbotTriggerOutcomeVoicemail') }
+                              { value: 'transferred', label: ta('chatbotTriggerOutcomeTransferred') }
                             ].map(({ value, label }) => (
                               <label key={value} className="flex items-center gap-2 cursor-pointer">
                                 <input

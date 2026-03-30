@@ -7,8 +7,9 @@ const OUTCOME_CONFIG = {
   answered: { label: 'Answered', bg: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
   transferred: { label: 'Transferred', bg: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400' },
   not_interested: { label: 'Not Interested', bg: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' },
+  no_answer: { label: 'No Answer', bg: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' },
   failed: { label: 'Failed', bg: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
-  voicemail: { label: 'Voicemail', bg: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' },
+  voicemail: { label: 'No Answer', bg: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' },
   unknown: { label: 'Unknown', bg: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' }
 }
 
