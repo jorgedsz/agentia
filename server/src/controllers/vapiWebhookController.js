@@ -175,8 +175,19 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
     if (customerNumber) {
       try {
         const searchRes = await ghlRequest(
-          `/contacts/?locationId=${locationId}&query=${encodeURIComponent(customerNumber)}`,
-          token
+          `/contacts/search`,
+          token,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              locationId,
+              filters: [{
+                field: 'phone',
+                operator: 'eq',
+                value: customerNumber
+              }]
+            })
+          }
         );
         if (searchRes.contacts && searchRes.contacts.length > 0) {
           contactId = searchRes.contacts[0].id;
