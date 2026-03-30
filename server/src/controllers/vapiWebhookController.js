@@ -175,7 +175,7 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
     if (customerNumber) {
       try {
         const searchRes = await ghlRequest(
-          `/contacts/search?locationId=${locationId}&query=${encodeURIComponent(customerNumber)}`,
+          `/contacts/?locationId=${locationId}&query=${encodeURIComponent(customerNumber)}`,
           token
         );
         if (searchRes.contacts && searchRes.contacts.length > 0) {
@@ -478,12 +478,14 @@ const handleEvent = async (req, res) => {
     const transcriptText = extractTranscriptText(message.transcript || call.artifact?.transcript);
     const summary = message.analysis?.summary || call.analysis?.summary || null;
     const structuredData = message.analysis?.structuredData || call.analysis?.structuredData || null;
-    const endedReason = call.endedReason || null;
+    const endedReason = message.endedReason || call.endedReason || null;
     const customerNumber = extractCustomerNumber(call);
+
+    console.log(`Call ${vapiCallId}: endedReason=${endedReason}, message.endedReason=${message.endedReason}, call.endedReason=${call.endedReason}`);
 
     // 3. Calculate duration and billing
     const isOutbound = call.type === 'outboundPhoneCall';
-    let durationSeconds = call.duration || call.durationSeconds || 0;
+    let durationSeconds = call.duration || call.durationSeconds || message.durationSeconds || message.duration || 0;
     if (!durationSeconds && call.startedAt && call.endedAt) {
       durationSeconds = (new Date(call.endedAt).getTime() - new Date(call.startedAt).getTime()) / 1000;
     }
