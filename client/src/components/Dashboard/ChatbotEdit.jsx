@@ -1148,7 +1148,6 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 </div>
               )
             })()}
-            )}
           </div>
 
           {/* Variables Section */}
