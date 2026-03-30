@@ -97,7 +97,7 @@ const createChatbot = async (req, res) => {
         const chatbotWithDecryptedUrl = { ...chatbot, outputUrl: outputUrl || null, config: config || {}, serverBaseUrl: getServerBaseUrl() };
         const workflow = await n8nService.createWorkflow(chatbotWithDecryptedUrl);
         n8nWorkflowId = workflow.id;
-        n8nWebhookUrl = `${n8nConfig.url}/webhook/chatbot-${chatbot.id}`;
+        n8nWebhookUrl = `${n8nConfig.url.replace(/\/+$/, '')}/webhook/chatbot-${chatbot.id}`;
 
         await req.prisma.chatbot.update({
           where: { id: chatbot.id },
@@ -186,7 +186,7 @@ const updateChatbot = async (req, res) => {
         } else {
           // Create new workflow if one doesn't exist yet
           const workflow = await n8nService.createWorkflow(chatbotForN8n);
-          const n8nWebhookUrl = `${n8nConfig.url}/webhook/chatbot-${chatbot.id}`;
+          const n8nWebhookUrl = `${n8nConfig.url.replace(/\/+$/, '')}/webhook/chatbot-${chatbot.id}`;
           await req.prisma.chatbot.update({
             where: { id: chatbot.id },
             data: { n8nWorkflowId: String(workflow.id), n8nWebhookUrl }
