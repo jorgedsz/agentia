@@ -150,7 +150,11 @@ const extractCustomerNumber = (call) => {
 const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber) => {
   try {
     const ghlCrmConfig = agentConfig?.ghlCrmConfig;
-    if (!ghlCrmConfig?.enabled) return;
+    if (!ghlCrmConfig?.enabled) {
+      console.log(`[GHL CRM] Not enabled for user ${userId}`);
+      return;
+    }
+    console.log(`[GHL CRM] Processing: user=${userId}, outcome=${outcome}, phone=${customerNumber}`);
 
     // Find GHL integration (checks GHLIntegration + CalendarIntegration)
     const conn = await findGhlConnection(userId, prisma);
