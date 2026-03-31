@@ -256,7 +256,7 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
       try {
         // Search for existing opportunity in this pipeline for this contact
         const oppSearch = await ghlRequest(
-          `/opportunities/search?locationId=${locationId}&pipelineId=${pipelineId}&contactId=${contactId}`,
+          `/opportunities/search?location_id=${locationId}&pipeline_id=${pipelineId}&contact_id=${contactId}`,
           token
         );
 
