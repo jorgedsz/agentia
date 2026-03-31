@@ -275,7 +275,7 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
         } else {
           // Create new opportunity with contact name
           const oppName = contactName || customerNumber || `Call - ${outcome}`;
-          await ghlRequest('/opportunities', token, {
+          await ghlRequest('/opportunities/', token, {
             method: 'POST',
             body: JSON.stringify({
               locationId,
