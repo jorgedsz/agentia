@@ -172,6 +172,7 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
 
     // --- Find or create contact by phone number ---
     let contactId = null;
+    let contactName = null;
     if (customerNumber) {
       try {
         const searchRes = await ghlRequest(
@@ -192,6 +193,8 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
         );
         if (searchRes.contacts && searchRes.contacts.length > 0) {
           contactId = searchRes.contacts[0].id;
+          const c = searchRes.contacts[0];
+          contactName = [c.firstName, c.lastName].filter(Boolean).join(' ') || c.name || null;
         } else {
           const createRes = await ghlRequest('/contacts', token, {
             method: 'POST',
@@ -270,7 +273,8 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
           });
           console.log(`[GHL CRM] Updated opportunity ${existingOpp.id} to stage ${stageId}`);
         } else {
-          // Create new opportunity
+          // Create new opportunity with contact name
+          const oppName = contactName || customerNumber || `Call - ${outcome}`;
           await ghlRequest('/opportunities', token, {
             method: 'POST',
             body: JSON.stringify({
@@ -278,11 +282,11 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
               pipelineId,
               pipelineStageId: stageId,
               contactId,
-              name: `Call - ${outcome}`,
+              name: oppName,
               status: 'open'
             })
           });
-          console.log(`[GHL CRM] Created opportunity for contact ${contactId} in pipeline ${pipelineId}`);
+          console.log(`[GHL CRM] Created opportunity "${oppName}" for contact ${contactId} in pipeline ${pipelineId}`);
         }
       } catch (oppErr) {
         console.error('[GHL CRM] Opportunity error:', oppErr.message);
