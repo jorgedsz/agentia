@@ -1036,9 +1036,8 @@ export default function ChatbotEdit() {
       )}
 
       <div className="space-y-6">
-        {/* Icon Button Grid */}
-        <div className="grid gap-4 grid-cols-3 sm:grid-cols-6">
-          {/* Model Button */}
+        {/* Model Button */}
+        <div className="flex gap-4">
           <button
             onClick={() => setShowModelModal(true)}
             className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600 transition-all"
@@ -1051,6 +1050,18 @@ export default function ChatbotEdit() {
             </svg>
             <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-full">{CHATBOT_MODELS.find(m => m.model === modelName)?.label || modelName}</span>
           </button>
+        </div>
+
+        {/* Tools Section */}
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Tools</h3>
+          </div>
+          <div className="grid gap-4 grid-cols-3 sm:grid-cols-6">
 
           {/* Calendar Button */}
           <button
@@ -1090,7 +1101,7 @@ export default function ChatbotEdit() {
             </svg>
           </button>
 
-          {/* Tools Button */}
+          {/* Custom Tools Button */}
           <button
             onClick={() => setShowToolsModal(true)}
             className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
@@ -1100,7 +1111,7 @@ export default function ChatbotEdit() {
             }`}
           >
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Tools {tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0 && (
+              Custom {tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0 && (
                 <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length}</span>
               )}
             </span>
@@ -1172,6 +1183,7 @@ export default function ChatbotEdit() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           </button>
+          </div>
         </div>
 
         {/* Collapsible Sections */}
