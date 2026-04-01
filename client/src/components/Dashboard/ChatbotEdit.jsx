@@ -167,7 +167,7 @@ export default function ChatbotEdit() {
   const [docSearch, setDocSearch] = useState('')
 
   // GHL CRM settings
-  const [ghlCrmConfig, setGhlCrmConfig] = useState({ enabled: false, pipelineId: '', pipelineName: '' })
+  const [ghlCrmConfig, setGhlCrmConfig] = useState({ createNote: false, createOpportunity: false, updateOpportunity: false, addTags: false, addToWorkflow: false, pipelineId: '', pipelineName: '' })
   const [ghlPipelines, setGhlPipelines] = useState([])
 
   // Unified tools modal
@@ -649,76 +649,83 @@ export default function ChatbotEdit() {
   // Build GHL CRM tools for saving
   const buildGhlCrmTools = () => {
     const ghlTools = []
-    if (!ghlCrmConfig.enabled) return ghlTools
-
     const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
     const qp = new URLSearchParams({ userId: user?.id?.toString() || '' }).toString()
     const base = `${apiBaseUrl}/chatbot-ghl`
 
-    ghlTools.push({
-      type: 'apiRequest', method: 'POST', url: `${base}/create-note?${qp}`,
-      name: 'ghl_create_note',
-      description: 'Create a note on a GHL contact. Use this to log important information about a conversation or interaction.',
-      body: { type: 'object', properties: {
-        contactId: { type: 'string', description: 'The GHL contact ID' },
-        body: { type: 'string', description: 'The note content/text' }
-      }, required: ['contactId', 'body'] },
-      timeoutSeconds: 30
-    })
+    if (ghlCrmConfig.createNote) {
+      ghlTools.push({
+        type: 'apiRequest', method: 'POST', url: `${base}/create-note?${qp}`,
+        name: 'ghl_create_note',
+        description: 'Create a note on a GHL contact. Use this to log important information about a conversation or interaction.',
+        body: { type: 'object', properties: {
+          contactId: { type: 'string', description: 'The GHL contact ID' },
+          body: { type: 'string', description: 'The note content/text' }
+        }, required: ['contactId', 'body'] },
+        timeoutSeconds: 30
+      })
+    }
 
-    const pipelineNote = ghlCrmConfig.pipelineId
-      ? ` Default pipeline: "${ghlCrmConfig.pipelineName}" (ID: ${ghlCrmConfig.pipelineId}).`
-      : ''
+    if (ghlCrmConfig.createOpportunity) {
+      const pipelineNote = ghlCrmConfig.pipelineId
+        ? ` Default pipeline: "${ghlCrmConfig.pipelineName}" (ID: ${ghlCrmConfig.pipelineId}).`
+        : ''
+      ghlTools.push({
+        type: 'apiRequest', method: 'POST', url: `${base}/create-opportunity?${qp}`,
+        name: 'ghl_create_opportunity',
+        description: `Create a new opportunity/deal in a GHL pipeline.${pipelineNote}`,
+        body: { type: 'object', properties: {
+          contactId: { type: 'string', description: 'The GHL contact ID' },
+          pipelineId: { type: 'string', description: `The pipeline ID.${ghlCrmConfig.pipelineId ? ` Default: ${ghlCrmConfig.pipelineId}` : ''}` },
+          stageId: { type: 'string', description: 'The pipeline stage ID to place the opportunity in' },
+          name: { type: 'string', description: 'Name/title for the opportunity' },
+          status: { type: 'string', description: 'Status: open, won, lost, or abandoned. Defaults to open.' }
+        }, required: ['contactId', 'pipelineId', 'stageId', 'name'] },
+        timeoutSeconds: 30
+      })
+    }
 
-    ghlTools.push({
-      type: 'apiRequest', method: 'POST', url: `${base}/create-opportunity?${qp}`,
-      name: 'ghl_create_opportunity',
-      description: `Create a new opportunity/deal in a GHL pipeline.${pipelineNote}`,
-      body: { type: 'object', properties: {
-        contactId: { type: 'string', description: 'The GHL contact ID' },
-        pipelineId: { type: 'string', description: `The pipeline ID.${ghlCrmConfig.pipelineId ? ` Default: ${ghlCrmConfig.pipelineId}` : ''}` },
-        stageId: { type: 'string', description: 'The pipeline stage ID to place the opportunity in' },
-        name: { type: 'string', description: 'Name/title for the opportunity' },
-        status: { type: 'string', description: 'Status: open, won, lost, or abandoned. Defaults to open.' }
-      }, required: ['contactId', 'pipelineId', 'stageId', 'name'] },
-      timeoutSeconds: 30
-    })
+    if (ghlCrmConfig.updateOpportunity) {
+      ghlTools.push({
+        type: 'apiRequest', method: 'POST', url: `${base}/update-opportunity?${qp}`,
+        name: 'ghl_update_opportunity',
+        description: 'Update an existing GHL opportunity (change stage, status, assigned user, or name).',
+        body: { type: 'object', properties: {
+          opportunityId: { type: 'string', description: 'The opportunity ID to update' },
+          stageId: { type: 'string', description: 'New pipeline stage ID' },
+          status: { type: 'string', description: 'New status: open, won, lost, or abandoned' },
+          assignedTo: { type: 'string', description: 'User ID to assign the opportunity to' },
+          name: { type: 'string', description: 'New name for the opportunity' }
+        }, required: ['opportunityId'] },
+        timeoutSeconds: 30
+      })
+    }
 
-    ghlTools.push({
-      type: 'apiRequest', method: 'POST', url: `${base}/update-opportunity?${qp}`,
-      name: 'ghl_update_opportunity',
-      description: 'Update an existing GHL opportunity (change stage, status, assigned user, or name).',
-      body: { type: 'object', properties: {
-        opportunityId: { type: 'string', description: 'The opportunity ID to update' },
-        stageId: { type: 'string', description: 'New pipeline stage ID' },
-        status: { type: 'string', description: 'New status: open, won, lost, or abandoned' },
-        assignedTo: { type: 'string', description: 'User ID to assign the opportunity to' },
-        name: { type: 'string', description: 'New name for the opportunity' }
-      }, required: ['opportunityId'] },
-      timeoutSeconds: 30
-    })
+    if (ghlCrmConfig.addTags) {
+      ghlTools.push({
+        type: 'apiRequest', method: 'POST', url: `${base}/add-tags?${qp}`,
+        name: 'ghl_add_tags',
+        description: 'Add one or more tags to a GHL contact. Tags are merged with existing tags.',
+        body: { type: 'object', properties: {
+          contactId: { type: 'string', description: 'The GHL contact ID' },
+          tags: { type: 'array', description: 'Array of tag strings to add, e.g. ["hot-lead", "premium"]' }
+        }, required: ['contactId', 'tags'] },
+        timeoutSeconds: 30
+      })
+    }
 
-    ghlTools.push({
-      type: 'apiRequest', method: 'POST', url: `${base}/add-tags?${qp}`,
-      name: 'ghl_add_tags',
-      description: 'Add one or more tags to a GHL contact. Tags are merged with existing tags.',
-      body: { type: 'object', properties: {
-        contactId: { type: 'string', description: 'The GHL contact ID' },
-        tags: { type: 'array', description: 'Array of tag strings to add, e.g. ["hot-lead", "premium"]' }
-      }, required: ['contactId', 'tags'] },
-      timeoutSeconds: 30
-    })
-
-    ghlTools.push({
-      type: 'apiRequest', method: 'POST', url: `${base}/add-to-workflow?${qp}`,
-      name: 'ghl_add_to_workflow',
-      description: 'Add a GHL contact to an automation workflow.',
-      body: { type: 'object', properties: {
-        contactId: { type: 'string', description: 'The GHL contact ID' },
-        workflowId: { type: 'string', description: 'The workflow ID to add the contact to' }
-      }, required: ['contactId', 'workflowId'] },
-      timeoutSeconds: 30
-    })
+    if (ghlCrmConfig.addToWorkflow) {
+      ghlTools.push({
+        type: 'apiRequest', method: 'POST', url: `${base}/add-to-workflow?${qp}`,
+        name: 'ghl_add_to_workflow',
+        description: 'Add a GHL contact to an automation workflow.',
+        body: { type: 'object', properties: {
+          contactId: { type: 'string', description: 'The GHL contact ID' },
+          workflowId: { type: 'string', description: 'The workflow ID to add the contact to' }
+        }, required: ['contactId', 'workflowId'] },
+        timeoutSeconds: 30
+      })
+    }
 
     return ghlTools
   }
@@ -1072,7 +1079,7 @@ export default function ChatbotEdit() {
           <button
             onClick={() => setShowUnifiedToolsModal(true)}
             className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
-              callConfig.enabled || sheetsConfig.enabled || docsConfig.enabled || ghlCrmConfig.enabled || tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0
+              callConfig.enabled || sheetsConfig.enabled || docsConfig.enabled || ghlCrmConfig.createNote || ghlCrmConfig.createOpportunity || ghlCrmConfig.updateOpportunity || ghlCrmConfig.addTags || ghlCrmConfig.addToWorkflow || tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0
                 ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                 : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
             }`}
@@ -2036,30 +2043,36 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'ghl' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   <svg className="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                   <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">GHL CRM</span>
-                  {ghlCrmConfig.enabled && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">5 tools</span>}
+                  {(() => { const c = [ghlCrmConfig.createNote, ghlCrmConfig.createOpportunity, ghlCrmConfig.updateOpportunity, ghlCrmConfig.addTags, ghlCrmConfig.addToWorkflow].filter(Boolean).length; return c > 0 ? <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">{c} tool{c > 1 ? 's' : ''}</span> : null })()}
                 </button>
                 {toolsSection === 'ghl' && (
-                  <div className="px-5 pb-4 space-y-3">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <div className={`w-10 h-5 rounded-full relative transition-colors ${ghlCrmConfig.enabled ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={() => setGhlCrmConfig(prev => ({ ...prev, enabled: !prev.enabled }))}>
-                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
+                  <div className="px-5 pb-4 space-y-2">
+                    <p className="text-xs text-gray-400 mb-1">contactId is auto-injected from conversation context.</p>
+                    {[
+                      { key: 'createNote', label: 'Create Note', desc: 'Log notes on a contact' },
+                      { key: 'createOpportunity', label: 'Create Opportunity', desc: 'Create a deal in a pipeline' },
+                      { key: 'updateOpportunity', label: 'Update Opportunity', desc: 'Update deal stage/status' },
+                      { key: 'addTags', label: 'Add Tags', desc: 'Add tags to a contact' },
+                      { key: 'addToWorkflow', label: 'Add to Workflow', desc: 'Add contact to a workflow' }
+                    ].map(t => (
+                      <label key={t.key} className="flex items-center gap-3 py-1.5 cursor-pointer">
+                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig[t.key] ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, [t.key]: !prev[t.key] })) }}>
+                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig[t.key] ? 'left-[18px]' : 'left-[2px]'}`} />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t.label}</span>
+                          <span className="text-xs text-gray-400 ml-1.5">{t.desc}</span>
+                        </div>
+                      </label>
+                    ))}
+                    {(ghlCrmConfig.createOpportunity || ghlCrmConfig.updateOpportunity) && (
+                      <div className="pt-2 mt-1 border-t border-gray-100 dark:border-dark-border">
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Default Pipeline <span className="text-gray-400">(optional)</span></label>
+                        <select value={ghlCrmConfig.pipelineId} onChange={(e) => { const selected = ghlPipelines.find(p => p.id === e.target.value); setGhlCrmConfig(prev => ({ ...prev, pipelineId: e.target.value, pipelineName: selected?.name || '' })) }} onFocus={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (err) { console.error('Failed to fetch pipelines:', err) } } }} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                          <option value="">None (AI will need pipeline ID)</option>
+                          {ghlPipelines.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                        </select>
                       </div>
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable GHL CRM tools</span>
-                    </label>
-                    {ghlCrmConfig.enabled && (
-                      <>
-                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                          <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">5 tools: create note, create/update opportunity, add tags, add to workflow.</p>
-                          <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">contactId is auto-injected from conversation context.</p>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Default Pipeline <span className="text-gray-400">(optional)</span></label>
-                          <select value={ghlCrmConfig.pipelineId} onChange={(e) => { const selected = ghlPipelines.find(p => p.id === e.target.value); setGhlCrmConfig(prev => ({ ...prev, pipelineId: e.target.value, pipelineName: selected?.name || '' })) }} onFocus={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (err) { console.error('Failed to fetch pipelines:', err) } } }} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
-                            <option value="">None (AI will need pipeline ID)</option>
-                            {ghlPipelines.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
-                          </select>
-                        </div>
-                      </>
                     )}
                   </div>
                 )}
