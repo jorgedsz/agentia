@@ -82,7 +82,6 @@ export default function ChatbotEdit() {
 
   // Tools
   const [tools, setTools] = useState([])
-  const [showToolsModal, setShowToolsModal] = useState(false)
   const [showToolEditModal, setShowToolEditModal] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState(null)
   const [toolForm, setToolForm] = useState({
@@ -132,7 +131,6 @@ export default function ChatbotEdit() {
   const [newVarDefault, setNewVarDefault] = useState('')
 
   // Call tool settings
-  const [showCallModal, setShowCallModal] = useState(false)
   const [callConfig, setCallConfig] = useState({ enabled: false, agentId: '', phoneNumberId: '' })
   const [agentsList, setAgentsList] = useState([])
   const [phoneNumbersList, setPhoneNumbersList] = useState([])
@@ -157,23 +155,24 @@ export default function ChatbotEdit() {
   const [expandedCalendarEntry, setExpandedCalendarEntry] = useState(null)
 
   // Google Sheets settings
-  const [showSheetsModal, setShowSheetsModal] = useState(false)
   const [sheetsConfig, setSheetsConfig] = useState({ enabled: false, integrationId: '', spreadsheetId: '', spreadsheetName: '' })
   const [sheetFiles, setSheetFiles] = useState([])
   const [sheetFilesLoading, setSheetFilesLoading] = useState(false)
   const [sheetSearch, setSheetSearch] = useState('')
 
   // Google Docs settings
-  const [showDocsModal, setShowDocsModal] = useState(false)
   const [docsConfig, setDocsConfig] = useState({ enabled: false, integrationId: '', documentId: '', documentName: '' })
   const [docFiles, setDocFiles] = useState([])
   const [docFilesLoading, setDocFilesLoading] = useState(false)
   const [docSearch, setDocSearch] = useState('')
 
   // GHL CRM settings
-  const [showGhlCrmModal, setShowGhlCrmModal] = useState(false)
   const [ghlCrmConfig, setGhlCrmConfig] = useState({ enabled: false, pipelineId: '', pipelineName: '' })
   const [ghlPipelines, setGhlPipelines] = useState([])
+
+  // Unified tools modal
+  const [showUnifiedToolsModal, setShowUnifiedToolsModal] = useState(false)
+  const [toolsSection, setToolsSection] = useState(null)
 
   // Load chatbot data
   useEffect(() => {
@@ -1036,32 +1035,19 @@ export default function ChatbotEdit() {
       )}
 
       <div className="space-y-6">
-        {/* Model Button */}
-        <div className="flex gap-4">
+        {/* Icon Button Grid — 3 top-level buttons */}
+        <div className="grid gap-4 grid-cols-3">
+          {/* Model Button */}
           <button
             onClick={() => setShowModelModal(true)}
             className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600 transition-all"
           >
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Model
-            </span>
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Model</span>
             <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
             <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-full">{CHATBOT_MODELS.find(m => m.model === modelName)?.label || modelName}</span>
           </button>
-        </div>
-
-        {/* Tools Section */}
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Tools</h3>
-          </div>
-          <div className="grid gap-4 grid-cols-3 sm:grid-cols-6">
 
           {/* Calendar Button */}
           <button
@@ -1082,108 +1068,21 @@ export default function ChatbotEdit() {
             </svg>
           </button>
 
-          {/* Call Button */}
+          {/* Tools Button */}
           <button
-            onClick={() => setShowCallModal(true)}
+            onClick={() => setShowUnifiedToolsModal(true)}
             className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
-              callConfig.enabled && callConfig.agentId
+              callConfig.enabled || sheetsConfig.enabled || docsConfig.enabled || ghlCrmConfig.enabled || tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0
                 ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                 : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Call {callConfig.enabled && callConfig.agentId && (
-                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">2</span>
-              )}
-            </span>
-            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-            </svg>
-          </button>
-
-          {/* Custom Tools Button */}
-          <button
-            onClick={() => setShowToolsModal(true)}
-            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
-              tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0
-                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Custom {tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0 && (
-                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length}</span>
-              )}
-            </span>
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Tools</span>
             <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </button>
-
-          {/* Sheets Button */}
-          <button
-            onClick={() => {
-              setShowSheetsModal(true)
-              if (sheetsConfig.integrationId) fetchSpreadsheets(sheetsConfig.integrationId, '')
-            }}
-            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
-              sheetsConfig.enabled && sheetsConfig.integrationId
-                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Sheets {sheetsConfig.enabled && sheetsConfig.integrationId && (
-                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">6</span>
-              )}
-            </span>
-            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 013-3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6z" />
-            </svg>
-          </button>
-
-          {/* Docs Button */}
-          <button
-            onClick={() => {
-              setShowDocsModal(true)
-              if (docsConfig.integrationId) fetchDocuments(docsConfig.integrationId, '')
-            }}
-            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
-              docsConfig.enabled && docsConfig.integrationId
-                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Docs {docsConfig.enabled && docsConfig.integrationId && (
-                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">4</span>
-              )}
-            </span>
-            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </button>
-
-          {/* GHL CRM Button */}
-          <button
-            onClick={() => setShowGhlCrmModal(true)}
-            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
-              ghlCrmConfig.enabled
-                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              GHL CRM {ghlCrmConfig.enabled && (
-                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">5</span>
-              )}
-            </span>
-            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          </button>
-          </div>
         </div>
 
         {/* Collapsible Sections */}
@@ -1966,155 +1865,250 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
         )
       })()}
 
-      {/* ===== CALL TOOL MODAL ===== */}
-      {showCallModal && (
+      {/* ===== UNIFIED TOOLS MODAL ===== */}
+      {showUnifiedToolsModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Call Tool</h3>
-              <button onClick={() => setShowCallModal(false)} className="text-gray-500 hover:text-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tools</h3>
+              <button onClick={() => { setShowUnifiedToolsModal(false); setToolsSection(null) }} className="text-gray-500 hover:text-gray-700">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="p-4 space-y-4">
-              {/* Enable toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Call Tool</label>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Allow the chatbot to trigger outbound voice calls using an AI agent.</p>
-                </div>
-                <button
-                  onClick={() => setCallConfig({ ...callConfig, enabled: !callConfig.enabled })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callConfig.enabled ? 'bg-green-600' : 'bg-gray-300'}`}
-                >
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            <div className="overflow-y-auto divide-y divide-gray-100 dark:divide-dark-border">
+
+              {/* ── Call Tool ── */}
+              <div>
+                <button onClick={() => setToolsSection(s => s === 'call' ? null : 'call')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
+                  <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'call' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Call</span>
+                  {callConfig.enabled && callConfig.agentId && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">2 tools</span>}
                 </button>
+                {toolsSection === 'call' && (
+                  <div className="px-5 pb-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Call Tool</label>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Trigger outbound voice calls using an AI agent.</p>
+                      </div>
+                      <button onClick={() => setCallConfig({ ...callConfig, enabled: !callConfig.enabled })} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callConfig.enabled ? 'bg-green-600' : 'bg-gray-300'}`}>
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                    {callConfig.enabled && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Voice Agent *</label>
+                          <select value={callConfig.agentId} onChange={(e) => setCallConfig({ ...callConfig, agentId: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm">
+                            <option value="">Select an agent...</option>
+                            {agentsList.map(agent => (<option key={agent.id} value={agent.id}>{agent.name}{agent.vapiId ? '' : ' (not synced)'}</option>))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Phone Number *</label>
+                          <select value={callConfig.phoneNumberId} onChange={(e) => setCallConfig({ ...callConfig, phoneNumberId: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm">
+                            <option value="">Select a phone number...</option>
+                            {phoneNumbersList.map(pn => (<option key={pn.id} value={pn.id}>{pn.phoneNumber}{pn.label ? ` (${pn.label})` : ''}</option>))}
+                          </select>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {callConfig.enabled && (
-                <>
-                  {/* Info note */}
-                  <div className="flex items-start gap-2.5 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <svg className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-xs text-blue-700 dark:text-blue-300">
-                      When enabled, two tools are auto-generated: <strong>make_call_now</strong> (immediate call) and <strong>schedule_call_later</strong> (scheduled callback). The AI decides which to use based on the conversation.
-                    </p>
-                  </div>
-
-                  {/* Agent dropdown */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Voice Agent *</label>
-                    <select
-                      value={callConfig.agentId}
-                      onChange={(e) => setCallConfig({ ...callConfig, agentId: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
-                    >
-                      <option value="">Select an agent...</option>
-                      {agentsList.map(agent => (
-                        <option key={agent.id} value={agent.id}>{agent.name}{agent.vapiId ? '' : ' (not synced)'}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Phone number dropdown */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Phone Number *</label>
-                    <select
-                      value={callConfig.phoneNumberId}
-                      onChange={(e) => setCallConfig({ ...callConfig, phoneNumberId: e.target.value })}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
-                    >
-                      <option value="">Select a phone number...</option>
-                      {phoneNumbersList.map(pn => (
-                        <option key={pn.id} value={pn.id}>{pn.phoneNumber}{pn.label ? ` (${pn.label})` : ''}</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">This phone number will be used as the caller ID for outbound calls.</p>
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="flex justify-end gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
-              <button
-                onClick={() => setShowCallModal(false)}
-                className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== TOOLS MODAL ===== */}
-      {showToolsModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border z-10">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tools</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setToolForm({ type: 'apiRequest', name: '', description: '', method: 'POST', url: '', headers: '', body: '', timeoutSeconds: 20 })
-                    setEditingToolIndex(null)
-                    setShowToolEditModal(true)
-                  }}
-                  className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium"
-                >
-                  + Add Tool
+              {/* ── Google Sheets ── */}
+              <div>
+                <button onClick={() => { setToolsSection(s => s === 'sheets' ? null : 'sheets'); if (sheetsConfig.integrationId) fetchSpreadsheets(sheetsConfig.integrationId, '') }} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
+                  <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'sheets' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 013-3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6z" /></svg>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Google Sheets</span>
+                  {sheetsConfig.enabled && sheetsConfig.integrationId && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">6 tools</span>}
                 </button>
-                <button onClick={() => setShowToolsModal(false)} className="text-gray-500 hover:text-gray-700">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                {toolsSection === 'sheets' && (
+                  <div className="px-5 pb-4 space-y-3">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className={`w-10 h-5 rounded-full relative transition-colors ${sheetsConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={() => setSheetsConfig(prev => ({ ...prev, enabled: !prev.enabled }))}>
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${sheetsConfig.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Google Sheets tools</span>
+                    </label>
+                    {sheetsConfig.enabled && (
+                      <>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Google Account</label>
+                          {calendarIntegrations.filter(i => i.provider === 'google').length === 0 ? (
+                            <p className="text-xs text-red-500">No Google accounts connected. Connect one in Calendar settings first.</p>
+                          ) : (
+                            <select value={sheetsConfig.integrationId} onChange={e => { const newId = e.target.value; setSheetsConfig(prev => ({ ...prev, integrationId: newId, spreadsheetId: '', spreadsheetName: '' })); if (newId) fetchSpreadsheets(newId, '') }} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                              <option value="">Select account...</option>
+                              {calendarIntegrations.filter(i => i.provider === 'google').map(i => (<option key={i.id} value={i.id}>{i.accountLabel || i.externalAccountId || `Google #${i.id}`}</option>))}
+                            </select>
+                          )}
+                        </div>
+                        {sheetsConfig.integrationId && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Default Spreadsheet <span className="text-gray-400">(optional)</span></label>
+                            <div className="relative mb-2">
+                              <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                              <input value={sheetSearch} onChange={e => { setSheetSearch(e.target.value); clearTimeout(window._sheetSearchTimeout); window._sheetSearchTimeout = setTimeout(() => fetchSpreadsheets(sheetsConfig.integrationId, e.target.value), 400) }} placeholder="Search spreadsheets..." className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                            </div>
+                            <div className="max-h-36 overflow-y-auto rounded-lg border border-gray-200 dark:border-dark-border">
+                              {sheetFilesLoading ? (<div className="flex items-center justify-center py-4"><svg className="w-5 h-5 animate-spin text-green-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg></div>
+                              ) : sheetFiles.length === 0 ? (<p className="text-xs text-center py-3 text-gray-400">No spreadsheets found</p>
+                              ) : (sheetFiles.map(f => (
+                                <button key={f.id} onClick={() => setSheetsConfig(prev => ({ ...prev, spreadsheetId: f.id, spreadsheetName: f.name }))} className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-dark-hover transition ${f.id === sheetsConfig.spreadsheetId ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                                  <span className="truncate flex-1">{f.name}</span>
+                                  {f.id === sheetsConfig.spreadsheetId && <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                                </button>
+                              )))}
+                            </div>
+                            {sheetsConfig.spreadsheetId && <button onClick={() => setSheetsConfig(prev => ({ ...prev, spreadsheetId: '', spreadsheetName: '' }))} className="mt-1 text-xs text-red-500 hover:underline">Clear selection</button>}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-            <div className="p-4">
-              {(() => {
-                const visibleTools = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name))
-                return visibleTools.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-6">No tools configured. Add API request tools for your chatbot to call.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {visibleTools.map((tool) => {
-                      const realIndex = tools.indexOf(tool)
-                      return (
-                        <div key={realIndex} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-bg rounded-lg">
-                          <div className="min-w-0 flex-1">
-                            <span className="text-sm font-medium text-gray-900 dark:text-white">{tool.name || tool.type}</span>
-                            <span className="text-xs text-gray-400 ml-2">{tool.method} {tool.url?.substring(0, 30)}{tool.url?.length > 30 ? '...' : ''}</span>
+
+              {/* ── Google Docs ── */}
+              <div>
+                <button onClick={() => { setToolsSection(s => s === 'docs' ? null : 'docs'); if (docsConfig.integrationId) fetchDocuments(docsConfig.integrationId, '') }} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
+                  <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'docs' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Google Docs</span>
+                  {docsConfig.enabled && docsConfig.integrationId && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">4 tools</span>}
+                </button>
+                {toolsSection === 'docs' && (
+                  <div className="px-5 pb-4 space-y-3">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className={`w-10 h-5 rounded-full relative transition-colors ${docsConfig.enabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={() => setDocsConfig(prev => ({ ...prev, enabled: !prev.enabled }))}>
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${docsConfig.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Google Docs tools</span>
+                    </label>
+                    {docsConfig.enabled && (
+                      <>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Google Account</label>
+                          {calendarIntegrations.filter(i => i.provider === 'google').length === 0 ? (
+                            <p className="text-xs text-red-500">No Google accounts connected. Connect one in Calendar settings first.</p>
+                          ) : (
+                            <select value={docsConfig.integrationId} onChange={e => { const newId = e.target.value; setDocsConfig(prev => ({ ...prev, integrationId: newId, documentId: '', documentName: '' })); if (newId) fetchDocuments(newId, '') }} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                              <option value="">Select account...</option>
+                              {calendarIntegrations.filter(i => i.provider === 'google').map(i => (<option key={i.id} value={i.id}>{i.accountLabel || i.externalAccountId || `Google #${i.id}`}</option>))}
+                            </select>
+                          )}
+                        </div>
+                        {docsConfig.integrationId && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Default Document <span className="text-gray-400">(optional)</span></label>
+                            <div className="relative mb-2">
+                              <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                              <input value={docSearch} onChange={e => { setDocSearch(e.target.value); clearTimeout(window._docSearchTimeout); window._docSearchTimeout = setTimeout(() => fetchDocuments(docsConfig.integrationId, e.target.value), 400) }} placeholder="Search documents..." className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                            </div>
+                            <div className="max-h-36 overflow-y-auto rounded-lg border border-gray-200 dark:border-dark-border">
+                              {docFilesLoading ? (<div className="flex items-center justify-center py-4"><svg className="w-5 h-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg></div>
+                              ) : docFiles.length === 0 ? (<p className="text-xs text-center py-3 text-gray-400">No documents found</p>
+                              ) : (docFiles.map(f => (
+                                <button key={f.id} onClick={() => setDocsConfig(prev => ({ ...prev, documentId: f.id, documentName: f.name }))} className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-dark-hover transition ${f.id === docsConfig.documentId ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                                  <span className="truncate flex-1">{f.name}</span>
+                                  {f.id === docsConfig.documentId && <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                                </button>
+                              )))}
+                            </div>
+                            {docsConfig.documentId && <button onClick={() => setDocsConfig(prev => ({ ...prev, documentId: '', documentName: '' }))} className="mt-1 text-xs text-red-500 hover:underline">Clear selection</button>}
                           </div>
-                          <div className="flex gap-1 flex-shrink-0">
-                            <button onClick={() => handleEditTool(realIndex)} className="p-1.5 text-gray-400 hover:text-primary-600 rounded">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                            <button onClick={() => handleDeleteTool(realIndex)} className="p-1.5 text-gray-400 hover:text-red-600 rounded">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ── GHL CRM ── */}
+              <div>
+                <button onClick={() => setToolsSection(s => s === 'ghl' ? null : 'ghl')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
+                  <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'ghl' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  <svg className="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">GHL CRM</span>
+                  {ghlCrmConfig.enabled && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">5 tools</span>}
+                </button>
+                {toolsSection === 'ghl' && (
+                  <div className="px-5 pb-4 space-y-3">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className={`w-10 h-5 rounded-full relative transition-colors ${ghlCrmConfig.enabled ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={() => setGhlCrmConfig(prev => ({ ...prev, enabled: !prev.enabled }))}>
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable GHL CRM tools</span>
+                    </label>
+                    {ghlCrmConfig.enabled && (
+                      <>
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">5 tools: create note, create/update opportunity, add tags, add to workflow.</p>
+                          <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">contactId is auto-injected from conversation context.</p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Default Pipeline <span className="text-gray-400">(optional)</span></label>
+                          <select value={ghlCrmConfig.pipelineId} onChange={(e) => { const selected = ghlPipelines.find(p => p.id === e.target.value); setGhlCrmConfig(prev => ({ ...prev, pipelineId: e.target.value, pipelineName: selected?.name || '' })) }} onFocus={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (err) { console.error('Failed to fetch pipelines:', err) } } }} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                            <option value="">None (AI will need pipeline ID)</option>
+                            {ghlPipelines.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                          </select>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Custom Tools ── */}
+              <div>
+                <button onClick={() => setToolsSection(s => s === 'custom' ? null : 'custom')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
+                  <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'custom' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Custom API Tools</span>
+                  {(() => { const c = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length; return c > 0 ? <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">{c} tool{c > 1 ? 's' : ''}</span> : null })()}
+                </button>
+                {toolsSection === 'custom' && (
+                  <div className="px-5 pb-4">
+                    <div className="flex justify-end mb-2">
+                      <button onClick={() => { setToolForm({ type: 'apiRequest', name: '', description: '', method: 'POST', url: '', headers: '', body: '', timeoutSeconds: 20 }); setEditingToolIndex(null); setShowToolEditModal(true) }} className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium">+ Add Tool</button>
+                    </div>
+                    {(() => {
+                      const visibleTools = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name))
+                      return visibleTools.length === 0 ? (
+                        <p className="text-sm text-gray-400 text-center py-4">No custom tools yet.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {visibleTools.map((tool) => {
+                            const realIndex = tools.indexOf(tool)
+                            return (
+                              <div key={realIndex} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-bg rounded-lg">
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">{tool.name || tool.type}</span>
+                                  <span className="text-xs text-gray-400 ml-2">{tool.method} {tool.url?.substring(0, 30)}{tool.url?.length > 30 ? '...' : ''}</span>
+                                </div>
+                                <div className="flex gap-1 flex-shrink-0">
+                                  <button onClick={() => handleEditTool(realIndex)} className="p-1.5 text-gray-400 hover:text-primary-600 rounded"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                                  <button onClick={() => handleDeleteTool(realIndex)} className="p-1.5 text-gray-400 hover:text-red-600 rounded"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       )
-                    })}
+                    })()}
                   </div>
-                )
-              })()}
+                )}
+              </div>
+
             </div>
             <div className="flex justify-end p-5 border-t border-gray-100 dark:border-dark-border">
-              <button
-                onClick={() => setShowToolsModal(false)}
-                className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700"
-              >
-                Done
-              </button>
+              <button onClick={() => { setShowUnifiedToolsModal(false); setToolsSection(null) }} className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700">Done</button>
             </div>
           </div>
         </div>
@@ -2638,402 +2632,6 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
         </div>
       )}
 
-      {/* Google Sheets Modal */}
-      {showSheetsModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 013-3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6z" />
-                </svg>
-                Google Sheets
-              </h3>
-              <button onClick={() => setShowSheetsModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 overflow-y-auto">
-              {/* Enable toggle */}
-              <label className="flex items-center gap-3 cursor-pointer">
-                <div
-                  className={`w-10 h-5 rounded-full relative transition-colors ${sheetsConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                  onClick={() => setSheetsConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                >
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${sheetsConfig.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
-                </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Google Sheets tools</span>
-              </label>
-
-              {sheetsConfig.enabled && (
-                <>
-                  {/* Google account selector */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Google Account</label>
-                    {calendarIntegrations.filter(i => i.provider === 'google').length === 0 ? (
-                      <p className="text-xs text-red-500">No Google accounts connected. Connect one in Calendar settings first.</p>
-                    ) : (
-                      <select
-                        value={sheetsConfig.integrationId}
-                        onChange={e => {
-                          const newId = e.target.value
-                          setSheetsConfig(prev => ({ ...prev, integrationId: newId, spreadsheetId: '', spreadsheetName: '' }))
-                          if (newId) fetchSpreadsheets(newId, '')
-                        }}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
-                      >
-                        <option value="">Select account...</option>
-                        {calendarIntegrations.filter(i => i.provider === 'google').map(i => (
-                          <option key={i.id} value={i.id}>{i.accountLabel || i.externalAccountId || `Google #${i.id}`}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-
-                  {/* Spreadsheet picker */}
-                  {sheetsConfig.integrationId && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
-                        Default Spreadsheet <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <div className="relative mb-2">
-                        <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                        <input
-                          value={sheetSearch}
-                          onChange={e => {
-                            setSheetSearch(e.target.value)
-                            clearTimeout(window._sheetSearchTimeout)
-                            window._sheetSearchTimeout = setTimeout(() => fetchSpreadsheets(sheetsConfig.integrationId, e.target.value), 400)
-                          }}
-                          placeholder="Search spreadsheets..."
-                          className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
-                        />
-                      </div>
-                      <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-dark-border">
-                        {sheetFilesLoading ? (
-                          <div className="flex items-center justify-center py-6">
-                            <svg className="w-5 h-5 animate-spin text-green-500" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                            </svg>
-                          </div>
-                        ) : sheetFiles.length === 0 ? (
-                          <p className="text-xs text-center py-4 text-gray-400">No spreadsheets found</p>
-                        ) : (
-                          sheetFiles.map(f => (
-                            <button
-                              key={f.id}
-                              onClick={() => setSheetsConfig(prev => ({ ...prev, spreadsheetId: f.id, spreadsheetName: f.name }))}
-                              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-dark-hover transition ${
-                                f.id === sheetsConfig.spreadsheetId ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'
-                              }`}
-                            >
-                              <svg className={`w-4 h-4 flex-shrink-0 ${f.id === sheetsConfig.spreadsheetId ? 'text-green-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 013-3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6z" />
-                              </svg>
-                              <span className="truncate flex-1">{f.name}</span>
-                              {f.id === sheetsConfig.spreadsheetId && (
-                                <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                              )}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                      {sheetsConfig.spreadsheetId && (
-                        <button
-                          onClick={() => setSheetsConfig(prev => ({ ...prev, spreadsheetId: '', spreadsheetName: '' }))}
-                          className="mt-2 text-xs text-red-500 hover:underline"
-                        >
-                          Clear selection (AI will use list tool to find files)
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Tools summary */}
-                  <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
-                    <p className="text-xs text-gray-400 mb-1">This will add 6 tools:</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      list_spreadsheets, get_spreadsheet_info, read_sheet_data, write_sheet_data, append_sheet_rows, create_spreadsheet
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-dark-border">
-              <button
-                onClick={() => setShowSheetsModal(false)}
-                className="px-4 py-2 text-sm rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-hover transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* GHL CRM Modal */}
-      {showGhlCrmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-xl w-full max-w-md mx-4 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">GHL CRM</h3>
-              </div>
-              <button onClick={() => setShowGhlCrmModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              {/* Enable toggle */}
-              <label className="flex items-center gap-3 cursor-pointer">
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={ghlCrmConfig.enabled}
-                    onChange={(e) => setGhlCrmConfig(prev => ({ ...prev, enabled: e.target.checked }))}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:bg-orange-500 transition-colors"></div>
-                  <div className="absolute left-[2px] top-[2px] bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full"></div>
-                </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable GHL CRM tools</span>
-              </label>
-
-              {ghlCrmConfig.enabled && (
-                <>
-                  {/* Info note */}
-                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                      This adds 5 GHL CRM tools to your chatbot:
-                    </p>
-                    <ul className="mt-1 text-xs text-blue-600 dark:text-blue-400 space-y-0.5 list-disc list-inside">
-                      <li><strong>ghl_create_note</strong> - Create a note on a contact</li>
-                      <li><strong>ghl_create_opportunity</strong> - Create a deal in a pipeline</li>
-                      <li><strong>ghl_update_opportunity</strong> - Update deal stage/status</li>
-                      <li><strong>ghl_add_tags</strong> - Add tags to a contact</li>
-                      <li><strong>ghl_add_to_workflow</strong> - Add contact to a workflow</li>
-                    </ul>
-                    <p className="mt-2 text-xs text-blue-600 dark:text-blue-400">
-                      contactId is auto-injected from the conversation context (n8n webhook body).
-                    </p>
-                  </div>
-
-                  {/* Pipeline dropdown (optional default) */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Default Pipeline (optional)
-                    </label>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                      Used as default for ghl_create_opportunity. The AI can still specify a different pipeline.
-                    </p>
-                    <select
-                      value={ghlCrmConfig.pipelineId}
-                      onChange={(e) => {
-                        const selected = ghlPipelines.find(p => p.id === e.target.value)
-                        setGhlCrmConfig(prev => ({
-                          ...prev,
-                          pipelineId: e.target.value,
-                          pipelineName: selected?.name || ''
-                        }))
-                      }}
-                      onFocus={async () => {
-                        if (ghlPipelines.length === 0) {
-                          try {
-                            const { data } = await ghlAPI.getPipelines()
-                            setGhlPipelines(data.pipelines || [])
-                          } catch (err) {
-                            console.error('Failed to fetch GHL pipelines:', err)
-                          }
-                        }
-                      }}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
-                    >
-                      <option value="">None (AI will need pipeline ID)</option>
-                      {ghlPipelines.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Tools summary */}
-                  <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
-                    <p className="text-xs text-gray-400 mb-1">This will add 5 tools:</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      ghl_create_note, ghl_create_opportunity, ghl_update_opportunity, ghl_add_tags, ghl_add_to_workflow
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-dark-border">
-              <button
-                onClick={() => setShowGhlCrmModal(false)}
-                className="px-4 py-2 text-sm rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-hover transition"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Google Docs Modal */}
-      {showDocsModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Google Docs
-              </h3>
-              <button onClick={() => setShowDocsModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 overflow-y-auto">
-              {/* Enable toggle */}
-              <label className="flex items-center gap-3 cursor-pointer">
-                <div
-                  className={`w-10 h-5 rounded-full relative transition-colors ${docsConfig.enabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                  onClick={() => setDocsConfig(prev => ({ ...prev, enabled: !prev.enabled }))}
-                >
-                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${docsConfig.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
-                </div>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Google Docs tools</span>
-              </label>
-
-              {docsConfig.enabled && (
-                <>
-                  {/* Google account selector */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Google Account</label>
-                    {calendarIntegrations.filter(i => i.provider === 'google').length === 0 ? (
-                      <p className="text-xs text-red-500">No Google accounts connected. Connect one in Calendar settings first.</p>
-                    ) : (
-                      <select
-                        value={docsConfig.integrationId}
-                        onChange={e => {
-                          const newId = e.target.value
-                          setDocsConfig(prev => ({ ...prev, integrationId: newId, documentId: '', documentName: '' }))
-                          if (newId) fetchDocuments(newId, '')
-                        }}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
-                      >
-                        <option value="">Select account...</option>
-                        {calendarIntegrations.filter(i => i.provider === 'google').map(i => (
-                          <option key={i.id} value={i.id}>{i.accountLabel || i.externalAccountId || `Google #${i.id}`}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-
-                  {/* Document picker */}
-                  {docsConfig.integrationId && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">
-                        Default Document <span className="text-gray-400">(optional)</span>
-                      </label>
-                      <div className="relative mb-2">
-                        <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                        <input
-                          value={docSearch}
-                          onChange={e => {
-                            setDocSearch(e.target.value)
-                            clearTimeout(window._docSearchTimeout)
-                            window._docSearchTimeout = setTimeout(() => fetchDocuments(docsConfig.integrationId, e.target.value), 400)
-                          }}
-                          placeholder="Search documents..."
-                          className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
-                        />
-                      </div>
-                      <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-dark-border">
-                        {docFilesLoading ? (
-                          <div className="flex items-center justify-center py-6">
-                            <svg className="w-5 h-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                            </svg>
-                          </div>
-                        ) : docFiles.length === 0 ? (
-                          <p className="text-xs text-center py-4 text-gray-400">No documents found</p>
-                        ) : (
-                          docFiles.map(f => (
-                            <button
-                              key={f.id}
-                              onClick={() => setDocsConfig(prev => ({ ...prev, documentId: f.id, documentName: f.name }))}
-                              className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-dark-hover transition ${
-                                f.id === docsConfig.documentId ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
-                              }`}
-                            >
-                              <svg className={`w-4 h-4 flex-shrink-0 ${f.id === docsConfig.documentId ? 'text-blue-500' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              <span className="truncate flex-1">{f.name}</span>
-                              {f.id === docsConfig.documentId && (
-                                <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                              )}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                      {docsConfig.documentId && (
-                        <button
-                          onClick={() => setDocsConfig(prev => ({ ...prev, documentId: '', documentName: '' }))}
-                          className="mt-2 text-xs text-red-500 hover:underline"
-                        >
-                          Clear selection (AI will use list tool to find docs)
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Tools summary */}
-                  <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
-                    <p className="text-xs text-gray-400 mb-1">This will add 4 tools:</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      list_google_docs, read_google_doc, create_google_doc, append_to_google_doc
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-dark-border">
-              <button
-                onClick={() => setShowDocsModal(false)}
-                className="px-4 py-2 text-sm rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-hover transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
