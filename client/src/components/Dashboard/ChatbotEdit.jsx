@@ -167,8 +167,16 @@ export default function ChatbotEdit() {
   const [docSearch, setDocSearch] = useState('')
 
   // GHL CRM settings
-  const [ghlCrmConfig, setGhlCrmConfig] = useState({ createNote: false, createOpportunity: false, updateOpportunity: false, addTags: false, addToWorkflow: false, pipelineId: '', pipelineName: '' })
+  const [ghlCrmConfig, setGhlCrmConfig] = useState({
+    createNote: false,
+    createOpportunity: false, pipelineId: '', pipelineName: '', stageId: '', stageName: '',
+    updateOpportunity: false,
+    addTags: false, tags: [],
+    addToWorkflow: false, workflowId: '', workflowName: ''
+  })
   const [ghlPipelines, setGhlPipelines] = useState([])
+  const [ghlTags, setGhlTags] = useState([])
+  const [ghlWorkflows, setGhlWorkflows] = useState([])
 
   // Unified tools modal
   const [showUnifiedToolsModal, setShowUnifiedToolsModal] = useState(false)
@@ -670,14 +678,17 @@ export default function ChatbotEdit() {
       const pipelineNote = ghlCrmConfig.pipelineId
         ? ` Default pipeline: "${ghlCrmConfig.pipelineName}" (ID: ${ghlCrmConfig.pipelineId}).`
         : ''
+      const stageNote = ghlCrmConfig.stageId
+        ? ` Default stage: "${ghlCrmConfig.stageName}" (ID: ${ghlCrmConfig.stageId}).`
+        : ''
       ghlTools.push({
         type: 'apiRequest', method: 'POST', url: `${base}/create-opportunity?${qp}`,
         name: 'ghl_create_opportunity',
-        description: `Create a new opportunity/deal in a GHL pipeline.${pipelineNote}`,
+        description: `Create a new opportunity/deal in a GHL pipeline.${pipelineNote}${stageNote}`,
         body: { type: 'object', properties: {
           contactId: { type: 'string', description: 'The GHL contact ID' },
           pipelineId: { type: 'string', description: `The pipeline ID.${ghlCrmConfig.pipelineId ? ` Default: ${ghlCrmConfig.pipelineId}` : ''}` },
-          stageId: { type: 'string', description: 'The pipeline stage ID to place the opportunity in' },
+          stageId: { type: 'string', description: `The pipeline stage ID.${ghlCrmConfig.stageId ? ` Default: ${ghlCrmConfig.stageId}` : ''}` },
           name: { type: 'string', description: 'Name/title for the opportunity' },
           status: { type: 'string', description: 'Status: open, won, lost, or abandoned. Defaults to open.' }
         }, required: ['contactId', 'pipelineId', 'stageId', 'name'] },
@@ -702,26 +713,32 @@ export default function ChatbotEdit() {
     }
 
     if (ghlCrmConfig.addTags) {
+      const tagsNote = ghlCrmConfig.tags?.length > 0
+        ? ` Available tags: ${ghlCrmConfig.tags.join(', ')}.`
+        : ''
       ghlTools.push({
         type: 'apiRequest', method: 'POST', url: `${base}/add-tags?${qp}`,
         name: 'ghl_add_tags',
-        description: 'Add one or more tags to a GHL contact. Tags are merged with existing tags.',
+        description: `Add one or more tags to a GHL contact. Tags are merged with existing tags.${tagsNote}`,
         body: { type: 'object', properties: {
           contactId: { type: 'string', description: 'The GHL contact ID' },
-          tags: { type: 'array', description: 'Array of tag strings to add, e.g. ["hot-lead", "premium"]' }
+          tags: { type: 'array', description: `Array of tag strings to add.${tagsNote || ' e.g. ["hot-lead", "premium"]'}` }
         }, required: ['contactId', 'tags'] },
         timeoutSeconds: 30
       })
     }
 
     if (ghlCrmConfig.addToWorkflow) {
+      const wfNote = ghlCrmConfig.workflowId
+        ? ` Default workflow: "${ghlCrmConfig.workflowName}" (ID: ${ghlCrmConfig.workflowId}).`
+        : ''
       ghlTools.push({
         type: 'apiRequest', method: 'POST', url: `${base}/add-to-workflow?${qp}`,
         name: 'ghl_add_to_workflow',
-        description: 'Add a GHL contact to an automation workflow.',
+        description: `Add a GHL contact to an automation workflow.${wfNote}`,
         body: { type: 'object', properties: {
           contactId: { type: 'string', description: 'The GHL contact ID' },
-          workflowId: { type: 'string', description: 'The workflow ID to add the contact to' }
+          workflowId: { type: 'string', description: `The workflow ID to add the contact to.${ghlCrmConfig.workflowId ? ` Default: ${ghlCrmConfig.workflowId}` : ''}` }
         }, required: ['contactId', 'workflowId'] },
         timeoutSeconds: 30
       })
@@ -2046,34 +2063,106 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   {(() => { const c = [ghlCrmConfig.createNote, ghlCrmConfig.createOpportunity, ghlCrmConfig.updateOpportunity, ghlCrmConfig.addTags, ghlCrmConfig.addToWorkflow].filter(Boolean).length; return c > 0 ? <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">{c} tool{c > 1 ? 's' : ''}</span> : null })()}
                 </button>
                 {toolsSection === 'ghl' && (
-                  <div className="px-5 pb-4 space-y-2">
-                    <p className="text-xs text-gray-400 mb-1">contactId is auto-injected from conversation context.</p>
-                    {[
-                      { key: 'createNote', label: 'Create Note', desc: 'Log notes on a contact' },
-                      { key: 'createOpportunity', label: 'Create Opportunity', desc: 'Create a deal in a pipeline' },
-                      { key: 'updateOpportunity', label: 'Update Opportunity', desc: 'Update deal stage/status' },
-                      { key: 'addTags', label: 'Add Tags', desc: 'Add tags to a contact' },
-                      { key: 'addToWorkflow', label: 'Add to Workflow', desc: 'Add contact to a workflow' }
-                    ].map(t => (
-                      <label key={t.key} className="flex items-center gap-3 py-1.5 cursor-pointer">
-                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig[t.key] ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, [t.key]: !prev[t.key] })) }}>
-                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig[t.key] ? 'left-[18px]' : 'left-[2px]'}`} />
+                  <div className="px-5 pb-4 space-y-1">
+                    <p className="text-xs text-gray-400 mb-2">contactId is auto-injected from conversation context.</p>
+
+                    {/* Create Note */}
+                    <div className="rounded-lg border border-gray-100 dark:border-dark-border overflow-hidden">
+                      <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
+                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.createNote ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, createNote: !prev.createNote })) }}>
+                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.createNote ? 'left-[18px]' : 'left-[2px]'}`} />
                         </div>
-                        <div className="min-w-0">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t.label}</span>
-                          <span className="text-xs text-gray-400 ml-1.5">{t.desc}</span>
-                        </div>
+                        <div><span className="text-sm font-medium text-gray-700 dark:text-gray-200">Create Note</span><span className="text-xs text-gray-400 ml-1.5">Log notes on a contact</span></div>
                       </label>
-                    ))}
-                    {(ghlCrmConfig.createOpportunity || ghlCrmConfig.updateOpportunity) && (
-                      <div className="pt-2 mt-1 border-t border-gray-100 dark:border-dark-border">
-                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Default Pipeline <span className="text-gray-400">(optional)</span></label>
-                        <select value={ghlCrmConfig.pipelineId} onChange={(e) => { const selected = ghlPipelines.find(p => p.id === e.target.value); setGhlCrmConfig(prev => ({ ...prev, pipelineId: e.target.value, pipelineName: selected?.name || '' })) }} onFocus={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (err) { console.error('Failed to fetch pipelines:', err) } } }} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
-                          <option value="">None (AI will need pipeline ID)</option>
-                          {ghlPipelines.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
-                        </select>
-                      </div>
-                    )}
+                    </div>
+
+                    {/* Create Opportunity */}
+                    <div className="rounded-lg border border-gray-100 dark:border-dark-border overflow-hidden">
+                      <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
+                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.createOpportunity ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, createOpportunity: !prev.createOpportunity })) }}>
+                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.createOpportunity ? 'left-[18px]' : 'left-[2px]'}`} />
+                        </div>
+                        <div><span className="text-sm font-medium text-gray-700 dark:text-gray-200">Create Opportunity</span><span className="text-xs text-gray-400 ml-1.5">Create a deal in a pipeline</span></div>
+                      </label>
+                      {ghlCrmConfig.createOpportunity && (
+                        <div className="px-3 pb-3 space-y-2 border-t border-gray-50 dark:border-dark-border pt-2">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Pipeline</label>
+                            <select value={ghlCrmConfig.pipelineId} onChange={(e) => { const sel = ghlPipelines.find(p => p.id === e.target.value); setGhlCrmConfig(prev => ({ ...prev, pipelineId: e.target.value, pipelineName: sel?.name || '', stageId: '', stageName: '' })) }} onFocus={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (err) { console.error('Failed to fetch pipelines:', err) } } }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                              <option value="">Select pipeline...</option>
+                              {ghlPipelines.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                            </select>
+                          </div>
+                          {ghlCrmConfig.pipelineId && (() => { const stages = ghlPipelines.find(p => p.id === ghlCrmConfig.pipelineId)?.stages || []; return stages.length > 0 ? (
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Stage</label>
+                              <select value={ghlCrmConfig.stageId} onChange={(e) => { const sel = (ghlPipelines.find(p => p.id === ghlCrmConfig.pipelineId)?.stages || []).find(s => s.id === e.target.value); setGhlCrmConfig(prev => ({ ...prev, stageId: e.target.value, stageName: sel?.name || '' })) }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                                <option value="">Select stage...</option>
+                                {stages.map(s => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                              </select>
+                            </div>
+                          ) : null })()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Update Opportunity */}
+                    <div className="rounded-lg border border-gray-100 dark:border-dark-border overflow-hidden">
+                      <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
+                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.updateOpportunity ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, updateOpportunity: !prev.updateOpportunity })) }}>
+                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.updateOpportunity ? 'left-[18px]' : 'left-[2px]'}`} />
+                        </div>
+                        <div><span className="text-sm font-medium text-gray-700 dark:text-gray-200">Update Opportunity</span><span className="text-xs text-gray-400 ml-1.5">Update deal stage/status</span></div>
+                      </label>
+                    </div>
+
+                    {/* Add Tags */}
+                    <div className="rounded-lg border border-gray-100 dark:border-dark-border overflow-hidden">
+                      <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
+                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.addTags ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, addTags: !prev.addTags })) }}>
+                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.addTags ? 'left-[18px]' : 'left-[2px]'}`} />
+                        </div>
+                        <div><span className="text-sm font-medium text-gray-700 dark:text-gray-200">Add Tags</span><span className="text-xs text-gray-400 ml-1.5">Add tags to a contact</span></div>
+                      </label>
+                      {ghlCrmConfig.addTags && (
+                        <div className="px-3 pb-3 border-t border-gray-50 dark:border-dark-border pt-2">
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Available Tags</label>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {(ghlCrmConfig.tags || []).map((tag, i) => (
+                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
+                                {tag}
+                                <button type="button" onClick={() => setGhlCrmConfig(prev => ({ ...prev, tags: prev.tags.filter((_, j) => j !== i) }))} className="hover:text-red-500">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                          <select onChange={(e) => { if (e.target.value && !(ghlCrmConfig.tags || []).includes(e.target.value)) { setGhlCrmConfig(prev => ({ ...prev, tags: [...(prev.tags || []), e.target.value] })) } e.target.value = '' }} onFocus={async () => { if (ghlTags.length === 0) { try { const { data } = await ghlAPI.getTags(); setGhlTags(data.tags || []) } catch (err) { console.error('Failed to fetch tags:', err) } } }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                            <option value="">Add a tag...</option>
+                            {ghlTags.filter(t => !(ghlCrmConfig.tags || []).includes(t.name)).map(t => (<option key={t.id} value={t.name}>{t.name}</option>))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Add to Workflow */}
+                    <div className="rounded-lg border border-gray-100 dark:border-dark-border overflow-hidden">
+                      <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
+                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.addToWorkflow ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, addToWorkflow: !prev.addToWorkflow })) }}>
+                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.addToWorkflow ? 'left-[18px]' : 'left-[2px]'}`} />
+                        </div>
+                        <div><span className="text-sm font-medium text-gray-700 dark:text-gray-200">Add to Workflow</span><span className="text-xs text-gray-400 ml-1.5">Add contact to a workflow</span></div>
+                      </label>
+                      {ghlCrmConfig.addToWorkflow && (
+                        <div className="px-3 pb-3 border-t border-gray-50 dark:border-dark-border pt-2">
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Workflow</label>
+                          <select value={ghlCrmConfig.workflowId} onChange={(e) => { const sel = ghlWorkflows.find(w => w.id === e.target.value); setGhlCrmConfig(prev => ({ ...prev, workflowId: e.target.value, workflowName: sel?.name || '' })) }} onFocus={async () => { if (ghlWorkflows.length === 0) { try { const { data } = await ghlAPI.getWorkflows(); setGhlWorkflows(data.workflows || []) } catch (err) { console.error('Failed to fetch workflows:', err) } } }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                            <option value="">Select workflow...</option>
+                            {ghlWorkflows.map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

@@ -41,4 +41,7 @@ router.get('/custom-fields', ghlController.getCustomFields);
 // Get users from GHL (for CRM user assignment)
 router.get('/users', ghlController.getUsers);
 
+// Get workflows from GHL
+router.get('/workflows', ghlController.getWorkflows);
+
 module.exports = router;

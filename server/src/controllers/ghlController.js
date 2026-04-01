@@ -990,6 +990,42 @@ const getUsers = async (req, res) => {
   }
 };
 
+/**
+ * Get workflows from GHL for the authenticated user's location
+ * GET /api/ghl/workflows
+ */
+const getWorkflows = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const conn = await findGhlConnection(userId, req.prisma);
+    if (!conn) {
+      return res.status(400).json({ error: 'GoHighLevel is not connected. Please connect first in Settings.' });
+    }
+
+    const { token, locationId } = conn;
+
+    try {
+      const data = await ghlRequest(`/workflows/?locationId=${locationId}`, token);
+
+      const workflows = (data.workflows || []).map(w => ({
+        id: w.id,
+        name: w.name,
+        status: w.status
+      }));
+
+      res.json({ workflows });
+    } catch (ghlError) {
+      console.error('GHL API error fetching workflows:', ghlError);
+      const msg = ghlError.message || '';
+      res.status(400).json({ error: `Failed to fetch workflows: ${msg}` });
+    }
+  } catch (error) {
+    console.error('Error fetching GHL workflows:', error);
+    res.status(500).json({ error: 'Failed to fetch workflows' });
+  }
+};
+
 module.exports = {
   connect,
   getStatus,
@@ -999,6 +1035,7 @@ module.exports = {
   getTags,
   getCustomFields,
   getUsers,
+  getWorkflows,
   checkAvailability,
   bookAppointment,
   oauthAuthorize,
