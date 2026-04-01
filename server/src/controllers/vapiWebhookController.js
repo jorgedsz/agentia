@@ -147,7 +147,7 @@ const extractCustomerNumber = (call) => {
  * Process GHL CRM actions after a call (tags + pipeline)
  * Fire-and-forget — errors are logged but never propagated.
  */
-const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber) => {
+const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber, callData) => {
   try {
     const ghlCrmConfig = agentConfig?.ghlCrmConfig;
     if (!ghlCrmConfig?.enabled) {
@@ -254,6 +254,7 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
     const pipelineId = ghlCrmConfig.pipelineId;
     const pipelineMapping = ghlCrmConfig.pipelineMapping || {};
     const stageId = pipelineMapping[outcome];
+    let opportunityId = null;
 
     if (pipelineId && stageId) {
       try {
@@ -266,6 +267,7 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
         const existingOpp = (oppSearch.opportunities || []).find(o => o.pipelineId === pipelineId);
 
         if (existingOpp) {
+          opportunityId = existingOpp.id;
           // Update stage
           await ghlRequest(`/opportunities/${existingOpp.id}`, token, {
             method: 'PUT',
@@ -275,7 +277,7 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
         } else {
           // Create new opportunity with contact name
           const oppName = contactName || customerNumber || `Call - ${outcome}`;
-          await ghlRequest('/opportunities/', token, {
+          const createRes = await ghlRequest('/opportunities/', token, {
             method: 'POST',
             body: JSON.stringify({
               locationId,
@@ -286,10 +288,58 @@ const processGhlCrmActions = async (userId, agentConfig, outcome, customerNumber
               status: 'open'
             })
           });
+          opportunityId = createRes.opportunity?.id || createRes.id || null;
           console.log(`[GHL CRM] Created opportunity "${oppName}" for contact ${contactId} in pipeline ${pipelineId}`);
         }
       } catch (oppErr) {
         console.error('[GHL CRM] Opportunity error:', oppErr.message);
+      }
+    }
+
+    // --- Assign User per stage ---
+    const userMapping = ghlCrmConfig.userMapping || {};
+    const assignUserId = userMapping[outcome];
+
+    if (assignUserId && opportunityId) {
+      try {
+        await ghlRequest(`/opportunities/${opportunityId}`, token, {
+          method: 'PUT',
+          body: JSON.stringify({ assignedTo: assignUserId })
+        });
+        console.log(`[GHL CRM] Assigned user ${assignUserId} to opportunity ${opportunityId}`);
+      } catch (assignErr) {
+        console.error('[GHL CRM] User assignment error:', assignErr.message);
+      }
+    }
+
+    // --- Create Contact Note per stage ---
+    const noteMapping = ghlCrmConfig.noteMapping || {};
+    const noteConfig = noteMapping[outcome];
+
+    if (noteConfig && noteConfig.type && noteConfig.type !== 'none') {
+      try {
+        let noteText = '';
+
+        if (noteConfig.type === 'manual') {
+          noteText = noteConfig.text || '';
+        } else if (noteConfig.type === 'ai') {
+          const summaryText = callData?.summary || '';
+          noteText = `AI Note (${outcome}): ${summaryText || 'No summary available'}`;
+        }
+
+        if (noteText) {
+          const noteBody = { body: noteText };
+          if (assignUserId) {
+            noteBody.userId = assignUserId;
+          }
+          await ghlRequest(`/contacts/${contactId}/notes`, token, {
+            method: 'POST',
+            body: JSON.stringify(noteBody)
+          });
+          console.log(`[GHL CRM] Created ${noteConfig.type} note on contact ${contactId}`);
+        }
+      } catch (noteErr) {
+        console.error('[GHL CRM] Note creation error:', noteErr.message);
       }
     }
   } catch (err) {
@@ -570,7 +620,11 @@ const handleEvent = async (req, res) => {
     if (agent) {
       const agentConfig = agent.config ? JSON.parse(agent.config) : {};
 
-      processGhlCrmActions(userId, agentConfig, outcome, customerNumber).catch(err =>
+      processGhlCrmActions(userId, agentConfig, outcome, customerNumber, {
+        summary,
+        structuredData,
+        transcript: transcriptText
+      }).catch(err =>
         console.error('[GHL CRM] processGhlCrmActions failed:', err.message)
       );
 

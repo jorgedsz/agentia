@@ -560,11 +560,24 @@ export default function AgentEdit() {
     pipelineMapping: {
       booked: '', answered: '', not_interested: '',
       no_answer: '', failed: '', transferred: ''
+    },
+    userMapping: {
+      booked: '', answered: '', not_interested: '',
+      no_answer: '', failed: '', transferred: ''
+    },
+    noteMapping: {
+      booked: { type: 'none', text: '' },
+      answered: { type: 'none', text: '' },
+      not_interested: { type: 'none', text: '' },
+      no_answer: { type: 'none', text: '' },
+      failed: { type: 'none', text: '' },
+      transferred: { type: 'none', text: '' }
     }
   })
   const [ghlPipelines, setGhlPipelines] = useState([])
   const [ghlTags, setGhlTags] = useState([])
   const [ghlCustomFields, setGhlCustomFields] = useState([])
+  const [ghlUsers, setGhlUsers] = useState([])
   const [ghlCrmLoading, setGhlCrmLoading] = useState(false)
   const [ghlCrmError, setGhlCrmError] = useState('')
 
@@ -1029,14 +1042,16 @@ export default function AgentEdit() {
     setGhlCrmError('')
     const errors = []
     try {
-      const [pipelinesRes, tagsRes, customFieldsRes] = await Promise.all([
+      const [pipelinesRes, tagsRes, customFieldsRes, usersRes] = await Promise.all([
         ghlAPI.getPipelines().catch(e => { errors.push(e.response?.data?.error || 'Pipelines failed'); return { data: { pipelines: [] } } }),
         ghlAPI.getTags().catch(e => { errors.push(e.response?.data?.error || 'Tags failed'); return { data: { tags: [] } } }),
-        ghlAPI.getCustomFields().catch(e => { errors.push(e.response?.data?.error || 'Custom fields failed'); return { data: { customFields: [] } } })
+        ghlAPI.getCustomFields().catch(e => { errors.push(e.response?.data?.error || 'Custom fields failed'); return { data: { customFields: [] } } }),
+        ghlAPI.getUsers().catch(e => { errors.push(e.response?.data?.error || 'Users failed'); return { data: { users: [] } } })
       ])
       setGhlPipelines(pipelinesRes.data.pipelines || [])
       setGhlTags(tagsRes.data.tags || [])
       setGhlCustomFields(customFieldsRes.data.customFields || [])
+      setGhlUsers(usersRes.data.users || [])
       if (errors.length > 0) {
         setGhlCrmError(errors[0] + (errors[0].includes('reconnect') ? '' : ' Try reconnecting GHL in Settings to grant CRM permissions.'))
       }
@@ -5652,31 +5667,110 @@ If the customer asks to be called back at a later time:
                           </div>
                         </div>
 
-                        {/* Stage mapping per outcome */}
+                        {/* Stage mapping per outcome (expanded cards) */}
                         {ghlCrmConfig.pipelineId && (() => {
                           const selectedPipeline = ghlPipelines.find(p => p.id === ghlCrmConfig.pipelineId)
                           const stages = selectedPipeline?.stages || []
                           return (
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                               {['booked', 'answered', 'not_interested', 'no_answer', 'failed', 'transferred'].map(outcome => (
-                                <div key={outcome} className="flex items-center gap-3 bg-gray-50 dark:bg-dark-hover rounded-xl px-3 py-2.5 border border-gray-200 dark:border-dark-border">
-                                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400 capitalize w-28 shrink-0">{outcome.replace('_', ' ')}</span>
-                                  <div className="relative flex-1">
-                                    <select
-                                      value={ghlCrmConfig.pipelineMapping[outcome] || ''}
-                                      onChange={(e) => setGhlCrmConfig(c => ({
-                                        ...c,
-                                        pipelineMapping: { ...c.pipelineMapping, [outcome]: e.target.value }
-                                      }))}
-                                      className="appearance-none w-full text-sm pl-3 pr-8 py-1.5 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white cursor-pointer focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
-                                    >
-                                      <option value="" className="text-gray-400">{ta('ghlCrmNoStage')}</option>
-                                      {stages.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                      ))}
-                                    </select>
-                                    <svg className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                <div key={outcome} className="bg-gray-50 dark:bg-dark-hover rounded-xl px-3.5 py-3 border border-gray-200 dark:border-dark-border space-y-2.5">
+                                  {/* Outcome label + Stage dropdown */}
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 capitalize w-28 shrink-0">{outcome.replace('_', ' ')}</span>
+                                    <div className="relative flex-1">
+                                      <select
+                                        value={ghlCrmConfig.pipelineMapping[outcome] || ''}
+                                        onChange={(e) => setGhlCrmConfig(c => ({
+                                          ...c,
+                                          pipelineMapping: { ...c.pipelineMapping, [outcome]: e.target.value }
+                                        }))}
+                                        className="appearance-none w-full text-sm pl-3 pr-8 py-1.5 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white cursor-pointer focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
+                                      >
+                                        <option value="" className="text-gray-400">{ta('ghlCrmNoStage')}</option>
+                                        {stages.map(s => (
+                                          <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                      </select>
+                                      <svg className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                    </div>
                                   </div>
+
+                                  {/* Extra config: only shown when a stage is selected */}
+                                  {ghlCrmConfig.pipelineMapping[outcome] && (
+                                    <div className="pl-[7.75rem] space-y-2.5">
+                                      {/* Assign User */}
+                                      <div>
+                                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">{ta('ghlCrmAssignUser')}</label>
+                                        <div className="relative">
+                                          <select
+                                            value={(ghlCrmConfig.userMapping || {})[outcome] || ''}
+                                            onChange={(e) => setGhlCrmConfig(c => ({
+                                              ...c,
+                                              userMapping: { ...(c.userMapping || {}), [outcome]: e.target.value }
+                                            }))}
+                                            className="appearance-none w-full text-sm pl-3 pr-8 py-1.5 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white cursor-pointer focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-shadow"
+                                          >
+                                            <option value="">{ta('ghlCrmSelectUser')}</option>
+                                            {ghlUsers.map(u => (
+                                              <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                                            ))}
+                                          </select>
+                                          <svg className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                        </div>
+                                      </div>
+
+                                      {/* Contact Note */}
+                                      <div>
+                                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 block">{ta('ghlCrmNote')}</label>
+                                        <div className="flex gap-1.5 mb-1.5">
+                                          {[
+                                            { value: 'none', label: ta('ghlCrmNoteNone') },
+                                            { value: 'manual', label: ta('ghlCrmNoteManual') },
+                                            { value: 'ai', label: ta('ghlCrmNoteAI') }
+                                          ].map(opt => {
+                                            const current = (ghlCrmConfig.noteMapping || {})[outcome]?.type || 'none'
+                                            return (
+                                              <button
+                                                key={opt.value}
+                                                onClick={() => setGhlCrmConfig(c => ({
+                                                  ...c,
+                                                  noteMapping: {
+                                                    ...(c.noteMapping || {}),
+                                                    [outcome]: { ...((c.noteMapping || {})[outcome] || {}), type: opt.value }
+                                                  }
+                                                }))}
+                                                className={`text-[11px] px-2.5 py-1 rounded-lg border transition-colors ${current === opt.value
+                                                  ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300 font-medium'
+                                                  : 'bg-white dark:bg-dark-card border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-400 hover:border-gray-300'
+                                                }`}
+                                              >
+                                                {opt.label}
+                                              </button>
+                                            )
+                                          })}
+                                        </div>
+                                        {(ghlCrmConfig.noteMapping || {})[outcome]?.type === 'manual' && (
+                                          <textarea
+                                            value={(ghlCrmConfig.noteMapping || {})[outcome]?.text || ''}
+                                            onChange={(e) => setGhlCrmConfig(c => ({
+                                              ...c,
+                                              noteMapping: {
+                                                ...(c.noteMapping || {}),
+                                                [outcome]: { ...((c.noteMapping || {})[outcome] || {}), text: e.target.value }
+                                              }
+                                            }))}
+                                            placeholder={ta('ghlCrmNotePlaceholder')}
+                                            rows={2}
+                                            className="w-full text-sm px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none resize-none"
+                                          />
+                                        )}
+                                        {(ghlCrmConfig.noteMapping || {})[outcome]?.type === 'ai' && (
+                                          <p className="text-[11px] text-gray-400 dark:text-gray-500 italic">{ta('ghlCrmNoteAI')}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>

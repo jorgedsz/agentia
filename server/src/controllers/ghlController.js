@@ -674,7 +674,8 @@ const oauthAuthorize = async (req, res) => {
       'opportunities.readonly',
       'opportunities.write',
       'locations/tags.readonly',
-      'locations/customFields.readonly'
+      'locations/customFields.readonly',
+      'users.readonly'
     ];
 
     const authorizationUrl = `${GHL_AUTH_BASE}/oauth/chooselocation?response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&client_id=${clientId}&scope=${encodeURIComponent(scopes.join(' '))}&state=${state}`;
@@ -952,6 +953,62 @@ const getCustomFields = async (req, res) => {
   }
 };
 
+/**
+ * Get users from GHL for the authenticated user's location
+ * GET /api/ghl/users
+ */
+const getUsers = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const conn = await findGhlConnection(userId, req.prisma);
+    if (!conn) {
+      return res.status(400).json({ error: 'GoHighLevel is not connected. Please connect first in Settings.' });
+    }
+
+    const { token, locationId } = conn;
+
+    // GHLIntegration may store companyId from OAuth flow
+    const legacy = await req.prisma.gHLIntegration.findUnique({ where: { userId } });
+    const companyId = legacy?.companyId || null;
+
+    try {
+      let data;
+      if (companyId) {
+        data = await ghlRequest(
+          `/users/search?companyId=${companyId}&locationId=${locationId}`,
+          token
+        );
+      } else {
+        // Fallback: try location-based user search
+        data = await ghlRequest(
+          `/users/search?locationId=${locationId}`,
+          token
+        );
+      }
+
+      const users = (data.users || []).map(u => ({
+        id: u.id,
+        name: u.name || u.firstName ? [u.firstName, u.lastName].filter(Boolean).join(' ') : u.email,
+        email: u.email,
+        role: u.role
+      }));
+
+      res.json({ users });
+    } catch (ghlError) {
+      console.error('GHL API error fetching users:', ghlError);
+      const msg = ghlError.message || '';
+      const hint = msg.includes('scope') || msg.includes('unauthorized') || msg.includes('403')
+        ? ' You may need to reconnect GHL in Settings to grant the required permissions (users.readonly).'
+        : '';
+      res.status(400).json({ error: `Failed to fetch users: ${msg}.${hint}` });
+    }
+  } catch (error) {
+    console.error('Error fetching GHL users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+};
+
 module.exports = {
   connect,
   getStatus,
@@ -960,6 +1017,7 @@ module.exports = {
   getPipelines,
   getTags,
   getCustomFields,
+  getUsers,
   checkAvailability,
   bookAppointment,
   oauthAuthorize,

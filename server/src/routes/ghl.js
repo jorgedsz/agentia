@@ -38,4 +38,7 @@ router.get('/tags', ghlController.getTags);
 // Get custom fields from GHL (for CRM integration)
 router.get('/custom-fields', ghlController.getCustomFields);
 
+// Get users from GHL (for CRM user assignment)
+router.get('/users', ghlController.getUsers);
+
 module.exports = router;
