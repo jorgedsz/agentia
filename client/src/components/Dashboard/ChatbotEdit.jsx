@@ -169,10 +169,10 @@ export default function ChatbotEdit() {
   // GHL CRM settings
   const [ghlCrmConfig, setGhlCrmConfig] = useState({
     createNote: false,
-    createOpportunity: false, pipelineId: '', pipelineName: '', stageId: '', stageName: '',
     updateOpportunity: false,
-    addTags: false, tags: [],
-    addToWorkflow: false, workflowId: '', workflowName: ''
+    opportunities: [],  // [{ pipelineId, pipelineName, stageId, stageName, scenario }]
+    tagSets: [],        // [{ tags: [], scenario }]
+    workflows: []       // [{ workflowId, workflowName, scenario }]
   })
   const [ghlPipelines, setGhlPipelines] = useState([])
   const [ghlTags, setGhlTags] = useState([])
@@ -674,27 +674,25 @@ export default function ChatbotEdit() {
       })
     }
 
-    if (ghlCrmConfig.createOpportunity) {
-      const pipelineNote = ghlCrmConfig.pipelineId
-        ? ` Default pipeline: "${ghlCrmConfig.pipelineName}" (ID: ${ghlCrmConfig.pipelineId}).`
-        : ''
-      const stageNote = ghlCrmConfig.stageId
-        ? ` Default stage: "${ghlCrmConfig.stageName}" (ID: ${ghlCrmConfig.stageId}).`
-        : ''
+    ;(ghlCrmConfig.opportunities || []).forEach((opp, i) => {
+      const suffix = (ghlCrmConfig.opportunities.length > 1) ? `_${i + 1}` : ''
+      const pNote = opp.pipelineId ? ` Pipeline: "${opp.pipelineName}" (${opp.pipelineId}).` : ''
+      const sNote = opp.stageId ? ` Stage: "${opp.stageName}" (${opp.stageId}).` : ''
+      const scenario = opp.scenario ? ` USE THIS WHEN: ${opp.scenario}` : ''
       ghlTools.push({
         type: 'apiRequest', method: 'POST', url: `${base}/create-opportunity?${qp}`,
-        name: 'ghl_create_opportunity',
-        description: `Create a new opportunity/deal in a GHL pipeline.${pipelineNote}${stageNote}`,
+        name: `ghl_create_opportunity${suffix}`,
+        description: `Create a new opportunity/deal in GHL.${pNote}${sNote}${scenario}`,
         body: { type: 'object', properties: {
           contactId: { type: 'string', description: 'The GHL contact ID' },
-          pipelineId: { type: 'string', description: `The pipeline ID.${ghlCrmConfig.pipelineId ? ` Default: ${ghlCrmConfig.pipelineId}` : ''}` },
-          stageId: { type: 'string', description: `The pipeline stage ID.${ghlCrmConfig.stageId ? ` Default: ${ghlCrmConfig.stageId}` : ''}` },
+          pipelineId: { type: 'string', description: `The pipeline ID.${opp.pipelineId ? ` Use: ${opp.pipelineId}` : ''}` },
+          stageId: { type: 'string', description: `The stage ID.${opp.stageId ? ` Use: ${opp.stageId}` : ''}` },
           name: { type: 'string', description: 'Name/title for the opportunity' },
           status: { type: 'string', description: 'Status: open, won, lost, or abandoned. Defaults to open.' }
         }, required: ['contactId', 'pipelineId', 'stageId', 'name'] },
         timeoutSeconds: 30
       })
-    }
+    })
 
     if (ghlCrmConfig.updateOpportunity) {
       ghlTools.push({
@@ -712,37 +710,37 @@ export default function ChatbotEdit() {
       })
     }
 
-    if (ghlCrmConfig.addTags) {
-      const tagsNote = ghlCrmConfig.tags?.length > 0
-        ? ` Available tags: ${ghlCrmConfig.tags.join(', ')}.`
-        : ''
+    ;(ghlCrmConfig.tagSets || []).forEach((ts, i) => {
+      const suffix = (ghlCrmConfig.tagSets.length > 1) ? `_${i + 1}` : ''
+      const tagsNote = ts.tags?.length > 0 ? ` Tags: ${ts.tags.join(', ')}.` : ''
+      const scenario = ts.scenario ? ` USE THIS WHEN: ${ts.scenario}` : ''
       ghlTools.push({
         type: 'apiRequest', method: 'POST', url: `${base}/add-tags?${qp}`,
-        name: 'ghl_add_tags',
-        description: `Add one or more tags to a GHL contact. Tags are merged with existing tags.${tagsNote}`,
+        name: `ghl_add_tags${suffix}`,
+        description: `Add tags to a GHL contact.${tagsNote}${scenario}`,
         body: { type: 'object', properties: {
           contactId: { type: 'string', description: 'The GHL contact ID' },
-          tags: { type: 'array', description: `Array of tag strings to add.${tagsNote || ' e.g. ["hot-lead", "premium"]'}` }
+          tags: { type: 'array', description: `Array of tag strings to add.${tagsNote || ' e.g. ["hot-lead"]'}` }
         }, required: ['contactId', 'tags'] },
         timeoutSeconds: 30
       })
-    }
+    })
 
-    if (ghlCrmConfig.addToWorkflow) {
-      const wfNote = ghlCrmConfig.workflowId
-        ? ` Default workflow: "${ghlCrmConfig.workflowName}" (ID: ${ghlCrmConfig.workflowId}).`
-        : ''
+    ;(ghlCrmConfig.workflows || []).forEach((wf, i) => {
+      const suffix = (ghlCrmConfig.workflows.length > 1) ? `_${i + 1}` : ''
+      const wfNote = wf.workflowId ? ` Workflow: "${wf.workflowName}" (${wf.workflowId}).` : ''
+      const scenario = wf.scenario ? ` USE THIS WHEN: ${wf.scenario}` : ''
       ghlTools.push({
         type: 'apiRequest', method: 'POST', url: `${base}/add-to-workflow?${qp}`,
-        name: 'ghl_add_to_workflow',
-        description: `Add a GHL contact to an automation workflow.${wfNote}`,
+        name: `ghl_add_to_workflow${suffix}`,
+        description: `Add a GHL contact to an automation workflow.${wfNote}${scenario}`,
         body: { type: 'object', properties: {
           contactId: { type: 'string', description: 'The GHL contact ID' },
-          workflowId: { type: 'string', description: `The workflow ID to add the contact to.${ghlCrmConfig.workflowId ? ` Default: ${ghlCrmConfig.workflowId}` : ''}` }
+          workflowId: { type: 'string', description: `The workflow ID.${wf.workflowId ? ` Use: ${wf.workflowId}` : ''}` }
         }, required: ['contactId', 'workflowId'] },
         timeoutSeconds: 30
       })
-    }
+    })
 
     return ghlTools
   }
@@ -794,12 +792,13 @@ export default function ChatbotEdit() {
         'list_spreadsheets', 'get_spreadsheet_info', 'read_sheet_data',
         'write_sheet_data', 'append_sheet_rows', 'create_spreadsheet',
         'list_google_docs', 'read_google_doc', 'create_google_doc', 'append_to_google_doc',
-        'ghl_create_note', 'ghl_create_opportunity', 'ghl_update_opportunity',
-        'ghl_add_tags', 'ghl_add_to_workflow',
       ])
+      // Also add all generated GHL tool names
+      ghlCrmTools.forEach(t => autoNames.add(t.name))
       const manualTools = tools.filter(t =>
         !t.name?.startsWith('check_calendar_availability_') &&
         !t.name?.startsWith('book_appointment_') &&
+        !t.name?.startsWith('ghl_') &&
         !autoNames.has(t.name)
       )
       const allTools = [...manualTools, ...calendarTools, ...callTools, ...sheetsTools, ...docsTools, ...ghlCrmTools]
@@ -1096,7 +1095,7 @@ export default function ChatbotEdit() {
           <button
             onClick={() => setShowUnifiedToolsModal(true)}
             className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
-              callConfig.enabled || sheetsConfig.enabled || docsConfig.enabled || ghlCrmConfig.createNote || ghlCrmConfig.createOpportunity || ghlCrmConfig.updateOpportunity || ghlCrmConfig.addTags || ghlCrmConfig.addToWorkflow || tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0
+              callConfig.enabled || sheetsConfig.enabled || docsConfig.enabled || ghlCrmConfig.createNote || ghlCrmConfig.updateOpportunity || (ghlCrmConfig.opportunities || []).length > 0 || (ghlCrmConfig.tagSets || []).length > 0 || (ghlCrmConfig.workflows || []).length > 0 || tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0
                 ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                 : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
             }`}
@@ -2060,15 +2059,15 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'ghl' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   <svg className="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                   <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">GHL CRM</span>
-                  {(() => { const c = [ghlCrmConfig.createNote, ghlCrmConfig.createOpportunity, ghlCrmConfig.updateOpportunity, ghlCrmConfig.addTags, ghlCrmConfig.addToWorkflow].filter(Boolean).length; return c > 0 ? <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">{c} tool{c > 1 ? 's' : ''}</span> : null })()}
+                  {(() => { const c = (ghlCrmConfig.createNote ? 1 : 0) + (ghlCrmConfig.updateOpportunity ? 1 : 0) + (ghlCrmConfig.opportunities || []).length + (ghlCrmConfig.tagSets || []).length + (ghlCrmConfig.workflows || []).length; return c > 0 ? <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">{c} tool{c > 1 ? 's' : ''}</span> : null })()}
                 </button>
                 {toolsSection === 'ghl' && (
-                  <div className="px-5 pb-4 space-y-1">
-                    <p className="text-xs text-gray-400 mb-2">contactId is auto-injected from conversation context.</p>
+                  <div className="px-5 pb-4 space-y-3">
+                    <p className="text-xs text-gray-400">contactId is auto-injected from conversation context.</p>
 
-                    {/* Create Note */}
-                    <div className="rounded-lg border border-gray-100 dark:border-dark-border overflow-hidden">
-                      <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
+                    {/* Create Note toggle */}
+                    <div className="rounded-lg border border-gray-100 dark:border-dark-border p-3">
+                      <label className="flex items-center gap-3 cursor-pointer">
                         <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.createNote ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, createNote: !prev.createNote })) }}>
                           <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.createNote ? 'left-[18px]' : 'left-[2px]'}`} />
                         </div>
@@ -2076,39 +2075,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       </label>
                     </div>
 
-                    {/* Create Opportunity */}
-                    <div className="rounded-lg border border-gray-100 dark:border-dark-border overflow-hidden">
-                      <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
-                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.createOpportunity ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, createOpportunity: !prev.createOpportunity })) }}>
-                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.createOpportunity ? 'left-[18px]' : 'left-[2px]'}`} />
-                        </div>
-                        <div><span className="text-sm font-medium text-gray-700 dark:text-gray-200">Create Opportunity</span><span className="text-xs text-gray-400 ml-1.5">Create a deal in a pipeline</span></div>
-                      </label>
-                      {ghlCrmConfig.createOpportunity && (
-                        <div className="px-3 pb-3 space-y-2 border-t border-gray-50 dark:border-dark-border pt-2">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Pipeline</label>
-                            <select value={ghlCrmConfig.pipelineId} onChange={(e) => { const sel = ghlPipelines.find(p => p.id === e.target.value); setGhlCrmConfig(prev => ({ ...prev, pipelineId: e.target.value, pipelineName: sel?.name || '', stageId: '', stageName: '' })) }} onFocus={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (err) { console.error('Failed to fetch pipelines:', err) } } }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
-                              <option value="">Select pipeline...</option>
-                              {ghlPipelines.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
-                            </select>
-                          </div>
-                          {ghlCrmConfig.pipelineId && (() => { const stages = ghlPipelines.find(p => p.id === ghlCrmConfig.pipelineId)?.stages || []; return stages.length > 0 ? (
-                            <div>
-                              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Stage</label>
-                              <select value={ghlCrmConfig.stageId} onChange={(e) => { const sel = (ghlPipelines.find(p => p.id === ghlCrmConfig.pipelineId)?.stages || []).find(s => s.id === e.target.value); setGhlCrmConfig(prev => ({ ...prev, stageId: e.target.value, stageName: sel?.name || '' })) }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
-                                <option value="">Select stage...</option>
-                                {stages.map(s => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                              </select>
-                            </div>
-                          ) : null })()}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Update Opportunity */}
-                    <div className="rounded-lg border border-gray-100 dark:border-dark-border overflow-hidden">
-                      <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
+                    {/* Update Opportunity toggle */}
+                    <div className="rounded-lg border border-gray-100 dark:border-dark-border p-3">
+                      <label className="flex items-center gap-3 cursor-pointer">
                         <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.updateOpportunity ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, updateOpportunity: !prev.updateOpportunity })) }}>
                           <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.updateOpportunity ? 'left-[18px]' : 'left-[2px]'}`} />
                         </div>
@@ -2116,52 +2085,105 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       </label>
                     </div>
 
-                    {/* Add Tags */}
-                    <div className="rounded-lg border border-gray-100 dark:border-dark-border overflow-hidden">
-                      <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
-                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.addTags ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, addTags: !prev.addTags })) }}>
-                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.addTags ? 'left-[18px]' : 'left-[2px]'}`} />
-                        </div>
-                        <div><span className="text-sm font-medium text-gray-700 dark:text-gray-200">Add Tags</span><span className="text-xs text-gray-400 ml-1.5">Add tags to a contact</span></div>
-                      </label>
-                      {ghlCrmConfig.addTags && (
-                        <div className="px-3 pb-3 border-t border-gray-50 dark:border-dark-border pt-2">
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Available Tags</label>
-                          <div className="flex flex-wrap gap-1.5 mb-2">
-                            {(ghlCrmConfig.tags || []).map((tag, i) => (
-                              <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
-                                {tag}
-                                <button type="button" onClick={() => setGhlCrmConfig(prev => ({ ...prev, tags: prev.tags.filter((_, j) => j !== i) }))} className="hover:text-red-500">
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                              </span>
-                            ))}
+                    {/* ── Create Opportunity (multi) ── */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Create Opportunity</span>
+                        <button type="button" onClick={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (_) {} } setGhlCrmConfig(prev => ({ ...prev, opportunities: [...(prev.opportunities || []), { pipelineId: '', pipelineName: '', stageId: '', stageName: '', scenario: '' }] })) }} className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium">+ Add</button>
+                      </div>
+                      {(ghlCrmConfig.opportunities || []).length === 0 && <p className="text-xs text-gray-400">No opportunities configured.</p>}
+                      {(ghlCrmConfig.opportunities || []).map((opp, i) => (
+                        <div key={i} className="rounded-lg border border-gray-100 dark:border-dark-border p-3 mb-1.5 space-y-2">
+                          <div className="flex items-start justify-between">
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Opportunity {i + 1}</span>
+                            <button type="button" onClick={() => setGhlCrmConfig(prev => ({ ...prev, opportunities: prev.opportunities.filter((_, j) => j !== i) }))} className="text-gray-400 hover:text-red-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                           </div>
-                          <select onChange={(e) => { if (e.target.value && !(ghlCrmConfig.tags || []).includes(e.target.value)) { setGhlCrmConfig(prev => ({ ...prev, tags: [...(prev.tags || []), e.target.value] })) } e.target.value = '' }} onFocus={async () => { if (ghlTags.length === 0) { try { const { data } = await ghlAPI.getTags(); setGhlTags(data.tags || []) } catch (err) { console.error('Failed to fetch tags:', err) } } }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
-                            <option value="">Add a tag...</option>
-                            {ghlTags.filter(t => !(ghlCrmConfig.tags || []).includes(t.name)).map(t => (<option key={t.id} value={t.name}>{t.name}</option>))}
-                          </select>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Pipeline *</label>
+                            <select value={opp.pipelineId} onChange={(e) => { const sel = ghlPipelines.find(p => p.id === e.target.value); setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], pipelineId: e.target.value, pipelineName: sel?.name || '', stageId: '', stageName: '' }; return { ...prev, opportunities: arr } }) }} onFocus={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (_) {} } }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                              <option value="">Select pipeline...</option>
+                              {ghlPipelines.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                            </select>
+                          </div>
+                          {opp.pipelineId && (() => { const stages = ghlPipelines.find(p => p.id === opp.pipelineId)?.stages || []; return stages.length > 0 ? (
+                            <div>
+                              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Stage *</label>
+                              <select value={opp.stageId} onChange={(e) => { const sel = stages.find(s => s.id === e.target.value); setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], stageId: e.target.value, stageName: sel?.name || '' }; return { ...prev, opportunities: arr } }) }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                                <option value="">Select stage...</option>
+                                {stages.map(s => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                              </select>
+                            </div>
+                          ) : null })()}
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">When to use *</label>
+                            <input type="text" value={opp.scenario} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], scenario: e.target.value }; return { ...prev, opportunities: arr } })} placeholder="e.g. When lead qualifies for premium plan" className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                          </div>
                         </div>
-                      )}
+                      ))}
                     </div>
 
-                    {/* Add to Workflow */}
-                    <div className="rounded-lg border border-gray-100 dark:border-dark-border overflow-hidden">
-                      <label className="flex items-center gap-3 px-3 py-2.5 cursor-pointer">
-                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.addToWorkflow ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, addToWorkflow: !prev.addToWorkflow })) }}>
-                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.addToWorkflow ? 'left-[18px]' : 'left-[2px]'}`} />
+                    {/* ── Add Tags (multi) ── */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Add Tags</span>
+                        <button type="button" onClick={async () => { if (ghlTags.length === 0) { try { const { data } = await ghlAPI.getTags(); setGhlTags(data.tags || []) } catch (_) {} } setGhlCrmConfig(prev => ({ ...prev, tagSets: [...(prev.tagSets || []), { tags: [], scenario: '' }] })) }} className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium">+ Add</button>
+                      </div>
+                      {(ghlCrmConfig.tagSets || []).length === 0 && <p className="text-xs text-gray-400">No tag rules configured.</p>}
+                      {(ghlCrmConfig.tagSets || []).map((ts, i) => (
+                        <div key={i} className="rounded-lg border border-gray-100 dark:border-dark-border p-3 mb-1.5 space-y-2">
+                          <div className="flex items-start justify-between">
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Tag Set {i + 1}</span>
+                            <button type="button" onClick={() => setGhlCrmConfig(prev => ({ ...prev, tagSets: prev.tagSets.filter((_, j) => j !== i) }))} className="text-gray-400 hover:text-red-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tags *</label>
+                            <div className="flex flex-wrap gap-1.5 mb-1.5">
+                              {(ts.tags || []).map((tag, ti) => (
+                                <span key={ti} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
+                                  {tag}
+                                  <button type="button" onClick={() => setGhlCrmConfig(prev => { const arr = [...prev.tagSets]; arr[i] = { ...arr[i], tags: arr[i].tags.filter((_, j) => j !== ti) }; return { ...prev, tagSets: arr } })} className="hover:text-red-500"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                </span>
+                              ))}
+                            </div>
+                            <select onChange={(e) => { if (e.target.value && !(ts.tags || []).includes(e.target.value)) { setGhlCrmConfig(prev => { const arr = [...prev.tagSets]; arr[i] = { ...arr[i], tags: [...(arr[i].tags || []), e.target.value] }; return { ...prev, tagSets: arr } }) } e.target.value = '' }} onFocus={async () => { if (ghlTags.length === 0) { try { const { data } = await ghlAPI.getTags(); setGhlTags(data.tags || []) } catch (_) {} } }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                              <option value="">Add a tag...</option>
+                              {ghlTags.filter(t => !(ts.tags || []).includes(t.name)).map(t => (<option key={t.id} value={t.name}>{t.name}</option>))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">When to use *</label>
+                            <input type="text" value={ts.scenario} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.tagSets]; arr[i] = { ...arr[i], scenario: e.target.value }; return { ...prev, tagSets: arr } })} placeholder="e.g. When lead shows strong buying intent" className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                          </div>
                         </div>
-                        <div><span className="text-sm font-medium text-gray-700 dark:text-gray-200">Add to Workflow</span><span className="text-xs text-gray-400 ml-1.5">Add contact to a workflow</span></div>
-                      </label>
-                      {ghlCrmConfig.addToWorkflow && (
-                        <div className="px-3 pb-3 border-t border-gray-50 dark:border-dark-border pt-2">
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Workflow</label>
-                          <select value={ghlCrmConfig.workflowId} onChange={(e) => { const sel = ghlWorkflows.find(w => w.id === e.target.value); setGhlCrmConfig(prev => ({ ...prev, workflowId: e.target.value, workflowName: sel?.name || '' })) }} onFocus={async () => { if (ghlWorkflows.length === 0) { try { const { data } = await ghlAPI.getWorkflows(); setGhlWorkflows(data.workflows || []) } catch (err) { console.error('Failed to fetch workflows:', err) } } }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
-                            <option value="">Select workflow...</option>
-                            {ghlWorkflows.map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}
-                          </select>
+                      ))}
+                    </div>
+
+                    {/* ── Add to Workflow (multi) ── */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Add to Workflow</span>
+                        <button type="button" onClick={async () => { if (ghlWorkflows.length === 0) { try { const { data } = await ghlAPI.getWorkflows(); setGhlWorkflows(data.workflows || []) } catch (_) {} } setGhlCrmConfig(prev => ({ ...prev, workflows: [...(prev.workflows || []), { workflowId: '', workflowName: '', scenario: '' }] })) }} className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium">+ Add</button>
+                      </div>
+                      {(ghlCrmConfig.workflows || []).length === 0 && <p className="text-xs text-gray-400">No workflows configured.</p>}
+                      {(ghlCrmConfig.workflows || []).map((wf, i) => (
+                        <div key={i} className="rounded-lg border border-gray-100 dark:border-dark-border p-3 mb-1.5 space-y-2">
+                          <div className="flex items-start justify-between">
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Workflow {i + 1}</span>
+                            <button type="button" onClick={() => setGhlCrmConfig(prev => ({ ...prev, workflows: prev.workflows.filter((_, j) => j !== i) }))} className="text-gray-400 hover:text-red-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Workflow *</label>
+                            <select value={wf.workflowId} onChange={(e) => { const sel = ghlWorkflows.find(w => w.id === e.target.value); setGhlCrmConfig(prev => { const arr = [...prev.workflows]; arr[i] = { ...arr[i], workflowId: e.target.value, workflowName: sel?.name || '' }; return { ...prev, workflows: arr } }) }} onFocus={async () => { if (ghlWorkflows.length === 0) { try { const { data } = await ghlAPI.getWorkflows(); setGhlWorkflows(data.workflows || []) } catch (_) {} } }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                              <option value="">Select workflow...</option>
+                              {ghlWorkflows.map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">When to use *</label>
+                            <input type="text" value={wf.scenario} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.workflows]; arr[i] = { ...arr[i], scenario: e.target.value }; return { ...prev, workflows: arr } })} placeholder="e.g. When lead books a demo call" className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                          </div>
                         </div>
-                      )}
+                      ))}
                     </div>
                   </div>
                 )}
