@@ -674,8 +674,7 @@ const oauthAuthorize = async (req, res) => {
       'opportunities.readonly',
       'opportunities.write',
       'locations/tags.readonly',
-      'locations/customFields.readonly',
-      'users.readonly'
+      'locations/customFields.readonly'
     ];
 
     const authorizationUrl = `${GHL_AUTH_BASE}/oauth/chooselocation?response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&client_id=${clientId}&scope=${encodeURIComponent(scopes.join(' '))}&state=${state}`;
@@ -968,28 +967,13 @@ const getUsers = async (req, res) => {
 
     const { token, locationId } = conn;
 
-    // GHLIntegration may store companyId from OAuth flow
-    const legacy = await req.prisma.gHLIntegration.findUnique({ where: { userId } });
-    const companyId = legacy?.companyId || null;
-
     try {
-      let data;
-      if (companyId) {
-        data = await ghlRequest(
-          `/users/search?companyId=${companyId}&locationId=${locationId}`,
-          token
-        );
-      } else {
-        // Fallback: try location-based user search
-        data = await ghlRequest(
-          `/users/search?locationId=${locationId}`,
-          token
-        );
-      }
+      // PIT-compatible endpoint: GET /users/?locationId=
+      const data = await ghlRequest(`/users/?locationId=${locationId}`, token);
 
       const users = (data.users || []).map(u => ({
         id: u.id,
-        name: u.name || u.firstName ? [u.firstName, u.lastName].filter(Boolean).join(' ') : u.email,
+        name: u.name || (u.firstName ? [u.firstName, u.lastName].filter(Boolean).join(' ') : u.email),
         email: u.email,
         role: u.role
       }));
@@ -998,10 +982,7 @@ const getUsers = async (req, res) => {
     } catch (ghlError) {
       console.error('GHL API error fetching users:', ghlError);
       const msg = ghlError.message || '';
-      const hint = msg.includes('scope') || msg.includes('unauthorized') || msg.includes('403')
-        ? ' You may need to reconnect GHL in Settings to grant the required permissions (users.readonly).'
-        : '';
-      res.status(400).json({ error: `Failed to fetch users: ${msg}.${hint}` });
+      res.status(400).json({ error: `Failed to fetch users: ${msg}` });
     }
   } catch (error) {
     console.error('Error fetching GHL users:', error);
