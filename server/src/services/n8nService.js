@@ -199,9 +199,12 @@ class N8nService {
 
         const hasBody = placeholderDefs.length > 0 || !!(tool.body);
 
-        // For GHL book-appointment tools, inject contactId and contactName from webhook body via n8n expression
+        // For GHL book-appointment tools and GHL CRM tools, inject contactId and contactName from webhook body via n8n expression
         let toolUrl = tool.url || '';
-        if (tool.name?.startsWith('book_appointment') && toolUrl.includes('provider=ghl')) {
+        if (
+          (tool.name?.startsWith('book_appointment') && toolUrl.includes('provider=ghl')) ||
+          tool.name?.startsWith('ghl_')
+        ) {
           toolUrl = `={{ "${toolUrl}" + ($('Resolve Variables').first().json.contactId ? "&contactId=" + encodeURIComponent($('Resolve Variables').first().json.contactId) : "") + ($('Resolve Variables').first().json.contactName ? "&contactName=" + encodeURIComponent($('Resolve Variables').first().json.contactName) : "") }}`;
         }
 

@@ -1,0 +1,217 @@
+const { findGhlConnection, ghlRequest } = require('./ghlController');
+
+/**
+ * POST /api/chatbot-ghl/create-note?userId=X
+ * Body: { contactId, body }
+ * Creates a note on a GHL contact.
+ */
+async function createNote(req, res) {
+  try {
+    const { userId } = req.query;
+    const { body } = req.body || {};
+    const contactId = req.query.contactId || req.body?.contactId;
+
+    if (!userId) {
+      return res.json({ success: false, message: 'Missing required query param: userId' });
+    }
+    if (!contactId) {
+      return res.json({ success: false, message: 'Missing required parameter: contactId' });
+    }
+    if (!body) {
+      return res.json({ success: false, message: 'Missing required parameter: body (note content)' });
+    }
+
+    const conn = await findGhlConnection(parseInt(userId), req.prisma);
+    if (!conn) {
+      return res.json({ success: false, message: 'GoHighLevel is not connected for this user.' });
+    }
+
+    await ghlRequest(`/contacts/${contactId}/notes`, conn.token, {
+      method: 'POST',
+      body: JSON.stringify({ body })
+    });
+
+    return res.json({ success: true, message: `Note created on contact ${contactId}.` });
+  } catch (error) {
+    console.error('[Chatbot GHL] createNote error:', error);
+    return res.json({ success: false, message: `Error creating note: ${error.message}` });
+  }
+}
+
+/**
+ * POST /api/chatbot-ghl/create-opportunity?userId=X
+ * Body: { contactId, pipelineId, stageId, name, status? }
+ * Creates a new opportunity in a GHL pipeline.
+ */
+async function createOpportunity(req, res) {
+  try {
+    const { userId } = req.query;
+    const { pipelineId, stageId, name, status } = req.body || {};
+    const contactId = req.query.contactId || req.body?.contactId;
+
+    if (!userId) {
+      return res.json({ success: false, message: 'Missing required query param: userId' });
+    }
+    if (!contactId || !pipelineId || !stageId || !name) {
+      return res.json({ success: false, message: 'Missing required parameters: contactId, pipelineId, stageId, and name are all required.' });
+    }
+
+    const conn = await findGhlConnection(parseInt(userId), req.prisma);
+    if (!conn) {
+      return res.json({ success: false, message: 'GoHighLevel is not connected for this user.' });
+    }
+
+    const result = await ghlRequest('/opportunities/', conn.token, {
+      method: 'POST',
+      body: JSON.stringify({
+        locationId: conn.locationId,
+        pipelineId,
+        pipelineStageId: stageId,
+        contactId,
+        name,
+        status: status || 'open'
+      })
+    });
+
+    const oppId = result.opportunity?.id || result.id || '';
+    return res.json({ success: true, message: `Opportunity "${name}" created successfully.${oppId ? ` ID: ${oppId}` : ''}` });
+  } catch (error) {
+    console.error('[Chatbot GHL] createOpportunity error:', error);
+    return res.json({ success: false, message: `Error creating opportunity: ${error.message}` });
+  }
+}
+
+/**
+ * POST /api/chatbot-ghl/update-opportunity?userId=X
+ * Body: { opportunityId, stageId?, status?, assignedTo?, name? }
+ * Updates an existing GHL opportunity.
+ */
+async function updateOpportunity(req, res) {
+  try {
+    const { userId } = req.query;
+    const { opportunityId, stageId, status, assignedTo, name } = req.body || {};
+
+    if (!userId) {
+      return res.json({ success: false, message: 'Missing required query param: userId' });
+    }
+    if (!opportunityId) {
+      return res.json({ success: false, message: 'Missing required parameter: opportunityId' });
+    }
+
+    const conn = await findGhlConnection(parseInt(userId), req.prisma);
+    if (!conn) {
+      return res.json({ success: false, message: 'GoHighLevel is not connected for this user.' });
+    }
+
+    const updates = {};
+    if (stageId) updates.pipelineStageId = stageId;
+    if (status) updates.status = status;
+    if (assignedTo) updates.assignedTo = assignedTo;
+    if (name) updates.name = name;
+
+    if (Object.keys(updates).length === 0) {
+      return res.json({ success: false, message: 'No fields to update. Provide at least one of: stageId, status, assignedTo, name.' });
+    }
+
+    await ghlRequest(`/opportunities/${opportunityId}`, conn.token, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+
+    return res.json({ success: true, message: `Opportunity ${opportunityId} updated successfully.` });
+  } catch (error) {
+    console.error('[Chatbot GHL] updateOpportunity error:', error);
+    return res.json({ success: false, message: `Error updating opportunity: ${error.message}` });
+  }
+}
+
+/**
+ * POST /api/chatbot-ghl/add-tags?userId=X
+ * Body: { contactId, tags }  (tags = array of strings)
+ * Adds tags to a GHL contact (merges with existing).
+ */
+async function addTags(req, res) {
+  try {
+    const { userId } = req.query;
+    const { tags } = req.body || {};
+    const contactId = req.query.contactId || req.body?.contactId;
+
+    if (!userId) {
+      return res.json({ success: false, message: 'Missing required query param: userId' });
+    }
+    if (!contactId) {
+      return res.json({ success: false, message: 'Missing required parameter: contactId' });
+    }
+    if (!tags || !Array.isArray(tags) || tags.length === 0) {
+      return res.json({ success: false, message: 'Missing required parameter: tags (array of strings)' });
+    }
+
+    const conn = await findGhlConnection(parseInt(userId), req.prisma);
+    if (!conn) {
+      return res.json({ success: false, message: 'GoHighLevel is not connected for this user.' });
+    }
+
+    // Get current contact to read existing tags
+    const contactData = await ghlRequest(`/contacts/${contactId}`, conn.token);
+    const existingTags = contactData.contact?.tags || contactData.tags || [];
+
+    // Merge new tags with existing (deduplicate)
+    const merged = [...new Set([...existingTags, ...tags])];
+
+    await ghlRequest(`/contacts/${contactId}`, conn.token, {
+      method: 'PUT',
+      body: JSON.stringify({ tags: merged })
+    });
+
+    const newlyAdded = tags.filter(t => !existingTags.includes(t));
+    return res.json({ success: true, message: `Tags updated. Added: ${newlyAdded.length > 0 ? newlyAdded.join(', ') : '(all already existed)'}. Total tags: ${merged.length}.` });
+  } catch (error) {
+    console.error('[Chatbot GHL] addTags error:', error);
+    return res.json({ success: false, message: `Error adding tags: ${error.message}` });
+  }
+}
+
+/**
+ * POST /api/chatbot-ghl/add-to-workflow?userId=X
+ * Body: { contactId, workflowId }
+ * Adds a contact to a GHL workflow.
+ */
+async function addToWorkflow(req, res) {
+  try {
+    const { userId } = req.query;
+    const { workflowId } = req.body || {};
+    const contactId = req.query.contactId || req.body?.contactId;
+
+    if (!userId) {
+      return res.json({ success: false, message: 'Missing required query param: userId' });
+    }
+    if (!contactId) {
+      return res.json({ success: false, message: 'Missing required parameter: contactId' });
+    }
+    if (!workflowId) {
+      return res.json({ success: false, message: 'Missing required parameter: workflowId' });
+    }
+
+    const conn = await findGhlConnection(parseInt(userId), req.prisma);
+    if (!conn) {
+      return res.json({ success: false, message: 'GoHighLevel is not connected for this user.' });
+    }
+
+    await ghlRequest(`/contacts/${contactId}/workflow/${workflowId}`, conn.token, {
+      method: 'POST'
+    });
+
+    return res.json({ success: true, message: `Contact ${contactId} added to workflow ${workflowId}.` });
+  } catch (error) {
+    console.error('[Chatbot GHL] addToWorkflow error:', error);
+    return res.json({ success: false, message: `Error adding to workflow: ${error.message}` });
+  }
+}
+
+module.exports = {
+  createNote,
+  createOpportunity,
+  updateOpportunity,
+  addTags,
+  addToWorkflow
+};

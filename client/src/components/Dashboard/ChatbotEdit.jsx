@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { chatbotsAPI, promptGeneratorAPI, calendarAPI, agentsAPI, phoneNumbersAPI, googleWorkspaceAPI } from '../../services/api'
+import { chatbotsAPI, promptGeneratorAPI, calendarAPI, agentsAPI, phoneNumbersAPI, googleWorkspaceAPI, ghlAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { MODELS_BY_PROVIDER } from '../../constants/models'
 import TestChatbotModal from './TestChatbotModal'
@@ -170,6 +170,11 @@ export default function ChatbotEdit() {
   const [docFilesLoading, setDocFilesLoading] = useState(false)
   const [docSearch, setDocSearch] = useState('')
 
+  // GHL CRM settings
+  const [showGhlCrmModal, setShowGhlCrmModal] = useState(false)
+  const [ghlCrmConfig, setGhlCrmConfig] = useState({ enabled: false, pipelineId: '', pipelineName: '' })
+  const [ghlPipelines, setGhlPipelines] = useState([])
+
   // Load chatbot data
   useEffect(() => {
     fetchChatbot()
@@ -226,6 +231,9 @@ export default function ChatbotEdit() {
       }
       if (config.docsConfig) {
         setDocsConfig(config.docsConfig)
+      }
+      if (config.ghlCrmConfig) {
+        setGhlCrmConfig(config.ghlCrmConfig)
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load chatbot')
@@ -639,6 +647,83 @@ export default function ChatbotEdit() {
     return docsTools
   }
 
+  // Build GHL CRM tools for saving
+  const buildGhlCrmTools = () => {
+    const ghlTools = []
+    if (!ghlCrmConfig.enabled) return ghlTools
+
+    const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+    const qp = new URLSearchParams({ userId: user?.id?.toString() || '' }).toString()
+    const base = `${apiBaseUrl}/chatbot-ghl`
+
+    ghlTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/create-note?${qp}`,
+      name: 'ghl_create_note',
+      description: 'Create a note on a GHL contact. Use this to log important information about a conversation or interaction.',
+      body: { type: 'object', properties: {
+        contactId: { type: 'string', description: 'The GHL contact ID' },
+        body: { type: 'string', description: 'The note content/text' }
+      }, required: ['contactId', 'body'] },
+      timeoutSeconds: 30
+    })
+
+    const pipelineNote = ghlCrmConfig.pipelineId
+      ? ` Default pipeline: "${ghlCrmConfig.pipelineName}" (ID: ${ghlCrmConfig.pipelineId}).`
+      : ''
+
+    ghlTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/create-opportunity?${qp}`,
+      name: 'ghl_create_opportunity',
+      description: `Create a new opportunity/deal in a GHL pipeline.${pipelineNote}`,
+      body: { type: 'object', properties: {
+        contactId: { type: 'string', description: 'The GHL contact ID' },
+        pipelineId: { type: 'string', description: `The pipeline ID.${ghlCrmConfig.pipelineId ? ` Default: ${ghlCrmConfig.pipelineId}` : ''}` },
+        stageId: { type: 'string', description: 'The pipeline stage ID to place the opportunity in' },
+        name: { type: 'string', description: 'Name/title for the opportunity' },
+        status: { type: 'string', description: 'Status: open, won, lost, or abandoned. Defaults to open.' }
+      }, required: ['contactId', 'pipelineId', 'stageId', 'name'] },
+      timeoutSeconds: 30
+    })
+
+    ghlTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/update-opportunity?${qp}`,
+      name: 'ghl_update_opportunity',
+      description: 'Update an existing GHL opportunity (change stage, status, assigned user, or name).',
+      body: { type: 'object', properties: {
+        opportunityId: { type: 'string', description: 'The opportunity ID to update' },
+        stageId: { type: 'string', description: 'New pipeline stage ID' },
+        status: { type: 'string', description: 'New status: open, won, lost, or abandoned' },
+        assignedTo: { type: 'string', description: 'User ID to assign the opportunity to' },
+        name: { type: 'string', description: 'New name for the opportunity' }
+      }, required: ['opportunityId'] },
+      timeoutSeconds: 30
+    })
+
+    ghlTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/add-tags?${qp}`,
+      name: 'ghl_add_tags',
+      description: 'Add one or more tags to a GHL contact. Tags are merged with existing tags.',
+      body: { type: 'object', properties: {
+        contactId: { type: 'string', description: 'The GHL contact ID' },
+        tags: { type: 'array', description: 'Array of tag strings to add, e.g. ["hot-lead", "premium"]' }
+      }, required: ['contactId', 'tags'] },
+      timeoutSeconds: 30
+    })
+
+    ghlTools.push({
+      type: 'apiRequest', method: 'POST', url: `${base}/add-to-workflow?${qp}`,
+      name: 'ghl_add_to_workflow',
+      description: 'Add a GHL contact to an automation workflow.',
+      body: { type: 'object', properties: {
+        contactId: { type: 'string', description: 'The GHL contact ID' },
+        workflowId: { type: 'string', description: 'The workflow ID to add the contact to' }
+      }, required: ['contactId', 'workflowId'] },
+      timeoutSeconds: 30
+    })
+
+    return ghlTools
+  }
+
   // Fetch spreadsheets for file picker
   const fetchSpreadsheets = async (integrationId, query) => {
     if (!integrationId) return
@@ -674,24 +759,27 @@ export default function ChatbotEdit() {
     setSuccess('')
 
     try {
-      // Merge manual tools with auto-generated calendar + call + sheets + docs tools
+      // Merge manual tools with auto-generated calendar + call + sheets + docs + GHL CRM tools
       const calendarTools = buildCalendarTools()
       const callTools = buildCallTools()
       const sheetsTools = buildSheetsTools()
       const docsTools = buildDocsTools()
+      const ghlCrmTools = buildGhlCrmTools()
       // Filter out old auto-generated tools from manual tools list
       const autoNames = new Set([
         'make_call_now', 'schedule_call_later',
         'list_spreadsheets', 'get_spreadsheet_info', 'read_sheet_data',
         'write_sheet_data', 'append_sheet_rows', 'create_spreadsheet',
         'list_google_docs', 'read_google_doc', 'create_google_doc', 'append_to_google_doc',
+        'ghl_create_note', 'ghl_create_opportunity', 'ghl_update_opportunity',
+        'ghl_add_tags', 'ghl_add_to_workflow',
       ])
       const manualTools = tools.filter(t =>
         !t.name?.startsWith('check_calendar_availability_') &&
         !t.name?.startsWith('book_appointment_') &&
         !autoNames.has(t.name)
       )
-      const allTools = [...manualTools, ...calendarTools, ...callTools, ...sheetsTools, ...docsTools]
+      const allTools = [...manualTools, ...calendarTools, ...callTools, ...sheetsTools, ...docsTools, ...ghlCrmTools]
 
       await chatbotsAPI.update(id, {
         name,
@@ -709,6 +797,7 @@ export default function ChatbotEdit() {
           callConfig,
           sheetsConfig,
           docsConfig,
+          ghlCrmConfig,
           outputType: 'respond_to_webhook',
           outputUrl: outputUrl || '',
         }
@@ -1005,14 +1094,14 @@ export default function ChatbotEdit() {
           <button
             onClick={() => setShowToolsModal(true)}
             className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
-              tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later').length > 0
+              tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0
                 ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                 : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Tools {tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later').length > 0 && (
-                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later').length}</span>
+              Tools {tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length}</span>
               )}
             </span>
             <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1062,6 +1151,25 @@ export default function ChatbotEdit() {
             </span>
             <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </button>
+
+          {/* GHL CRM Button */}
+          <button
+            onClick={() => setShowGhlCrmModal(true)}
+            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
+              ghlCrmConfig.enabled
+                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              GHL CRM {ghlCrmConfig.enabled && (
+                <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">5</span>
+              )}
+            </span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           </button>
         </div>
@@ -1956,7 +2064,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
             </div>
             <div className="p-4">
               {(() => {
-                const visibleTools = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later')
+                const visibleTools = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name))
                 return visibleTools.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-6">No tools configured. Add API request tools for your chatbot to call.</p>
                 ) : (
@@ -2654,6 +2762,119 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 className="px-4 py-2 text-sm rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-hover transition"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GHL CRM Modal */}
+      {showGhlCrmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-xl w-full max-w-md mx-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">GHL CRM</h3>
+              </div>
+              <button onClick={() => setShowGhlCrmModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Enable toggle */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={ghlCrmConfig.enabled}
+                    onChange={(e) => setGhlCrmConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:bg-orange-500 transition-colors"></div>
+                  <div className="absolute left-[2px] top-[2px] bg-white w-4 h-4 rounded-full transition peer-checked:translate-x-full"></div>
+                </div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable GHL CRM tools</span>
+              </label>
+
+              {ghlCrmConfig.enabled && (
+                <>
+                  {/* Info note */}
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+                      This adds 5 GHL CRM tools to your chatbot:
+                    </p>
+                    <ul className="mt-1 text-xs text-blue-600 dark:text-blue-400 space-y-0.5 list-disc list-inside">
+                      <li><strong>ghl_create_note</strong> - Create a note on a contact</li>
+                      <li><strong>ghl_create_opportunity</strong> - Create a deal in a pipeline</li>
+                      <li><strong>ghl_update_opportunity</strong> - Update deal stage/status</li>
+                      <li><strong>ghl_add_tags</strong> - Add tags to a contact</li>
+                      <li><strong>ghl_add_to_workflow</strong> - Add contact to a workflow</li>
+                    </ul>
+                    <p className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                      contactId is auto-injected from the conversation context (n8n webhook body).
+                    </p>
+                  </div>
+
+                  {/* Pipeline dropdown (optional default) */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Default Pipeline (optional)
+                    </label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Used as default for ghl_create_opportunity. The AI can still specify a different pipeline.
+                    </p>
+                    <select
+                      value={ghlCrmConfig.pipelineId}
+                      onChange={(e) => {
+                        const selected = ghlPipelines.find(p => p.id === e.target.value)
+                        setGhlCrmConfig(prev => ({
+                          ...prev,
+                          pipelineId: e.target.value,
+                          pipelineName: selected?.name || ''
+                        }))
+                      }}
+                      onFocus={async () => {
+                        if (ghlPipelines.length === 0) {
+                          try {
+                            const { data } = await ghlAPI.getPipelines()
+                            setGhlPipelines(data.pipelines || [])
+                          } catch (err) {
+                            console.error('Failed to fetch GHL pipelines:', err)
+                          }
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                    >
+                      <option value="">None (AI will need pipeline ID)</option>
+                      {ghlPipelines.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Tools summary */}
+                  <div className="pt-3 border-t border-gray-100 dark:border-dark-border">
+                    <p className="text-xs text-gray-400 mb-1">This will add 5 tools:</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      ghl_create_note, ghl_create_opportunity, ghl_update_opportunity, ghl_add_tags, ghl_add_to_workflow
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-dark-border">
+              <button
+                onClick={() => setShowGhlCrmModal(false)}
+                className="px-4 py-2 text-sm rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-hover transition"
+              >
+                Done
               </button>
             </div>
           </div>
