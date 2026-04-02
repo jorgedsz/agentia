@@ -22,34 +22,58 @@ function OutcomeBadge({ outcome }) {
   )
 }
 
+const PAGE_SIZE = 25
+
 // Module-level cache so navigating back shows data instantly
 let _callsCache = null
 
 export default function CallLogs() {
   const { t } = useLanguage()
-  const [calls, setCalls] = useState(_callsCache || [])
+  const [calls, setCalls] = useState(_callsCache?.calls || [])
+  const [pagination, setPagination] = useState(_callsCache?.pagination || { hasMore: false })
   const [loading, setLoading] = useState(!_callsCache)
   const [error, setError] = useState(null)
   const [selectedCall, setSelectedCall] = useState(null)
   const [updatingOutcome, setUpdatingOutcome] = useState(false)
+  const [cursorStack, setCursorStack] = useState([])
+  const [currentCursor, setCurrentCursor] = useState(null)
 
   useEffect(() => {
     fetchCalls()
   }, [])
 
-  const fetchCalls = async () => {
+  const fetchCalls = async (createdAtLt) => {
     try {
-      if (!_callsCache) setLoading(true)
-      const response = await callsAPI.list()
+      setLoading(true)
+      const params = { limit: PAGE_SIZE }
+      if (createdAtLt) params.createdAtLt = createdAtLt
+      const response = await callsAPI.list(params)
       const data = response.data.calls || []
+      const pag = response.data.pagination || { hasMore: false }
       setCalls(data)
-      _callsCache = data
+      setPagination(pag)
+      _callsCache = { calls: data, pagination: pag }
       window.dispatchEvent(new CustomEvent('creditsUpdated'))
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load call logs')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleNextPage = () => {
+    if (!pagination.nextCursor) return
+    setCursorStack(prev => [...prev, currentCursor])
+    setCurrentCursor(pagination.nextCursor)
+    fetchCalls(pagination.nextCursor)
+  }
+
+  const handlePrevPage = () => {
+    const prev = [...cursorStack]
+    const cursor = prev.pop()
+    setCursorStack(prev)
+    setCurrentCursor(cursor)
+    fetchCalls(cursor || undefined)
   }
 
   const handleOutcomeChange = async (callLogId, newOutcome) => {
@@ -379,6 +403,31 @@ export default function CallLogs() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {calls.length > 0 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {t('callLogs.showing') || 'Showing'} {calls.length} {t('callLogs.calls') || 'calls'}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handlePrevPage}
+              disabled={cursorStack.length === 0 || loading}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {t('common.previous') || 'Previous'}
+            </button>
+            <button
+              onClick={handleNextPage}
+              disabled={!pagination.hasMore || loading}
+              className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {t('common.next') || 'Next'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

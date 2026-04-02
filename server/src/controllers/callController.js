@@ -190,8 +190,11 @@ const listCalls = async (req, res) => {
     const vapiKeyList = await getVapiKeyForUser(req.prisma, req.user.id);
     if (vapiKeyList) vapiService.setApiKey(vapiKeyList);
 
+    const limit = Math.min(parseInt(req.query.limit) || 25, 100);
+    const { createdAtLt, createdAtGt } = req.query;
+
     // Fetch VAPI calls and local data in parallel
-    const callsPromise = vapiService.listCalls();
+    const callsPromise = vapiService.listCalls({ limit: limit + 1, createdAtLt, createdAtGt });
 
     // Start DB queries immediately (don't wait for VAPI to finish first)
     const agentsPromise = req.prisma.agent.findMany({
@@ -202,7 +205,11 @@ const listCalls = async (req, res) => {
       where: { id: req.user.id }, select: { vapiCredits: true }
     });
 
-    const [calls, allAgents, user] = await Promise.all([callsPromise, agentsPromise, userPromise]);
+    const [rawCalls, allAgents, user] = await Promise.all([callsPromise, agentsPromise, userPromise]);
+
+    // Check if there are more results beyond the current page
+    const hasMore = rawCalls.length > limit;
+    const calls = hasMore ? rawCalls.slice(0, limit) : rawCalls;
 
     // Build agent lookup map
     const agentMap = {};
@@ -258,8 +265,21 @@ const listCalls = async (req, res) => {
       });
     }
 
+    // Build pagination cursors from the calls' createdAt timestamps
+    const firstCall = calls[0];
+    const lastCall = calls[calls.length - 1];
+
     // Respond immediately — billing sync runs in background
-    res.json({ calls, userCredits: user?.vapiCredits });
+    res.json({
+      calls,
+      userCredits: user?.vapiCredits,
+      pagination: {
+        limit,
+        hasMore,
+        nextCursor: hasMore && lastCall ? lastCall.createdAt : null,
+        prevCursor: firstCall ? firstCall.createdAt : null,
+      }
+    });
 
     // Background: sync billing for any calls the webhook might have missed
     syncCallBilling(req.prisma, calls).catch(err =>
