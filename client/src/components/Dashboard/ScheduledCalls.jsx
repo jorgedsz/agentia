@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { callbackAPI, followUpAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -31,12 +31,50 @@ export default function ScheduledCalls() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [cancelling, setCancelling] = useState(null)
+  const loadedTabs = useRef({})
 
+  // Fetch callbacks on mount (default tab)
   useEffect(() => {
-    fetchData()
+    fetchCallbacks()
   }, [])
 
+  // Lazy-load follow-ups when that tab is first visited
+  useEffect(() => {
+    if (activeTab === 'followups' && !loadedTabs.current['followups']) {
+      fetchFollowUps()
+    }
+  }, [activeTab])
+
+  const fetchCallbacks = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const cbRes = await callbackAPI.list()
+      setCallbacks(cbRes.data.callbacks || [])
+      loadedTabs.current['callbacks'] = true
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load callbacks')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchFollowUps = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const fuRes = await followUpAPI.list()
+      setFollowUps(fuRes.data.followUps || [])
+      loadedTabs.current['followups'] = true
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load follow-ups')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const fetchData = async () => {
+    loadedTabs.current = {}
     try {
       setLoading(true)
       setError(null)
@@ -46,6 +84,8 @@ export default function ScheduledCalls() {
       ])
       setCallbacks(cbRes.data.callbacks || [])
       setFollowUps(fuRes.data.followUps || [])
+      loadedTabs.current['callbacks'] = true
+      loadedTabs.current['followups'] = true
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load scheduled calls')
     } finally {

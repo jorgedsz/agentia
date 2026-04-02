@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
@@ -28,18 +28,21 @@ export default function Dashboard() {
   const [agencies, setAgencies] = useState([])
   const [allUsers, setAllUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [tabLoading, setTabLoading] = useState(false)
   const [showModal, setShowModal] = useState(null)
   const [formData, setFormData] = useState({})
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
   const [testCallAgent, setTestCallAgent] = useState(null)
   const [pricingRates, setPricingRates] = useState({ models: {}, transcribers: {} })
+  const loadedTabs = useRef({})
 
   const handleSwitchBack = async () => {
     setSwitchingBack(true)
     try {
       await switchBack()
       setActiveTab('overview')
+      loadedTabs.current = {}
     } catch (err) {
       console.error('Failed to switch back:', err)
     } finally {
@@ -47,22 +50,17 @@ export default function Dashboard() {
     }
   }
 
+  // Initial load: stats + agents/pricing (needed for overview, the default tab)
   useEffect(() => {
-    fetchData()
-  }, [activeTab])
-
-  const fetchData = async () => {
-    setLoading(true)
-    try {
-      const statsRes = await usersAPI.getStats()
-      setStats(statsRes.data.stats)
-
-      if (activeTab === 'overview' || activeTab === 'agents') {
-        const [agentsRes, modelsRes, transcribersRes] = await Promise.all([
+    const fetchInitialData = async () => {
+      try {
+        const [statsRes, agentsRes, modelsRes, transcribersRes] = await Promise.all([
+          usersAPI.getStats(),
           agentsAPI.list(),
           pricingAPI.getModelRates(),
           pricingAPI.getTranscriberRates()
         ])
+        setStats(statsRes.data.stats)
         setAgents(agentsRes.data.agents)
         const mRates = {}
         const mList = modelsRes.data.rates || modelsRes.data.globalRates || []
@@ -71,25 +69,44 @@ export default function Dashboard() {
         const tList = transcribersRes.data.rates || transcribersRes.data.globalRates || []
         tList.forEach(r => { tRates[r.provider] = r.rate })
         setPricingRates({ models: mRates, transcribers: tRates })
+        loadedTabs.current['overview'] = true
+        loadedTabs.current['agents'] = true
+      } catch (err) {
+        console.error('Failed to fetch data:', err)
+      } finally {
+        setLoading(false)
       }
-      if (activeTab === 'clients' && (user.role === ROLES.OWNER || user.role === ROLES.AGENCY)) {
-        const clientsRes = await usersAPI.getClients()
-        setClients(clientsRes.data.clients)
-      }
-      if (activeTab === 'agencies' && user.role === ROLES.OWNER) {
-        const agenciesRes = await usersAPI.getAgencies()
-        setAgencies(agenciesRes.data.agencies)
-      }
-      if (activeTab === 'all-users' && user.role === ROLES.OWNER) {
-        const usersRes = await usersAPI.getAll()
-        setAllUsers(usersRes.data.users)
-      }
-    } catch (err) {
-      console.error('Failed to fetch data:', err)
-    } finally {
-      setLoading(false)
     }
-  }
+    fetchInitialData()
+  }, [])
+
+  // Lazy-load tab-specific data on first visit
+  useEffect(() => {
+    if (loadedTabs.current[activeTab]) return
+    const fetchTabData = async () => {
+      setTabLoading(true)
+      try {
+        if (activeTab === 'clients' && (user.role === ROLES.OWNER || user.role === ROLES.AGENCY)) {
+          const clientsRes = await usersAPI.getClients()
+          setClients(clientsRes.data.clients)
+        }
+        if (activeTab === 'agencies' && user.role === ROLES.OWNER) {
+          const agenciesRes = await usersAPI.getAgencies()
+          setAgencies(agenciesRes.data.agencies)
+        }
+        if (activeTab === 'all-users' && user.role === ROLES.OWNER) {
+          const usersRes = await usersAPI.getAll()
+          setAllUsers(usersRes.data.users)
+        }
+        loadedTabs.current[activeTab] = true
+      } catch (err) {
+        console.error('Failed to fetch tab data:', err)
+      } finally {
+        setTabLoading(false)
+      }
+    }
+    fetchTabData()
+  }, [activeTab])
 
   const handleCreate = async (type) => {
     setCreating(true)
@@ -228,7 +245,7 @@ export default function Dashboard() {
         </header>
 
         <main className="p-6">
-          {loading ? (
+          {(loading || tabLoading) ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
             </div>
