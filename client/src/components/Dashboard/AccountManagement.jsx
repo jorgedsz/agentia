@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { authAPI, usersAPI, portalAPI } from '../../services/api'
+import { authAPI, usersAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -33,9 +33,6 @@ export default function AccountManagement() {
     messagesPaused: false,
   })
   const [saving, setSaving] = useState(false)
-
-  // Portal link state
-  const [copiedPortalId, setCopiedPortalId] = useState(null)
 
   // Create modals state
   const [showModal, setShowModal] = useState(null)
@@ -163,19 +160,6 @@ export default function AccountManagement() {
       await fetchAccounts()
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete user')
-    }
-  }
-
-  // Share portal link handler
-  const handleSharePortal = async (account) => {
-    try {
-      const res = await portalAPI.generateToken(account.id)
-      const portalUrl = `${window.location.origin}/portal/${res.data.portalToken}`
-      await navigator.clipboard.writeText(portalUrl)
-      setCopiedPortalId(account.id)
-      setTimeout(() => setCopiedPortalId(null), 2000)
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to generate portal link')
     }
   }
 
@@ -404,32 +388,6 @@ export default function AccountManagement() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                                 </svg>
                                 {t('common.accessAccount')}
-                              </>
-                            )}
-                          </button>
-                        )}
-                        {account.role === ROLES.CLIENT && (user?.role === ROLES.OWNER || (user?.role === ROLES.AGENCY && account.agencyId === user?.id)) && (
-                          <button
-                            onClick={() => handleSharePortal(account)}
-                            className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1.5 ${
-                              copiedPortalId === account.id
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                                : 'bg-accent-red/10 text-accent-red border border-accent-red/30 hover:bg-accent-red/20'
-                            }`}
-                          >
-                            {copiedPortalId === account.id ? (
-                              <>
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                                Link Copied!
-                              </>
-                            ) : (
-                              <>
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                </svg>
-                                Share Portal
                               </>
                             )}
                           </button>
