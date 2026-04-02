@@ -189,33 +189,30 @@ const listCalls = async (req, res) => {
   try {
     const vapiKeyList = await getVapiKeyForUser(req.prisma, req.user.id);
     if (vapiKeyList) vapiService.setApiKey(vapiKeyList);
-    const calls = await vapiService.listCalls();
 
-    // Auto-sync billing for completed calls
-    let billingResult = { billedCount: 0, totalCharged: 0 };
-    try {
-      billingResult = await syncCallBilling(req.prisma, calls);
-    } catch (billingError) {
-      console.error('Billing sync error:', billingError);
-    }
+    // Fetch VAPI calls and local data in parallel
+    const callsPromise = vapiService.listCalls();
 
-    // Batch-fetch all call logs and agents in 2 queries instead of N per-call queries
+    // Start DB queries immediately (don't wait for VAPI to finish first)
+    const agentsPromise = req.prisma.agent.findMany({
+      where: { userId: req.user.id },
+      select: { id: true, name: true, vapiId: true }
+    });
+    const userPromise = req.prisma.user.findUnique({
+      where: { id: req.user.id }, select: { vapiCredits: true }
+    });
+
+    const [calls, allAgents, user] = await Promise.all([callsPromise, agentsPromise, userPromise]);
+
+    // Build agent lookup map
+    const agentMap = {};
+    for (const agent of allAgents) { if (agent.vapiId) agentMap[agent.vapiId] = agent; }
+
+    // Batch-fetch all call logs in 1 query
     const vapiCallIds = calls.map(c => c.id);
-    const assistantIds = [...new Set(calls.map(c => c.assistantId).filter(Boolean))];
-
-    const [allCallLogs, allAgents, user] = await Promise.all([
-      req.prisma.callLog.findMany({ where: { vapiCallId: { in: vapiCallIds } } }),
-      assistantIds.length > 0
-        ? req.prisma.agent.findMany({ where: { vapiId: { in: assistantIds } }, select: { id: true, name: true, vapiId: true } })
-        : [],
-      req.prisma.user.findUnique({ where: { id: req.user.id }, select: { vapiCredits: true } })
-    ]);
-
-    // Build lookup maps for O(1) access
+    const allCallLogs = await req.prisma.callLog.findMany({ where: { vapiCallId: { in: vapiCallIds } } });
     const callLogMap = {};
     for (const log of allCallLogs) { callLogMap[log.vapiCallId] = log; }
-    const agentMap = {};
-    for (const agent of allAgents) { agentMap[agent.vapiId] = agent; }
 
     // Enrich calls using the maps (no DB queries in the loop)
     const callLogIds = [];
@@ -248,7 +245,7 @@ const listCalls = async (req, res) => {
       }
     }
 
-    // Audit log: PHI access
+    // Audit log: PHI access (fire-and-forget)
     if (callLogIds.length > 0) {
       logAudit(req.prisma, {
         userId: req.user.id,
@@ -261,7 +258,13 @@ const listCalls = async (req, res) => {
       });
     }
 
-    res.json({ calls, userCredits: user?.vapiCredits, billingResult });
+    // Respond immediately — billing sync runs in background
+    res.json({ calls, userCredits: user?.vapiCredits });
+
+    // Background: sync billing for any calls the webhook might have missed
+    syncCallBilling(req.prisma, calls).catch(err =>
+      console.error('Background billing sync error:', err)
+    );
   } catch (error) {
     console.error('List calls error:', error);
     res.status(500).json({ error: 'Failed to list calls' });

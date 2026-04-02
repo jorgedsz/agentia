@@ -22,10 +22,13 @@ function OutcomeBadge({ outcome }) {
   )
 }
 
+// Module-level cache so navigating back shows data instantly
+let _callsCache = null
+
 export default function CallLogs() {
   const { t } = useLanguage()
-  const [calls, setCalls] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [calls, setCalls] = useState(_callsCache || [])
+  const [loading, setLoading] = useState(!_callsCache)
   const [error, setError] = useState(null)
   const [selectedCall, setSelectedCall] = useState(null)
   const [updatingOutcome, setUpdatingOutcome] = useState(false)
@@ -36,13 +39,11 @@ export default function CallLogs() {
 
   const fetchCalls = async () => {
     try {
-      setLoading(true)
+      if (!_callsCache) setLoading(true)
       const response = await callsAPI.list()
-      setCalls(response.data.calls || [])
-      console.log('Call logs response:', response.data)
-      console.log('User credits from server:', response.data.userCredits)
-      console.log('Billing result:', response.data.billingResult)
-      // Dispatch event to refresh sidebar credits (billing syncs on list)
+      const data = response.data.calls || []
+      setCalls(data)
+      _callsCache = data
       window.dispatchEvent(new CustomEvent('creditsUpdated'))
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load call logs')
