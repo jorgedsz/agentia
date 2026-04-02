@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { callsAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 
@@ -12,6 +12,19 @@ const OUTCOME_CONFIG = {
   voicemail: { label: 'No Answer', bg: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' },
   unknown: { label: 'Unknown', bg: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' }
 }
+
+const END_REASON_OPTIONS = [
+  { value: 'customer-ended-call', label: 'Customer Ended' },
+  { value: 'assistant-ended-call', label: 'Assistant Ended' },
+  { value: 'assistant-said-end-call-phrase', label: 'End Call Phrase' },
+  { value: 'assistant-forwarded-call', label: 'Call Forwarded' },
+  { value: 'customer-did-not-answer', label: 'No Answer' },
+  { value: 'customer-busy', label: 'Customer Busy' },
+  { value: 'voicemail', label: 'Voicemail' },
+  { value: 'exceeded-max-duration', label: 'Max Duration' },
+  { value: 'silence-timed-out', label: 'Silence Timeout' },
+  { value: 'manually-canceled', label: 'Manually Canceled' },
+]
 
 function OutcomeBadge({ outcome }) {
   const config = OUTCOME_CONFIG[outcome] || OUTCOME_CONFIG.unknown
@@ -30,6 +43,7 @@ let _callsCache = null
 export default function CallLogs() {
   const { t } = useLanguage()
   const [calls, setCalls] = useState(_callsCache?.calls || [])
+  const [agents, setAgents] = useState(_callsCache?.agents || [])
   const [pagination, setPagination] = useState(_callsCache?.pagination || { hasMore: false })
   const [loading, setLoading] = useState(!_callsCache)
   const [error, setError] = useState(null)
@@ -38,21 +52,54 @@ export default function CallLogs() {
   const [cursorStack, setCursorStack] = useState([])
   const [currentCursor, setCurrentCursor] = useState(null)
 
+  // Filters
+  const [filters, setFilters] = useState({
+    agentId: '',      // vapiId — server-side
+    dateFrom: '',     // server-side
+    dateTo: '',       // server-side
+    outcome: '',      // client-side
+    endReason: '',    // client-side
+    phone: ''         // client-side
+  })
+  const [showFilters, setShowFilters] = useState(false)
+  const isInitialMount = useRef(true)
+
   useEffect(() => {
     fetchCalls()
   }, [])
+
+  // Re-fetch when server-side filters change (skip initial mount)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+    setCursorStack([])
+    setCurrentCursor(null)
+    fetchCalls()
+  }, [filters.agentId, filters.dateFrom, filters.dateTo])
 
   const fetchCalls = async (createdAtLt) => {
     try {
       setLoading(true)
       const params = { limit: PAGE_SIZE }
-      if (createdAtLt) params.createdAtLt = createdAtLt
+      // Pagination cursor takes precedence over dateTo filter
+      if (createdAtLt) {
+        params.createdAtLt = createdAtLt
+      } else if (filters.dateTo) {
+        params.createdAtLt = new Date(filters.dateTo + 'T23:59:59.999Z').toISOString()
+      }
+      if (filters.dateFrom) params.createdAtGt = new Date(filters.dateFrom + 'T00:00:00.000Z').toISOString()
+      if (filters.agentId) params.assistantId = filters.agentId
+
       const response = await callsAPI.list(params)
       const data = response.data.calls || []
       const pag = response.data.pagination || { hasMore: false }
+      const agentsList = response.data.agents || []
       setCalls(data)
       setPagination(pag)
-      _callsCache = { calls: data, pagination: pag }
+      if (agentsList.length > 0) setAgents(agentsList)
+      _callsCache = { calls: data, pagination: pag, agents: agentsList.length > 0 ? agentsList : (_callsCache?.agents || []) }
       window.dispatchEvent(new CustomEvent('creditsUpdated'))
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load call logs')
@@ -94,6 +141,27 @@ export default function CallLogs() {
       setUpdatingOutcome(false)
     }
   }
+
+  const clearFilters = () => {
+    setFilters({ agentId: '', dateFrom: '', dateTo: '', outcome: '', endReason: '', phone: '' })
+    setCursorStack([])
+    setCurrentCursor(null)
+  }
+
+  // Client-side filtering
+  const filteredCalls = calls.filter(call => {
+    if (filters.outcome && (call.outcome || 'unknown') !== filters.outcome) return false
+    if (filters.endReason && call.endedReason !== filters.endReason) return false
+    if (filters.phone) {
+      const customerNum = (call.customer?.number || '').toLowerCase()
+      const phoneNum = (call.phoneNumber?.number || '').toLowerCase()
+      const search = filters.phone.toLowerCase()
+      if (!customerNum.includes(search) && !phoneNum.includes(search)) return false
+    }
+    return true
+  })
+
+  const activeFilterCount = Object.values(filters).filter(v => v !== '').length
 
   const formatDuration = (seconds) => {
     if (!seconds) return '-'
@@ -163,7 +231,7 @@ export default function CallLogs() {
     }
   }
 
-  if (loading) {
+  if (loading && calls.length === 0) {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
@@ -183,10 +251,11 @@ export default function CallLogs() {
           </p>
         </div>
         <button
-          onClick={fetchCalls}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2"
+          onClick={() => fetchCalls()}
+          disabled={loading}
+          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2 disabled:opacity-50"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           {t('common.refresh')}
@@ -199,6 +268,132 @@ export default function CallLogs() {
           <button onClick={() => setError(null)} className="ml-2 underline">{t('common.dismiss')}</button>
         </div>
       )}
+
+      {/* Filters */}
+      <div className="mb-4">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          {t('callLogs.filters') || 'Filters'}
+          {activeFilterCount > 0 && (
+            <span className="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400 rounded-full">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+
+        {showFilters && (
+          <div className="mt-3 p-4 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* Agent */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  {t('callLogs.agent') || 'Agent'}
+                </label>
+                <select
+                  value={filters.agentId}
+                  onChange={(e) => setFilters(prev => ({ ...prev, agentId: e.target.value }))}
+                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300"
+                >
+                  <option value="">{t('callLogs.allAgents') || 'All Agents'}</option>
+                  {agents.filter(a => a.vapiId).map(a => (
+                    <option key={a.vapiId} value={a.vapiId}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date From */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  {t('callLogs.dateFrom') || 'From'}
+                </label>
+                <input
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300"
+                />
+              </div>
+
+              {/* Date To */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  {t('callLogs.dateTo') || 'To'}
+                </label>
+                <input
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(e) => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300"
+                />
+              </div>
+
+              {/* Outcome */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  {t('callLogs.outcome') || 'Outcome'}
+                </label>
+                <select
+                  value={filters.outcome}
+                  onChange={(e) => setFilters(prev => ({ ...prev, outcome: e.target.value }))}
+                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300"
+                >
+                  <option value="">{t('callLogs.allOutcomes') || 'All Outcomes'}</option>
+                  {Object.entries(OUTCOME_CONFIG).map(([key, config]) => (
+                    <option key={key} value={key}>{config.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* End Reason (Result) */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  {t('callLogs.result') || 'Result'}
+                </label>
+                <select
+                  value={filters.endReason}
+                  onChange={(e) => setFilters(prev => ({ ...prev, endReason: e.target.value }))}
+                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300"
+                >
+                  <option value="">{t('callLogs.allResults') || 'All Results'}</option>
+                  {END_REASON_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Phone Search */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  {t('callLogs.phoneNumber') || 'Phone'}
+                </label>
+                <input
+                  type="text"
+                  value={filters.phone}
+                  onChange={(e) => setFilters(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder={t('callLogs.searchPhone') || 'Search...'}
+                  className="w-full px-3 py-1.5 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 placeholder-gray-400"
+                />
+              </div>
+            </div>
+
+            {activeFilterCount > 0 && (
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={clearFilters}
+                  className="text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                >
+                  {t('callLogs.clearFilters') || 'Clear all filters'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Call Detail Modal */}
       {selectedCall && (
@@ -317,14 +512,31 @@ export default function CallLogs() {
 
       {/* Calls Table */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
-        {calls.length === 0 ? (
-          <div className="text-center py-12">
-            <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-            </svg>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('callLogs.noCallsYet')}</h3>
-            <p className="text-gray-500 dark:text-gray-400">{t('callLogs.makeFirstCall')}</p>
-          </div>
+        {filteredCalls.length === 0 ? (
+          calls.length > 0 ? (
+            <div className="text-center py-12">
+              <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                {t('callLogs.noMatchingCalls') || 'No calls match your filters'}
+              </h3>
+              <button
+                onClick={clearFilters}
+                className="mt-2 text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 text-sm font-medium"
+              >
+                {t('callLogs.clearFilters') || 'Clear all filters'}
+              </button>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('callLogs.noCallsYet')}</h3>
+              <p className="text-gray-500 dark:text-gray-400">{t('callLogs.makeFirstCall')}</p>
+            </div>
+          )
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -360,7 +572,7 @@ export default function CallLogs() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
-                {calls.map((call) => (
+                {filteredCalls.map((call) => (
                   <tr key={call.id} className="hover:bg-gray-50 dark:hover:bg-dark-hover">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {formatDate(call.startedAt || call.createdAt)}
@@ -408,7 +620,8 @@ export default function CallLogs() {
       {calls.length > 0 && (
         <div className="flex items-center justify-between mt-4">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t('callLogs.showing') || 'Showing'} {calls.length} {t('callLogs.calls') || 'calls'}
+            {t('callLogs.showing') || 'Showing'} {filteredCalls.length}
+            {filteredCalls.length !== calls.length ? ` of ${calls.length}` : ''} {t('callLogs.calls') || 'calls'}
           </p>
           <div className="flex gap-2">
             <button

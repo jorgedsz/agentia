@@ -191,10 +191,10 @@ const listCalls = async (req, res) => {
     if (vapiKeyList) vapiService.setApiKey(vapiKeyList);
 
     const limit = Math.min(parseInt(req.query.limit) || 25, 100);
-    const { createdAtLt, createdAtGt } = req.query;
+    const { createdAtLt, createdAtGt, assistantId } = req.query;
 
     // Fetch VAPI calls and local data in parallel
-    const callsPromise = vapiService.listCalls({ limit: limit + 1, createdAtLt, createdAtGt });
+    const callsPromise = vapiService.listCalls({ limit: limit + 1, createdAtLt, createdAtGt, assistantId });
 
     // Start DB queries immediately (don't wait for VAPI to finish first)
     const agentsPromise = req.prisma.agent.findMany({
@@ -272,6 +272,7 @@ const listCalls = async (req, res) => {
     // Respond immediately — billing sync runs in background
     res.json({
       calls,
+      agents: allAgents,
       userCredits: user?.vapiCredits,
       pagination: {
         limit,

@@ -738,10 +738,11 @@ class VapiService {
    * @param {number} limit - Max number of calls to return
    * @returns {Promise<Array>} - Array of call objects
    */
-  async listCalls({ limit = 25, createdAtLt, createdAtGt } = {}) {
+  async listCalls({ limit = 25, createdAtLt, createdAtGt, assistantId } = {}) {
     const params = new URLSearchParams({ limit: String(limit) });
     if (createdAtLt) params.append('createdAtLt', createdAtLt);
     if (createdAtGt) params.append('createdAtGt', createdAtGt);
+    if (assistantId) params.append('assistantId', assistantId);
     return this.makeRequest(`/call?${params.toString()}`);
   }
 
