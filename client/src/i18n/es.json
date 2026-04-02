@@ -291,7 +291,19 @@
     "makeFirstCall": "Realiza tu primera llamada desde la página de un agente",
     "date": "Fecha",
     "customer": "Cliente",
-    "testCall": "Llamada de prueba"
+    "testCall": "Llamada de prueba",
+    "filters": "Filtros",
+    "allAgents": "Todos los agentes",
+    "dateFrom": "Desde",
+    "dateTo": "Hasta",
+    "allOutcomes": "Todos los resultados",
+    "result": "Resultado",
+    "allResults": "Todos los resultados",
+    "searchPhone": "Buscar...",
+    "clearFilters": "Limpiar filtros",
+    "noMatchingCalls": "No hay llamadas que coincidan con tus filtros",
+    "showing": "Mostrando",
+    "calls": "llamadas"
   },
   "settings": {
     "title": "Configuración",
