@@ -195,36 +195,41 @@ const listCalls = async (req, res) => {
     let billingResult = { billedCount: 0, totalCharged: 0 };
     try {
       billingResult = await syncCallBilling(req.prisma, calls);
-      console.log('Billing sync result:', billingResult);
     } catch (billingError) {
       console.error('Billing sync error:', billingError);
-      // Don't fail the request if billing sync fails
     }
 
-    // Enrich calls with agent names, duration, and billing info from our database
-    const enrichedCalls = await Promise.all(calls.map(async (call) => {
-      if (call.assistantId) {
-        const agent = await req.prisma.agent.findFirst({
-          where: { vapiId: call.assistantId },
-          select: { id: true, name: true }
-        });
-        if (agent) {
-          call.agentName = agent.name;
-          call.agentLocalId = agent.id;
-        }
+    // Batch-fetch all call logs and agents in 2 queries instead of N per-call queries
+    const vapiCallIds = calls.map(c => c.id);
+    const assistantIds = [...new Set(calls.map(c => c.assistantId).filter(Boolean))];
+
+    const [allCallLogs, allAgents, user] = await Promise.all([
+      req.prisma.callLog.findMany({ where: { vapiCallId: { in: vapiCallIds } } }),
+      assistantIds.length > 0
+        ? req.prisma.agent.findMany({ where: { vapiId: { in: assistantIds } }, select: { id: true, name: true, vapiId: true } })
+        : [],
+      req.prisma.user.findUnique({ where: { id: req.user.id }, select: { vapiCredits: true } })
+    ]);
+
+    // Build lookup maps for O(1) access
+    const callLogMap = {};
+    for (const log of allCallLogs) { callLogMap[log.vapiCallId] = log; }
+    const agentMap = {};
+    for (const agent of allAgents) { agentMap[agent.vapiId] = agent; }
+
+    // Enrich calls using the maps (no DB queries in the loop)
+    const callLogIds = [];
+    for (const call of calls) {
+      if (call.assistantId && agentMap[call.assistantId]) {
+        call.agentName = agentMap[call.assistantId].name;
+        call.agentLocalId = agentMap[call.assistantId].id;
       }
 
-      // Calculate duration from timestamps if not available
       if (!call.duration && call.startedAt && call.endedAt) {
-        const startTime = new Date(call.startedAt).getTime();
-        const endTime = new Date(call.endedAt).getTime();
-        call.duration = (endTime - startTime) / 1000; // in seconds
+        call.duration = (new Date(call.endedAt).getTime() - new Date(call.startedAt).getTime()) / 1000;
       }
 
-      // Add billing info + outcome (decrypt PHI fields from DB)
-      const callLog = await req.prisma.callLog.findUnique({
-        where: { vapiCallId: call.id }
-      });
+      const callLog = callLogMap[call.id];
       if (callLog) {
         const decrypted = decryptPHI(callLog);
         call.billed = decrypted.billed;
@@ -236,16 +241,14 @@ const listCalls = async (req, res) => {
         call.structuredData = decrypted.structuredData;
         call.customerNumber = decrypted.customerNumber;
         call.recordingUrl = decrypted.recordingUrl;
-        // Use stored duration if available
         if (decrypted.durationSeconds > 0) {
           call.duration = decrypted.durationSeconds;
         }
+        callLogIds.push(decrypted.id);
       }
-      return call;
-    }));
+    }
 
     // Audit log: PHI access
-    const callLogIds = enrichedCalls.filter(c => c.callLogId).map(c => c.callLogId);
     if (callLogIds.length > 0) {
       logAudit(req.prisma, {
         userId: req.user.id,
@@ -258,13 +261,7 @@ const listCalls = async (req, res) => {
       });
     }
 
-    // Get user's current credits to return
-    const user = await req.prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { vapiCredits: true }
-    });
-
-    res.json({ calls: enrichedCalls, userCredits: user?.vapiCredits, billingResult });
+    res.json({ calls, userCredits: user?.vapiCredits, billingResult });
   } catch (error) {
     console.error('List calls error:', error);
     res.status(500).json({ error: 'Failed to list calls' });
@@ -378,165 +375,145 @@ const updateOutcome = async (req, res) => {
 
 // Helper function to sync billing for completed calls
 const syncCallBilling = async (prisma, vapiCalls) => {
-  // Note: We now use per-user rates from User model instead of global CallRate
-
   let billedCount = 0;
   let totalCharged = 0;
 
-  console.log(`Processing ${vapiCalls.length} calls for billing`);
+  // Only process ended calls
+  const endedCalls = vapiCalls.filter(c => c.status === 'ended');
+  if (endedCalls.length === 0) return { billedCount, totalCharged };
 
-  for (const call of vapiCalls) {
-    // Log all duration-related fields to find the correct one
-    console.log(`Call ${call.id}: status=${call.status}, type=${call.type}, duration=${call.duration}, durationSeconds=${call.durationSeconds}, durationMinutes=${call.durationMinutes}, startedAt=${call.startedAt}, endedAt=${call.endedAt}`);
+  // Batch-fetch all existing call logs and agents upfront
+  const vapiCallIds = endedCalls.map(c => c.id);
+  const assistantIds = [...new Set(endedCalls.map(c => c.assistantId).filter(Boolean))];
 
-    // Skip if not ended
-    if (call.status !== 'ended') {
-      console.log(`Skipping call ${call.id}: not ended`);
-      continue;
-    }
+  const [existingLogs, agents] = await Promise.all([
+    prisma.callLog.findMany({ where: { vapiCallId: { in: vapiCallIds } } }),
+    assistantIds.length > 0
+      ? prisma.agent.findMany({ where: { vapiId: { in: assistantIds } } })
+      : []
+  ]);
 
-    // Bill all call types including webCall (test calls)
+  const logMap = {};
+  for (const log of existingLogs) { logMap[log.vapiCallId] = log; }
+  const agentByVapiId = {};
+  const agentById = {};
+  for (const agent of agents) {
+    agentByVapiId[agent.vapiId] = agent;
+    agentById[agent.id] = agent;
+  }
 
-    // Check if already billed
-    const existingLog = await prisma.callLog.findUnique({
-      where: { vapiCallId: call.id }
-    });
+  // Collect batch updates: unknown outcomes to fix, and calls to bill
+  const outcomeUpdates = [];
+  const callsToBill = [];
 
-    console.log(`Call ${call.id}: existingLog=${existingLog ? JSON.stringify(existingLog) : 'null'}`);
+  for (const call of endedCalls) {
+    const existingLog = logMap[call.id];
 
-    // Skip only if already billed WITH a cost (re-bill if cost was 0)
+    // Already billed with cost > 0 — just fix unknown outcomes
     if (existingLog && existingLog.billed && existingLog.costCharged > 0) {
-      // Still update outcome if it's unknown
       if (existingLog.outcome === 'unknown') {
         const outcome = categorizeOutcome(call);
-        // Also resolve agentId if missing
         let agentId = existingLog.agentId;
-        if (!agentId && call.assistantId) {
-          const agent = await prisma.agent.findFirst({ where: { vapiId: call.assistantId } });
-          if (agent) agentId = agent.id;
+        if (!agentId && call.assistantId && agentByVapiId[call.assistantId]) {
+          agentId = agentByVapiId[call.assistantId].id;
         }
-        await prisma.callLog.update({
+        outcomeUpdates.push(prisma.callLog.update({
           where: { id: existingLog.id },
           data: { outcome, ...(agentId && !existingLog.agentId ? { agentId } : {}) }
-        });
+        }));
       }
-      console.log(`Skipping call ${call.id}: already billed with cost ${existingLog.costCharged}`);
       continue;
     }
 
-    // Determine call type
-    const isOutbound = call.type === 'outboundPhoneCall';
-
-    // Try multiple ways to get duration
-    let durationSeconds = call.duration || call.durationSeconds || 0;
-
-    // If no duration field, calculate from timestamps
-    if (!durationSeconds && call.startedAt && call.endedAt) {
-      const startTime = new Date(call.startedAt).getTime();
-      const endTime = new Date(call.endedAt).getTime();
-      durationSeconds = (endTime - startTime) / 1000;
-    }
-
-    const durationMinutes = durationSeconds / 60;
-
-    console.log(`Call ${call.id}: calculated durationSeconds=${durationSeconds}, durationMinutes=${durationMinutes}`);
-
-    // Find the user who owns this call first (to get their rates)
+    // Resolve agent and userId
     let userId = existingLog?.userId;
     let agentId = existingLog?.agentId || null;
+    const agent = call.assistantId ? agentByVapiId[call.assistantId] : null;
 
-    if (!userId && call.assistantId) {
-      const agent = await prisma.agent.findFirst({
-        where: { vapiId: call.assistantId }
-      });
-      if (agent) {
-        userId = agent.userId;
-        agentId = agent.id;
+    if (!userId && agent) {
+      userId = agent.userId;
+      agentId = agent.id;
+    }
+    if (!agentId && agent) {
+      agentId = agent.id;
+    }
+    if (!userId) continue;
+
+    // Calculate duration
+    let durationSeconds = call.duration || call.durationSeconds || 0;
+    if (!durationSeconds && call.startedAt && call.endedAt) {
+      durationSeconds = (new Date(call.endedAt).getTime() - new Date(call.startedAt).getTime()) / 1000;
+    }
+
+    callsToBill.push({ call, existingLog, userId, agentId, durationSeconds, agent });
+  }
+
+  // Fire outcome updates in parallel
+  if (outcomeUpdates.length > 0) {
+    await Promise.all(outcomeUpdates);
+  }
+
+  // Process billing — needs sequential user credit decrements per user
+  // But we can batch-fetch user rates upfront
+  const userIds = [...new Set(callsToBill.map(c => c.userId))];
+  const users = userIds.length > 0
+    ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, outboundRate: true, inboundRate: true } })
+    : [];
+  const userMap = {};
+  for (const u of users) { userMap[u.id] = u; }
+
+  // Pre-compute agent rates for unique agents
+  const agentRateCache = {};
+  for (const { agentId, userId, agent } of callsToBill) {
+    if (agentId && agent && !agentRateCache[agentId]) {
+      try {
+        agentRateCache[agentId] = await getAgentRate(prisma, agent, userId);
+      } catch (e) {
+        agentRateCache[agentId] = null;
       }
     }
+  }
 
-    if (!userId) {
-      console.log(`Skipping call ${call.id}: no userId found`);
-      continue;
-    }
+  for (const { call, existingLog, userId, agentId, durationSeconds } of callsToBill) {
+    const isOutbound = call.type === 'outboundPhoneCall';
+    const durationMinutes = durationSeconds / 60;
 
-    // Resolve agentId if we have userId but not agentId
-    if (!agentId && call.assistantId) {
-      const agent = await prisma.agent.findFirst({ where: { vapiId: call.assistantId } });
-      if (agent) agentId = agent.id;
-    }
-
-    // Try dynamic pricing first (per-agent model+transcriber rates)
+    const dynamicRate = agentId ? agentRateCache[agentId] : null;
     let rate;
-    let dynamicRate = null;
-
-    if (agentId) {
-      const agent = await prisma.agent.findUnique({ where: { id: agentId } });
-      if (agent) {
-        dynamicRate = await getAgentRate(prisma, agent, userId);
-      }
-    }
-
     if (dynamicRate) {
       rate = dynamicRate.totalRate;
     } else {
-      // Fallback to legacy per-user rates
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { outboundRate: true, inboundRate: true }
-      });
+      const user = userMap[userId];
       const outboundRate = user?.outboundRate ?? 0.10;
       const inboundRate = user?.inboundRate ?? 0.05;
       rate = isOutbound ? outboundRate : inboundRate;
     }
 
     const cost = durationMinutes * rate;
-
-    // Categorize outcome
     const outcome = categorizeOutcome(call);
 
-    console.log(`Billing call ${call.id}: duration=${durationSeconds}s, minutes=${durationMinutes}, rate=${rate}, cost=${cost}, userId=${userId}, outcome=${outcome}`);
-
-    // Create or update call log
     if (existingLog) {
       await prisma.callLog.update({
         where: { id: existingLog.id },
-        data: {
-          durationSeconds,
-          costCharged: cost,
-          billed: true,
-          outcome,
-          ...(agentId ? { agentId } : {})
-        }
+        data: { durationSeconds, costCharged: cost, billed: true, outcome, ...(agentId ? { agentId } : {}) }
       });
     } else {
       await prisma.callLog.create({
         data: {
-          vapiCallId: call.id,
-          userId,
-          type: isOutbound ? 'outbound' : 'inbound',
-          durationSeconds,
-          costCharged: cost,
-          billed: true,
-          outcome,
+          vapiCallId: call.id, userId, type: isOutbound ? 'outbound' : 'inbound',
+          durationSeconds, costCharged: cost, billed: true, outcome,
           ...(agentId ? { agentId } : {})
         }
       });
     }
 
-    // Deduct from user's credits
     if (cost > 0) {
       await prisma.user.update({
         where: { id: userId },
-        data: {
-          vapiCredits: {
-            decrement: cost
-          }
-        }
+        data: { vapiCredits: { decrement: cost } }
       });
       billedCount++;
       totalCharged += cost;
-      console.log(`Billed user ${userId}: $${cost.toFixed(4)}`);
     }
   }
 
