@@ -28,7 +28,6 @@ export default function Payments() {
   const [transactionsTotal, setTransactionsTotal] = useState(0)
   const [transactionsPage, setTransactionsPage] = useState(1)
   const [transactionsLoading, setTransactionsLoading] = useState(false)
-  const [syncingProductId, setSyncingProductId] = useState(null)
 
   // Product modal
   const [productModal, setProductModal] = useState(null) // null | 'create' | product object
@@ -85,20 +84,6 @@ export default function Payments() {
       setError(err.response?.data?.error || 'Failed to load transactions')
     } finally {
       setTransactionsLoading(false)
-    }
-  }
-
-  const syncProductToPayPal = async (productId) => {
-    setSyncingProductId(productId)
-    setError('')
-    try {
-      await paymentsAPI.syncProductToPayPal(productId)
-      setSuccess('Product synced to PayPal successfully')
-      fetchData()
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to sync product to PayPal')
-    } finally {
-      setSyncingProductId(null)
     }
   }
 
@@ -394,13 +379,6 @@ export default function Payments() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button onClick={() => openEditProduct(product)} className="text-primary-600 hover:text-primary-700 text-sm">{t('common.edit')}</button>
-                          <button
-                            onClick={() => syncProductToPayPal(product.id)}
-                            disabled={syncingProductId === product.id}
-                            className="text-blue-600 hover:text-blue-700 text-sm disabled:opacity-50"
-                          >
-                            {syncingProductId === product.id ? 'Syncing...' : product.paypalProductId ? 'Re-sync PayPal' : 'Sync PayPal'}
-                          </button>
                           <button onClick={() => deleteProduct(product)} className="text-red-500 hover:text-red-600 text-sm">{t('common.delete')}</button>
                         </div>
                       </td>
@@ -518,7 +496,6 @@ export default function Payments() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-gray-900 dark:text-white text-sm">{tx.user?.name || tx.user?.email}</div>
-                          {tx.paypalPayerEmail && <div className="text-xs text-gray-400">{tx.paypalPayerEmail}</div>}
                         </td>
                         <td className="px-4 py-3 text-gray-900 dark:text-white">{tx.userProduct?.product?.name || '—'}</td>
                         <td className="px-4 py-3">

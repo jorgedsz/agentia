@@ -318,10 +318,6 @@ model Product {
   quarterlyPrice        Float          @default(0)
   annualPrice           Float          @default(0)
   lifetimePrice         Float          @default(0)
-  paypalProductId       String?        // PayPal Catalog Product ID
-  paypalMonthlyPlanId   String?        // PayPal Plan for monthly
-  paypalQuarterlyPlanId String?        // PayPal Plan for quarterly
-  paypalAnnualPlanId    String?        // PayPal Plan for annual
   isActive              Boolean        @default(true)
   sortOrder             Int            @default(0)
   createdAt             DateTime       @default(now())
@@ -342,9 +338,6 @@ model UserProduct {
   nextPaymentDate      DateTime?
   notes                String?
   assignedBy           Int?          // null = self-purchased
-  paypalSubscriptionId String?       // PayPal Subscription ID (recurring)
-  paypalOrderId        String?       // PayPal Order ID (lifetime)
-  paymentMethod        String        @default("manual") // "manual" or "paypal"
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   transactions         Transaction[]
@@ -394,9 +387,6 @@ model CreditPurchase {
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount              Float    // USD amount paid
   credits             Float    // Credits added (equal to amount)
-  paypalOrderId       String?  @unique
-  paypalTransactionId String?
-  paypalPayerEmail    String?
   status              String   // "completed", "pending", "failed"
   rawPayload          String?
   createdAt           DateTime @default(now())
@@ -411,20 +401,15 @@ model Transaction {
   user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   userProductId        Int?
   userProduct          UserProduct? @relation(fields: [userProductId], references: [id], onDelete: SetNull)
-  paypalTransactionId  String?      @unique
-  paypalSubscriptionId String?
-  paypalOrderId        String?
   type                 String       // "subscription_payment", "one_time", "refund"
   amount               Float
   currency             String       @default("USD")
   status               String       // "completed", "pending", "refunded", "failed"
-  paypalPayerEmail     String?
   rawPayload           String?
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
 
   @@index([userId, createdAt])
-  @@index([paypalSubscriptionId])
 }
 
 model WaProject {

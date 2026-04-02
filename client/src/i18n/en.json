@@ -360,7 +360,7 @@
     "memberSince": "Member Since",
     "creditsBalance": "Credits Balance",
     "loadCredits": "Load Credits",
-    "loadCreditsDesc": "Add credits to your account via PayPal.",
+    "loadCreditsDesc": "Contact your administrator to add credits.",
     "creditAmount": "Amount",
     "customAmount": "Custom Amount",
     "customAmountPlaceholder": "Enter amount...",
