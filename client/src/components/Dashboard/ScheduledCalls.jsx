@@ -23,6 +23,15 @@ const formatDate = (dateString) => {
   return new Date(dateString).toLocaleString()
 }
 
+// Convert a Date to local datetime-local input value
+const toLocalDatetimeString = (dateString) => {
+  if (!dateString) return ''
+  const d = new Date(dateString)
+  const offset = d.getTimezoneOffset()
+  const local = new Date(d.getTime() - offset * 60000)
+  return local.toISOString().slice(0, 16)
+}
+
 export default function ScheduledCalls() {
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState('callbacks')
@@ -30,7 +39,10 @@ export default function ScheduledCalls() {
   const [followUps, setFollowUps] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [cancelling, setCancelling] = useState(null)
+  const [actionLoading, setActionLoading] = useState(null)
+  const [editModal, setEditModal] = useState(null) // { type: 'callback'|'followup', item }
+  const [editTime, setEditTime] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
   const loadedTabs = useRef({})
 
   // Fetch callbacks on mount (default tab)
@@ -93,33 +105,58 @@ export default function ScheduledCalls() {
     }
   }
 
-  const handleCancelCallback = async (id) => {
-    if (!window.confirm(t('scheduledCalls.confirmCancel'))) return
+  const handleDeleteCallback = async (id) => {
+    if (!window.confirm(t('scheduledCalls.confirmDelete'))) return
     try {
-      setCancelling(id)
-      await callbackAPI.cancel(id)
-      setCallbacks(prev => prev.map(cb =>
-        cb.id === id ? { ...cb, status: 'cancelled' } : cb
-      ))
+      setActionLoading(id)
+      await callbackAPI.delete(id)
+      setCallbacks(prev => prev.filter(cb => cb.id !== id))
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to cancel callback')
+      setError(err.response?.data?.error || 'Failed to delete callback')
     } finally {
-      setCancelling(null)
+      setActionLoading(null)
     }
   }
 
-  const handleCancelFollowUp = async (id) => {
-    if (!window.confirm(t('scheduledCalls.confirmCancel'))) return
+  const handleDeleteFollowUp = async (id) => {
+    if (!window.confirm(t('scheduledCalls.confirmDelete'))) return
     try {
-      setCancelling(id)
-      await followUpAPI.cancel(id)
-      setFollowUps(prev => prev.map(fu =>
-        fu.id === id ? { ...fu, status: 'cancelled' } : fu
-      ))
+      setActionLoading(id)
+      await followUpAPI.delete(id)
+      setFollowUps(prev => prev.filter(fu => fu.id !== id))
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to cancel follow-up')
+      setError(err.response?.data?.error || 'Failed to delete follow-up')
     } finally {
-      setCancelling(null)
+      setActionLoading(null)
+    }
+  }
+
+  const openEditModal = (type, item) => {
+    setEditModal({ type, item })
+    setEditTime(toLocalDatetimeString(item.scheduledAt))
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editModal || !editTime) return
+    setEditSaving(true)
+    try {
+      const newDate = new Date(editTime).toISOString()
+      if (editModal.type === 'callback') {
+        await callbackAPI.update(editModal.item.id, { scheduledAt: newDate })
+        setCallbacks(prev => prev.map(cb =>
+          cb.id === editModal.item.id ? { ...cb, scheduledAt: newDate } : cb
+        ))
+      } else {
+        await followUpAPI.update(editModal.item.id, { scheduledAt: newDate })
+        setFollowUps(prev => prev.map(fu =>
+          fu.id === editModal.item.id ? { ...fu, scheduledAt: newDate } : fu
+        ))
+      }
+      setEditModal(null)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to update scheduled time')
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -195,15 +232,23 @@ export default function ScheduledCalls() {
                   <StatusBadge status={cb.status} t={t} />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                  {cb.status === 'pending' && (
+                  <div className="flex items-center justify-end gap-3">
+                    {cb.status === 'pending' && (
+                      <button
+                        onClick={() => openEditModal('callback', cb)}
+                        className="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 text-sm font-medium"
+                      >
+                        {t('scheduledCalls.editTime')}
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleCancelCallback(cb.id)}
-                      disabled={cancelling === cb.id}
+                      onClick={() => handleDeleteCallback(cb.id)}
+                      disabled={actionLoading === cb.id}
                       className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm font-medium disabled:opacity-50"
                     >
-                      {cancelling === cb.id ? t('common.loading') : t('common.cancel')}
+                      {actionLoading === cb.id ? t('common.loading') : t('common.delete')}
                     </button>
-                  )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -276,15 +321,23 @@ export default function ScheduledCalls() {
                   <StatusBadge status={fu.status} t={t} />
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                  {fu.status === 'pending' && (
+                  <div className="flex items-center justify-end gap-3">
+                    {fu.status === 'pending' && (
+                      <button
+                        onClick={() => openEditModal('followup', fu)}
+                        className="text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300 text-sm font-medium"
+                      >
+                        {t('scheduledCalls.editTime')}
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleCancelFollowUp(fu.id)}
-                      disabled={cancelling === fu.id}
+                      onClick={() => handleDeleteFollowUp(fu.id)}
+                      disabled={actionLoading === fu.id}
                       className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm font-medium disabled:opacity-50"
                     >
-                      {cancelling === fu.id ? t('common.loading') : t('common.cancel')}
+                      {actionLoading === fu.id ? t('common.loading') : t('common.delete')}
                     </button>
-                  )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -349,6 +402,51 @@ export default function ScheduledCalls() {
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
         {activeTab === 'callbacks' ? renderCallbacksTable() : renderFollowUpsTable()}
       </div>
+
+      {/* Edit Time Modal */}
+      {editModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditModal(null)}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-dark-border">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('scheduledCalls.editTimeTitle')}</h2>
+              <button onClick={() => setEditModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{editModal.item.customerNumber}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">{editModal.item.agentName || editModal.item.agentId}</p>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('scheduledCalls.newTime')}
+              </label>
+              <input
+                type="datetime-local"
+                value={editTime}
+                onChange={e => setEditTime(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={() => setEditModal(null)}
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 text-sm font-medium hover:bg-gray-50 dark:hover:bg-dark-hover"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={editSaving || !editTime}
+                  className="flex-1 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {editSaving && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
+                  {t('common.save')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

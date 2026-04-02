@@ -8,6 +8,7 @@ router.post('/schedule', callbackController.scheduleCallback);
 
 // Protected — requires auth
 router.get('/', authMiddleware, callbackController.listCallbacks);
-router.delete('/:id', authMiddleware, callbackController.cancelCallback);
+router.patch('/:id', authMiddleware, callbackController.updateCallback);
+router.delete('/:id', authMiddleware, callbackController.deleteCallback);
 
 module.exports = router;

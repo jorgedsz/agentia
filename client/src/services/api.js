@@ -264,12 +264,14 @@ export const toolsAPI = {
 // Callbacks API
 export const callbackAPI = {
   list: () => api.get('/callbacks'),
-  cancel: (id) => api.delete(`/callbacks/${id}`)
+  update: (id, data) => api.patch(`/callbacks/${id}`, data),
+  delete: (id) => api.delete(`/callbacks/${id}`)
 }
 
 export const followUpAPI = {
   list: () => api.get('/follow-ups'),
-  cancel: (id) => api.delete(`/follow-ups/${id}`)
+  update: (id, data) => api.patch(`/follow-ups/${id}`, data),
+  delete: (id) => api.delete(`/follow-ups/${id}`)
 }
 
 // Demo API

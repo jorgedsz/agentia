@@ -303,9 +303,53 @@ async function listFollowUps(req, res) {
 }
 
 /**
- * DELETE /api/follow-ups/:id — Cancel a pending follow-up
+ * PATCH /api/follow-ups/:id — Update a pending follow-up (e.g. reschedule)
  */
-async function cancelFollowUp(req, res) {
+async function updateFollowUp(req, res) {
+  try {
+    const followUpId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const { scheduledAt } = req.body;
+
+    const followUp = await req.prisma.scheduledFollowUp.findUnique({
+      where: { id: followUpId }
+    });
+
+    if (!followUp) {
+      return res.status(404).json({ error: 'Follow-up not found' });
+    }
+    if (followUp.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    if (followUp.status !== 'pending') {
+      return res.status(400).json({ error: `Cannot update follow-up with status: ${followUp.status}` });
+    }
+
+    const data = {};
+    if (scheduledAt) {
+      const parsed = new Date(scheduledAt);
+      if (isNaN(parsed.getTime())) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+      data.scheduledAt = parsed;
+    }
+
+    const updated = await req.prisma.scheduledFollowUp.update({
+      where: { id: followUpId },
+      data
+    });
+
+    res.json({ success: true, followUp: updated });
+  } catch (error) {
+    console.error('[Follow-Up] Update error:', error);
+    res.status(500).json({ error: 'Failed to update follow-up' });
+  }
+}
+
+/**
+ * DELETE /api/follow-ups/:id — Delete a follow-up
+ */
+async function deleteFollowUp(req, res) {
   try {
     const followUpId = parseInt(req.params.id);
     const userId = req.user.id;
@@ -317,24 +361,18 @@ async function cancelFollowUp(req, res) {
     if (!followUp) {
       return res.status(404).json({ error: 'Follow-up not found' });
     }
-
     if (followUp.userId !== userId) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    if (followUp.status !== 'pending') {
-      return res.status(400).json({ error: `Cannot cancel follow-up with status: ${followUp.status}` });
-    }
-
-    await req.prisma.scheduledFollowUp.update({
-      where: { id: followUpId },
-      data: { status: 'cancelled' }
+    await req.prisma.scheduledFollowUp.delete({
+      where: { id: followUpId }
     });
 
-    res.json({ success: true, message: 'Follow-up cancelled' });
+    res.json({ success: true, message: 'Follow-up deleted' });
   } catch (error) {
-    console.error('[Follow-Up] Cancel error:', error);
-    res.status(500).json({ error: 'Failed to cancel follow-up' });
+    console.error('[Follow-Up] Delete error:', error);
+    res.status(500).json({ error: 'Failed to delete follow-up' });
   }
 }
 
@@ -343,5 +381,6 @@ module.exports = {
   processFollowUps,
   startScheduler,
   listFollowUps,
-  cancelFollowUp
+  updateFollowUp,
+  deleteFollowUp
 };

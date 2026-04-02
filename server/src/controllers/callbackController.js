@@ -286,9 +286,53 @@ async function listCallbacks(req, res) {
 }
 
 /**
- * DELETE /api/callbacks/:id — Cancel a pending callback
+ * PATCH /api/callbacks/:id — Update a pending callback (e.g. reschedule)
  */
-async function cancelCallback(req, res) {
+async function updateCallback(req, res) {
+  try {
+    const callbackId = parseInt(req.params.id);
+    const userId = req.user.id;
+    const { scheduledAt } = req.body;
+
+    const callback = await req.prisma.scheduledCallback.findUnique({
+      where: { id: callbackId }
+    });
+
+    if (!callback) {
+      return res.status(404).json({ error: 'Callback not found' });
+    }
+    if (callback.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    if (callback.status !== 'pending') {
+      return res.status(400).json({ error: `Cannot update callback with status: ${callback.status}` });
+    }
+
+    const data = {};
+    if (scheduledAt) {
+      const parsed = new Date(scheduledAt);
+      if (isNaN(parsed.getTime())) {
+        return res.status(400).json({ error: 'Invalid date format' });
+      }
+      data.scheduledAt = parsed;
+    }
+
+    const updated = await req.prisma.scheduledCallback.update({
+      where: { id: callbackId },
+      data
+    });
+
+    res.json({ success: true, callback: updated });
+  } catch (error) {
+    console.error('Update callback error:', error);
+    res.status(500).json({ error: 'Failed to update callback' });
+  }
+}
+
+/**
+ * DELETE /api/callbacks/:id — Delete a callback
+ */
+async function deleteCallback(req, res) {
   try {
     const callbackId = parseInt(req.params.id);
     const userId = req.user.id;
@@ -300,24 +344,18 @@ async function cancelCallback(req, res) {
     if (!callback) {
       return res.status(404).json({ error: 'Callback not found' });
     }
-
     if (callback.userId !== userId) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    if (callback.status !== 'pending') {
-      return res.status(400).json({ error: `Cannot cancel callback with status: ${callback.status}` });
-    }
-
-    await req.prisma.scheduledCallback.update({
-      where: { id: callbackId },
-      data: { status: 'cancelled' }
+    await req.prisma.scheduledCallback.delete({
+      where: { id: callbackId }
     });
 
-    res.json({ success: true, message: 'Callback cancelled' });
+    res.json({ success: true, message: 'Callback deleted' });
   } catch (error) {
-    console.error('Cancel callback error:', error);
-    res.status(500).json({ error: 'Failed to cancel callback' });
+    console.error('Delete callback error:', error);
+    res.status(500).json({ error: 'Failed to delete callback' });
   }
 }
 
@@ -326,5 +364,6 @@ module.exports = {
   processCallbacks,
   startScheduler,
   listCallbacks,
-  cancelCallback
+  updateCallback,
+  deleteCallback
 };

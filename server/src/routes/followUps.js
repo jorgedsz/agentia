@@ -4,6 +4,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 const followUpController = require('../controllers/followUpController');
 
 router.get('/', authMiddleware, followUpController.listFollowUps);
-router.delete('/:id', authMiddleware, followUpController.cancelFollowUp);
+router.patch('/:id', authMiddleware, followUpController.updateFollowUp);
+router.delete('/:id', authMiddleware, followUpController.deleteFollowUp);
 
 module.exports = router;
