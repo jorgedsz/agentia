@@ -478,7 +478,6 @@ export default function AgentEdit() {
   // Transcriber settings
   const [transcriberProvider, setTranscriberProvider] = useState('deepgram')
   const [transcriberLanguage, setTranscriberLanguage] = useState('multi')
-  const [transcriberModel, setTranscriberModel] = useState('gpt-4o-mini-transcribe')
 
   // Dynamic pricing rates
   const [modelRates, setModelRates] = useState({}) // { 'provider::model': rate }
@@ -1097,9 +1096,6 @@ export default function AgentEdit() {
       }
       if (agentData.config?.transcriberLanguage) {
         setTranscriberLanguage(agentData.config.transcriberLanguage)
-      }
-      if (agentData.config?.transcriberModel) {
-        setTranscriberModel(agentData.config.transcriberModel)
       }
 
       // Load calendar config (backward compat: legacy agents have no provider/integrationId)
@@ -1747,7 +1743,6 @@ If the customer asks to be called back at a later time:
           voiceId: finalVoiceId,
           transcriberProvider,
           transcriberLanguage,
-          transcriberModel: transcriberProvider === 'openai' ? transcriberModel : undefined,
           calendarConfig: (() => {
             // Sync top-level fields from calendars[0] for backward compat
             if (calendarConfig.calendars && calendarConfig.calendars.length >= 2) {
@@ -2541,32 +2536,6 @@ If the customer asks to be called back at a later time:
               </div>
             </div>
           </div>
-
-          {/* OpenAI Transcriber Model Selection */}
-          {transcriberProvider === 'openai' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  Transcriber Model
-                </label>
-                <div className="relative">
-                  <select
-                    value={transcriberModel}
-                    onChange={(e) => setTranscriberModel(e.target.value)}
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer"
-                  >
-                    <option value="gpt-4o-mini-transcribe">GPT-4o Mini Transcribe</option>
-                    <option value="gpt-4o-transcribe">GPT-4o Transcribe</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Latency Indicator */}
           {(() => {
