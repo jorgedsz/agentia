@@ -126,6 +126,25 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Check if agent has GHL functions enabled — if so, contactId is required
+    const agentConfig = agent.config ? (typeof agent.config === 'string' ? JSON.parse(agent.config) : agent.config) : {};
+    const calCfg = agentConfig.calendarConfig || {};
+    const activeCalendars = calCfg.calendars && calCfg.calendars.length >= 2
+      ? calCfg.calendars
+      : [{ provider: calCfg.provider }];
+    const hasGhlCalendar = calCfg.enabled && activeCalendars.some(c => c.provider === 'ghl');
+    const hasGhlCrm = agentConfig.ghlCrmConfig?.enabled;
+    const hasGhlTools = (agentConfig.tools || []).some(t => t.type && t.type.startsWith('ghl.'));
+    const hasGhlFunction = hasGhlCalendar || hasGhlCrm || hasGhlTools;
+
+    if (hasGhlFunction && !variables.contactId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required field: contactId. This agent has GHL functions enabled, so the GHL contact ID must be included in the request body.',
+        missing: ['contactId']
+      });
+    }
+
     if (user.vapiCredits <= 0) {
       return res.status(403).json({
         success: false,
