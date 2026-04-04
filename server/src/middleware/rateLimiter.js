@@ -3,7 +3,7 @@ const rateLimit = require('express-rate-limit');
 // Strict limiter for auth endpoints (login/register)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30,
+  max: 60,
   message: { error: 'Too many authentication attempts, please try again later' },
   standardHeaders: true,
   legacyHeaders: false
@@ -12,7 +12,7 @@ const authLimiter = rateLimit({
 // General API limiter
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500,
+  max: 1000,
   message: { error: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false
@@ -21,7 +21,7 @@ const generalLimiter = rateLimit({
 // Demo page limiter (generate endpoint)
 const demoLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5,
+  max: 10,
   message: { error: 'Too many demo requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false
@@ -30,7 +30,7 @@ const demoLimiter = rateLimit({
 // Demo chat limiter
 const demoChatLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50,
+  max: 100,
   message: { error: 'Too many chat messages, please try again later' },
   standardHeaders: true,
   legacyHeaders: false

@@ -7,6 +7,12 @@ const { decrypt } = require('../utils/encryption');
 // POST /api/call/trigger - Trigger outbound calls (requires x-api-key header)
 router.post('/', async (req, res) => {
   try {
+    console.log('=== Call Trigger - Incoming Request ===');
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+    console.log('Query:', JSON.stringify(req.query, null, 2));
+    console.log('=======================================');
+
     const { from, to, agentId, clientId, ...variables } = req.body;
 
     // 0. Validate API key
