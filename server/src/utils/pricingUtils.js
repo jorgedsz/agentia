@@ -137,7 +137,6 @@ async function seedDefaultRates(prisma) {
     { provider: 'assembly-ai', rate: 0.03 },
     { provider: 'azure', rate: 0.02 },
     { provider: '11labs', rate: 0.03 },
-    { provider: 'gladia', rate: 0.03 },
     { provider: 'google', rate: 0.02 },
     { provider: 'openai', rate: 0.02 },
     { provider: 'speechmatics', rate: 0.03 },
