@@ -1486,6 +1486,25 @@ export default function AgentEdit() {
       const regularTools = tools.filter(t => !isCalTool(getToolName(t)) && !isCallbackToolName(getToolName(t)))
       const allTools = [...regularTools, ...calendarTools, ...transferTools, ...callbackTools]
 
+      // If at least 1 GHL function is enabled, add contactId as required body param to all apiRequest tools
+      const hasGhlFunction = allTools.some(t => t.type && t.type.startsWith('ghl.'))
+      if (hasGhlFunction) {
+        allTools.forEach(t => {
+          if (t.type === 'apiRequest' && t.body?.properties) {
+            if (!t.body.properties.contactId) {
+              t.body.properties.contactId = {
+                type: 'string',
+                description: 'The GHL contact ID from the current call context'
+              }
+            }
+            if (!t.body.required) t.body.required = []
+            if (!t.body.required.includes('contactId')) {
+              t.body.required.push('contactId')
+            }
+          }
+        })
+      }
+
       // Generate calendar booking instructions if calendar is enabled
       let finalSystemPrompt = systemPrompt
       if (calendarConfig.enabled) {
