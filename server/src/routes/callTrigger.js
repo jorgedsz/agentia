@@ -8,12 +8,26 @@ const { decrypt } = require('../utils/encryption');
 router.post('/', async (req, res) => {
   try {
     console.log('=== Call Trigger - Incoming Request ===');
-    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('Content-Type:', req.headers['content-type']);
     console.log('Body:', JSON.stringify(req.body, null, 2));
     console.log('Query:', JSON.stringify(req.query, null, 2));
+    console.log('Raw body type:', typeof req.body);
+    console.log('Body keys:', Object.keys(req.body || {}));
     console.log('=======================================');
 
-    const { from, to, agentId, clientId, ...variables } = req.body;
+    // GHL webhooks may send data in different formats:
+    // 1. Direct JSON body fields
+    // 2. Query parameters
+    // 3. Nested inside a "customData" or "custom_data" object
+    // Merge all possible sources, with body taking priority
+    const data = {
+      ...req.query,
+      ...(req.body?.customData || {}),
+      ...(req.body?.custom_data || {}),
+      ...req.body
+    };
+
+    const { from, to, agentId, clientId, ...variables } = data;
 
     // 0. Validate API key
     const apiKey = req.headers['x-api-key'];
@@ -28,7 +42,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'Missing required field: clientId',
-        missing: ['clientId']
+        missing: ['clientId'],
+        debug: {
+          bodyKeys: Object.keys(req.body || {}),
+          queryKeys: Object.keys(req.query || {}),
+          contentType: req.headers['content-type'],
+          bodyPreview: JSON.stringify(req.body).substring(0, 500)
+        }
       });
     }
 
