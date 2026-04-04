@@ -2720,6 +2720,8 @@ If the customer asks to be called back at a later time:
                 const triggerUrl = `${apiBaseUrl}/call/trigger`
                 const assignedPhone = phoneNumbers.find(p => p.id.toString() === assignedPhoneId)
                 const fromNumber = assignedPhone ? assignedPhone.phoneNumber : '+1XXXXXXXXXX'
+                const hasGhlFunc = tools.some(t => t.type && t.type.startsWith('ghl.'))
+                const contactIdLine = hasGhlFunc ? `,\n    "contactId": "GHL_CONTACT_ID"` : ''
                 const variablesJson = variables.length > 0 ? `,\n${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}` : ''
                 const curlExample = `curl -X POST ${triggerUrl} \\
   -H "Content-Type: application/json" \\
@@ -2728,7 +2730,7 @@ If the customer asks to be called back at a later time:
     "agentId": "${id}",
     "clientId": ${user?.id || 'YOUR_CLIENT_ID'},
     "from": "${fromNumber}",
-    "to": "+1XXXXXXXXXX"${variablesJson}
+    "to": "+1XXXXXXXXXX"${contactIdLine}${variablesJson}
   }'`
                 return (
                   <div className="px-5 pb-4 space-y-3">
@@ -2754,6 +2756,9 @@ If the customer asks to be called back at a later time:
                       <p><strong className="text-gray-500 dark:text-gray-400">clientId</strong> — {ta('paramClientId')}</p>
                       <p><strong className="text-gray-500 dark:text-gray-400">from</strong> — {ta('paramFrom')}</p>
                       <p><strong className="text-gray-500 dark:text-gray-400">to</strong> — {ta('paramTo')}</p>
+                      {hasGhlFunc && (
+                        <p><strong className="text-gray-500 dark:text-gray-400">contactId</strong> — ID del contacto en GoHighLevel (requerido cuando hay funciones GHL activas)</p>
+                      )}
                       <p className="pt-1 text-gray-400 dark:text-gray-500 italic">{ta('paramOverrides')}</p>
                     </div>
                   </div>
