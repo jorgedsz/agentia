@@ -403,7 +403,9 @@ class VapiService {
 
     // Add provider-specific settings
     if (provider === 'deepgram') {
-      transcriberConfig.model = 'nova-2'; // Default model for Deepgram
+      transcriberConfig.model = 'nova-2';
+    } else if (provider === 'openai') {
+      transcriberConfig.model = config.transcriberModel || 'gpt-4o-mini-transcribe';
     }
 
     console.log('Transcriber config being sent to VAPI:', JSON.stringify(transcriberConfig, null, 2));
