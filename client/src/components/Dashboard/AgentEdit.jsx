@@ -1486,8 +1486,9 @@ export default function AgentEdit() {
       const regularTools = tools.filter(t => !isCalTool(getToolName(t)) && !isCallbackToolName(getToolName(t)))
       const allTools = [...regularTools, ...calendarTools, ...transferTools, ...callbackTools]
 
-      // If at least 1 GHL function is enabled, add contactId as required body param to all apiRequest tools
-      const hasGhlFunction = allTools.some(t => t.type && t.type.startsWith('ghl.'))
+      // If at least 1 GHL function is enabled (GHL calendar, GHL CRM, or native GHL tools), add contactId as required body param to all apiRequest tools
+      const hasGhlCalendar = calendarConfig.enabled && getActiveCalendars().some(c => c.provider === 'ghl')
+      const hasGhlFunction = hasGhlCalendar || ghlCrmConfig.enabled || allTools.some(t => t.type && t.type.startsWith('ghl.'))
       if (hasGhlFunction) {
         allTools.forEach(t => {
           if (t.type === 'apiRequest' && t.body?.properties) {
@@ -2720,7 +2721,8 @@ If the customer asks to be called back at a later time:
                 const triggerUrl = `${apiBaseUrl}/call/trigger`
                 const assignedPhone = phoneNumbers.find(p => p.id.toString() === assignedPhoneId)
                 const fromNumber = assignedPhone ? assignedPhone.phoneNumber : '+1XXXXXXXXXX'
-                const hasGhlFunc = tools.some(t => t.type && t.type.startsWith('ghl.'))
+                const hasGhlCalendar = calendarConfig.enabled && getActiveCalendars().some(c => c.provider === 'ghl')
+                const hasGhlFunc = hasGhlCalendar || ghlCrmConfig.enabled || tools.some(t => t.type && t.type.startsWith('ghl.'))
                 const contactIdLine = hasGhlFunc ? `,\n    "contactId": "GHL_CONTACT_ID"` : ''
                 const variablesJson = variables.length > 0 ? `,\n${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}` : ''
                 const curlExample = `curl -X POST ${triggerUrl} \\
