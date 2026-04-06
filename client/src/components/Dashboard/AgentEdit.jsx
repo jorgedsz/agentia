@@ -1291,14 +1291,16 @@ export default function AgentEdit() {
             }
           }
 
-          // Add GHL contact ID for testing if provided
+          // Add GHL contact ID: use static test ID in query params, or append VAPI template variable after encoding
           if (cal.provider === 'ghl' && cal.contactId) {
             queryParamsObj.contactId = cal.contactId
           }
 
           const queryParams = new URLSearchParams(queryParamsObj).toString()
-          const checkUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}`
-          const bookUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}`
+          // For GHL without a static contactId, append VAPI template variable (must not be URL-encoded)
+          const ghlContactSuffix = (cal.provider === 'ghl' && !cal.contactId) ? '&contactId={{contactId}}' : ''
+          const checkUrl = (useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}`) + ghlContactSuffix
+          const bookUrl = (useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}`) + ghlContactSuffix
 
           // Tool name suffix: plain for single, indexed for multi
           const toolSuffix = isMultiCalendar ? `${safeName}_${idx + 1}` : safeName
@@ -1325,7 +1327,7 @@ export default function AgentEdit() {
             messages: [
               {
                 type: 'request-start',
-                content: 'Un momento, déjame verificar los horarios disponibles...'
+                content: language === 'es' ? 'Déjame revisar qué horarios tengo para ese día.' : 'Let me check what times are available for that day.'
               }
             ]
           })
@@ -1380,7 +1382,7 @@ export default function AgentEdit() {
             messages: [
               {
                 type: 'request-start',
-                content: 'Un momento, déjame reservar tu cita...'
+                content: language === 'es' ? 'Perfecto, voy a agendar tu cita.' : 'Perfect, let me book your appointment.'
               }
             ]
           })
@@ -1495,21 +1497,21 @@ export default function AgentEdit() {
       const regularTools = tools.filter(t => !isCalTool(getToolName(t)) && !isCallbackToolName(getToolName(t)))
       const allTools = [...regularTools, ...calendarTools, ...transferTools, ...callbackTools]
 
-      // If at least 1 GHL function is enabled (GHL calendar, GHL CRM, or native GHL tools), add contactId as required body param to all apiRequest tools
+      // If at least 1 GHL function is enabled (GHL calendar, GHL CRM, or native GHL tools),
+      // add contactId to tool URLs as VAPI template variable (resolved at call time from variableValues).
+      // Only add to non-calendar tools (calendar tools already have contactId in their URL).
       const hasGhlCalendar = calendarConfig.enabled && getActiveCalendars().some(c => c.provider === 'ghl')
       const hasGhlFunction = hasGhlCalendar || ghlCrmConfig.enabled || allTools.some(t => t.type && t.type.startsWith('ghl.'))
       if (hasGhlFunction) {
         allTools.forEach(t => {
-          if (t.type === 'apiRequest' && t.body?.properties) {
-            if (!t.body.properties.contactId) {
-              t.body.properties.contactId = {
-                type: 'string',
-                description: 'The GHL contact ID from the current call context'
-              }
-            }
-            if (!t.body.required) t.body.required = []
-            if (!t.body.required.includes('contactId')) {
-              t.body.required.push('contactId')
+          if (t.type === 'apiRequest' && t.url) {
+            // Skip calendar tools — they already have contactId in URL
+            const tName = t.name || ''
+            if (tName.startsWith('check_calendar_availability') || tName.startsWith('book_appointment')) return
+            // Append contactId as VAPI template variable to the URL
+            if (!t.url.includes('contactId')) {
+              const sep = t.url.includes('?') ? '&' : '?'
+              t.url = `${t.url}${sep}contactId={{contactId}}`
             }
           }
         })
@@ -1578,7 +1580,9 @@ After the function returns success, confirm: "Your appointment is booked for [da
 - If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.
 - Keep your responses short and natural during the booking flow.
 - NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words and in the conversation language.
-- If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.`
+- If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.
+- When speaking dates out loud, say them naturally in the conversation language. For example in Spanish say "7 de abril de dos mil veintiséis", NEVER "7 de abril de 2026" or mix languages. In English say "April 7th, twenty twenty-six". NEVER read a year as a raw number.
+- When presenting available times, use a conversational tone. For example: "Tengo disponible a las 9, a las 10:30, y a las 2 de la tarde" instead of listing them mechanically.`
 
           finalSystemPrompt = systemPrompt + calendarInstructions
 
@@ -1626,7 +1630,9 @@ After the function returns success, confirm: "Your appointment is booked for [da
 - If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.
 - Keep your responses short and natural during the booking flow.
 - NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words and in the conversation language. For example, if a date is wrong, simply ask the customer for another date.
-- If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.`
+- If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.
+- When speaking dates out loud, say them naturally in the conversation language. For example in Spanish say "7 de abril de dos mil veintiséis", NEVER "7 de abril de 2026" or mix languages. In English say "April 7th, twenty twenty-six". NEVER read a year as a raw number.
+- When presenting available times, use a conversational tone. For example: "Tengo disponible a las 9, a las 10:30, y a las 2 de la tarde" instead of listing them mechanically.`
 
           finalSystemPrompt = systemPrompt + calendarInstructions
         }
