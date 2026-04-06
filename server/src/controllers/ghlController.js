@@ -529,7 +529,12 @@ const bookAppointment = async (req, res) => {
       notes
     } = functionArgs;
 
-    console.log('Book appointment - calendarId:', calendarId, 'userId:', userId, 'startTime:', startTime, 'contactEmail:', contactEmail, 'presetContactId:', presetContactId);
+    console.log('=== GHL BOOK APPOINTMENT ===');
+    console.log('CalendarId:', calendarId, '| UserId:', userId);
+    console.log('ContactId:', presetContactId, '| ContactEmail:', contactEmail, '| ContactName:', contactName);
+    console.log('StartTime:', startTime, '| EndTime:', endTime);
+    console.log('Query params:', JSON.stringify(req.query));
+    console.log('Function args:', JSON.stringify(functionArgs));
 
     if (!calendarId || !startTime || (!contactEmail && !presetContactId)) {
       return res.json({

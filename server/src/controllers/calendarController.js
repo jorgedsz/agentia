@@ -741,7 +741,12 @@ const bookAppointment = async (req, res) => {
       title = title.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || '');
     }
 
-    console.log('Book appointment - provider:', provider, 'integrationId:', integrationId, 'calendarId:', calendarId, 'contactEmail:', contactEmail, 'contactId:', contactId);
+    console.log('=== BOOK APPOINTMENT ===');
+    console.log('Provider:', provider, '| IntegrationId:', integrationId, '| CalendarId:', calendarId);
+    console.log('ContactId:', contactId, '| ContactEmail:', contactEmail, '| ContactName:', contactName);
+    console.log('StartTime:', startTime, '| EndTime:', endTime);
+    console.log('Query params:', JSON.stringify(req.query));
+    console.log('Function args:', JSON.stringify(functionArgs));
 
     if (!calendarId || !startTime || (!contactEmail && !contactId)) {
       return res.json({ results: [{ error: 'calendarId, startTime, and contactEmail (or contactId) are required' }] });
