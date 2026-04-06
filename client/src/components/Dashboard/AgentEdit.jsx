@@ -1257,7 +1257,10 @@ export default function AgentEdit() {
       const calendarTools = []
       const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
       // Sanitize agent name for use in tool names (lowercase, underscores, no special chars)
-      const safeName = name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+      // VAPI limit: tool names must be <= 40 chars and match /^[a-zA-Z0-9_-]{1,40}$/
+      // Longest prefix is "check_calendar_availability_" (28 chars), leaves 12 for suffix
+      // For multi-calendar suffix is "${safeName}_${idx}", so cap safeName at 10 chars
+      const safeName = name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').substring(0, 10).replace(/_$/g, '')
 
       if (calendarConfig.enabled) {
         const activeCalendars = getActiveCalendars().filter(c => c.calendarId)
