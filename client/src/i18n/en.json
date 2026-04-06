@@ -721,6 +721,7 @@
     "chooseVoice": "Choose a Voice",
     "changeVoice": "Change Voice",
     "firstMessage": "First Message",
+    "firstMessageRequired": "First message is required. Your agent needs an opening message to start the call.",
     "firstMessagePlaceholder": "Hello! How can I help you today?",
     "endCallMessage": "End Call Message",
     "endCallPhrases": "End Call Phrases",

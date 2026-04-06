@@ -721,6 +721,7 @@
     "chooseVoice": "Elegir una Voz",
     "changeVoice": "Cambiar Voz",
     "firstMessage": "Primer Mensaje",
+    "firstMessageRequired": "El primer mensaje es obligatorio. Tu agente necesita un mensaje de apertura para iniciar la llamada.",
     "firstMessagePlaceholder": "¡Hola! ¿Cómo puedo ayudarte hoy?",
     "endCallMessage": "Mensaje de Fin de Llamada",
     "endCallPhrases": "Frases de Fin de Llamada",
