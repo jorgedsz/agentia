@@ -1291,16 +1291,14 @@ export default function AgentEdit() {
             }
           }
 
-          // Add GHL contact ID: use static test ID in query params, or append VAPI template variable after encoding
+          // Add GHL contact ID for testing if provided (static test ID only)
           if (cal.provider === 'ghl' && cal.contactId) {
             queryParamsObj.contactId = cal.contactId
           }
 
           const queryParams = new URLSearchParams(queryParamsObj).toString()
-          // For GHL without a static contactId, append VAPI template variable (must not be URL-encoded)
-          const ghlContactSuffix = (cal.provider === 'ghl' && !cal.contactId) ? '&contactId={{contactId}}' : ''
-          const checkUrl = (useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}`) + ghlContactSuffix
-          const bookUrl = (useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}`) + ghlContactSuffix
+          const checkUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}`
+          const bookUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}`
 
           // Tool name suffix: plain for single, indexed for multi
           const toolSuffix = isMultiCalendar ? `${safeName}_${idx + 1}` : safeName
@@ -1333,6 +1331,7 @@ export default function AgentEdit() {
           })
 
           // Book Appointment Tool - build properties and required fields based on config
+          const isGhl = cal.provider === 'ghl'
           const rf = cal.requiredFields || { contactName: true, contactEmail: true, contactPhone: false }
           const bookProperties = {
             startTime: {
@@ -1346,25 +1345,35 @@ export default function AgentEdit() {
           }
           const bookRequired = ['startTime']
 
-          if (rf.contactName) {
-            bookProperties.contactName = { type: 'string', description: 'The customer\'s full name' }
-            bookRequired.push('contactName')
-          }
-          if (rf.contactEmail) {
-            bookProperties.contactEmail = { type: 'string', description: 'The customer\'s email address' }
-            bookRequired.push('contactEmail')
-          }
-          if (rf.contactPhone) {
-            bookProperties.contactPhone = { type: 'string', description: 'The customer\'s phone number' }
-            bookRequired.push('contactPhone')
+          if (isGhl) {
+            // GHL calendars use contactId from the call context — no need to collect name/email
+            bookProperties.contactId = {
+              type: 'string',
+              description: 'The GHL contact ID. Use the value from {{contactId}} variable.'
+            }
+            bookRequired.push('contactId')
+          } else {
+            // Non-GHL calendars: collect contact info from the customer
+            if (rf.contactName) {
+              bookProperties.contactName = { type: 'string', description: 'The customer\'s full name' }
+              bookRequired.push('contactName')
+            }
+            if (rf.contactEmail) {
+              bookProperties.contactEmail = { type: 'string', description: 'The customer\'s email address' }
+              bookRequired.push('contactEmail')
+            }
+            if (rf.contactPhone) {
+              bookProperties.contactPhone = { type: 'string', description: 'The customer\'s phone number' }
+              bookRequired.push('contactPhone')
+            }
           }
           bookProperties.notes = { type: 'string', description: 'Any additional notes for the appointment (optional)' }
 
           // Build description listing what data to collect
           const collectFields = []
-          if (rf.contactName) collectFields.push('name')
-          if (rf.contactEmail) collectFields.push('email')
-          if (rf.contactPhone) collectFields.push('phone')
+          if (!isGhl && rf.contactName) collectFields.push('name')
+          if (!isGhl && rf.contactEmail) collectFields.push('email')
+          if (!isGhl && rf.contactPhone) collectFields.push('phone')
           const collectText = collectFields.length > 0 ? ` and collecting customer ${collectFields.join(', ')}` : ''
 
           calendarTools.push({
@@ -1372,7 +1381,9 @@ export default function AgentEdit() {
             method: 'POST',
             url: bookUrl,
             name: `book_appointment_${toolSuffix}`,
-            description: `${descPrefix}Book an appointment for the customer. Use this after confirming the date, time${collectText}.`,
+            description: isGhl
+              ? `${descPrefix}Book an appointment for the customer using their GHL contact ID. Use this after confirming the date and time. Pass the contactId from the {{contactId}} variable.`
+              : `${descPrefix}Book an appointment for the customer. Use this after confirming the date, time${collectText}.`,
             body: {
               type: 'object',
               properties: bookProperties,
@@ -1498,20 +1509,25 @@ export default function AgentEdit() {
       const allTools = [...regularTools, ...calendarTools, ...transferTools, ...callbackTools]
 
       // If at least 1 GHL function is enabled (GHL calendar, GHL CRM, or native GHL tools),
-      // add contactId to tool URLs as VAPI template variable (resolved at call time from variableValues).
-      // Only add to non-calendar tools (calendar tools already have contactId in their URL).
+      // add contactId as body param so the LLM passes it from the {{contactId}} variable.
+      // Skip calendar tools — GHL calendars already have contactId in their body params.
       const hasGhlCalendar = calendarConfig.enabled && getActiveCalendars().some(c => c.provider === 'ghl')
       const hasGhlFunction = hasGhlCalendar || ghlCrmConfig.enabled || allTools.some(t => t.type && t.type.startsWith('ghl.'))
       if (hasGhlFunction) {
         allTools.forEach(t => {
-          if (t.type === 'apiRequest' && t.url) {
-            // Skip calendar tools — they already have contactId in URL
+          if (t.type === 'apiRequest' && t.body?.properties) {
             const tName = t.name || ''
+            // Skip calendar tools — they handle contactId themselves
             if (tName.startsWith('check_calendar_availability') || tName.startsWith('book_appointment')) return
-            // Append contactId as VAPI template variable to the URL
-            if (!t.url.includes('contactId')) {
-              const sep = t.url.includes('?') ? '&' : '?'
-              t.url = `${t.url}${sep}contactId={{contactId}}`
+            if (!t.body.properties.contactId) {
+              t.body.properties.contactId = {
+                type: 'string',
+                description: 'The GHL contact ID. Use the value from {{contactId}} variable.'
+              }
+            }
+            if (!t.body.required) t.body.required = []
+            if (!t.body.required.includes('contactId')) {
+              t.body.required.push('contactId')
             }
           }
         })
@@ -1525,12 +1541,17 @@ export default function AgentEdit() {
 
         if (isMultiCalendar) {
           // Multi-calendar prompt
+          const allGhl = activeCalendars.every(c => c.provider === 'ghl')
+          const someGhl = activeCalendars.some(c => c.provider === 'ghl')
           const calendarList = activeCalendars.map((cal, idx) => {
             const num = idx + 1
-            return `- **${cal.name}**: ${cal.scenario}
+            const ghlTag = cal.provider === 'ghl' ? ' (GHL — uses contactId, no need to ask name/email)' : ''
+            return `- **${cal.name}**: ${cal.scenario}${ghlTag}
   - Check availability: "check_calendar_availability_${safeName}_${num}"
   - Book appointment: "book_appointment_${safeName}_${num}"`
           }).join('\n')
+
+          const ghlContactIdNote = someGhl ? `\n\n### GHL Contact ID\nThe GHL contact ID is available as {{contactId}}. For GHL calendars, pass this value as the contactId parameter when booking. You do NOT need to ask the customer for their name or email — the contact is already identified.` : ''
 
           const calendarInstructions = `
 
@@ -1539,7 +1560,7 @@ export default function AgentEdit() {
 IMPORTANT: If the customer asks to schedule, book, or make an appointment AT ANY POINT in the conversation, IMMEDIATELY start the booking process below. Do NOT wait for any other phase or step to complete first. Appointment booking always takes priority.
 
 ### Available Calendars
-${calendarList}
+${calendarList}${ghlContactIdNote}
 
 ### Date & Time Reference
 Today's date and time is provided in the {{currentDateTime}} variable. ALWAYS use this as reference when the user says "today", "tomorrow", "next Monday", etc. Calculate the correct date in YYYY-MM-DD format based on {{currentDateTime}}. NEVER guess or invent a date.
@@ -1563,21 +1584,32 @@ Read back 3-5 of the best available times in a natural way. For example: "I have
 - Do NOT read all 16 slots — pick a few spread throughout the day.
 - If no slots are available, say so and offer to check another date.
 
-**Step 5 — User picks a time → Collect info and book IMMEDIATELY**
-Once the user selects a time slot, collect their name and email (phone is optional), then IMMEDIATELY call the correct "book_appointment_..." function for the chosen calendar. Do NOT hesitate or wait — call the function right away.
+**Step 5 — User picks a time → Book IMMEDIATELY**
+${allGhl
+  ? `Once the user selects a time slot, IMMEDIATELY call the correct "book_appointment_..." function. Do NOT ask for name or email — use the contactId from {{contactId}}.
+- startTime: combine the selected date + time in ISO 8601 format (e.g., 2026-02-08T09:00:00)
+- contactId: use the value from {{contactId}}
+- notes: optional`
+  : someGhl
+  ? `Once the user selects a time slot:
+- For GHL calendars: IMMEDIATELY call the book function with the contactId from {{contactId}}. Do NOT ask for name or email.
+- For other calendars: collect their name and email first, then call the book function.
+- startTime: combine the selected date + time in ISO 8601 format (e.g., 2026-02-08T09:00:00)
+- notes: optional`
+  : `Once the user selects a time slot, collect their name and email (phone is optional), then IMMEDIATELY call the correct "book_appointment_..." function. Do NOT hesitate or wait — call the function right away.
 - startTime: combine the selected date + time in ISO 8601 format (e.g., 2026-02-08T09:00:00)
 - contactName: the customer's full name
 - contactEmail: the customer's email address
 - contactPhone: optional
-- notes: optional
+- notes: optional`}
 
 **Step 6 — Confirm the booking**
-After the function returns success, confirm: "Your appointment is booked for [date] at [time]. You'll receive a confirmation email at [email]."
+After the function returns success, confirm: "Your appointment is booked for [date] at [time].${allGhl ? '' : ' You\'ll receive a confirmation email at [email].'}"
 
 ### Critical Rules
 - NEVER skip calling the book function after the user picks a time. You MUST call it.
-- NEVER invent or guess dates. Always calculate from {{currentDateTime}}.
-- If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.
+- NEVER invent or guess dates. Always calculate from {{currentDateTime}}.${allGhl ? '' : `
+- If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.`}
 - Keep your responses short and natural during the booking flow.
 - NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words and in the conversation language.
 - If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.
@@ -1587,12 +1619,16 @@ After the function returns success, confirm: "Your appointment is booked for [da
           finalSystemPrompt = systemPrompt + calendarInstructions
 
         } else if (activeCalendars.length === 1) {
-          // Single calendar prompt (original behavior)
+          // Single calendar prompt
+          const singleCal = activeCalendars[0]
+          const isSingleGhl = singleCal.provider === 'ghl'
+          const ghlNote = isSingleGhl ? `\n\n### GHL Contact ID\nThe GHL contact ID is available as {{contactId}}. You do NOT need to ask the customer for their name or email — the contact is already identified. Pass the contactId value when booking.` : ''
+
           const calendarInstructions = `
 
 ## APPOINTMENT BOOKING INSTRUCTIONS (PRIORITY — OVERRIDE ANY PHASE/SCRIPT FLOW)
 
-IMPORTANT: If the customer asks to schedule, book, or make an appointment AT ANY POINT in the conversation, IMMEDIATELY start the booking process below. Do NOT wait for any other phase or step to complete first. Appointment booking always takes priority.
+IMPORTANT: If the customer asks to schedule, book, or make an appointment AT ANY POINT in the conversation, IMMEDIATELY start the booking process below. Do NOT wait for any other phase or step to complete first. Appointment booking always takes priority.${ghlNote}
 
 ### Date & Time Reference
 Today's date and time is provided in the {{currentDateTime}} variable. ALWAYS use this as reference when the user says "today", "tomorrow", "next Monday", etc. Calculate the correct date in YYYY-MM-DD format based on {{currentDateTime}}. NEVER guess or invent a date.
@@ -1613,7 +1649,14 @@ Read back 3-5 of the best available times in a natural way. For example: "I have
 - Do NOT read all 16 slots — pick a few spread throughout the day.
 - If no slots are available, say so and offer to check another date.
 
-**Step 4 — User picks a time → Collect info and book IMMEDIATELY**
+${isSingleGhl ? `**Step 4 — User picks a time → Book IMMEDIATELY**
+Once the user selects a time slot, IMMEDIATELY call the "book_appointment_${safeName}" function. Do NOT ask for name or email — the customer is already identified via contactId.
+- startTime: combine the selected date + time in ISO 8601 format (e.g., 2026-02-08T09:00:00)
+- contactId: use the value from {{contactId}}
+- notes: optional
+
+**Step 5 — Confirm the booking**
+After the function returns success, confirm: "Your appointment is booked for [date] at [time]."` : `**Step 4 — User picks a time → Collect info and book IMMEDIATELY**
 Once the user selects a time slot, collect their name and email (phone is optional), then IMMEDIATELY call the "book_appointment_${safeName}" function. Do NOT hesitate or wait — call the function right away.
 - startTime: combine the selected date + time in ISO 8601 format (e.g., 2026-02-08T09:00:00)
 - contactName: the customer's full name
@@ -1622,12 +1665,12 @@ Once the user selects a time slot, collect their name and email (phone is option
 - notes: optional
 
 **Step 5 — Confirm the booking**
-After the function returns success, confirm: "Your appointment is booked for [date] at [time]. You'll receive a confirmation email at [email]."
+After the function returns success, confirm: "Your appointment is booked for [date] at [time]. You'll receive a confirmation email at [email]."`}
 
 ### Critical Rules
 - NEVER skip calling "book_appointment_${safeName}" after the user picks a time. You MUST call it.
-- NEVER invent or guess dates. Always calculate from {{currentDateTime}}.
-- If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.
+- NEVER invent or guess dates. Always calculate from {{currentDateTime}}.${isSingleGhl ? '' : `
+- If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.`}
 - Keep your responses short and natural during the booking flow.
 - NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words and in the conversation language. For example, if a date is wrong, simply ask the customer for another date.
 - If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.
