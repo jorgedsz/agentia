@@ -1937,6 +1937,9 @@ If the customer asks to be called back at a later time:
         setTimeout(() => setSuccess(''), 3000)
       }
     } catch (err) {
+      console.error('=== SAVE ERROR ===', err)
+      console.error('Response data:', err.response?.data)
+      console.error('Message:', err.message)
       setError(err.response?.data?.error || ta('failedSaveAgent'))
     } finally {
       setSaving(false)
