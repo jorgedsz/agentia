@@ -403,7 +403,7 @@ class VapiService {
 
     // Add provider-specific settings
     if (provider === 'deepgram') {
-      transcriberConfig.model = 'nova-2';
+      transcriberConfig.model = 'nova-3';
     } else if (provider === 'openai') {
       transcriberConfig.model = 'gpt-4o-transcribe';
     }
