@@ -1259,6 +1259,15 @@ export default function AgentEdit() {
     try {
       const finalVoiceId = addVoiceManually ? customVoiceId : voiceId
 
+      // Detect the effective language for tool messages.
+      // The config 'language' may not be set for older agents — fall back to checking firstMessage content.
+      const effectiveLanguage = (() => {
+        if (language === 'es' || (language && language.startsWith('es'))) return 'es'
+        const fm = (firstMessage || '').trim().toLowerCase()
+        if (/^(hola|buenos|buenas|bienvenido|gracias por)/.test(fm)) return 'es'
+        return language || 'en'
+      })()
+
       // Build calendar tools using unified API endpoints (supports all providers)
       const calendarTools = []
       const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
@@ -1325,7 +1334,7 @@ export default function AgentEdit() {
             messages: [
               {
                 type: 'request-start',
-                content: language === 'es' ? 'Déjame revisar qué horarios tengo para ese día.' : 'Let me check what times are available for that day.'
+                content: effectiveLanguage === 'es' ? 'Déjame revisar qué horarios tengo para ese día.' : 'Let me check what times are available for that day.'
               }
             ]
           })
@@ -1395,7 +1404,7 @@ export default function AgentEdit() {
             messages: [
               {
                 type: 'request-start',
-                content: language === 'es' ? 'Perfecto, voy a agendar tu cita.' : 'Perfect, let me book your appointment.'
+                content: effectiveLanguage === 'es' ? 'Perfecto, voy a agendar tu cita.' : 'Perfect, let me book your appointment.'
               }
             ]
           })
@@ -1629,7 +1638,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
 - Keep your responses short and natural during the booking flow.
 - NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words and in the conversation language.
 - If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.
-- When speaking dates out loud, say them naturally in the conversation language. For example in Spanish say "7 de abril de dos mil veintiséis", NEVER "7 de abril de 2026" or mix languages. In English say "April 7th, twenty twenty-six". NEVER read a year as a raw number.
+- NEVER mix languages. Speak dates, times, numbers, and years ENTIRELY in the conversation language. In Spanish: "ocho de abril de dos mil veintiséis" (spell out the year in Spanish words). In English: "April eighth, twenty twenty-six". NEVER say a year as digits or in a different language than the conversation.
 - When presenting available times, use a conversational tone. For example: "Tengo disponible a las 9, a las 10:30, y a las 2 de la tarde" instead of listing them mechanically.`
 
           finalSystemPrompt = systemPrompt + calendarInstructions
@@ -1697,7 +1706,7 @@ After the function returns success, confirm: "Your appointment is booked for [da
 - Keep your responses short and natural during the booking flow.
 - NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words and in the conversation language. For example, if a date is wrong, simply ask the customer for another date.
 - If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.
-- When speaking dates out loud, say them naturally in the conversation language. For example in Spanish say "7 de abril de dos mil veintiséis", NEVER "7 de abril de 2026" or mix languages. In English say "April 7th, twenty twenty-six". NEVER read a year as a raw number.
+- NEVER mix languages. Speak dates, times, numbers, and years ENTIRELY in the conversation language. In Spanish: "ocho de abril de dos mil veintiséis" (spell out the year in Spanish words). In English: "April eighth, twenty twenty-six". NEVER say a year as digits or in a different language than the conversation.
 - When presenting available times, use a conversational tone. For example: "Tengo disponible a las 9, a las 10:30, y a las 2 de la tarde" instead of listing them mechanically.`
 
           finalSystemPrompt = systemPrompt + calendarInstructions
