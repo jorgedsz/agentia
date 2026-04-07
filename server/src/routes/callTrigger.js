@@ -188,16 +188,24 @@ router.post('/', async (req, res) => {
       phoneNumberId: phoneNumber.vapiPhoneNumberId,
       customer: {
         number: to,
-        name: variables.firstName || undefined
+        name: variables.firstName || variables.name || undefined
       }
     };
 
-    // Add variable overrides if any extra fields were provided
-    if (Object.keys(variables).length > 0) {
-      callConfig.assistantOverrides = {
-        variableValues: variables
-      };
-    }
+    // Inject currentDateTime in the agent's calendar timezone so the AI knows today's date
+    const calTimezone = (calCfg.calendars?.[0]?.timezone) || calCfg.timezone || 'America/New_York';
+    const now = new Date();
+    const currentDateTime = now.toLocaleString('en-US', {
+      timeZone: calTimezone,
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true
+    });
+    variables.currentDateTime = `${currentDateTime} (${calTimezone})`;
+
+    // Add variable overrides (always includes currentDateTime now)
+    callConfig.assistantOverrides = {
+      variableValues: variables
+    };
 
     // 6. Create the call via VAPI
     const call = await vapiService.createCall(callConfig);
