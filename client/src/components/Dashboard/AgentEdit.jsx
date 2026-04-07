@@ -1601,10 +1601,17 @@ ${mIsEs ? 'Llama la función "check_calendar_availability_..." correcta para el 
 - ${mIsEs ? 'Calcula cualquier fecha relativa a partir de {{currentDateTime}}' : 'Calculate any relative date from {{currentDateTime}}'}
 
 **${mIsEs ? 'Paso 4 — Presentar horarios disponibles' : 'Step 4 — Present available times'}**
-${mIsEs ? 'Elige SOLAMENTE 3 horarios repartidos durante el día (mañana, mediodía y tarde) y menciónalos de forma conversacional. NUNCA leas más de 3 horarios. Ejemplo: "Tengo disponible a las 9 de la mañana, a la 1 de la tarde y a las 4 de la tarde. ¿Cuál te funciona mejor?"' : 'Pick ONLY 3 time slots spread across the day (morning, midday, afternoon) and mention them conversationally. NEVER read more than 3 slots. Example: "I have 9 AM, 1 PM, and 4 PM available. Which works for you?"'}
-- ${mIsEs ? 'NUNCA leas todos los horarios que devuelve la función. Elige solo 3.' : 'NEVER read all the slots the function returns. Pick only 3.'}
-- ${mIsEs ? 'Si no hay horarios disponibles, dilo y ofrece revisar otra fecha.' : 'If no slots are available, say so and offer to check another date.'}
-- ${mIsEs ? 'Si el cliente pide otro horario que no mencionaste, revisa si está en la lista y ofrécelo.' : 'If the customer asks for a different time you didn\'t mention, check if it\'s in the list and offer it.'}
+${mIsEs
+  ? `La función devuelve MUCHOS horarios. Tú DEBES mencionar SOLAMENTE 2 o 3, repartidos durante el día (uno en la mañana, uno al mediodía, uno en la tarde). Guarda el resto en tu memoria.
+Ejemplo: "Tengo disponible a las 9 de la mañana, a la 1 y a las 4 de la tarde. ¿Cuál prefieres?"
+- PROHIBIDO leer todos los horarios. Menciona MÁXIMO 3.
+- Si el cliente dice "¿no tienes a las 10?" o pide otro horario, revisa la lista que ya tienes. Si está disponible, dile que sí.
+- Si no hay horarios disponibles, dilo y ofrece revisar otra fecha.`
+  : `The function returns MANY slots. You MUST mention ONLY 2 or 3, spread across the day (one morning, one midday, one afternoon). Keep the rest in memory.
+Example: "I have 9 AM, 1 PM, and 4 PM available. Which works for you?"
+- FORBIDDEN to read all slots. Mention MAXIMUM 3.
+- If the customer asks "do you have 10 AM?" or requests another time, check the list you already have. If it's available, say yes.
+- If no slots are available, say so and offer to check another date.`}
 
 **${mIsEs ? 'Paso 5 — El cliente elige un horario → Agendar INMEDIATAMENTE' : 'Step 5 — User picks a time → Book IMMEDIATELY'}**
 ${allGhl
@@ -1696,10 +1703,17 @@ ${isEs ? `Llama la función "check_calendar_availability_${safeName}" con la fec
 - ${isEs ? 'Calcula cualquier fecha relativa a partir de {{currentDateTime}}' : 'Calculate any relative date from {{currentDateTime}}'}
 
 **${isEs ? 'Paso 3 — Presentar horarios disponibles' : 'Step 3 — Present available times'}**
-${isEs ? 'Elige SOLAMENTE 3 horarios repartidos durante el día (mañana, mediodía y tarde) y menciónalos de forma conversacional. NUNCA leas más de 3 horarios. Ejemplo: "Tengo disponible a las 9 de la mañana, a la 1 de la tarde y a las 4 de la tarde. ¿Cuál te funciona mejor?"' : 'Pick ONLY 3 time slots spread across the day (morning, midday, afternoon) and mention them conversationally. NEVER read more than 3 slots. Example: "I have 9 AM, 1 PM, and 4 PM available. Which works for you?"'}
-- ${isEs ? 'NUNCA leas todos los horarios que devuelve la función. Elige solo 3.' : 'NEVER read all the slots the function returns. Pick only 3.'}
-- ${isEs ? 'Si no hay horarios disponibles, dilo y ofrece revisar otra fecha.' : 'If no slots are available, say so and offer to check another date.'}
-- ${isEs ? 'Si el cliente pide otro horario que no mencionaste, revisa si está en la lista y ofrécelo.' : 'If the customer asks for a different time you didn\'t mention, check if it\'s in the list and offer it.'}
+${isEs
+  ? `La función devuelve MUCHOS horarios. Tú DEBES mencionar SOLAMENTE 2 o 3, repartidos durante el día (uno en la mañana, uno al mediodía, uno en la tarde). Guarda el resto en tu memoria.
+Ejemplo: "Tengo disponible a las 9 de la mañana, a la 1 y a las 4 de la tarde. ¿Cuál prefieres?"
+- PROHIBIDO leer todos los horarios. Menciona MÁXIMO 3.
+- Si el cliente dice "¿no tienes a las 10?" o pide otro horario, revisa la lista que ya tienes. Si está disponible, dile que sí.
+- Si no hay horarios disponibles, dilo y ofrece revisar otra fecha.`
+  : `The function returns MANY slots. You MUST mention ONLY 2 or 3, spread across the day (one morning, one midday, one afternoon). Keep the rest in memory.
+Example: "I have 9 AM, 1 PM, and 4 PM available. Which works for you?"
+- FORBIDDEN to read all slots. Mention MAXIMUM 3.
+- If the customer asks "do you have 10 AM?" or requests another time, check the list you already have. If it's available, say yes.
+- If no slots are available, say so and offer to check another date.`}
 
 ${isSingleGhl ? `**${isEs ? 'Paso 4 — El cliente elige un horario → Agendar INMEDIATAMENTE' : 'Step 4 — User picks a time → Book IMMEDIATELY'}**
 ${isEs ? 'Cuando el cliente elija un horario, revisa la sección "GHL Contact ID" de arriba.' : 'Once the user selects a time slot, refer to the "GHL Contact ID" section above.'}
