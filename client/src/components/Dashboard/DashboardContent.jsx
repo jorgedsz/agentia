@@ -1067,7 +1067,7 @@ function PhoneCallModal({ agent, onClose }) {
 
               {result && (
                 <div className="text-sm text-green-400 bg-green-500/10 px-3 py-2 rounded-lg">
-                  Call initiated successfully! ID: {result.callId || result.id}
+                  Call initiated successfully! ID: {result.call?.id || result.callId || result.id}
                 </div>
               )}
 

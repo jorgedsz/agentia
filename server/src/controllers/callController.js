@@ -137,7 +137,10 @@ const createCall = async (req, res) => {
 
     // Set per-account VAPI key
     const vapiKey = await getVapiKeyForUser(req.prisma, req.user.id);
-    if (vapiKey) vapiService.setApiKey(vapiKey);
+    if (!vapiKey) {
+      return res.status(400).json({ error: 'No VAPI API key configured for this account.' });
+    }
+    vapiService.setApiKey(vapiKey);
 
     // Create the call via VAPI
     const call = await vapiService.createCall({
@@ -148,6 +151,13 @@ const createCall = async (req, res) => {
         name: customerName
       }
     });
+
+    console.log('[Call] VAPI response:', JSON.stringify(call, null, 2));
+
+    if (!call || !call.id) {
+      console.error('[Call] VAPI returned no call ID. Response:', call);
+      return res.status(502).json({ error: 'VAPI returned an invalid response — the call may not have been placed. Check your VAPI dashboard and Twilio geo-permissions.' });
+    }
 
     // Track the call for billing
     await req.prisma.callLog.create({
@@ -162,8 +172,9 @@ const createCall = async (req, res) => {
       }
     });
 
-    res.status(201).json({
+    res.json({
       message: 'Call initiated successfully',
+      callId: call.id,
       call
     });
   } catch (error) {
