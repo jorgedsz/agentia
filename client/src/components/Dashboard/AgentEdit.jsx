@@ -1572,7 +1572,9 @@ export default function AgentEdit() {
           }).join('\n')
 
           const mIsEs = effectiveLanguage === 'es'
-          const ghlContactIdNote = someGhl ? `\n\n### GHL Contact ID\nThe contactId for this customer is: "{{contactId}}"\n${mIsEs ? 'Si el contactId arriba NO está vacío (contiene un ID real), pásalo como parámetro contactId al agendar en calendarios GHL. NO pidas nombre ni email.\nSi el contactId ESTÁ vacío (no hay nada entre las comillas), pide al cliente su nombre completo y email.' : 'If the contactId above is NOT empty (contains an actual ID), pass it as the contactId parameter when booking GHL calendars. Do NOT ask for name or email.\nIf the contactId above IS empty (shows nothing between the quotes), ask the customer for their full name and email address instead.'}` : ''
+          const ghlContactIdNote = someGhl ? (mIsEs
+            ? `\n\n### DATOS DEL CLIENTE (YA IDENTIFICADO)\nEl cliente ya está identificado en el sistema. Su contactId es: "{{contactId}}"\nPROHIBIDO pedir nombre, email, teléfono o cualquier dato personal al agendar en calendarios GHL. Usa este contactId directamente.`
+            : `\n\n### CUSTOMER DATA (ALREADY IDENTIFIED)\nThe customer is already identified in the system. Their contactId is: "{{contactId}}"\nFORBIDDEN to ask for name, email, phone, or any personal data when booking GHL calendars. Use this contactId directly.`) : ''
 
           const calendarInstructions = `
 
@@ -1616,35 +1618,27 @@ Example: "I have 9 AM, 1 PM, and 4 PM available. Which works for you?"
 **${mIsEs ? 'Paso 5 — El cliente elige un horario → Agendar INMEDIATAMENTE' : 'Step 5 — User picks a time → Book IMMEDIATELY'}**
 ${allGhl
   ? (mIsEs
-    ? `Cuando el cliente elija un horario, revisa la sección "GHL Contact ID" de arriba.
-- **Si el contactId NO está vacío**: INMEDIATAMENTE llama la función "book_appointment_..." correcta. Pasa el valor de contactId exactamente como aparece arriba. NO pidas nombre ni email.
-  - startTime: ISO 8601 (ej: 2026-02-08T09:00:00)
-  - contactId: el valor de la sección GHL Contact ID
-  - notes: opcional
-- **Si el contactId ESTÁ vacío**: Pide al cliente su nombre completo y email, luego llama la función.
-  - startTime: ISO 8601
-  - contactName / contactEmail
-  - notes: opcional`
-    : `Once the user selects a time slot, refer to the "GHL Contact ID" section above.
-- **If the contactId is NOT empty**: IMMEDIATELY call the correct "book_appointment_..." function. Pass the contactId value exactly as shown above. Do NOT ask for name or email.
-  - startTime: ISO 8601 (e.g., 2026-02-08T09:00:00)
-  - contactId: the value from the GHL Contact ID section above
-  - notes: optional
-- **If the contactId IS empty**: Ask the customer for their full name and email, then call the book function.
-  - startTime: ISO 8601 format
-  - contactName / contactEmail
-  - notes: optional`)
+    ? `Cuando el cliente elija un horario, INMEDIATAMENTE llama la función "book_appointment_..." correcta.
+PROHIBIDO pedir nombre, email o cualquier dato. El cliente ya está identificado.
+- startTime: la fecha + hora seleccionada en formato ISO 8601 (ej: 2026-04-08T10:00:00)
+- contactId: el valor que aparece en la sección "DATOS DEL CLIENTE" de arriba
+- notes: opcional`
+    : `Once the user selects a time slot, IMMEDIATELY call the correct "book_appointment_..." function.
+FORBIDDEN to ask for name, email, or any data. The customer is already identified.
+- startTime: the selected date + time in ISO 8601 format (e.g., 2026-04-08T10:00:00)
+- contactId: the value from the "CUSTOMER DATA" section above
+- notes: optional`)
   : someGhl
   ? (mIsEs
     ? `Cuando el cliente elija un horario:
-- Para calendarios GHL: revisa la sección "GHL Contact ID". Si el contactId NO está vacío, pásalo y NO pidas nombre ni email. Si ESTÁ vacío, pide nombre y email.
-- Para otros calendarios: siempre recopila nombre y email primero.
-- startTime: ISO 8601 (ej: 2026-02-08T09:00:00)
+- Para calendarios GHL: INMEDIATAMENTE llama la función con el contactId. PROHIBIDO pedir nombre o email — el cliente ya está identificado.
+- Para otros calendarios: recopila nombre y email primero.
+- startTime: ISO 8601 (ej: 2026-04-08T10:00:00)
 - notes: opcional`
     : `Once the user selects a time slot:
-- For GHL calendars: refer to the "GHL Contact ID" section above. If the contactId is NOT empty, pass it and do NOT ask for name or email. If it IS empty, ask for name and email.
-- For other calendars: always collect name and email first, then call the book function.
-- startTime: ISO 8601 (e.g., 2026-02-08T09:00:00)
+- For GHL calendars: IMMEDIATELY call the function with the contactId. FORBIDDEN to ask for name or email — the customer is already identified.
+- For other calendars: collect name and email first, then call the book function.
+- startTime: ISO 8601 (e.g., 2026-04-08T10:00:00)
 - notes: optional`)
   : (mIsEs
     ? `Cuando el cliente elija un horario, pide su nombre y email (teléfono es opcional), luego INMEDIATAMENTE llama la función "book_appointment_..." correcta. NO dudes ni esperes — llama la función de inmediato.
@@ -1665,7 +1659,7 @@ ${mIsEs
 
 ### ${mIsEs ? 'Reglas Críticas' : 'Critical Rules'}
 - ${mIsEs ? 'NUNCA omitas llamar la función de agendamiento después de que el cliente elija un horario. DEBES llamarla.' : 'NEVER skip calling the book function after the user picks a time. You MUST call it.'}
-- ${mIsEs ? 'NUNCA inventes o adivines fechas. Siempre calcula a partir de {{currentDateTime}}.' : 'NEVER invent or guess dates. Always calculate from {{currentDateTime}}.'}${allGhl ? (mIsEs ? `\n- Si el contactId de la sección GHL Contact ID está vacío, DEBES recopilar nombre y email antes de agendar.` : `\n- If the contactId from the GHL Contact ID section is empty, you MUST collect name and email before booking.`) : (mIsEs ? `\n- Si el cliente da información incompleta (sin nombre/email), pídela, luego agenda INMEDIATAMENTE.` : `\n- If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.`)}
+- ${mIsEs ? 'NUNCA inventes o adivines fechas. Siempre calcula a partir de {{currentDateTime}}.' : 'NEVER invent or guess dates. Always calculate from {{currentDateTime}}.'}${allGhl ? (mIsEs ? `\n- PROHIBIDO pedir nombre, email o teléfono. El cliente ya está identificado. Usa el contactId directamente.` : `\n- FORBIDDEN to ask for name, email, or phone. The customer is already identified. Use the contactId directly.`) : (mIsEs ? `\n- Si el cliente da información incompleta (sin nombre/email), pídela, luego agenda INMEDIATAMENTE.` : `\n- If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.`)}
 - ${mIsEs ? 'Mantén tus respuestas cortas y naturales durante el flujo de agendamiento.' : 'Keep your responses short and natural during the booking flow.'}
 - ${mIsEs ? 'NUNCA leas mensajes de error internos o detalles técnicos al cliente. Si una herramienta devuelve un error, manéjalo con tus propias palabras.' : 'NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words.'}
 - ${mIsEs ? 'Si falla el agendamiento, intenta automáticamente con el siguiente horario disponible más cercano. Si todos fallan, discúlpate y ofrece intentar con otra fecha.' : 'If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.'}
@@ -1679,7 +1673,9 @@ ${mIsEs
           // Single calendar prompt
           const singleCal = activeCalendars[0]
           const isSingleGhl = singleCal.provider === 'ghl'
-          const ghlNote = isSingleGhl ? `\n\n### GHL Contact ID\nThe contactId for this customer is: "{{contactId}}"\nIf the contactId above is NOT empty (contains an actual ID), pass it as the contactId parameter when booking. Do NOT ask for name or email.\nIf the contactId above IS empty (shows nothing between the quotes), ask the customer for their full name and email address instead.` : ''
+          const ghlNote = isSingleGhl ? (isEs
+            ? `\n\n### DATOS DEL CLIENTE (YA IDENTIFICADO)\nEl cliente ya está identificado en el sistema. Su contactId es: "{{contactId}}"\nPROHIBIDO pedir nombre, email, teléfono o cualquier dato personal. Usa este contactId directamente al agendar.`
+            : `\n\n### CUSTOMER DATA (ALREADY IDENTIFIED)\nThe customer is already identified in the system. Their contactId is: "{{contactId}}"\nFORBIDDEN to ask for name, email, phone, or any personal data. Use this contactId directly when booking.`) : ''
 
           const isEs = effectiveLanguage === 'es'
           const calendarInstructions = `
@@ -1716,15 +1712,17 @@ Example: "I have 9 AM, 1 PM, and 4 PM available. Which works for you?"
 - If no slots are available, say so and offer to check another date.`}
 
 ${isSingleGhl ? `**${isEs ? 'Paso 4 — El cliente elige un horario → Agendar INMEDIATAMENTE' : 'Step 4 — User picks a time → Book IMMEDIATELY'}**
-${isEs ? 'Cuando el cliente elija un horario, revisa la sección "GHL Contact ID" de arriba.' : 'Once the user selects a time slot, refer to the "GHL Contact ID" section above.'}
-- **${isEs ? 'Si el contactId NO está vacío' : 'If the contactId is NOT empty'}**: ${isEs ? `INMEDIATAMENTE llama "book_appointment_${safeName}". Pasa el valor de contactId exactamente como aparece arriba. NO pidas nombre ni email.` : `IMMEDIATELY call "book_appointment_${safeName}". Pass the contactId value exactly as shown above. Do NOT ask for name or email.`}
-  - startTime: ISO 8601 (e.g., 2026-02-08T09:00:00)
-  - contactId: ${isEs ? 'el valor de la sección GHL Contact ID' : 'the value from the GHL Contact ID section above'}
-  - notes: ${isEs ? 'opcional' : 'optional'}
-- **${isEs ? 'Si el contactId ESTÁ vacío' : 'If the contactId IS empty'}**: ${isEs ? `Pide al cliente su nombre completo y email, luego llama "book_appointment_${safeName}".` : `Ask the customer for their full name and email, then call "book_appointment_${safeName}".`}
-  - startTime: ISO 8601 (e.g., 2026-02-08T09:00:00)
-  - contactName / contactEmail
-  - notes: ${isEs ? 'opcional' : 'optional'}
+${isEs
+  ? `Cuando el cliente elija un horario, INMEDIATAMENTE llama "book_appointment_${safeName}".
+PROHIBIDO pedir nombre, email o cualquier dato. El cliente ya está identificado.
+- startTime: la fecha + hora seleccionada en formato ISO 8601 (ej: 2026-04-08T10:00:00)
+- contactId: el valor que aparece en la sección "DATOS DEL CLIENTE" de arriba
+- notes: opcional`
+  : `Once the user selects a time slot, IMMEDIATELY call "book_appointment_${safeName}".
+FORBIDDEN to ask for name, email, or any data. The customer is already identified.
+- startTime: the selected date + time in ISO 8601 format (e.g., 2026-04-08T10:00:00)
+- contactId: the value from the "CUSTOMER DATA" section above
+- notes: optional`}
 
 **${isEs ? 'Paso 5 — Confirmar la cita' : 'Step 5 — Confirm the booking'}**
 ${isEs
@@ -1743,7 +1741,7 @@ ${isEs
 
 ### ${isEs ? 'Reglas Críticas' : 'Critical Rules'}
 - ${isEs ? `NUNCA omitas llamar "book_appointment_${safeName}" después de que el cliente elija un horario. DEBES llamarla.` : `NEVER skip calling "book_appointment_${safeName}" after the user picks a time. You MUST call it.`}
-- ${isEs ? 'NUNCA inventes o adivines fechas. Siempre calcula a partir de {{currentDateTime}}.' : 'NEVER invent or guess dates. Always calculate from {{currentDateTime}}.'}${isSingleGhl ? (isEs ? `\n- Si el contactId de la sección GHL Contact ID está vacío, DEBES recopilar nombre y email antes de agendar.` : `\n- If the contactId from the GHL Contact ID section is empty, you MUST collect name and email before booking.`) : (isEs ? `\n- Si el cliente da información incompleta (sin nombre/email), pídela, luego agenda INMEDIATAMENTE.` : `\n- If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.`)}
+- ${isEs ? 'NUNCA inventes o adivines fechas. Siempre calcula a partir de {{currentDateTime}}.' : 'NEVER invent or guess dates. Always calculate from {{currentDateTime}}.'}${isSingleGhl ? (isEs ? `\n- PROHIBIDO pedir nombre, email o teléfono. El cliente ya está identificado. Usa el contactId directamente.` : `\n- FORBIDDEN to ask for name, email, or phone. The customer is already identified. Use the contactId directly.`) : (isEs ? `\n- Si el cliente da información incompleta (sin nombre/email), pídela, luego agenda INMEDIATAMENTE.` : `\n- If the user provides incomplete info (no name/email), ask for it, then IMMEDIATELY book.`)}
 - ${isEs ? 'Mantén tus respuestas cortas y naturales durante el flujo de agendamiento.' : 'Keep your responses short and natural during the booking flow.'}
 - ${isEs ? 'NUNCA leas mensajes de error internos o detalles técnicos al cliente. Si una herramienta devuelve un error, manéjalo con tus propias palabras. Por ejemplo, si una fecha está mal, simplemente pide otra fecha.' : 'NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words. For example, if a date is wrong, simply ask the customer for another date.'}
 - ${isEs ? 'Si falla el agendamiento, intenta automáticamente con el siguiente horario disponible más cercano. Si todos fallan, discúlpate y ofrece intentar con otra fecha.' : 'If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.'}
