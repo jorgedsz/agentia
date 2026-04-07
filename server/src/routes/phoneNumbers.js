@@ -15,6 +15,9 @@ router.get('/available', phoneNumberController.listAvailableNumbers);
 // Import a phone number from Twilio to VAPI
 router.post('/import', phoneNumberController.importPhoneNumber);
 
+// Retry VAPI import for a phone number that failed
+router.post('/:id/retry-vapi', phoneNumberController.retryVapiImport);
+
 // Assign/unassign phone number to agent
 router.patch('/:id/assign', phoneNumberController.assignToAgent);
 

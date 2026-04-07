@@ -95,7 +95,8 @@ export const phoneNumbersAPI = {
   import: (data) => api.post('/phone-numbers/import', data),
   assignToAgent: (id, agentId) => api.patch(`/phone-numbers/${id}/assign`, { agentId }),
   unassign: (id) => api.patch(`/phone-numbers/${id}/assign`, { agentId: null }),
-  remove: (id) => api.delete(`/phone-numbers/${id}`)
+  remove: (id) => api.delete(`/phone-numbers/${id}`),
+  retryVapi: (id) => api.post(`/phone-numbers/${id}/retry-vapi`)
 }
 
 // Team Members API

@@ -13,6 +13,7 @@ export default function PhoneNumbers() {
   const [showImportModal, setShowImportModal] = useState(false)
   const [showAssignModal, setShowAssignModal] = useState(null)
   const [importing, setImporting] = useState(null)
+  const [retrying, setRetrying] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -105,6 +106,20 @@ export default function PhoneNumbers() {
       await fetchData()
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to unassign phone number')
+    }
+  }
+
+  const handleRetryVapi = async (phoneNumber) => {
+    setRetrying(phoneNumber.id)
+    setError('')
+    try {
+      await phoneNumbersAPI.retryVapi(phoneNumber.id)
+      setSuccess(`VAPI import successful for ${phoneNumber.phoneNumber}`)
+      await fetchData()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to import to VAPI')
+    } finally {
+      setRetrying(null)
     }
   }
 
@@ -279,6 +294,15 @@ export default function PhoneNumbers() {
                     )}
                   </td>
                   <td className="px-6 py-4 text-right space-x-2">
+                    {number.status !== 'active' && (
+                      <button
+                        onClick={() => handleRetryVapi(number)}
+                        disabled={retrying === number.id}
+                        className="text-orange-500 hover:text-orange-600 text-sm disabled:opacity-50"
+                      >
+                        {retrying === number.id ? 'Importing...' : 'Import to VAPI'}
+                      </button>
+                    )}
                     {number.agent ? (
                       <button
                         onClick={() => handleUnassign(number.id)}

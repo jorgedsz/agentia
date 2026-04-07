@@ -129,6 +129,10 @@ const importPhoneNumber = async (req, res) => {
     });
 
     if (existing) {
+      // If already imported but VAPI failed, allow retry via the retry endpoint
+      if (!existing.vapiPhoneNumberId) {
+        return res.status(400).json({ error: 'This phone number is already imported but not connected to VAPI. Use the "Import to VAPI" button to retry.' });
+      }
       return res.status(400).json({ error: 'This phone number is already imported' });
     }
 
@@ -330,10 +334,76 @@ const removePhoneNumber = async (req, res) => {
   }
 };
 
+/**
+ * Retry VAPI import for a phone number that failed previously
+ * POST /api/phone-numbers/:id/retry-vapi
+ */
+const retryVapiImport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const phoneNumber = await req.prisma.phoneNumber.findUnique({
+      where: { id: parseInt(id) },
+      include: { twilioCredentials: true }
+    });
+
+    if (!phoneNumber) {
+      return res.status(404).json({ error: 'Phone number not found' });
+    }
+
+    if (phoneNumber.twilioCredentials.userId !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    if (phoneNumber.vapiPhoneNumberId) {
+      return res.json({ message: 'Phone number is already imported to VAPI', phoneNumber });
+    }
+
+    const decryptedSid = decrypt(phoneNumber.twilioCredentials.accountSid);
+    const decryptedToken = decrypt(phoneNumber.twilioCredentials.authToken);
+
+    const vapiKey = await getVapiKeyForUser(req.prisma, userId);
+    if (!vapiKey) {
+      return res.status(400).json({ error: 'VAPI API key not configured' });
+    }
+    vapiService.setApiKey(vapiKey);
+
+    // Try to find existing or import new
+    let vapiPhoneNumberId = null;
+    const existingVapiNumber = await vapiService.findPhoneNumberByNumber(phoneNumber.phoneNumber);
+
+    if (existingVapiNumber) {
+      vapiPhoneNumberId = existingVapiNumber.id;
+      console.log(`Retry: Reusing existing VAPI phone number: ${vapiPhoneNumberId}`);
+    } else {
+      const vapiResult = await vapiService.importTwilioNumber({
+        number: phoneNumber.phoneNumber,
+        twilioAccountSid: decryptedSid,
+        twilioAuthToken: decryptedToken,
+        name: phoneNumber.friendlyName
+      });
+      vapiPhoneNumberId = vapiResult.id;
+      console.log(`Retry: Imported to VAPI: ${vapiPhoneNumberId}`);
+    }
+
+    const updated = await req.prisma.phoneNumber.update({
+      where: { id: parseInt(id) },
+      data: { vapiPhoneNumberId, status: 'active' }
+    });
+
+    res.json({ message: 'Phone number imported to VAPI successfully', phoneNumber: updated });
+  } catch (error) {
+    console.error('Retry VAPI import error:', error);
+    res.status(500).json({ error: error.message || 'Failed to import to VAPI' });
+  }
+};
+
 module.exports = {
   listPhoneNumbers,
   listAvailableNumbers,
   importPhoneNumber,
   assignToAgent,
-  removePhoneNumber
+  removePhoneNumber,
+  retryVapiImport
 };
