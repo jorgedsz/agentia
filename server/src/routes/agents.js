@@ -18,6 +18,9 @@ router.post('/', agentController.createAgent);
 // PUT /api/agents/:id - Update agent
 router.put('/:id', agentController.updateAgent);
 
+// POST /api/agents/:id/duplicate - Duplicate agent
+router.post('/:id/duplicate', agentController.duplicateAgent);
+
 // DELETE /api/agents/:id - Delete agent
 router.delete('/:id', agentController.deleteAgent);
 

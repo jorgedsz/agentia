@@ -280,6 +280,77 @@ const updateAgent = async (req, res) => {
   }
 };
 
+const duplicateAgent = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const original = await req.prisma.agent.findFirst({
+      where: { id, userId: req.user.id }
+    });
+
+    if (!original) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const originalConfig = parseConfig(original.config);
+
+    // Create a new VAPI agent from the config
+    let vapiId = null;
+    let vapiWarning = null;
+    const vapiApiKey = await getVapiKeyForUser(req.prisma, req.user.id);
+    if (vapiApiKey && originalConfig) {
+      try {
+        vapiService.setApiKey(vapiApiKey);
+        const fixedConfig = rewriteToolUrls(originalConfig) || originalConfig;
+        const vapiAgent = await vapiService.createAgent({
+          name: `${original.name} (Copy)`,
+          ...fixedConfig
+        });
+        vapiId = vapiAgent.id;
+      } catch (vapiError) {
+        console.error('VAPI agent creation failed during duplicate:', vapiError.message);
+        vapiWarning = `Agent duplicated locally but VAPI creation failed: ${vapiError.message}`;
+      }
+    } else if (!vapiApiKey) {
+      vapiWarning = 'VAPI API key not configured. Agent duplicated locally only.';
+    }
+
+    const savedConfig = originalConfig ? JSON.stringify(rewriteToolUrls(originalConfig) || originalConfig) : null;
+    const agent = await req.prisma.agent.create({
+      data: {
+        name: `${original.name} (Copy)`,
+        description: original.description,
+        agentType: original.agentType,
+        vapiId,
+        config: savedConfig,
+        userId: req.user.id
+      }
+    });
+
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
+      actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
+      actorType: req.isTeamMember ? 'team_member' : 'user',
+      action: 'agent.duplicate',
+      resourceType: 'agent',
+      resourceId: agent.id,
+      details: { name: agent.name, sourceAgentId: original.id },
+      req
+    });
+
+    const isOwner = req.user.role === 'OWNER';
+    res.status(201).json({
+      message: vapiWarning ? (isOwner ? vapiWarning : 'Agent duplicated') : 'Agent duplicated successfully',
+      vapiWarning: isOwner ? vapiWarning : (vapiWarning ? 'Agent duplicated' : null),
+      agent: { ...agent, config: parseConfig(agent.config) }
+    });
+  } catch (error) {
+    console.error('Duplicate agent error:', error);
+    res.status(500).json({ error: 'Failed to duplicate agent' });
+  }
+};
+
 const deleteAgent = async (req, res) => {
   try {
     const { id } = req.params;
@@ -382,6 +453,7 @@ module.exports = {
   getAgent,
   createAgent,
   updateAgent,
+  duplicateAgent,
   deleteAgent,
   checkVapiSync
 };

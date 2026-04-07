@@ -48,6 +48,7 @@ export const agentsAPI = {
   get: (id) => api.get(`/agents/${id}`),
   create: (data) => api.post('/agents', data),
   update: (id, data) => api.put(`/agents/${id}`, data),
+  duplicate: (id) => api.post(`/agents/${id}/duplicate`),
   delete: (id) => api.delete(`/agents/${id}`)
 }
 

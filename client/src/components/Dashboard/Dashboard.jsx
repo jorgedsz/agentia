@@ -134,6 +134,15 @@ export default function Dashboard() {
     }
   }
 
+  const handleDuplicate = async (id) => {
+    try {
+      const { data } = await agentsAPI.duplicate(id)
+      setAgents(prev => [data.agent, ...prev])
+    } catch (err) {
+      alert('Failed to duplicate agent')
+    }
+  }
+
   const handleDelete = async (type, id) => {
     if (!confirm(`Are you sure you want to delete this ${type}?`)) return
     try {
@@ -271,7 +280,7 @@ export default function Dashboard() {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {agents.slice(0, 6).map((agent) => (
-                          <AgentCard key={agent.id} agent={agent} pricingRates={pricingRates} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
+                          <AgentCard key={agent.id} agent={agent} pricingRates={pricingRates} onDelete={() => handleDelete('agent', agent.id)} onDuplicate={() => handleDuplicate(agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
                         ))}
                       </div>
                     )}
@@ -286,7 +295,7 @@ export default function Dashboard() {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {agents.map((agent) => (
-                        <AgentCard key={agent.id} agent={agent} pricingRates={pricingRates} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
+                        <AgentCard key={agent.id} agent={agent} pricingRates={pricingRates} onDelete={() => handleDelete('agent', agent.id)} onDuplicate={() => handleDuplicate(agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} />
                       ))}
                     </div>
                   )}
@@ -463,7 +472,7 @@ function StatCard({ title, value, icon }) {
   )
 }
 
-function AgentCard({ agent, pricingRates, onDelete, onEdit, onTest }) {
+function AgentCard({ agent, pricingRates, onDelete, onDuplicate, onEdit, onTest }) {
   const type = agent.agentType || agent.config?.agentType || 'outbound'
   const hasPhone = agent.phoneNumbers && agent.phoneNumbers.length > 0
   const directionLabel = type === 'inbound' ? 'Inbound' : hasPhone ? 'Inbound & Outbound' : 'Outbound'
@@ -509,6 +518,11 @@ function AgentCard({ agent, pricingRates, onDelete, onEdit, onTest }) {
         <button onClick={onTest} disabled={!agent.vapiId} className="px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50" title={agent.vapiId ? 'Test Agent' : 'Agent not synced'}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+        </button>
+        <button onClick={onDuplicate} className="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm rounded-lg hover:bg-gray-500/10" title="Duplicate">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
           </svg>
         </button>
         <button onClick={onDelete} className="px-3 py-2 text-red-500 text-sm rounded-lg hover:bg-red-500/10">Delete</button>
