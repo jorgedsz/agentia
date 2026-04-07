@@ -1546,15 +1546,15 @@ export default function AgentEdit() {
         })
       }
 
+      // Generate calendar booking instructions if calendar is enabled
+      let finalSystemPrompt = systemPrompt
+
       // If GHL functions are present but no GHL calendar, add contactId to system prompt
       // (GHL calendar adds its own "GHL Contact ID" section)
       const hasGhlCalActive = calendarConfig.enabled && getActiveCalendars().some(c => c.provider === 'ghl' && c.calendarId)
       if (hasGhlFunction && !hasGhlCalActive) {
-        systemPrompt += `\n\n### GHL Contact ID\nThe GHL contact ID for this customer is: "{{contactId}}"\nWhen calling GHL-related tools, pass this value as the contactId parameter.`
+        finalSystemPrompt += `\n\n### GHL Contact ID\nThe GHL contact ID for this customer is: "{{contactId}}"\nWhen calling GHL-related tools, pass this value as the contactId parameter.`
       }
-
-      // Generate calendar booking instructions if calendar is enabled
-      let finalSystemPrompt = systemPrompt
       if (calendarConfig.enabled) {
         const activeCalendars = getActiveCalendars().filter(c => c.calendarId)
         const isMultiCalendar = activeCalendars.length >= 2
