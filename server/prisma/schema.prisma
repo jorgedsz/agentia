@@ -121,7 +121,23 @@ model Agent {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  phoneNumbers PhoneNumber[]
+  phoneNumbers     PhoneNumber[]
+  trainingSessions TrainingSession[]
+}
+
+model TrainingSession {
+  id              Int      @id @default(autoincrement())
+  agentId         String
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  userId          Int
+  sessionToken    String   @unique @default(cuid())
+  status          String   @default("in_progress")
+  proposedChanges String?  @db.Text
+  transcript      String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([agentId, createdAt])
 }
 
 model Chatbot {

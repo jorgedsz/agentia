@@ -108,6 +108,16 @@ export const teamMembersAPI = {
   login: (data) => api.post('/team-members/login', data)
 }
 
+// Training API
+export const trainingAPI = {
+  createSession: (agentId) => api.post('/training/sessions', { agentId }),
+  listSessions: (agentId) => api.get('/training/sessions', { params: { agentId } }),
+  getSession: (id) => api.get(`/training/sessions/${id}`),
+  completeSession: (id, transcript) => api.post(`/training/sessions/${id}/complete`, { transcript }),
+  acceptSession: (id) => api.post(`/training/sessions/${id}/accept`),
+  rejectSession: (id) => api.post(`/training/sessions/${id}/reject`),
+}
+
 // Calls API
 export const callsAPI = {
   create: (data) => api.post('/calls', data),
