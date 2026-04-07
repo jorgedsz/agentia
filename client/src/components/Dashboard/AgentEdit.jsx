@@ -6971,7 +6971,7 @@ If the customer asks to be called back at a later time:
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
-                  placeholder={ta('agentInfoNamePlaceholder')}
+                  placeholder={ta('agentNamePlaceholder')}
                 />
               </div>
               <div>
@@ -6981,7 +6981,7 @@ If the customer asks to be called back at a later time:
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow resize-none"
-                  placeholder={ta('agentInfoDescPlaceholder')}
+                  placeholder={ta('agentDescPlaceholder')}
                 />
               </div>
               {assignedPhoneId && (
@@ -6989,8 +6989,8 @@ If the customer asks to be called back at a later time:
                   <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{ta('agentInfoType')}</label>
                   <div className="flex gap-2">
                     {[
-                      { value: 'outbound', label: ta('agentInfoOutbound'), desc: ta('agentInfoOutboundDesc') },
-                      { value: 'inbound', label: ta('agentInfoInboundOutbound'), desc: ta('agentInfoInboundOutboundDesc') }
+                      { value: 'outbound', label: ta('typeOutbound'), desc: ta('typeOutboundDesc') },
+                      { value: 'inbound', label: ta('typeInboundOutbound'), desc: ta('typeInboundOutboundDesc') }
                     ].map(opt => (
                       <button
                         key={opt.value}
