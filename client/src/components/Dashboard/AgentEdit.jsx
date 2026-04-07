@@ -1601,9 +1601,10 @@ ${mIsEs ? 'Llama la función "check_calendar_availability_..." correcta para el 
 - ${mIsEs ? 'Calcula cualquier fecha relativa a partir de {{currentDateTime}}' : 'Calculate any relative date from {{currentDateTime}}'}
 
 **${mIsEs ? 'Paso 4 — Presentar horarios disponibles' : 'Step 4 — Present available times'}**
-${mIsEs ? 'Menciona 3-5 de los mejores horarios disponibles de forma natural. Por ejemplo: "Tengo disponible a las 9, a las 10:30 y a las 2 de la tarde. ¿Cuál te funciona mejor?"' : 'Read back 3-5 of the best available times in a natural way. For example: "I have 9:00 AM, 10:30 AM, and 2:00 PM available. Which one works for you?"'}
-- ${mIsEs ? 'NO leas todos los horarios — elige algunos repartidos durante el día.' : 'Do NOT read all 16 slots — pick a few spread throughout the day.'}
+${mIsEs ? 'Elige SOLAMENTE 3 horarios repartidos durante el día (mañana, mediodía y tarde) y menciónalos de forma conversacional. NUNCA leas más de 3 horarios. Ejemplo: "Tengo disponible a las 9 de la mañana, a la 1 de la tarde y a las 4 de la tarde. ¿Cuál te funciona mejor?"' : 'Pick ONLY 3 time slots spread across the day (morning, midday, afternoon) and mention them conversationally. NEVER read more than 3 slots. Example: "I have 9 AM, 1 PM, and 4 PM available. Which works for you?"'}
+- ${mIsEs ? 'NUNCA leas todos los horarios que devuelve la función. Elige solo 3.' : 'NEVER read all the slots the function returns. Pick only 3.'}
 - ${mIsEs ? 'Si no hay horarios disponibles, dilo y ofrece revisar otra fecha.' : 'If no slots are available, say so and offer to check another date.'}
+- ${mIsEs ? 'Si el cliente pide otro horario que no mencionaste, revisa si está en la lista y ofrécelo.' : 'If the customer asks for a different time you didn\'t mention, check if it\'s in the list and offer it.'}
 
 **${mIsEs ? 'Paso 5 — El cliente elige un horario → Agendar INMEDIATAMENTE' : 'Step 5 — User picks a time → Book IMMEDIATELY'}**
 ${allGhl
@@ -1652,8 +1653,8 @@ ${allGhl
 
 **${mIsEs ? 'Paso 6 — Confirmar la cita' : 'Step 6 — Confirm the booking'}**
 ${mIsEs
-  ? `Cuando la función responda exitosamente, confirma la cita. IMPORTANTE: di la fecha COMPLETA en palabras, incluyendo el año. NUNCA digas el año en números.\nEjemplo: "Tu cita quedó agendada para el martes ocho de abril de dos mil veintiséis a las dos de la tarde.${allGhl ? '' : ' Te llegará un correo de confirmación a [email].'}"\nNUNCA digas "2026" ni "two thousand twenty-six" — siempre di "dos mil veintiséis".`
-  : `After the function returns success, confirm the booking. IMPORTANT: spell out the ENTIRE date in words — including the year. NEVER output the year as digits.\nExample: "Your appointment is booked for Tuesday, April eighth, twenty twenty-six at two PM.${allGhl ? '' : " You'll receive a confirmation email at [email]."}"\nNEVER say "2026" as digits — always spell it out as "twenty twenty-six".`}
+  ? `Cuando la función responda exitosamente, confirma la cita brevemente. NO menciones el año.\nEjemplo: "Listo, tu cita quedó para el martes ocho de abril a las dos de la tarde.${allGhl ? '' : ' Te llegará un correo de confirmación.'}"`
+  : `After the function returns success, confirm briefly. Do NOT mention the year.\nExample: "Done, your appointment is set for Tuesday, April eighth at two PM.${allGhl ? '' : " You'll receive a confirmation email."}"`}
 
 ### ${mIsEs ? 'Reglas Críticas' : 'Critical Rules'}
 - ${mIsEs ? 'NUNCA omitas llamar la función de agendamiento después de que el cliente elija un horario. DEBES llamarla.' : 'NEVER skip calling the book function after the user picks a time. You MUST call it.'}
@@ -1661,8 +1662,9 @@ ${mIsEs
 - ${mIsEs ? 'Mantén tus respuestas cortas y naturales durante el flujo de agendamiento.' : 'Keep your responses short and natural during the booking flow.'}
 - ${mIsEs ? 'NUNCA leas mensajes de error internos o detalles técnicos al cliente. Si una herramienta devuelve un error, manéjalo con tus propias palabras.' : 'NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words.'}
 - ${mIsEs ? 'Si falla el agendamiento, intenta automáticamente con el siguiente horario disponible más cercano. Si todos fallan, discúlpate y ofrece intentar con otra fecha.' : 'If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.'}
-- ${mIsEs ? 'NUNCA mezcles idiomas. Di fechas, horas, números y años COMPLETAMENTE en español. Ejemplo: "ocho de abril de dos mil veintiséis". NUNCA digas el año en números ni en otro idioma.' : 'NEVER mix languages. Speak dates, times, numbers, and years ENTIRELY in the conversation language. Example: "April eighth, twenty twenty-six". NEVER say a year as digits or in a different language.'}
-- ${mIsEs ? 'Al presentar horarios disponibles, usa un tono conversacional. Ejemplo: "Tengo disponible a las 9, a las 10:30, y a las 2 de la tarde" en vez de listarlos mecánicamente.' : 'When presenting available times, use a conversational tone. Example: "I have 9 AM, 10:30 AM, and 2 PM available" instead of listing them mechanically.'}`
+- ${mIsEs ? 'NUNCA mezcles idiomas. Habla COMPLETAMENTE en español en todo momento.' : 'NEVER mix languages. Speak ENTIRELY in the conversation language at all times.'}
+- ${mIsEs ? 'NUNCA menciones el año al confirmar la cita. Solo di el día y la hora.' : 'NEVER mention the year when confirming. Just say the day and time.'}
+- ${mIsEs ? 'MÁXIMO 3 horarios al presentar disponibilidad. NUNCA leas más de 3.' : 'MAXIMUM 3 time slots when presenting availability. NEVER read more than 3.'}`
 
           finalSystemPrompt = systemPrompt + calendarInstructions
 
@@ -1694,9 +1696,10 @@ ${isEs ? `Llama la función "check_calendar_availability_${safeName}" con la fec
 - ${isEs ? 'Calcula cualquier fecha relativa a partir de {{currentDateTime}}' : 'Calculate any relative date from {{currentDateTime}}'}
 
 **${isEs ? 'Paso 3 — Presentar horarios disponibles' : 'Step 3 — Present available times'}**
-${isEs ? 'Menciona 3-5 de los mejores horarios disponibles de forma natural. Por ejemplo: "Tengo disponible a las 9, a las 10:30 y a las 2 de la tarde. ¿Cuál te funciona mejor?"' : 'Read back 3-5 of the best available times in a natural way. For example: "I have 9:00 AM, 10:30 AM, and 2:00 PM available. Which one works for you?"'}
-- ${isEs ? 'NO leas todos los horarios — elige algunos repartidos durante el día.' : 'Do NOT read all 16 slots — pick a few spread throughout the day.'}
+${isEs ? 'Elige SOLAMENTE 3 horarios repartidos durante el día (mañana, mediodía y tarde) y menciónalos de forma conversacional. NUNCA leas más de 3 horarios. Ejemplo: "Tengo disponible a las 9 de la mañana, a la 1 de la tarde y a las 4 de la tarde. ¿Cuál te funciona mejor?"' : 'Pick ONLY 3 time slots spread across the day (morning, midday, afternoon) and mention them conversationally. NEVER read more than 3 slots. Example: "I have 9 AM, 1 PM, and 4 PM available. Which works for you?"'}
+- ${isEs ? 'NUNCA leas todos los horarios que devuelve la función. Elige solo 3.' : 'NEVER read all the slots the function returns. Pick only 3.'}
 - ${isEs ? 'Si no hay horarios disponibles, dilo y ofrece revisar otra fecha.' : 'If no slots are available, say so and offer to check another date.'}
+- ${isEs ? 'Si el cliente pide otro horario que no mencionaste, revisa si está en la lista y ofrécelo.' : 'If the customer asks for a different time you didn\'t mention, check if it\'s in the list and offer it.'}
 
 ${isSingleGhl ? `**${isEs ? 'Paso 4 — El cliente elige un horario → Agendar INMEDIATAMENTE' : 'Step 4 — User picks a time → Book IMMEDIATELY'}**
 ${isEs ? 'Cuando el cliente elija un horario, revisa la sección "GHL Contact ID" de arriba.' : 'Once the user selects a time slot, refer to the "GHL Contact ID" section above.'}
@@ -1711,8 +1714,8 @@ ${isEs ? 'Cuando el cliente elija un horario, revisa la sección "GHL Contact ID
 
 **${isEs ? 'Paso 5 — Confirmar la cita' : 'Step 5 — Confirm the booking'}**
 ${isEs
-  ? `Cuando la función responda exitosamente, confirma la cita. IMPORTANTE: di la fecha COMPLETA en palabras, incluyendo el año. NUNCA digas el año en números.\nEjemplo: "Tu cita quedó agendada para el martes ocho de abril de dos mil veintiséis a las dos de la tarde."\nNUNCA digas "2026" ni "two thousand twenty-six" — siempre di "dos mil veintiséis".`
-  : `After the function returns success, confirm the booking. IMPORTANT: spell out the ENTIRE date in words — including the year. NEVER output the year as digits.\nExample: "Your appointment is booked for Tuesday, April eighth, twenty twenty-six at two PM."\nNEVER say "2026" as digits — always spell it out as "twenty twenty-six".`}` : `**${isEs ? 'Paso 4 — El cliente elige un horario → Recopilar datos y agendar INMEDIATAMENTE' : 'Step 4 — User picks a time → Collect info and book IMMEDIATELY'}**
+  ? `Cuando la función responda exitosamente, confirma la cita brevemente. NO menciones el año.\nEjemplo: "Listo, tu cita quedó para el martes ocho de abril a las dos de la tarde."`
+  : `After the function returns success, confirm briefly. Do NOT mention the year.\nExample: "Done, your appointment is set for Tuesday, April eighth at two PM."`}` : `**${isEs ? 'Paso 4 — El cliente elige un horario → Recopilar datos y agendar INMEDIATAMENTE' : 'Step 4 — User picks a time → Collect info and book IMMEDIATELY'}**
 ${isEs ? `Cuando el cliente elija un horario, pide su nombre y email (teléfono es opcional), luego INMEDIATAMENTE llama la función "book_appointment_${safeName}". NO dudes ni esperes — llama la función de inmediato.` : `Once the user selects a time slot, collect their name and email (phone is optional), then IMMEDIATELY call the "book_appointment_${safeName}" function. Do NOT hesitate or wait — call the function right away.`}
 - startTime: ISO 8601 (e.g., 2026-02-08T09:00:00)
 - contactName / contactEmail
@@ -1721,8 +1724,8 @@ ${isEs ? `Cuando el cliente elija un horario, pide su nombre y email (teléfono 
 
 **${isEs ? 'Paso 5 — Confirmar la cita' : 'Step 5 — Confirm the booking'}**
 ${isEs
-  ? `Cuando la función responda exitosamente, confirma la cita. IMPORTANTE: di la fecha COMPLETA en palabras, incluyendo el año. NUNCA digas el año en números.\nEjemplo: "Tu cita quedó agendada para el martes ocho de abril de dos mil veintiséis a las dos de la tarde. Te llegará un correo de confirmación a [email]."\nNUNCA digas "2026" ni "two thousand twenty-six" — siempre di "dos mil veintiséis".`
-  : `After the function returns success, confirm the booking. IMPORTANT: spell out the ENTIRE date in words — including the year. NEVER output the year as digits.\nExample: "Your appointment is booked for Tuesday, April eighth, twenty twenty-six at two PM. You'll receive a confirmation email at [email]."\nNEVER say "2026" as digits — always spell it out as "twenty twenty-six".`}`}
+  ? `Cuando la función responda exitosamente, confirma la cita brevemente. NO menciones el año.\nEjemplo: "Listo, tu cita quedó para el martes ocho de abril a las dos de la tarde. Te llegará un correo de confirmación."`
+  : `After the function returns success, confirm briefly. Do NOT mention the year.\nExample: "Done, your appointment is set for Tuesday, April eighth at two PM. You'll receive a confirmation email."`}`}
 
 ### ${isEs ? 'Reglas Críticas' : 'Critical Rules'}
 - ${isEs ? `NUNCA omitas llamar "book_appointment_${safeName}" después de que el cliente elija un horario. DEBES llamarla.` : `NEVER skip calling "book_appointment_${safeName}" after the user picks a time. You MUST call it.`}
@@ -1730,8 +1733,9 @@ ${isEs
 - ${isEs ? 'Mantén tus respuestas cortas y naturales durante el flujo de agendamiento.' : 'Keep your responses short and natural during the booking flow.'}
 - ${isEs ? 'NUNCA leas mensajes de error internos o detalles técnicos al cliente. Si una herramienta devuelve un error, manéjalo con tus propias palabras. Por ejemplo, si una fecha está mal, simplemente pide otra fecha.' : 'NEVER read internal error messages or technical details to the customer. If a tool returns an error, handle it gracefully in your own words. For example, if a date is wrong, simply ask the customer for another date.'}
 - ${isEs ? 'Si falla el agendamiento, intenta automáticamente con el siguiente horario disponible más cercano. Si todos fallan, discúlpate y ofrece intentar con otra fecha.' : 'If booking fails, try the next closest available time slot automatically. If all attempts fail, apologize and offer to try another date.'}
-- ${isEs ? 'NUNCA mezcles idiomas. Di fechas, horas, números y años COMPLETAMENTE en español. Ejemplo: "ocho de abril de dos mil veintiséis". NUNCA digas el año en números ni en otro idioma.' : 'NEVER mix languages. Speak dates, times, numbers, and years ENTIRELY in the conversation language. Example: "April eighth, twenty twenty-six". NEVER say a year as digits or in a different language.'}
-- ${isEs ? 'Al presentar horarios disponibles, usa un tono conversacional. Ejemplo: "Tengo disponible a las 9, a las 10:30, y a las 2 de la tarde" en vez de listarlos mecánicamente.' : 'When presenting available times, use a conversational tone. Example: "I have 9 AM, 10:30 AM, and 2 PM available" instead of listing them mechanically.'}`
+- ${isEs ? 'NUNCA mezcles idiomas. Habla COMPLETAMENTE en español en todo momento.' : 'NEVER mix languages. Speak ENTIRELY in the conversation language at all times.'}
+- ${isEs ? 'NUNCA menciones el año al confirmar la cita. Solo di el día y la hora.' : 'NEVER mention the year when confirming. Just say the day and time.'}
+- ${isEs ? 'MÁXIMO 3 horarios al presentar disponibilidad. NUNCA leas más de 3.' : 'MAXIMUM 3 time slots when presenting availability. NEVER read more than 3.'}`
 
           finalSystemPrompt = systemPrompt + calendarInstructions
         }
