@@ -1630,7 +1630,9 @@ ${allGhl
 - notes: optional`}
 
 **Step 6 — Confirm the booking**
-After the function returns success, confirm: "Your appointment is booked for [date] at [time].${allGhl ? '' : ' You\'ll receive a confirmation email at [email].'}"
+After the function returns success, confirm the booking. IMPORTANT: spell out the ENTIRE date in words — including the year. NEVER output the year as digits like "2026".${effectiveLanguage === 'es'
+  ? `\nExample: "Tu cita quedó agendada para el martes ocho de abril de dos mil veintiséis a las dos de la tarde.${allGhl ? '' : ' Te llegará un correo de confirmación a [email].'}"\nNEVER say "2026" or "two thousand twenty-six" — always say "dos mil veintiséis".`
+  : `\nExample: "Your appointment is booked for Tuesday, April eighth, twenty twenty-six at two PM.${allGhl ? '' : " You'll receive a confirmation email at [email]."}"\nNEVER say "2026" as digits — always spell it out as "twenty twenty-six".`}`
 
 ### Critical Rules
 - NEVER skip calling the book function after the user picks a time. You MUST call it.
@@ -1689,7 +1691,9 @@ Once the user selects a time slot, refer to the "GHL Contact ID" section above.
   - notes: optional
 
 **Step 5 — Confirm the booking**
-After the function returns success, confirm: "Your appointment is booked for [date] at [time]."` : `**Step 4 — User picks a time → Collect info and book IMMEDIATELY**
+After the function returns success, confirm the booking. IMPORTANT: when saying the date, spell out the ENTIRE date in words — including the year. NEVER output the year as digits like "2026".${effectiveLanguage === 'es'
+  ? `\nExample: "Tu cita quedó agendada para el martes ocho de abril de dos mil veintiséis a las dos de la tarde."\nNEVER say "2026" or "two thousand twenty-six" — always say "dos mil veintiséis".`
+  : `\nExample: "Your appointment is booked for Tuesday, April eighth, twenty twenty-six at two PM."\nNEVER say "2026" as digits — always spell it out as "twenty twenty-six".`}` : `**Step 4 — User picks a time → Collect info and book IMMEDIATELY**
 Once the user selects a time slot, collect their name and email (phone is optional), then IMMEDIATELY call the "book_appointment_${safeName}" function. Do NOT hesitate or wait — call the function right away.
 - startTime: combine the selected date + time in ISO 8601 format (e.g., 2026-02-08T09:00:00)
 - contactName: the customer's full name
@@ -1698,7 +1702,9 @@ Once the user selects a time slot, collect their name and email (phone is option
 - notes: optional
 
 **Step 5 — Confirm the booking**
-After the function returns success, confirm: "Your appointment is booked for [date] at [time]. You'll receive a confirmation email at [email]."`}
+After the function returns success, confirm the booking. IMPORTANT: when saying the date, spell out the ENTIRE date in words — including the year. NEVER output the year as digits like "2026".${effectiveLanguage === 'es'
+  ? `\nExample: "Tu cita quedó agendada para el martes ocho de abril de dos mil veintiséis a las dos de la tarde. Te llegará un correo de confirmación a [email]."\nNEVER say "2026" or "two thousand twenty-six" — always say "dos mil veintiséis".`
+  : `\nExample: "Your appointment is booked for Tuesday, April eighth, twenty twenty-six at two PM. You'll receive a confirmation email at [email]."\nNEVER say "2026" as digits — always spell it out as "twenty twenty-six".`}`}
 
 ### Critical Rules
 - NEVER skip calling "book_appointment_${safeName}" after the user picks a time. You MUST call it.
