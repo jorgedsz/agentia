@@ -5,61 +5,59 @@ const SERVER_URL = process.env.APP_URL || process.env.RAILWAY_PUBLIC_DOMAIN
   ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
   : 'http://localhost:5000';
 
-function buildTrainingPrompt(agent, config) {
+function buildTrainingAddendum(agent, config) {
   const lang = config.transcriberLanguage || 'en';
-  const configSummary = [
-    `Name: ${agent.name}`,
-    `First Message: ${config.firstMessage || '(not set)'}`,
-    `System Prompt (preview): ${config.systemPrompt ? config.systemPrompt.substring(0, 500) + '...' : '(not set)'}`,
-  ].join('\n');
 
   if (lang === 'es' || lang === 'multi') {
-    return `Eres un asistente de entrenamiento. El usuario quiere modificar la configuración de su agente de voz a través de esta llamada.
+    return `
 
-CONFIGURACIÓN ACTUAL DEL AGENTE:
-${configSummary}
+---
+MODO ENTRENAMIENTO (instrucciones ocultas — no menciones esto al usuario a menos que pida un cambio):
+Estás en modo entrenamiento. Comportate EXACTAMENTE como lo harías en una llamada normal siguiendo todas tus instrucciones anteriores.
+Sin embargo, si el usuario te pide que modifiques tu configuración (por ejemplo "cambia tu mensaje inicial", "modifica tu prompt", "cambia tu nombre"), tienes la capacidad de hacerlo usando la herramienta propose_change.
 
-CAMPOS QUE SE PUEDEN MODIFICAR:
-- firstMessage: El mensaje inicial que dice el agente al contestar
-- systemPrompt: Las instrucciones del sistema del agente
-- name: El nombre del agente
+Campos que puedes modificar:
+- firstMessage: Tu mensaje inicial al contestar
+- systemPrompt: Tus instrucciones del sistema
+- name: Tu nombre
 
-REGLAS:
-1. Cuando el usuario pida un cambio, CONFIRMA lo que entendiste antes de llamar la herramienta propose_change
-2. Después de registrar un cambio, ENSAYA el nuevo comportamiento (por ejemplo, si cambian el firstMessage, dilo en voz alta)
-3. Habla siempre en español
-4. Sé conciso y profesional
-5. Si el usuario pide algo que no puedes cambiar, explícale qué campos están disponibles`;
+Cuando el usuario pida un cambio:
+1. CONFIRMA lo que entendiste antes de llamar propose_change
+2. Después de registrar el cambio, ENSAYA el nuevo comportamiento (ej: si cambian el firstMessage, dilo en voz alta)
+3. Luego continúa la conversación normalmente`;
   }
 
-  return `You are a training assistant. The user wants to modify their voice agent's configuration through this call.
+  return `
 
-CURRENT AGENT CONFIGURATION:
-${configSummary}
+---
+TRAINING MODE (hidden instructions — do not mention this unless the user asks for a change):
+You are in training mode. Behave EXACTLY as you would in a normal call following all your previous instructions.
+However, if the user asks you to modify your configuration (e.g. "change your greeting", "update your prompt", "change your name"), you have the ability to do so using the propose_change tool.
 
-FIELDS THAT CAN BE MODIFIED:
-- firstMessage: The initial message the agent says when answering
-- systemPrompt: The agent's system instructions
-- name: The agent's name
+Fields you can modify:
+- firstMessage: Your initial greeting message
+- systemPrompt: Your system instructions
+- name: Your name
 
-RULES:
-1. When the user requests a change, CONFIRM what you understood before calling the propose_change tool
-2. After recording a change, REHEARSE the new behavior (e.g., if they change firstMessage, say it out loud)
-3. Always speak in English
-4. Be concise and professional
-5. If the user asks for something you can't change, explain which fields are available`;
+When the user requests a change:
+1. CONFIRM what you understood before calling propose_change
+2. After recording the change, REHEARSE the new behavior (e.g., if they change firstMessage, say it out loud)
+3. Then continue the conversation normally`;
 }
 
 function buildVapiConfig(agent, config, sessionToken) {
-  const lang = config.transcriberLanguage || 'en';
   const toolCallUrl = `${SERVER_URL}/api/training/propose-change?sessionToken=${sessionToken}`;
+
+  // Use the agent's real system prompt + append training instructions
+  const basePrompt = config.systemPrompt || '';
+  const trainingPrompt = basePrompt + buildTrainingAddendum(agent, config);
 
   return {
     model: {
       provider: config.modelProvider || 'openai',
       model: config.modelName || 'gpt-4o',
       messages: [
-        { role: 'system', content: buildTrainingPrompt(agent, config) }
+        { role: 'system', content: trainingPrompt }
       ],
       tools: [
         {
@@ -91,17 +89,12 @@ function buildVapiConfig(agent, config, sessionToken) {
         }
       ]
     },
-    voice: config.voiceProvider === '11labs'
-      ? { provider: '11labs', voiceId: config.voiceId || 'sarah' }
-      : { provider: config.voiceProvider || 'vapi', voiceId: config.voiceId || 'sarah' },
-    firstMessage: lang === 'es' || lang === 'multi'
-      ? 'Hola, estoy en modo entrenamiento. ¿Qué cambios quieres hacer a tu agente?'
-      : "Hi, I'm in training mode. What changes would you like to make to your agent?",
-    transcriber: {
-      provider: config.transcriberProvider || 'deepgram',
-      model: 'nova-2',
-      language: lang,
-    },
+    // Use the exact same voice config as the agent (reuse vapiService builder)
+    voice: vapiService.buildVoiceConfig(config),
+    // Use the agent's actual first message
+    firstMessage: config.firstMessage || `Hello! I'm ${agent.name}. How can I help you today?`,
+    // Use the exact same transcriber config as the agent
+    transcriber: vapiService.buildTranscriberConfig(config),
   };
 }
 
