@@ -679,17 +679,22 @@ export default function ChatbotEdit() {
       const pNote = opp.pipelineId ? ` Pipeline: "${opp.pipelineName}" (${opp.pipelineId}).` : ''
       const sNote = opp.stageId ? ` Stage: "${opp.stageName}" (${opp.stageId}).` : ''
       const scenario = opp.scenario ? ` USE THIS WHEN: ${opp.scenario}` : ''
+      const noteInstr = opp.noteInstruction ? ` ALSO CREATE A NOTE on the contact following this instruction: ${opp.noteInstruction}` : ''
+      const props = {
+        contactId: { type: 'string', description: 'The GHL contact ID' },
+        pipelineId: { type: 'string', description: `The pipeline ID.${opp.pipelineId ? ` Use: ${opp.pipelineId}` : ''}` },
+        stageId: { type: 'string', description: `The stage ID.${opp.stageId ? ` Use: ${opp.stageId}` : ''}` },
+        name: { type: 'string', description: 'Name/title for the opportunity' },
+        status: { type: 'string', description: 'Status: open, won, lost, or abandoned. Defaults to open.' }
+      }
+      if (opp.noteInstruction) {
+        props.note = { type: 'string', description: `A note to add to the contact. ${opp.noteInstruction}` }
+      }
       ghlTools.push({
         type: 'apiRequest', method: 'POST', url: `${base}/upsert-opportunity?${qp}`,
         name: `ghl_manage_opportunity${suffix}`,
-        description: `Manage a GHL opportunity — creates it if it doesn't exist, or updates it if it does.${pNote}${sNote}${scenario}`,
-        body: { type: 'object', properties: {
-          contactId: { type: 'string', description: 'The GHL contact ID' },
-          pipelineId: { type: 'string', description: `The pipeline ID.${opp.pipelineId ? ` Use: ${opp.pipelineId}` : ''}` },
-          stageId: { type: 'string', description: `The stage ID.${opp.stageId ? ` Use: ${opp.stageId}` : ''}` },
-          name: { type: 'string', description: 'Name/title for the opportunity' },
-          status: { type: 'string', description: 'Status: open, won, lost, or abandoned. Defaults to open.' }
-        }, required: ['contactId', 'pipelineId', 'stageId', 'name'] },
+        description: `Manage a GHL opportunity — creates it if it doesn't exist, or updates it if it does.${pNote}${sNote}${scenario}${noteInstr}`,
+        body: { type: 'object', properties: props, required: ['contactId', 'pipelineId', 'stageId', 'name'] },
         timeoutSeconds: 30
       })
     })
@@ -2063,7 +2068,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Opportunity</span>
-                        <button type="button" onClick={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (_) {} } setGhlCrmConfig(prev => ({ ...prev, opportunities: [...(prev.opportunities || []), { pipelineId: '', pipelineName: '', stageId: '', stageName: '', scenario: '' }] })) }} className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium">+ Add</button>
+                        <button type="button" onClick={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (_) {} } setGhlCrmConfig(prev => ({ ...prev, opportunities: [...(prev.opportunities || []), { pipelineId: '', pipelineName: '', stageId: '', stageName: '', scenario: '', noteInstruction: '' }] })) }} className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium">+ Add</button>
                       </div>
                       {(ghlCrmConfig.opportunities || []).length === 0 && <p className="text-xs text-gray-400">No opportunities configured.</p>}
                       {(ghlCrmConfig.opportunities || []).map((opp, i) => (
@@ -2091,6 +2096,10 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                           <div>
                             <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">When to use *</label>
                             <input type="text" value={opp.scenario} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], scenario: e.target.value }; return { ...prev, opportunities: arr } })} placeholder="e.g. When lead qualifies for premium plan" className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Note instruction <span className="text-gray-400">(optional)</span></label>
+                            <input type="text" value={opp.noteInstruction || ''} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], noteInstruction: e.target.value }; return { ...prev, opportunities: arr } })} placeholder="e.g. Summarize why the lead is interested and key details from the conversation" className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
                           </div>
                         </div>
                       ))}

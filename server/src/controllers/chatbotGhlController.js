@@ -134,7 +134,7 @@ async function updateOpportunity(req, res) {
 async function upsertOpportunity(req, res) {
   try {
     const { userId } = req.query;
-    const { pipelineId, stageId, name, status } = req.body || {};
+    const { pipelineId, stageId, name, status, note } = req.body || {};
     const contactId = req.query.contactId || req.body?.contactId;
 
     if (!userId) {
@@ -164,6 +164,7 @@ async function upsertOpportunity(req, res) {
       // Search failed — fall through to create
     }
 
+    let oppMessage;
     if (existing) {
       // Update the existing opportunity
       const updates = { pipelineStageId: stageId };
@@ -175,7 +176,7 @@ async function upsertOpportunity(req, res) {
         body: JSON.stringify(updates)
       });
 
-      return res.json({ success: true, message: `Opportunity "${existing.name || name}" updated (moved to new stage). ID: ${existing.id}` });
+      oppMessage = `Opportunity "${existing.name || name}" updated (moved to new stage). ID: ${existing.id}`;
     } else {
       // Create a new opportunity
       const result = await ghlRequest('/opportunities/', conn.token, {
@@ -191,8 +192,24 @@ async function upsertOpportunity(req, res) {
       });
 
       const oppId = result.opportunity?.id || result.id || '';
-      return res.json({ success: true, message: `Opportunity "${name}" created successfully.${oppId ? ` ID: ${oppId}` : ''}` });
+      oppMessage = `Opportunity "${name}" created successfully.${oppId ? ` ID: ${oppId}` : ''}`;
     }
+
+    // Create a note on the contact if provided
+    let noteMessage = '';
+    if (note) {
+      try {
+        await ghlRequest(`/contacts/${contactId}/notes`, conn.token, {
+          method: 'POST',
+          body: JSON.stringify({ body: note })
+        });
+        noteMessage = ' Note added to contact.';
+      } catch (noteErr) {
+        noteMessage = ` Note failed: ${noteErr.message}`;
+      }
+    }
+
+    return res.json({ success: true, message: oppMessage + noteMessage });
   } catch (error) {
     console.error('[Chatbot GHL] upsertOpportunity error:', error);
     return res.json({ success: false, message: `Error managing opportunity: ${error.message}` });
