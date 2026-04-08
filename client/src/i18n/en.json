@@ -534,7 +534,7 @@
     "agency": "Agency",
     "noUsersFound": "No users found",
     "buyCredits": "Buy Credits",
-    "buyCreditsDesc": "Select a credit package. $1 = 1 credit.",
+    "buyCreditsDesc": "Select a credit package. $1 = 1$ credits.",
     "creditsLabel": "credits",
     "purchaseSuccess": "Credits purchased successfully! They will appear shortly.",
     "proceedToPayment": "Proceed to Payment"
