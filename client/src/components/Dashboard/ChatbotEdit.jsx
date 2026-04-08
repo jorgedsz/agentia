@@ -1943,8 +1943,8 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 )}
               </div>
 
-              {/* ── Google Sheets ── */}
-              <div>
+              {/* ── Google Sheets ── (hidden for now) */}
+              {false && <div>
                 <button onClick={() => { setToolsSection(s => s === 'sheets' ? null : 'sheets'); if (sheetsConfig.integrationId) fetchSpreadsheets(sheetsConfig.integrationId, '') }} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
                   <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'sheets' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 013-3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6z" /></svg>
@@ -1996,10 +1996,10 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     )}
                   </div>
                 )}
-              </div>
+              </div>}
 
-              {/* ── Google Docs ── */}
-              <div>
+              {/* ── Google Docs ── (hidden for now) */}
+              {false && <div>
                 <button onClick={() => { setToolsSection(s => s === 'docs' ? null : 'docs'); if (docsConfig.integrationId) fetchDocuments(docsConfig.integrationId, '') }} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
                   <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'docs' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -2051,7 +2051,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     )}
                   </div>
                 )}
-              </div>
+              </div>}
 
               {/* ── GHL CRM ── */}
               <div>
