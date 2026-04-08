@@ -680,9 +680,9 @@ export default function ChatbotEdit() {
       const sNote = opp.stageId ? ` Stage: "${opp.stageName}" (${opp.stageId}).` : ''
       const scenario = opp.scenario ? ` USE THIS WHEN: ${opp.scenario}` : ''
       ghlTools.push({
-        type: 'apiRequest', method: 'POST', url: `${base}/create-opportunity?${qp}`,
-        name: `ghl_create_opportunity${suffix}`,
-        description: `Create a new opportunity/deal in GHL.${pNote}${sNote}${scenario}`,
+        type: 'apiRequest', method: 'POST', url: `${base}/upsert-opportunity?${qp}`,
+        name: `ghl_manage_opportunity${suffix}`,
+        description: `Manage a GHL opportunity — creates it if it doesn't exist, or updates it if it does.${pNote}${sNote}${scenario}`,
         body: { type: 'object', properties: {
           contactId: { type: 'string', description: 'The GHL contact ID' },
           pipelineId: { type: 'string', description: `The pipeline ID.${opp.pipelineId ? ` Use: ${opp.pipelineId}` : ''}` },
@@ -693,22 +693,6 @@ export default function ChatbotEdit() {
         timeoutSeconds: 30
       })
     })
-
-    if (ghlCrmConfig.updateOpportunity) {
-      ghlTools.push({
-        type: 'apiRequest', method: 'POST', url: `${base}/update-opportunity?${qp}`,
-        name: 'ghl_update_opportunity',
-        description: 'Update an existing GHL opportunity (change stage, status, assigned user, or name).',
-        body: { type: 'object', properties: {
-          opportunityId: { type: 'string', description: 'The opportunity ID to update' },
-          stageId: { type: 'string', description: 'New pipeline stage ID' },
-          status: { type: 'string', description: 'New status: open, won, lost, or abandoned' },
-          assignedTo: { type: 'string', description: 'User ID to assign the opportunity to' },
-          name: { type: 'string', description: 'New name for the opportunity' }
-        }, required: ['opportunityId'] },
-        timeoutSeconds: 30
-      })
-    }
 
     ;(ghlCrmConfig.tagSets || []).forEach((ts, i) => {
       const suffix = (ghlCrmConfig.tagSets.length > 1) ? `_${i + 1}` : ''
@@ -1095,7 +1079,7 @@ export default function ChatbotEdit() {
           <button
             onClick={() => setShowUnifiedToolsModal(true)}
             className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${
-              callConfig.enabled || sheetsConfig.enabled || docsConfig.enabled || ghlCrmConfig.createNote || ghlCrmConfig.updateOpportunity || (ghlCrmConfig.opportunities || []).length > 0 || (ghlCrmConfig.tagSets || []).length > 0 || (ghlCrmConfig.workflows || []).length > 0 || tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0
+              callConfig.enabled || sheetsConfig.enabled || docsConfig.enabled || ghlCrmConfig.createNote || (ghlCrmConfig.opportunities || []).length > 0 || (ghlCrmConfig.tagSets || []).length > 0 || (ghlCrmConfig.workflows || []).length > 0 || tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length > 0
                 ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                 : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
             }`}
@@ -2059,7 +2043,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'ghl' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   <svg className="w-4 h-4 text-orange-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                   <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">GHL CRM</span>
-                  {(() => { const c = (ghlCrmConfig.createNote ? 1 : 0) + (ghlCrmConfig.updateOpportunity ? 1 : 0) + (ghlCrmConfig.opportunities || []).length + (ghlCrmConfig.tagSets || []).length + (ghlCrmConfig.workflows || []).length; return c > 0 ? <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">{c} tool{c > 1 ? 's' : ''}</span> : null })()}
+                  {(() => { const c = (ghlCrmConfig.createNote ? 1 : 0) + (ghlCrmConfig.opportunities || []).length + (ghlCrmConfig.tagSets || []).length + (ghlCrmConfig.workflows || []).length; return c > 0 ? <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">{c} tool{c > 1 ? 's' : ''}</span> : null })()}
                 </button>
                 {toolsSection === 'ghl' && (
                   <div className="px-5 pb-4 space-y-3">
@@ -2075,20 +2059,10 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       </label>
                     </div>
 
-                    {/* Update Opportunity toggle */}
-                    <div className="rounded-lg border border-gray-100 dark:border-dark-border p-3">
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div className={`w-9 h-5 rounded-full relative transition-colors flex-shrink-0 ${ghlCrmConfig.updateOpportunity ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={(e) => { e.preventDefault(); setGhlCrmConfig(prev => ({ ...prev, updateOpportunity: !prev.updateOpportunity })) }}>
-                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${ghlCrmConfig.updateOpportunity ? 'left-[18px]' : 'left-[2px]'}`} />
-                        </div>
-                        <div><span className="text-sm font-medium text-gray-700 dark:text-gray-200">Update Opportunity</span><span className="text-xs text-gray-400 ml-1.5">Update deal stage/status</span></div>
-                      </label>
-                    </div>
-
-                    {/* ── Create Opportunity (multi) ── */}
+                    {/* ── Opportunity (upsert: create or update) ── */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Create Opportunity</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Opportunity</span>
                         <button type="button" onClick={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (_) {} } setGhlCrmConfig(prev => ({ ...prev, opportunities: [...(prev.opportunities || []), { pipelineId: '', pipelineName: '', stageId: '', stageName: '', scenario: '' }] })) }} className="text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium">+ Add</button>
                       </div>
                       {(ghlCrmConfig.opportunities || []).length === 0 && <p className="text-xs text-gray-400">No opportunities configured.</p>}

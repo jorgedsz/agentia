@@ -126,6 +126,80 @@ async function updateOpportunity(req, res) {
 }
 
 /**
+ * POST /api/chatbot-ghl/upsert-opportunity?userId=X
+ * Body: { contactId, pipelineId, stageId, name, status? }
+ * Searches for an existing opportunity for this contact in the pipeline.
+ * If found → updates its stage/status. If not → creates a new one.
+ */
+async function upsertOpportunity(req, res) {
+  try {
+    const { userId } = req.query;
+    const { pipelineId, stageId, name, status } = req.body || {};
+    const contactId = req.query.contactId || req.body?.contactId;
+
+    if (!userId) {
+      return res.json({ success: false, message: 'Missing required query param: userId' });
+    }
+    if (!contactId || !pipelineId || !stageId || !name) {
+      return res.json({ success: false, message: 'Missing required parameters: contactId, pipelineId, stageId, and name are all required.' });
+    }
+
+    const conn = await findGhlConnection(parseInt(userId), req.prisma);
+    if (!conn) {
+      return res.json({ success: false, message: 'GoHighLevel is not connected for this user.' });
+    }
+
+    // Search for existing opportunities for this contact
+    let existing = null;
+    try {
+      const searchResult = await ghlRequest(
+        `/opportunities/search?location_id=${conn.locationId}&contact_id=${contactId}&pipeline_id=${pipelineId}`,
+        conn.token
+      );
+      const opps = searchResult.opportunities || [];
+      if (opps.length > 0) {
+        existing = opps[0];
+      }
+    } catch (_) {
+      // Search failed — fall through to create
+    }
+
+    if (existing) {
+      // Update the existing opportunity
+      const updates = { pipelineStageId: stageId };
+      if (status) updates.status = status;
+      if (name) updates.name = name;
+
+      await ghlRequest(`/opportunities/${existing.id}`, conn.token, {
+        method: 'PUT',
+        body: JSON.stringify(updates)
+      });
+
+      return res.json({ success: true, message: `Opportunity "${existing.name || name}" updated (moved to new stage). ID: ${existing.id}` });
+    } else {
+      // Create a new opportunity
+      const result = await ghlRequest('/opportunities/', conn.token, {
+        method: 'POST',
+        body: JSON.stringify({
+          locationId: conn.locationId,
+          pipelineId,
+          pipelineStageId: stageId,
+          contactId,
+          name,
+          status: status || 'open'
+        })
+      });
+
+      const oppId = result.opportunity?.id || result.id || '';
+      return res.json({ success: true, message: `Opportunity "${name}" created successfully.${oppId ? ` ID: ${oppId}` : ''}` });
+    }
+  } catch (error) {
+    console.error('[Chatbot GHL] upsertOpportunity error:', error);
+    return res.json({ success: false, message: `Error managing opportunity: ${error.message}` });
+  }
+}
+
+/**
  * POST /api/chatbot-ghl/add-tags?userId=X
  * Body: { contactId, tags }  (tags = array of strings)
  * Adds tags to a GHL contact (merges with existing).
@@ -212,6 +286,7 @@ module.exports = {
   createNote,
   createOpportunity,
   updateOpportunity,
+  upsertOpportunity,
   addTags,
   addToWorkflow
 };

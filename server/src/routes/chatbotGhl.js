@@ -6,6 +6,7 @@ const chatbotGhlController = require('../controllers/chatbotGhlController');
 router.post('/create-note', chatbotGhlController.createNote);
 router.post('/create-opportunity', chatbotGhlController.createOpportunity);
 router.post('/update-opportunity', chatbotGhlController.updateOpportunity);
+router.post('/upsert-opportunity', chatbotGhlController.upsertOpportunity);
 router.post('/add-tags', chatbotGhlController.addTags);
 router.post('/add-to-workflow', chatbotGhlController.addToWorkflow);
 
