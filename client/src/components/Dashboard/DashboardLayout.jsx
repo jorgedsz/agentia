@@ -3,8 +3,9 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { twilioAPI, creditsAPI, agentsAPI, chatbotsAPI } from '../../services/api'
+import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI } from '../../services/api'
 import ChatAssistant from './ChatAssistant'
+import WhopCheckoutModal from './WhopCheckoutModal'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -559,16 +560,63 @@ export default function DashboardLayout() {
         <AddCreditsModal
           setShowCreditModal={setShowCreditModal}
           t={t}
+          userRole={user?.role}
+          onCreditsUpdated={() => fetchCredits()}
         />
       )}
     </div>
   )
 }
 
-function AddCreditsModal({ setShowCreditModal, t }) {
-  const closeModal = () => {
-    setShowCreditModal(false)
+function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) {
+  const [tiers, setTiers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [buyLoading, setBuyLoading] = useState(null)
+  const [checkoutPlanId, setCheckoutPlanId] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    whopAPI.getCreditTiers()
+      .then(({ data }) => setTiers(data.tiers || []))
+      .catch(() => setTiers([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleBuy = async (tier) => {
+    setBuyLoading(tier)
+    setError('')
+    try {
+      const { data } = await creditsAPI.purchase(tier)
+      if (data.planId) {
+        setCheckoutPlanId(data.planId)
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create checkout')
+    } finally {
+      setBuyLoading(null)
+    }
   }
+
+  const handleCheckoutComplete = () => {
+    setCheckoutPlanId(null)
+    setShowCreditModal(false)
+    if (onCreditsUpdated) setTimeout(onCreditsUpdated, 2000)
+  }
+
+  const closeModal = () => setShowCreditModal(false)
+
+  // Show Whop checkout embed
+  if (checkoutPlanId) {
+    return (
+      <WhopCheckoutModal
+        planId={checkoutPlanId}
+        onComplete={handleCheckoutComplete}
+        onClose={() => setCheckoutPlanId(null)}
+      />
+    )
+  }
+
+  const availableTiers = tiers.filter(tier => tier.available)
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) closeModal() }}>
@@ -585,12 +633,59 @@ function AddCreditsModal({ setShowCreditModal, t }) {
 
         {/* Body */}
         <div className="p-5">
-          <div className="text-center py-6">
-            <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('settings.contactAdminCredits') || 'To add credits, please contact your administrator.'}</p>
-          </div>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            </div>
+          ) : availableTiers.length === 0 ? (
+            <div className="text-center py-6">
+              <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('settings.contactAdminCredits') || 'Credit purchasing is not available yet. Contact your administrator.'}</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                {t('credits.buyCreditsDesc') || 'Select a credit package. $1 = 1 credit.'}
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {availableTiers.map((tier) => (
+                  <button
+                    key={tier.amount}
+                    onClick={() => handleBuy(tier.amount)}
+                    disabled={buyLoading !== null}
+                    className={`relative p-4 rounded-xl border-2 transition-colors text-center disabled:opacity-50 ${
+                      tier.testOnly
+                        ? 'border-yellow-300 dark:border-yellow-600 hover:border-yellow-500'
+                        : 'border-gray-200 dark:border-dark-border hover:border-primary-500 dark:hover:border-primary-500'
+                    }`}
+                  >
+                    {tier.testOnly && (
+                      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400 rounded">
+                        TEST
+                      </span>
+                    )}
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">${tier.amount}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {tier.credits} {t('credits.creditsLabel') || 'credits'}
+                    </div>
+                    {buyLoading === tier.amount && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-dark-card/80 rounded-xl">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
