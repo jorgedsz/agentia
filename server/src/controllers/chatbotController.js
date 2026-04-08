@@ -359,12 +359,18 @@ const webhookProxy = async (req, res) => {
     }
 
     // Check if chatbots are enabled for the owner
-    const chatbotOwner = await req.prisma.user.findUnique({ where: { id: chatbot.userId }, select: { chatbotsEnabled: true, messagesPaused: true } });
+    const chatbotOwner = await req.prisma.user.findUnique({ where: { id: chatbot.userId }, select: { chatbotsEnabled: true, messagesPaused: true, vapiCredits: true } });
     if (!chatbotOwner?.chatbotsEnabled) {
       return res.status(403).json({ error: 'Chatbots are disabled for this account.' });
     }
     if (chatbotOwner?.messagesPaused) {
       return res.status(403).json({ error: 'Messages are currently paused for this account.' });
+    }
+
+    // Check if owner has enough credits ($0.01 per message)
+    const MESSAGE_COST = 0.01;
+    if ((chatbotOwner.vapiCredits || 0) < MESSAGE_COST) {
+      return res.status(402).json({ error: 'Insufficient credits. Owner needs to add credits to continue.' });
     }
 
     if (!chatbot.isActive) {
@@ -405,6 +411,16 @@ const webhookProxy = async (req, res) => {
       data = JSON.parse(responseText);
     } catch {
       data = { response: responseText };
+    }
+
+    // Deduct $0.01 from owner's credits for this message
+    try {
+      await req.prisma.user.update({
+        where: { id: chatbot.userId },
+        data: { vapiCredits: { decrement: MESSAGE_COST } }
+      });
+    } catch (creditErr) {
+      console.error('Failed to deduct chatbot message credit:', creditErr.message);
     }
 
     res.json(data);
