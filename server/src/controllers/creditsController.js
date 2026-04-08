@@ -206,8 +206,73 @@ const listCredits = async (req, res) => {
   }
 };
 
+/**
+ * Purchase credits via Whop checkout (predefined tiers)
+ * POST /api/credits/purchase
+ * Body: { tier: number } — e.g. 10, 25, 50, 100
+ */
+const purchaseCredits = async (req, res) => {
+  try {
+    const { tier } = req.body;
+    const CREDIT_TIERS = [1, 10, 25, 50, 100];
+    const OWNER_ONLY_TIERS = [1];
+
+    if (!tier || !CREDIT_TIERS.includes(tier)) {
+      return res.status(400).json({ error: `Invalid tier. Available: ${CREDIT_TIERS.join(', ')}` });
+    }
+
+    // $1 tier is OWNER-only (testing)
+    if (OWNER_ONLY_TIERS.includes(tier) && req.user.role !== 'OWNER') {
+      return res.status(403).json({ error: 'This tier is only available for testing' });
+    }
+
+    const whopEnabled = !!process.env.WHOP_API_KEY;
+    if (!whopEnabled) {
+      return res.status(400).json({ error: 'Payment processing is not configured' });
+    }
+
+    // Look up credits product and plan ID for this tier
+    const creditsProduct = await req.prisma.product.findUnique({ where: { slug: 'credits' } });
+    if (!creditsProduct || !creditsProduct.whopPlanIds) {
+      return res.status(400).json({ error: 'Credit plans not synced. Ask admin to sync products.' });
+    }
+
+    let planMap;
+    try { planMap = JSON.parse(creditsProduct.whopPlanIds); } catch { planMap = {}; }
+
+    const planId = planMap[String(tier)];
+    if (!planId) {
+      return res.status(400).json({ error: `No plan for $${tier} tier. Sync products first.` });
+    }
+
+    const whopService = require('../services/whopService');
+    const userId = req.user.id;
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+
+    const session = await whopService.createCheckoutSession({
+      planId,
+      metadata: {
+        userId: String(userId),
+        type: 'credits',
+        credits: String(tier),
+      },
+      redirectUrl: `${clientUrl}/credits?checkout=success`,
+    });
+
+    res.json({
+      checkoutId: session.id,
+      planId,
+      purchaseUrl: session.purchase_url,
+    });
+  } catch (error) {
+    console.error('Error purchasing credits:', error);
+    res.status(500).json({ error: 'Failed to create checkout session' });
+  }
+};
+
 module.exports = {
   getCredits,
   updateCredits,
-  listCredits
+  listCredits,
+  purchaseCredits
 };

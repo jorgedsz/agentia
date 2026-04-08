@@ -46,6 +46,7 @@ const demoRoutes = require('./routes/demo');
 const portalRoutes = require('./routes/portal');
 const googleWorkspaceRoutes = require('./routes/googleWorkspace');
 const trainingRoutes = require('./routes/training');
+const whopRoutes = require('./routes/whop');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -160,6 +161,10 @@ app.use(cors({
   },
   credentials: true
 }));
+
+// Whop webhook needs raw body BEFORE express.json() parses it
+app.use('/api/whop/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/', generalLimiter);
@@ -208,6 +213,7 @@ app.use('/api/demo', demoRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/google-workspace', googleWorkspaceRoutes);
 app.use('/api/training', trainingRoutes);
+app.use('/api/whop', whopRoutes);
 
 // ── WhatsApp API endpoints ─────────────────────────────────
 

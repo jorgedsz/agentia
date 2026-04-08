@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { paymentsAPI, usersAPI } from '../../services/api'
+import { paymentsAPI, usersAPI, whopAPI } from '../../services/api'
+import WhopCheckoutModal from './WhopCheckoutModal'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -39,7 +41,20 @@ export default function Payments() {
   const [assignSelections, setAssignSelections] = useState({}) // { productId: { selected, billingCycle } }
   const [assignSaving, setAssignSaving] = useState(false)
 
+  // Whop checkout
+  const [checkoutModal, setCheckoutModal] = useState(null) // null | { planId }
+  const [syncingWhop, setSyncingWhop] = useState(false)
+  const [searchParams] = useSearchParams()
+
   useEffect(() => { fetchData() }, [])
+
+  // Detect checkout success from redirect
+  useEffect(() => {
+    if (searchParams.get('checkout') === 'success') {
+      setSuccess(t('payments.checkoutSuccess') || 'Payment completed successfully! Your subscription will activate shortly.')
+      fetchData()
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (success) {
@@ -214,6 +229,29 @@ export default function Payments() {
     }
   }
 
+  // ── Whop ──
+
+  const handleSyncWhop = async () => {
+    setSyncingWhop(true)
+    setError('')
+    try {
+      const { data } = await whopAPI.syncProducts()
+      setSuccess(`Synced ${data.synced?.length || 0} products to Whop`)
+      fetchData()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to sync products to Whop')
+    } finally {
+      setSyncingWhop(false)
+    }
+  }
+
+  const handleCheckoutComplete = (receiptId) => {
+    setCheckoutModal(null)
+    setSuccess(t('payments.checkoutSuccess') || 'Payment completed! Your subscription will activate shortly.')
+    // Give webhook a moment to process
+    setTimeout(() => fetchData(), 2000)
+  }
+
   // ── Helpers ──
 
   const getPriceForCycle = (product, cycle) => {
@@ -338,9 +376,14 @@ export default function Payments() {
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border">
           <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('payments.products')}</h2>
-            <button onClick={openCreateProduct} className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors">
-              {t('payments.createProduct')}
-            </button>
+            <div className="flex gap-2">
+              <button onClick={handleSyncWhop} disabled={syncingWhop} className="px-3 py-1.5 border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors disabled:opacity-50">
+                {syncingWhop ? 'Syncing...' : 'Sync to Whop'}
+              </button>
+              <button onClick={openCreateProduct} className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors">
+                {t('payments.createProduct')}
+              </button>
+            </div>
           </div>
 
           {products.length === 0 ? (
@@ -639,6 +682,15 @@ export default function Payments() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Whop Checkout Modal */}
+      {checkoutModal && (
+        <WhopCheckoutModal
+          planId={checkoutModal.planId}
+          onComplete={handleCheckoutComplete}
+          onClose={() => setCheckoutModal(null)}
+        />
       )}
 
       {/* Assign Products Modal */}

@@ -475,6 +475,7 @@ const purchase = async (req, res) => {
     }
 
     const userId = req.user.id;
+    const whopEnabled = !!process.env.WHOP_API_KEY;
 
     // Get existing active products
     const existingProducts = await req.prisma.userProduct.findMany({
@@ -494,6 +495,50 @@ const purchase = async (req, res) => {
     const productMap = {};
     productRecords.forEach((p) => { productMap[p.id] = p; });
 
+    // If Whop is enabled, redirect to Whop checkout for the first new product
+    // (multi-product checkout can be extended later)
+    if (whopEnabled) {
+      const firstNew = productsInput.find(
+        (item) => productMap[item.productId] && !existingIds.has(item.productId)
+      );
+      if (!firstNew) {
+        return res.status(400).json({ error: 'All selected products are already owned' });
+      }
+      const product = productMap[firstNew.productId];
+      const cycle = firstNew.billingCycle || 'monthly';
+
+      if (!product.whopPlanIds) {
+        return res.status(400).json({ error: 'Product not synced with Whop. Ask admin to sync products.' });
+      }
+      let planMap;
+      try { planMap = JSON.parse(product.whopPlanIds); } catch { planMap = {}; }
+      const planId = planMap[cycle];
+      if (!planId) {
+        return res.status(400).json({ error: `No Whop plan for billing cycle: ${cycle}` });
+      }
+
+      const whopService = require('../services/whopService');
+      const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+      const session = await whopService.createCheckoutSession({
+        planId,
+        metadata: {
+          userId: String(userId),
+          productId: String(product.id),
+          billingCycle: cycle,
+          type: 'subscription',
+        },
+        redirectUrl: `${clientUrl}/payments?checkout=success`,
+      });
+
+      return res.json({
+        requiresCheckout: true,
+        checkoutId: session.id,
+        planId,
+        purchaseUrl: session.purchase_url,
+      });
+    }
+
+    // Whop not enabled — instant activation (legacy flow)
     const results = [];
     for (const item of productsInput) {
       const product = productMap[item.productId];

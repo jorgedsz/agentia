@@ -133,7 +133,8 @@ export const callsAPI = {
 export const creditsAPI = {
   list: () => api.get('/credits'),
   get: (userId) => api.get(`/credits/${userId}`),
-  update: (userId, data) => api.post(`/credits/${userId}`, data)
+  update: (userId, data) => api.post(`/credits/${userId}`, data),
+  purchase: (tier) => api.post('/credits/purchase', { tier }),
 }
 
 // Rates API
@@ -242,6 +243,14 @@ export const complianceAPI = {
   getSettings: () => api.get('/compliance/settings'),
   updateSettings: (data) => api.put('/compliance/settings', data),
   getAuditLogs: (params) => api.get('/compliance/audit-logs', { params })
+}
+
+// Whop API
+export const whopAPI = {
+  createCheckout: (data) => api.post('/whop/create-checkout', data),
+  getMembershipStatus: () => api.get('/whop/membership-status'),
+  getCreditTiers: () => api.get('/whop/credit-tiers'),
+  syncProducts: () => api.post('/whop/sync-products'),
 }
 
 // Payments API

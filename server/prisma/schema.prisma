@@ -31,6 +31,7 @@ model User {
   callsPaused        Boolean           @default(false)
   messagesPaused     Boolean           @default(false)
   portalToken        String?           @unique // Shareable read-only portal token
+  whopCustomerId    String?            // Whop customer/user ID
   agencyId          Int?               // If CLIENT, belongs to this agency
   agency            User?              @relation("AgencyClients", fields: [agencyId], references: [id])
   clients           User[]             @relation("AgencyClients") // If AGENCY, these are their clients
@@ -336,6 +337,8 @@ model Product {
   lifetimePrice         Float          @default(0)
   isActive              Boolean        @default(true)
   sortOrder             Int            @default(0)
+  whopProductId         String?        // Whop product ID
+  whopPlanIds           String?        // JSON map: { monthly: "plan_xxx", quarterly: "plan_xxx", ... }
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
   userProducts          UserProduct[]
@@ -354,6 +357,8 @@ model UserProduct {
   nextPaymentDate      DateTime?
   notes                String?
   assignedBy           Int?          // null = self-purchased
+  whopMembershipId     String?       // Whop membership ID for this subscription
+  whopPaymentId        String?       // Last Whop payment ID
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   transactions         Transaction[]
@@ -405,6 +410,7 @@ model CreditPurchase {
   credits             Float    // Credits added (equal to amount)
   status              String   // "completed", "pending", "failed"
   rawPayload          String?
+  whopPaymentId       String?  // Whop payment ID for this credit purchase
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
