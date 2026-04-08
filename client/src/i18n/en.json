@@ -532,7 +532,12 @@
     "amount": "Amount ($)",
     "user": "User",
     "agency": "Agency",
-    "noUsersFound": "No users found"
+    "noUsersFound": "No users found",
+    "buyCredits": "Buy Credits",
+    "buyCreditsDesc": "Select a credit package. $1 = 1 credit.",
+    "creditsLabel": "credits",
+    "purchaseSuccess": "Credits purchased successfully! They will appear shortly.",
+    "proceedToPayment": "Proceed to Payment"
   },
   "allUsers": {
     "title": "All Users",
@@ -1609,6 +1614,8 @@
     "cancelProduct": "Cancel",
     "confirmCancelProduct": "Are you sure you want to cancel this product? This action cannot be undone.",
     "comingSoon": "Coming Soon",
-    "comingSoonDesc": "This product will be available soon. Stay tuned!"
+    "comingSoonDesc": "This product will be available soon. Stay tuned!",
+    "completePayment": "Complete Payment",
+    "checkoutSuccess": "Payment completed successfully!"
   }
 }
