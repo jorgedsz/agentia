@@ -434,6 +434,27 @@ model Transaction {
   @@index([userId, createdAt])
 }
 
+model ChatbotMessage {
+  id            Int      @id @default(autoincrement())
+  chatbotId     String
+  chatbotName   String
+  userId        Int
+  sessionId     String   @default("default")
+  contactId     String?
+  contactName   String?
+  inputMessage  String   @db.Text
+  outputMessage String?  @db.Text
+  costCharged   Float    @default(0.01)
+  isTest        Boolean  @default(false)
+  status        String   @default("success") // success, error
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([chatbotId, createdAt])
+  @@index([sessionId])
+}
+
 model WaProject {
   id              Int      @id @default(autoincrement())
   nombre          String   // Group name

@@ -403,6 +403,24 @@ const webhookProxy = async (req, res) => {
 
     if (!n8nResponse.ok) {
       console.error(`Webhook proxy upstream error ${n8nResponse.status}:`, responseText.substring(0, 500));
+
+      // Log error message
+      req.prisma.chatbotMessage.create({
+        data: {
+          chatbotId: chatbot.id,
+          chatbotName: chatbot.name,
+          userId: chatbot.userId,
+          sessionId: sessionId || 'default',
+          contactId: resolvedContactId || null,
+          contactName: contactName || null,
+          inputMessage: message,
+          outputMessage: null,
+          costCharged: 0,
+          status: 'error',
+          errorMessage: `Upstream error (${n8nResponse.status}): ${responseText.substring(0, 200) || 'No response'}`,
+        }
+      }).catch(err => console.error('Failed to log chatbot message:', err.message));
+
       return res.status(502).json({ error: `Upstream error (${n8nResponse.status}): ${responseText.substring(0, 200) || 'No response'}` });
     }
 
@@ -422,6 +440,22 @@ const webhookProxy = async (req, res) => {
     } catch (creditErr) {
       console.error('Failed to deduct chatbot message credit:', creditErr.message);
     }
+
+    // Log successful message (fire-and-forget)
+    req.prisma.chatbotMessage.create({
+      data: {
+        chatbotId: chatbot.id,
+        chatbotName: chatbot.name,
+        userId: chatbot.userId,
+        sessionId: sessionId || 'default',
+        contactId: resolvedContactId || null,
+        contactName: contactName || null,
+        inputMessage: message,
+        outputMessage: data.response || data.output || JSON.stringify(data),
+        costCharged: MESSAGE_COST,
+        status: 'success',
+      }
+    }).catch(err => console.error('Failed to log chatbot message:', err.message));
 
     res.json(data);
   } catch (error) {

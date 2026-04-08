@@ -11,6 +11,7 @@ import SubAccounts from './components/Dashboard/SubAccounts'
 import Settings from './components/Dashboard/Settings'
 import Credits from './components/Dashboard/Credits'
 import CallLogs from './components/Dashboard/CallLogs'
+import ChatbotMessageLogs from './components/Dashboard/ChatbotMessageLogs'
 import RatesSettings from './components/Dashboard/RatesSettings'
 import AllUsers from './components/Dashboard/AllUsers'
 import AccountManagement from './components/Dashboard/AccountManagement'
@@ -135,6 +136,7 @@ function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="call-logs" element={<CallLogs />} />
+          <Route path="message-logs" element={<ChatbotMessageLogs />} />
           <Route path="scheduled-calls" element={<ScheduledCalls />} />
           <Route path="rates" element={<RatesSettings />} />
           <Route path="voice-library" element={<VoiceLibrary />} />
