@@ -303,6 +303,15 @@ export default function DashboardContent({ tab }) {
     }
   }
 
+  const handleDuplicate = async (id) => {
+    try {
+      const { data } = await agentsAPI.duplicate(id)
+      setAgents(prev => [data.agent, ...prev])
+    } catch (err) {
+      alert('Failed to duplicate agent')
+    }
+  }
+
   const handleDelete = async (type, id) => {
     if (!confirm(`Are you sure you want to delete this ${type}?`)) return
     try {
@@ -427,7 +436,7 @@ export default function DashboardContent({ tab }) {
                       </span>
                     </div>
                     {agents.map((agent) => (
-                      <AgentCard key={agent.id} agent={agent} modelRates={modelRates} transcriberRates={transcriberRates} onDelete={() => handleDelete('agent', agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} />
+                      <AgentCard key={agent.id} agent={agent} modelRates={modelRates} transcriberRates={transcriberRates} onDelete={() => handleDelete('agent', agent.id)} onDuplicate={() => handleDuplicate(agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} />
                     ))}
                   </div>
                 )}
@@ -809,7 +818,7 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
   )
 }
 
-function AgentCard({ agent, modelRates, transcriberRates, onDelete, onEdit, onTest, onPhoneCall }) {
+function AgentCard({ agent, modelRates, transcriberRates, onDelete, onDuplicate, onEdit, onTest, onPhoneCall }) {
   const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
   const type = agent.agentType || agent.config?.agentType || 'outbound'
@@ -938,15 +947,26 @@ function AgentCard({ agent, modelRates, transcriberRates, onDelete, onEdit, onTe
               Phone Call
             </button>
           </div>
-          <button
-            onClick={onDelete}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            {t('common.delete')}
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onDuplicate}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-gray-400 hover:bg-gray-500/10 transition-colors"
+              title={t('common.duplicate')}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
+            <button
+              onClick={onDelete}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              {t('common.delete')}
+            </button>
+          </div>
         </div>
       </div>
     </div>
