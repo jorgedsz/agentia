@@ -260,7 +260,7 @@ class N8nService {
         sessionKey: 'sessionId',
         contextWindowLength: 10,
         sessionIdType: 'customKey',
-        sessionId: '={{ $json.sessionId || "default" }}'
+        sessionId: `={{ $('Resolve Variables').first().json.sessionId || "default" }}`
       }
     };
     nodes.push(memoryNode);
