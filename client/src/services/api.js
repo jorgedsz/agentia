@@ -60,7 +60,7 @@ export const chatbotsAPI = {
   update: (id, data) => api.put(`/chatbots/${id}`, data),
   toggle: (id) => api.post(`/chatbots/${id}/toggle`),
   delete: (id) => api.delete(`/chatbots/${id}`),
-  test: (id, message, sessionId) => api.post(`/chatbots/${id}/test`, { message, sessionId })
+  test: (id, message, sessionId, contactId) => api.post(`/chatbots/${id}/test`, { message, sessionId, contactId })
 }
 
 // Users/Clients API (for OWNER and AGENCY)

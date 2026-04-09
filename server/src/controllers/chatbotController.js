@@ -277,7 +277,7 @@ const toggleChatbot = async (req, res) => {
 const testChatbot = async (req, res) => {
   try {
     const { id } = req.params;
-    const { message, sessionId } = req.body;
+    const { message, sessionId, contactId: bodyContactId } = req.body;
 
     if (!message) {
       return res.status(400).json({ error: 'message is required' });
@@ -301,7 +301,8 @@ const testChatbot = async (req, res) => {
     // For GHL calendar testing, include the test contact ID from calendarConfig
     const config = chatbot.config ? JSON.parse(chatbot.config) : {};
     const calendarConfig = config.calendarConfig || {};
-    const ghlTestContactId = calendarConfig.ghlTestContactId || '';
+    // Body contactId (from test modal) takes priority over config value
+    const ghlTestContactId = bodyContactId || calendarConfig.ghlTestContactId || '';
     const ghlTestContactName = calendarConfig.ghlTestContactName || '';
 
     const testBody = { message, sessionId: sessionId || 'default' };
