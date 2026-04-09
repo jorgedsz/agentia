@@ -2207,7 +2207,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
               {/* ── Follow-Up Rules ── */}
               <div>
-                <button onClick={() => setToolsSection(s => s === 'followup' ? null : 'followup')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
+                <button onClick={async () => { if (toolsSection !== 'followup') { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (_) {} } } setToolsSection(s => s === 'followup' ? null : 'followup') }} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
                   <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'followup' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.followUpRules')}</span>
@@ -2291,6 +2291,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                               <div className="flex items-center gap-2">
                                 <select value={action.type} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; const actions = [...rules[rIdx].actions]; actions[aIdx] = { ...actions[aIdx], type: e.target.value }; rules[rIdx] = { ...rules[rIdx], actions }; return { ...prev, rules } })} className="flex-1 px-2 py-1 text-xs rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
                                   <option value="send_message">{t('chatbotEdit.sendMessage')}</option>
+                                  <option value="ai_message">{t('chatbotEdit.aiMessage')}</option>
                                   <option value="move_stage">{t('chatbotEdit.moveStage')}</option>
                                   <option value="add_tag">{t('chatbotEdit.addTagAction')}</option>
                                   <option value="notify_slack">{t('chatbotEdit.notifySlack')}</option>
@@ -2300,6 +2301,13 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
                               {action.type === 'send_message' && (
                                 <textarea value={action.messageTemplate || ''} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; const actions = [...rules[rIdx].actions]; actions[aIdx] = { ...actions[aIdx], messageTemplate: e.target.value }; rules[rIdx] = { ...rules[rIdx], actions }; return { ...prev, rules } })} rows={2} placeholder={t('chatbotEdit.messageTemplatePlaceholder')} className="w-full px-2 py-1 text-xs rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none" />
+                              )}
+
+                              {action.type === 'ai_message' && (
+                                <div className="space-y-1.5">
+                                  <p className="text-[10px] text-blue-500 dark:text-blue-400">{t('chatbotEdit.aiMessageDesc')}</p>
+                                  <textarea value={action.aiInstructions || ''} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; const actions = [...rules[rIdx].actions]; actions[aIdx] = { ...actions[aIdx], aiInstructions: e.target.value }; rules[rIdx] = { ...rules[rIdx], actions }; return { ...prev, rules } })} rows={3} placeholder={t('chatbotEdit.aiInstructionsPlaceholder')} className="w-full px-2 py-1 text-xs rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none" />
+                                </div>
                               )}
 
                               {action.type === 'move_stage' && (

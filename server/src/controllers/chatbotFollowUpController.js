@@ -141,6 +141,9 @@ async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, c
       case 'send_message':
         await executeSendMessage(chatbot, action, contact, contactName);
         break;
+      case 'ai_message':
+        await executeAiMessage(prisma, chatbot, action, contact, contactName, targetId);
+        break;
       case 'move_stage':
         await executeMoveStage(conn, targetId, action);
         break;
@@ -188,6 +191,86 @@ async function executeSendMessage(chatbot, action, contact, contactName) {
     message,
     contactId: contact?.id,
     isFollowUp: true,
+  });
+}
+
+async function executeAiMessage(prisma, chatbot, action, contact, contactName, targetId) {
+  if (!chatbot.n8nWebhookUrl) throw new Error('No n8nWebhookUrl configured');
+
+  // Fetch recent conversation history for this contact
+  const recentMessages = await prisma.chatbotMessage.findMany({
+    where: {
+      chatbotId: chatbot.id,
+      contactId: targetId,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
+
+  if (recentMessages.length === 0) {
+    throw new Error('No conversation history found for this contact');
+  }
+
+  // Build conversation summary for AI
+  const conversationHistory = recentMessages
+    .reverse()
+    .map(m => `[${m.createdAt.toISOString().split('T')[0]}] ${m.inputMessage ? `Contact: ${m.inputMessage}` : ''}${m.outputMessage ? `\nBot: ${m.outputMessage}` : ''}`)
+    .join('\n');
+
+  // Get chatbot system prompt for context
+  let chatbotConfig;
+  try {
+    chatbotConfig = chatbot.config ? JSON.parse(chatbot.config) : {};
+  } catch {
+    chatbotConfig = {};
+  }
+  const systemPromptBase = chatbotConfig.systemPromptBase || '';
+
+  const userInstructions = action.aiInstructions || '';
+  const lastMessageDate = recentMessages[recentMessages.length - 1]?.createdAt;
+  const daysSinceLastMessage = lastMessageDate
+    ? Math.round((Date.now() - new Date(lastMessageDate).getTime()) / (1000 * 60 * 60 * 24))
+    : 'unknown';
+
+  const OpenAI = require('openai');
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `You are a follow-up message generator for a chatbot. Your job is to write a natural, concise follow-up message to re-engage a contact whose conversation has been inactive for ${daysSinceLastMessage} days.
+
+${systemPromptBase ? `The chatbot's personality/context:\n${systemPromptBase.substring(0, 500)}\n` : ''}
+${userInstructions ? `Additional instructions from the user:\n${userInstructions}\n` : ''}
+Rules:
+- Write ONLY the message text, nothing else
+- Be natural and conversational, not salesy or pushy
+- Reference the previous conversation context when relevant
+- Keep it short (1-3 sentences)
+- Use the contact's name (${contactName}) naturally
+- Do NOT use asterisks, bold, bullet points, or special formatting`
+      },
+      {
+        role: 'user',
+        content: `Here is the conversation history with this contact:\n\n${conversationHistory}\n\nGenerate a follow-up message to re-engage this contact.`
+      }
+    ],
+    temperature: 0.7,
+    max_tokens: 200,
+  });
+
+  const aiMessage = response.choices[0]?.message?.content?.trim();
+  if (!aiMessage) throw new Error('AI returned empty response');
+
+  console.log(`[Chatbot Follow-Up] AI generated message for ${targetId}: "${aiMessage.substring(0, 80)}..."`);
+
+  await axios.post(chatbot.n8nWebhookUrl, {
+    message: aiMessage,
+    contactId: contact?.id,
+    isFollowUp: true,
+    isAiGenerated: true,
   });
 }
 
