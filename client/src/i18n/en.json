@@ -1873,6 +1873,26 @@
     "curlCopied": "cURL copied!",
     "availablePlaceholders": "Available placeholders:",
     "notSynced": "(not synced)",
-    "toolsModalTitle": "Tools"
+    "toolsModalTitle": "Tools",
+    "followUpRules": "Follow-Up Rules",
+    "enableFollowUpRules": "Enable follow-up rules",
+    "followUpRulesDesc": "Automatically trigger actions when conversations go inactive or GHL opportunities stall in a stage.",
+    "addRule": "Add Rule",
+    "noFollowUpRules": "No follow-up rules configured.",
+    "ruleNum": "Rule {{num}}",
+    "ruleName": "Rule name",
+    "inactiveConversation": "Conversation inactive for X days",
+    "oppInStage": "Opportunity in stage for X days",
+    "daysThreshold": "Days Threshold",
+    "actions": "Actions",
+    "addAction": "Add Action",
+    "sendMessage": "Send Message",
+    "moveStage": "Move Stage",
+    "addTagAction": "Add Tag",
+    "notifySlack": "Notify Slack",
+    "messageTemplatePlaceholder": "Hey {{contactName}}, just checking in...",
+    "slackMessagePlaceholder": "Follow-up needed for {{contactName}}",
+    "rules": "rules",
+    "rule": "rule"
   }
 }

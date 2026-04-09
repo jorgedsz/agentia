@@ -1873,6 +1873,26 @@
     "curlCopied": "¡cURL copiado!",
     "availablePlaceholders": "Marcadores disponibles:",
     "notSynced": "(no sincronizado)",
-    "toolsModalTitle": "Herramientas"
+    "toolsModalTitle": "Herramientas",
+    "followUpRules": "Reglas de Seguimiento",
+    "enableFollowUpRules": "Activar reglas de seguimiento",
+    "followUpRulesDesc": "Ejecuta acciones automaticamente cuando las conversaciones se inactivan o las oportunidades en GHL se estancan en una etapa.",
+    "addRule": "Agregar Regla",
+    "noFollowUpRules": "No hay reglas de seguimiento configuradas.",
+    "ruleNum": "Regla {{num}}",
+    "ruleName": "Nombre de la regla",
+    "inactiveConversation": "Conversacion inactiva por X dias",
+    "oppInStage": "Oportunidad en etapa por X dias",
+    "daysThreshold": "Umbral de Dias",
+    "actions": "Acciones",
+    "addAction": "Agregar Accion",
+    "sendMessage": "Enviar Mensaje",
+    "moveStage": "Mover Etapa",
+    "addTagAction": "Agregar Etiqueta",
+    "notifySlack": "Notificar Slack",
+    "messageTemplatePlaceholder": "Hola {{contactName}}, solo queria dar seguimiento...",
+    "slackMessagePlaceholder": "Se necesita seguimiento para {{contactName}}",
+    "rules": "reglas",
+    "rule": "regla"
   }
 }

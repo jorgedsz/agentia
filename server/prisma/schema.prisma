@@ -455,6 +455,21 @@ model ChatbotMessage {
   @@index([sessionId])
 }
 
+model ChatbotFollowUpLog {
+  id              Int      @id @default(autoincrement())
+  chatbotId       String
+  ruleIndex       Int
+  conditionType   String   // "opp_in_stage" | "inactive_conversation"
+  targetId        String   // opportunityId or contactId
+  actionType      String   // "send_message" | "move_stage" | "add_tag" | "notify_slack"
+  status          String   @default("completed") // completed | failed
+  details         String?  // JSON with error or result info
+  createdAt       DateTime @default(now())
+
+  @@unique([chatbotId, ruleIndex, targetId, actionType])
+  @@index([chatbotId, createdAt])
+}
+
 model WaProject {
   id              Int      @id @default(autoincrement())
   nombre          String   // Group name

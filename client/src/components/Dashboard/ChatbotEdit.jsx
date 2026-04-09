@@ -168,6 +168,11 @@ export default function ChatbotEdit() {
   const [docFilesLoading, setDocFilesLoading] = useState(false)
   const [docSearch, setDocSearch] = useState('')
 
+  // Follow-Up Rules
+  const [followUpRulesConfig, setFollowUpRulesConfig] = useState({ enabled: false, rules: [] })
+  const [followUpLogs, setFollowUpLogs] = useState([])
+  const [showFollowUpLogs, setShowFollowUpLogs] = useState(false)
+
   // GHL CRM settings
   const [ghlCrmConfig, setGhlCrmConfig] = useState({
     createNote: false,
@@ -243,6 +248,9 @@ export default function ChatbotEdit() {
       }
       if (config.ghlCrmConfig) {
         setGhlCrmConfig(config.ghlCrmConfig)
+      }
+      if (config.followUpRulesConfig) {
+        setFollowUpRulesConfig(config.followUpRulesConfig)
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load chatbot')
@@ -807,6 +815,7 @@ export default function ChatbotEdit() {
           sheetsConfig,
           docsConfig,
           ghlCrmConfig,
+          followUpRulesConfig,
           outputType: 'respond_to_webhook',
           outputUrl: outputUrl || '',
         }
@@ -2191,6 +2200,156 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Follow-Up Rules ── */}
+              <div>
+                <button onClick={() => setToolsSection(s => s === 'followup' ? null : 'followup')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
+                  <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'followup' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.followUpRules')}</span>
+                  {(followUpRulesConfig.rules || []).length > 0 && <span className="text-[10px] font-bold text-blue-600 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded">{followUpRulesConfig.rules.length} {followUpRulesConfig.rules.length > 1 ? t('chatbotEdit.rules') : t('chatbotEdit.rule')}</span>}
+                </button>
+                {toolsSection === 'followup' && (
+                  <div className="px-5 pb-4 space-y-3">
+                    <p className="text-xs text-gray-400">{t('chatbotEdit.followUpRulesDesc')}</p>
+
+                    {/* Enable toggle */}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={followUpRulesConfig.enabled}
+                        onChange={(e) => setFollowUpRulesConfig(prev => ({ ...prev, enabled: e.target.checked }))}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">{t('chatbotEdit.enableFollowUpRules')}</span>
+                    </label>
+
+                    {/* Rules list */}
+                    {(followUpRulesConfig.rules || []).length === 0 && (
+                      <p className="text-sm text-gray-400 text-center py-2">{t('chatbotEdit.noFollowUpRules')}</p>
+                    )}
+
+                    {(followUpRulesConfig.rules || []).map((rule, rIdx) => (
+                      <div key={rIdx} className="rounded-lg border border-gray-200 dark:border-dark-border p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-gray-500">{t('chatbotEdit.ruleNum', { num: rIdx + 1 })}</span>
+                          <button onClick={() => setFollowUpRulesConfig(prev => ({ ...prev, rules: prev.rules.filter((_, i) => i !== rIdx) }))} className="text-gray-400 hover:text-red-500 transition-colors">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+
+                        {/* Rule Name */}
+                        <div>
+                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.ruleName')}</label>
+                          <input type="text" value={rule.name || ''} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], name: e.target.value }; return { ...prev, rules } })} placeholder={t('chatbotEdit.ruleName')} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                        </div>
+
+                        {/* Condition Type */}
+                        <div>
+                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Condition</label>
+                          <select value={rule.conditionType || 'inactive_conversation'} onChange={(e) => { const val = e.target.value; setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], conditionType: val }; if (val === 'inactive_conversation') { rules[rIdx].pipelineId = ''; rules[rIdx].pipelineName = ''; rules[rIdx].stageId = ''; rules[rIdx].stageName = ''; } return { ...prev, rules } }) }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                            <option value="inactive_conversation">{t('chatbotEdit.inactiveConversation')}</option>
+                            <option value="opp_in_stage">{t('chatbotEdit.oppInStage')}</option>
+                          </select>
+                        </div>
+
+                        {/* Days Threshold */}
+                        <div>
+                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.daysThreshold')}</label>
+                          <input type="number" min={1} value={rule.daysThreshold || 3} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], daysThreshold: parseInt(e.target.value) || 1 }; return { ...prev, rules } })} className="w-24 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                        </div>
+
+                        {/* Pipeline & Stage (opp_in_stage only) */}
+                        {rule.conditionType === 'opp_in_stage' && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.pipeline')}</label>
+                              <select value={rule.pipelineId || ''} onChange={(e) => { const p = ghlPipelines.find(pp => pp.id === e.target.value); setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], pipelineId: e.target.value, pipelineName: p?.name || '', stageId: '', stageName: '' }; return { ...prev, rules } }) }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                                <option value="">{t('chatbotEdit.selectPipeline')}</option>
+                                {ghlPipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.stage')}</label>
+                              <select value={rule.stageId || ''} onChange={(e) => { const p = ghlPipelines.find(pp => pp.id === rule.pipelineId); const s = p?.stages?.find(ss => ss.id === e.target.value); setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], stageId: e.target.value, stageName: s?.name || '' }; return { ...prev, rules } }) }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                                <option value="">{t('chatbotEdit.selectStage')}</option>
+                                {(ghlPipelines.find(p => p.id === rule.pipelineId)?.stages || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div>
+                          <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.actions')}</label>
+                          {(rule.actions || []).map((action, aIdx) => (
+                            <div key={aIdx} className="rounded-lg border border-gray-100 dark:border-dark-border p-2 mb-2 space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <select value={action.type} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; const actions = [...rules[rIdx].actions]; actions[aIdx] = { ...actions[aIdx], type: e.target.value }; rules[rIdx] = { ...rules[rIdx], actions }; return { ...prev, rules } })} className="flex-1 px-2 py-1 text-xs rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                                  <option value="send_message">{t('chatbotEdit.sendMessage')}</option>
+                                  <option value="move_stage">{t('chatbotEdit.moveStage')}</option>
+                                  <option value="add_tag">{t('chatbotEdit.addTagAction')}</option>
+                                  <option value="notify_slack">{t('chatbotEdit.notifySlack')}</option>
+                                </select>
+                                <button onClick={() => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], actions: rules[rIdx].actions.filter((_, i) => i !== aIdx) }; return { ...prev, rules } })} className="text-gray-400 hover:text-red-500"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                              </div>
+
+                              {action.type === 'send_message' && (
+                                <textarea value={action.messageTemplate || ''} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; const actions = [...rules[rIdx].actions]; actions[aIdx] = { ...actions[aIdx], messageTemplate: e.target.value }; rules[rIdx] = { ...rules[rIdx], actions }; return { ...prev, rules } })} rows={2} placeholder={t('chatbotEdit.messageTemplatePlaceholder')} className="w-full px-2 py-1 text-xs rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none" />
+                              )}
+
+                              {action.type === 'move_stage' && (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <select value={action.targetStageId || ''} onChange={(e) => { const p = ghlPipelines.find(pp => pp.id === rule.pipelineId); const s = p?.stages?.find(ss => ss.id === e.target.value); setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; const actions = [...rules[rIdx].actions]; actions[aIdx] = { ...actions[aIdx], targetStageId: e.target.value, targetStageName: s?.name || '' }; rules[rIdx] = { ...rules[rIdx], actions }; return { ...prev, rules } }) }} className="px-2 py-1 text-xs rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                                    <option value="">Target stage...</option>
+                                    {(ghlPipelines.find(p => p.id === rule.pipelineId)?.stages || ghlPipelines.flatMap(p => p.stages || [])).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                  </select>
+                                </div>
+                              )}
+
+                              {action.type === 'add_tag' && (
+                                <input type="text" value={(action.tags || []).join(', ')} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; const actions = [...rules[rIdx].actions]; actions[aIdx] = { ...actions[aIdx], tags: e.target.value.split(',').map(t => t.trim()).filter(Boolean) }; rules[rIdx] = { ...rules[rIdx], actions }; return { ...prev, rules } })} placeholder="tag1, tag2, tag3" className="w-full px-2 py-1 text-xs rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                              )}
+
+                              {action.type === 'notify_slack' && (
+                                <textarea value={action.slackMessage || ''} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; const actions = [...rules[rIdx].actions]; actions[aIdx] = { ...actions[aIdx], slackMessage: e.target.value }; rules[rIdx] = { ...rules[rIdx], actions }; return { ...prev, rules } })} rows={2} placeholder={t('chatbotEdit.slackMessagePlaceholder')} className="w-full px-2 py-1 text-xs rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white resize-none" />
+                              )}
+                            </div>
+                          ))}
+                          <button onClick={() => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], actions: [...(rules[rIdx].actions || []), { type: 'send_message', messageTemplate: '', targetStageId: '', targetStageName: '', tags: [], slackMessage: '' }] }; return { ...prev, rules } })} className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">+ {t('chatbotEdit.addAction')}</button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Add Rule */}
+                    <button onClick={() => setFollowUpRulesConfig(prev => ({ ...prev, rules: [...prev.rules, { name: '', conditionType: 'inactive_conversation', pipelineId: '', pipelineName: '', stageId: '', stageName: '', daysThreshold: 3, actions: [] }] }))} className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium">+ {t('chatbotEdit.addRule')}</button>
+
+                    {/* Logs viewer */}
+                    <div className="pt-2 border-t border-gray-100 dark:border-dark-border">
+                      <button onClick={async () => { if (!showFollowUpLogs) { try { const res = await chatbotsAPI.getFollowUpLogs(id); setFollowUpLogs(res.data) } catch (e) { console.error(e) } } setShowFollowUpLogs(!showFollowUpLogs) }} className="text-[11px] text-gray-400 hover:text-gray-600 font-medium">
+                        {showFollowUpLogs ? 'Hide Execution Logs' : 'View Execution Logs'}
+                      </button>
+                      {showFollowUpLogs && (
+                        <div className="mt-2 max-h-48 overflow-y-auto space-y-0.5">
+                          {followUpLogs.length === 0 ? (
+                            <p className="text-[11px] text-gray-400">No logs yet.</p>
+                          ) : followUpLogs.map(log => (
+                            <div key={log.id} className="flex items-center gap-2 text-[11px] py-0.5 text-gray-500">
+                              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${log.status === 'completed' ? 'bg-green-400' : 'bg-red-400'}`} />
+                              <span className="font-mono">{new Date(log.createdAt).toLocaleString()}</span>
+                              <span>Rule #{log.ruleIndex + 1}</span>
+                              <span className="text-gray-400">|</span>
+                              <span>{log.actionType}</span>
+                              <span className="text-gray-400">|</span>
+                              <span className="truncate max-w-[100px]">{log.targetId}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

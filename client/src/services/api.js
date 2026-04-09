@@ -60,7 +60,8 @@ export const chatbotsAPI = {
   update: (id, data) => api.put(`/chatbots/${id}`, data),
   toggle: (id) => api.post(`/chatbots/${id}/toggle`),
   delete: (id) => api.delete(`/chatbots/${id}`),
-  test: (id, message, sessionId, contactId) => api.post(`/chatbots/${id}/test`, { message, sessionId, contactId })
+  test: (id, message, sessionId, contactId) => api.post(`/chatbots/${id}/test`, { message, sessionId, contactId }),
+  getFollowUpLogs: (chatbotId) => api.get('/chatbot-follow-ups/logs', { params: { chatbotId } })
 }
 
 // Users/Clients API (for OWNER and AGENCY)
