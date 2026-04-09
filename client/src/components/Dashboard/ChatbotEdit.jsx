@@ -2056,6 +2056,32 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   <div className="px-5 pb-4 space-y-3">
                     <p className="text-xs text-gray-400">{t('chatbotEdit.ghlCrmContactIdNote')}</p>
 
+                    {/* Test Contact ID for GHL CRM tools */}
+                    <div className="rounded-lg border border-gray-100 dark:border-dark-border p-3 space-y-2">
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.ghlTestContactId')}</label>
+                        <input
+                          type="text"
+                          value={calendarConfig.ghlTestContactId || ''}
+                          onChange={(e) => setCalendarConfig({ ...calendarConfig, ghlTestContactId: e.target.value })}
+                          placeholder={t('chatbotEdit.ghlTestContactIdPlaceholder')}
+                          className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                        />
+                        <p className="text-[11px] text-gray-400 mt-0.5">{t('chatbotEdit.ghlTestContactIdDesc')}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.ghlTestContactName')}</label>
+                        <input
+                          type="text"
+                          value={calendarConfig.ghlTestContactName || ''}
+                          onChange={(e) => setCalendarConfig({ ...calendarConfig, ghlTestContactName: e.target.value })}
+                          placeholder={t('chatbotEdit.ghlTestContactNamePlaceholder')}
+                          className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                        />
+                        <p className="text-[11px] text-gray-400 mt-0.5">{t('chatbotEdit.ghlTestContactNameDesc')}</p>
+                      </div>
+                    </div>
+
                     {/* Create Note toggle */}
                     <div className="rounded-lg border border-gray-100 dark:border-dark-border p-3">
                       <label className="flex items-center gap-3 cursor-pointer">

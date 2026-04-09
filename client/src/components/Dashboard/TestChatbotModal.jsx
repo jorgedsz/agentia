@@ -8,7 +8,10 @@ export default function TestChatbotModal({ chatbot, onClose }) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [sessionId, setSessionId] = useState(() => crypto.randomUUID())
-  const [contactId, setContactId] = useState('')
+  const [contactId, setContactId] = useState(() => {
+    const cfg = chatbot?.config || {}
+    return cfg.calendarConfig?.ghlTestContactId || ''
+  })
   const [showSettings, setShowSettings] = useState(false)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)

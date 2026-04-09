@@ -298,12 +298,13 @@ const testChatbot = async (req, res) => {
     // Use the test webhook URL (appends -test to the production webhook path)
     const testWebhookUrl = chatbot.n8nWebhookUrl.replace(/\/chatbot-([^/]+)$/, '/chatbot-$1-test');
 
-    // For GHL calendar testing, include the test contact ID from calendarConfig
+    // For GHL testing, include the test contact ID from calendarConfig or ghlCrmConfig
     const config = chatbot.config ? JSON.parse(chatbot.config) : {};
     const calendarConfig = config.calendarConfig || {};
+    const ghlCrmConfig = config.ghlCrmConfig || {};
     // Body contactId (from test modal) takes priority over config value
-    const ghlTestContactId = bodyContactId || calendarConfig.ghlTestContactId || '';
-    const ghlTestContactName = calendarConfig.ghlTestContactName || '';
+    const ghlTestContactId = bodyContactId || calendarConfig.ghlTestContactId || ghlCrmConfig.ghlTestContactId || '';
+    const ghlTestContactName = calendarConfig.ghlTestContactName || ghlCrmConfig.ghlTestContactName || '';
 
     const testBody = { message, sessionId: sessionId || 'default' };
     if (ghlTestContactId) {
