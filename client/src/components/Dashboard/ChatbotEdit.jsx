@@ -669,9 +669,8 @@ export default function ChatbotEdit() {
         name: 'ghl_create_note',
         description: 'Create a note on a GHL contact. Use this to log important information about a conversation or interaction.',
         body: { type: 'object', properties: {
-          contactId: { type: 'string', description: 'The GHL contact ID' },
           body: { type: 'string', description: 'The note content/text' }
-        }, required: ['contactId', 'body'] },
+        }, required: ['body'] },
         timeoutSeconds: 30
       })
     }
@@ -683,7 +682,6 @@ export default function ChatbotEdit() {
       const scenario = opp.scenario ? ` USE THIS WHEN: ${opp.scenario}` : ''
       const noteInstr = opp.noteInstruction ? ` ALSO CREATE A NOTE on the contact following this instruction: ${opp.noteInstruction}` : ''
       const props = {
-        contactId: { type: 'string', description: 'The GHL contact ID' },
         pipelineId: { type: 'string', description: `The pipeline ID.${opp.pipelineId ? ` Use: ${opp.pipelineId}` : ''}` },
         stageId: { type: 'string', description: `The stage ID.${opp.stageId ? ` Use: ${opp.stageId}` : ''}` },
         name: { type: 'string', description: 'Name/title for the opportunity' },
@@ -696,7 +694,7 @@ export default function ChatbotEdit() {
         type: 'apiRequest', method: 'POST', url: `${base}/upsert-opportunity?${qp}`,
         name: `ghl_manage_opportunity${suffix}`,
         description: `Manage a GHL opportunity — creates it if it doesn't exist, or updates it if it does.${pNote}${sNote}${scenario}${noteInstr}`,
-        body: { type: 'object', properties: props, required: ['contactId', 'pipelineId', 'stageId', 'name'] },
+        body: { type: 'object', properties: props, required: ['pipelineId', 'stageId', 'name'] },
         timeoutSeconds: 30
       })
     })
@@ -710,9 +708,8 @@ export default function ChatbotEdit() {
         name: `ghl_add_tags${suffix}`,
         description: `Add tags to a GHL contact.${tagsNote}${scenario}`,
         body: { type: 'object', properties: {
-          contactId: { type: 'string', description: 'The GHL contact ID' },
           tags: { type: 'array', description: `Array of tag strings to add.${tagsNote || ' e.g. ["hot-lead"]'}` }
-        }, required: ['contactId', 'tags'] },
+        }, required: ['tags'] },
         timeoutSeconds: 30
       })
     })
@@ -726,9 +723,8 @@ export default function ChatbotEdit() {
         name: `ghl_add_to_workflow${suffix}`,
         description: `Add a GHL contact to an automation workflow.${wfNote}${scenario}`,
         body: { type: 'object', properties: {
-          contactId: { type: 'string', description: 'The GHL contact ID' },
           workflowId: { type: 'string', description: `The workflow ID.${wf.workflowId ? ` Use: ${wf.workflowId}` : ''}` }
-        }, required: ['contactId', 'workflowId'] },
+        }, required: ['workflowId'] },
         timeoutSeconds: 30
       })
     })
