@@ -173,9 +173,21 @@ const handleWebhook = async (req, res) => {
 
     const eventType = event.type;
     const eventData = event.data;
-    const metadata = eventData?.metadata || {};
 
-    console.log(`[Whop Webhook] Event: ${eventType}`, { metadata });
+    // Metadata can be at data.metadata, data.membership.metadata, or data.checkout_session.metadata
+    const metadata = eventData?.metadata
+      || eventData?.membership?.metadata
+      || eventData?.checkout_session?.metadata
+      || {};
+
+    console.log(`[Whop Webhook] Event: ${eventType}`);
+    console.log(`[Whop Webhook] Resolved metadata:`, JSON.stringify(metadata));
+    console.log(`[Whop Webhook] Full payload keys:`, JSON.stringify({
+      topKeys: Object.keys(eventData || {}),
+      hasMetadata: !!eventData?.metadata,
+      hasMembershipMetadata: !!eventData?.membership?.metadata,
+      hasCheckoutMetadata: !!eventData?.checkout_session?.metadata,
+    }));
 
     switch (eventType) {
       case 'payment.succeeded':
@@ -202,46 +214,101 @@ const handleWebhook = async (req, res) => {
 };
 
 async function handlePaymentSucceeded(prisma, data, metadata) {
-  const userId = metadata.userId ? parseInt(metadata.userId) : null;
+  const paymentId = data.id;
+
+  // Log full payment data for debugging
+  console.log(`[Whop Webhook] payment.succeeded id=${paymentId}, metadata=`, JSON.stringify(metadata));
+
+  // Try to resolve userId from metadata, or fall back to matching whopCustomerId
+  let userId = metadata.userId ? parseInt(metadata.userId) : null;
+
+  if (!userId && data.user?.id) {
+    // Fallback: look up user by whopCustomerId
+    const userByWhop = await prisma.user.findFirst({
+      where: { whopCustomerId: data.user.id },
+      select: { id: true },
+    });
+    if (userByWhop) {
+      userId = userByWhop.id;
+      console.log(`[Whop Webhook] Resolved userId ${userId} from whopCustomerId ${data.user.id}`);
+    }
+  }
+
   if (!userId) {
-    console.error('[Whop Webhook] payment.succeeded missing userId in metadata');
+    console.error(`[Whop Webhook] payment.succeeded FAILED: cannot resolve userId. metadata=${JSON.stringify(metadata)}, whopUserId=${data.user?.id}, paymentId=${paymentId}`);
     return;
   }
 
   const type = metadata.type; // 'subscription' or 'credits'
-  const paymentId = data.id;
 
   // Update whopCustomerId if available
   if (data.user?.id) {
     await prisma.user.update({
       where: { id: userId },
       data: { whopCustomerId: data.user.id },
-    }).catch(() => {}); // ignore if user not found
+    }).catch((err) => console.error(`[Whop Webhook] Failed to update whopCustomerId:`, err.message));
   }
 
-  if (type === 'credits') {
-    const credits = parseFloat(metadata.credits) || 0;
-    if (credits <= 0) return;
+  // Detect credit purchase: check metadata.type, or infer from plan/amount if metadata is empty
+  let isCredits = type === 'credits';
+  let creditAmount = parseFloat(metadata.credits) || 0;
+
+  if (!type && !isCredits) {
+    // Metadata may be missing — try to infer from the plan
+    // Check if this payment matches a credits product plan
+    try {
+      const creditsProduct = await prisma.product.findUnique({ where: { slug: 'credits' } });
+      if (creditsProduct?.whopPlanIds) {
+        const planMap = JSON.parse(creditsProduct.whopPlanIds);
+        const paymentPlanId = data.plan?.id || data.membership?.plan_id;
+        for (const [tier, planId] of Object.entries(planMap)) {
+          if (planId === paymentPlanId) {
+            isCredits = true;
+            creditAmount = parseFloat(tier);
+            console.log(`[Whop Webhook] Inferred credit purchase: ${creditAmount} credits from plan ${planId}`);
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Whop Webhook] Error inferring credit type:', err.message);
+    }
+  }
+
+  if (isCredits) {
+    if (creditAmount <= 0) {
+      console.error(`[Whop Webhook] Credit amount is 0, skipping. metadata=${JSON.stringify(metadata)}`);
+      return;
+    }
+
+    // Check dedup — don't add credits twice for the same payment
+    const existingPurchase = await prisma.creditPurchase.findFirst({
+      where: { whopPaymentId: paymentId },
+    });
+    if (existingPurchase) {
+      console.log(`[Whop Webhook] Duplicate payment ${paymentId}, credits already added`);
+      return;
+    }
 
     // Add credits to user balance
     await prisma.user.update({
       where: { id: userId },
-      data: { vapiCredits: { increment: credits } },
+      data: { vapiCredits: { increment: creditAmount } },
     });
 
     // Create credit purchase record
     await prisma.creditPurchase.create({
       data: {
         userId,
-        amount: credits, // USD = credits for now
-        credits,
+        amount: creditAmount,
+        credits: creditAmount,
         status: 'completed',
         whopPaymentId: paymentId,
         rawPayload: JSON.stringify(data),
       },
     });
 
-    console.log(`[Whop Webhook] Added ${credits} credits to user ${userId}`);
+    console.log(`[Whop Webhook] SUCCESS: Added ${creditAmount} credits to user ${userId} (payment ${paymentId})`);
   } else if (type === 'subscription') {
     const productId = metadata.productId ? parseInt(metadata.productId) : null;
     const billingCycle = metadata.billingCycle || 'monthly';

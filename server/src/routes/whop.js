@@ -5,7 +5,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 const { requireRole, ROLES } = require('../middleware/roleMiddleware');
 
 // Webhook — public, needs raw body (express.raw applied in index.js before JSON middleware)
-router.post('/webhook', express.raw({ type: 'application/json' }), whopController.handleWebhook);
+router.post('/webhook', whopController.handleWebhook);
 
 // All other routes require authentication
 router.use(authMiddleware);
