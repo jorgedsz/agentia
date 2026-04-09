@@ -816,7 +816,7 @@ export default function ChatbotEdit() {
         }
       })
 
-      setSuccess('Chatbot saved successfully')
+      setSuccess(t('chatbotEdit.chatbotSaved'))
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save chatbot')
@@ -829,7 +829,7 @@ export default function ChatbotEdit() {
     try {
       const { data } = await chatbotsAPI.toggle(id)
       setIsActive(data.chatbot.isActive)
-      setSuccess(`Chatbot ${data.chatbot.isActive ? 'activated' : 'deactivated'}`)
+      setSuccess(data.chatbot.isActive ? t('chatbotEdit.chatbotActivated') : t('chatbotEdit.chatbotDeactivated'))
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to toggle chatbot')
@@ -960,7 +960,7 @@ export default function ChatbotEdit() {
   if (!chatbot) {
     return (
       <div className="p-6 text-center">
-        <p className="text-gray-500 dark:text-gray-400">Chatbot not found</p>
+        <p className="text-gray-500 dark:text-gray-400">{t('chatbotEdit.chatbotNotFound')}</p>
         <button onClick={() => navigate('/dashboard/chatbots')} className="mt-4 text-primary-600 hover:text-primary-700">
           Back to Chatbots
         </button>
@@ -992,20 +992,20 @@ export default function ChatbotEdit() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="text-2xl font-bold text-gray-900 dark:text-white bg-transparent border-none outline-none focus:ring-0 p-0"
-              placeholder="Chatbot name"
+              placeholder={t('chatbotEdit.chatbotName')}
             />
             <div className="flex items-center gap-2 mt-1">
               <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-dark-hover dark:text-gray-400'}`}>
-                {isActive ? 'Active' : 'Inactive'}
+                {isActive ? t('chatbotEdit.active') : t('chatbotEdit.inactive')}
               </span>
               <select
                 value={chatbotType}
                 onChange={(e) => setChatbotType(e.target.value)}
                 className="text-xs font-medium rounded-full px-2.5 py-0.5 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
               >
-                <option value="standard">Respond to Webhook</option>
-                <option value="ghl_sms">GHL SMS</option>
-                <option value="ghl_whatsapp">GHL WhatsApp</option>
+                <option value="standard">{t('chatbotEdit.respondToWebhook')}</option>
+                <option value="ghl_sms">{t('chatbotEdit.ghlSms')}</option>
+                <option value="ghl_whatsapp">{t('chatbotEdit.ghlWhatsapp')}</option>
               </select>
             </div>
           </div>
@@ -1018,20 +1018,20 @@ export default function ChatbotEdit() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
-            Test
+            {t('chatbotEdit.test')}
           </button>
           <button
             onClick={handleToggle}
             className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${isActive ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100' : 'text-green-600 bg-green-50 dark:bg-green-900/20 hover:bg-green-100'}`}
           >
-            {isActive ? 'Deactivate' : 'Activate'}
+            {isActive ? t('chatbotEdit.deactivate') : t('chatbotEdit.activate')}
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
             className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('chatbotEdit.saving') : t('chatbotEdit.save')}
           </button>
         </div>
       </div>
@@ -1056,7 +1056,7 @@ export default function ChatbotEdit() {
             onClick={() => setShowModelModal(true)}
             className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600 transition-all"
           >
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Model</span>
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('chatbotEdit.model')}</span>
             <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
@@ -1073,7 +1073,7 @@ export default function ChatbotEdit() {
             }`}
           >
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              Calendar {calendarConfig.enabled && configuredCalendars > 0 && (
+              {t('chatbotEdit.calendar')} {calendarConfig.enabled && configuredCalendars > 0 && (
                 <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{configuredCalendars}</span>
               )}
             </span>
@@ -1091,7 +1091,7 @@ export default function ChatbotEdit() {
                 : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Tools</span>
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('chatbotEdit.toolsLabel')}</span>
             <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1115,8 +1115,8 @@ export default function ChatbotEdit() {
               <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
               </svg>
-              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Webhook URL</span>
-              <span className="text-xs text-green-600 dark:text-green-400 font-medium">Ready</span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.webhookUrl')}</span>
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium">{t('chatbotEdit.ready')}</span>
             </button>
             {expandedSection === 'webhook' && (() => {
               const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
@@ -1133,7 +1133,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
               return (
                 <div className="px-5 pb-4 space-y-3">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Send a POST request to this endpoint to interact with your chatbot.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('chatbotEdit.webhookDesc')}</p>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
@@ -1144,11 +1144,11 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(webhookUrl)
-                        setSuccess('Webhook URL copied!')
+                        setSuccess(t('chatbotEdit.webhookUrlCopied'))
                         setTimeout(() => setSuccess(''), 2000)
                       }}
                       className="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-600 dark:text-gray-300 text-sm flex-shrink-0"
-                      title="Copy URL"
+                      title={t('chatbotEdit.copyUrl')}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -1157,16 +1157,16 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   </div>
                   <div className="relative">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">cURL Example</span>
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('chatbotEdit.curlExample')}</span>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(curlExample)
-                          setSuccess('cURL copied!')
+                          setSuccess(t('chatbotEdit.curlCopied'))
                           setTimeout(() => setSuccess(''), 2000)
                         }}
                         className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium"
                       >
-                        Copy
+                        {t('chatbotEdit.copy')}
                       </button>
                     </div>
                     <pre className="px-3 py-3 rounded-lg bg-gray-900 text-green-400 text-xs font-mono overflow-x-auto whitespace-pre">{curlExample}</pre>
@@ -1197,14 +1197,14 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9l.879 2.121z" />
               </svg>
-              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Variables</span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.variables')}</span>
               {variables.length > 0 && (
                 <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded-full bg-green-500 text-white">{variables.length}</span>
               )}
             </button>
             {expandedSection === 'variables' && (
               <div className="px-5 pb-4 space-y-3">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Define variables that can be passed via the webhook and used as placeholders in the system prompt with <code className="px-1 py-0.5 bg-gray-100 dark:bg-dark-bg rounded text-[11px]">{'{{variableName}}'}</code> syntax.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('chatbotEdit.variablesDesc')}</p>
                 {variables.length > 0 && (
                   <div className="space-y-2">
                     {variables.map((v, i) => (
@@ -1229,22 +1229,22 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 )}
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.name')}</label>
                     <input
                       type="text"
                       value={newVarName}
                       onChange={(e) => setNewVarName(e.target.value)}
-                      placeholder="e.g. customerName"
+                      placeholder={t('chatbotEdit.egCustomerName')}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Default value</label>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.defaultValue')}</label>
                     <input
                       type="text"
                       value={newVarDefault}
                       onChange={(e) => setNewVarDefault(e.target.value)}
-                      placeholder="optional"
+                      placeholder={t('chatbotEdit.optional')}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
                     />
                   </div>
@@ -1259,7 +1259,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     disabled={!newVarName.trim()}
                     className="px-3 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50 text-sm font-medium flex-shrink-0"
                   >
-                    Add
+                    {t('chatbotEdit.addBtn')}
                   </button>
                 </div>
               </div>
@@ -1279,21 +1279,21 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
               <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
-              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Webhook Forwarding</span>
+              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.webhookForwarding')}</span>
               {outputUrl ? (
-                <span className="text-xs text-green-600 dark:text-green-400 font-medium">Active</span>
+                <span className="text-xs text-green-600 dark:text-green-400 font-medium">{t('chatbotEdit.activeLabel')}</span>
               ) : (
-                <span className="text-xs text-gray-400">Not set</span>
+                <span className="text-xs text-gray-400">{t('chatbotEdit.notSet')}</span>
               )}
             </button>
             {expandedSection === 'forwarding' && (
               <div className="px-5 pb-4 space-y-3">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Forward the chatbot's response to an external webhook URL. The response will be sent as a POST request to this URL.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('chatbotEdit.webhookForwardingDesc')}</p>
                 <input
                   type="url"
                   value={outputUrl}
                   onChange={(e) => setOutputUrl(e.target.value)}
-                  placeholder="https://your-webhook-url.com/endpoint"
+                  placeholder={t('chatbotEdit.webhookForwardingPlaceholder')}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
                 />
                 {outputUrl && (
@@ -1301,7 +1301,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    Responses will be forwarded to this URL
+                    {t('chatbotEdit.responsesForwarded')}
                   </div>
                 )}
               </div>
@@ -1313,18 +1313,18 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
         {/* System Prompt */}
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">System Prompt</h3>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.systemPrompt')}</h3>
             <button
               onClick={() => setShowPromptGenerator(true)}
               className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium"
             >
-              Generate with AI
+              {t('chatbotEdit.generateWithAi')}
             </button>
           </div>
           <textarea
             value={systemPrompt}
             onChange={(e) => setSystemPrompt(e.target.value)}
-            placeholder="You are a helpful customer support chatbot..."
+            placeholder={t('chatbotEdit.systemPromptPlaceholder')}
             rows={20}
             className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y font-mono text-sm"
           />
@@ -1332,7 +1332,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
           {variables.length > 0 && (
             <div className="mt-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-xs text-blue-700 dark:text-blue-300">
-                Available placeholders: {variables.map(v => (
+                {t('chatbotEdit.availablePlaceholders')} {variables.map(v => (
                   <code key={v.name} className="mx-0.5 px-1 py-0.5 bg-blue-100 dark:bg-blue-900/40 rounded text-[11px] font-mono">{`{{${v.name}}}`}</code>
                 ))}
               </p>
@@ -1347,7 +1347,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Select Model</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.selectModel')}</h3>
               <button onClick={() => setShowModelModal(false)} className="text-gray-500 hover:text-gray-700">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1425,10 +1425,10 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   <>
                     {PROVIDER_ICONS[currentNotConnected]}
                     <span className="text-sm text-gray-900 dark:text-white">{PROVIDER_NAMES[currentNotConnected]}</span>
-                    <span className="text-xs text-red-400 ml-auto">Not connected</span>
+                    <span className="text-xs text-red-400 ml-auto">{t('chatbotEdit.notConnected')}</span>
                   </>
                 ) : (
-                  <span className="text-sm text-gray-400">Select a provider</span>
+                  <span className="text-sm text-gray-400">{t('chatbotEdit.selectProvider')}</span>
                 )}
                 <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 ml-auto transition-transform ${showProviderDropdown === dropdownId ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -1438,7 +1438,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
               <div className={`${showProviderDropdown === dropdownId ? '' : 'hidden'} mt-1 w-full bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg max-h-64 overflow-y-auto`}>
                 {connectedAccounts.length > 0 && (
                   <>
-                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">Connected</div>
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide">{t('chatbotEdit.connected')}</div>
                     {connectedAccounts.map(account => (
                       <button
                         key={account.key}
@@ -1467,7 +1467,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 )}
                 {notConnectedProviders.length > 0 && (
                   <>
-                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide border-t border-gray-100 dark:border-dark-border mt-1">Not Connected</div>
+                    <div className="px-3 py-1.5 text-xs font-medium text-gray-400 uppercase tracking-wide border-t border-gray-100 dark:border-dark-border mt-1">{t('chatbotEdit.notConnected')}</div>
                     {notConnectedProviders.map(providerId => (
                       <button
                         key={providerId}
@@ -1480,7 +1480,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       >
                         {PROVIDER_ICONS[providerId]}
                         <span className="text-sm text-gray-900 dark:text-white">{PROVIDER_NAMES[providerId]}</span>
-                        <span className="text-xs text-gray-400 ml-auto">Setup required</span>
+                        <span className="text-xs text-gray-400 ml-auto">{t('chatbotEdit.setupRequired')}</span>
                       </button>
                     ))}
                   </>
@@ -1505,7 +1505,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
           return (
             <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar *</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.calendarLabel')}</label>
               {err && (
                 <div className="p-2 mb-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
                   <p className="text-xs text-red-600 dark:text-red-400">{err}</p>
@@ -1514,7 +1514,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
               {ldg ? (
                 <div className="flex items-center gap-2 py-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
-                  <span className="text-sm text-gray-500">Loading calendars...</span>
+                  <span className="text-sm text-gray-500">{t('chatbotEdit.loadingCalendars')}</span>
                 </div>
               ) : calendars.length > 0 ? (
                 <select
@@ -1525,13 +1525,13 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                 >
-                  <option value="">Select a calendar</option>
+                  <option value="">{t('chatbotEdit.selectCalendar')}</option>
                   {calendars.map(cal => (
                     <option key={cal.id} value={cal.id}>{cal.name}</option>
                   ))}
                 </select>
               ) : (
-                <div className="text-sm text-gray-500 py-2">No calendars found for this account.</div>
+                <div className="text-sm text-gray-500 py-2">{t('chatbotEdit.noCalendarsFound')}</div>
               )}
             </div>
           )
@@ -1547,13 +1547,13 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <div className="flex-1">
-                <p className="text-sm text-yellow-700 dark:text-yellow-300">This provider is not connected yet.</p>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">{t('chatbotEdit.providerNotConnected')}</p>
               </div>
               <button
                 onClick={() => { setShowCalendarModal(false); navigate('/dashboard/settings?tab=calendars') }}
                 className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-xs font-medium whitespace-nowrap"
               >
-                Go to Settings
+                {t('chatbotEdit.goToSettings')}
               </button>
             </div>
           )
@@ -1563,7 +1563,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
               <div className="sticky top-0 bg-white dark:bg-dark-card flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border z-10">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Calendar Options</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.calendarOptions')}</h3>
                 <button onClick={() => setShowCalendarModal(false)} className="text-gray-500 hover:text-gray-700">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1573,7 +1573,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
               <div className="p-4 space-y-4">
                 {/* Enable toggle */}
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Calendar Integration</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('chatbotEdit.enableCalendarIntegration')}</label>
                   <button
                     onClick={() => setCalendarConfig({ ...calendarConfig, enabled: !calendarConfig.enabled })}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${calendarConfig.enabled ? 'bg-green-600' : 'bg-gray-300'}`}
@@ -1588,7 +1588,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     {!isMultiCalendarMode && (
                       <>
                         <div className="border-t border-gray-200 dark:border-dark-border pt-4">
-                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Calendar Provider *</label>
+                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.calendarProvider')}</label>
                           {renderProviderDropdown(
                             calendarConfig.provider,
                             calendarConfig.integrationId,
@@ -1618,7 +1618,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                         {calendarConfig.provider && (
                           <>
                             <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.timezone')}</label>
                               <select
                                 value={calendarConfig.timezone}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
@@ -1630,30 +1630,30 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                               </select>
                             </div>
                             <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Appointment Duration</label>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentDuration')}</label>
                               <select
                                 value={calendarConfig.appointmentDuration || 30}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                               >
-                                <option value={10}>10 minutes</option>
-                                <option value={15}>15 minutes</option>
-                                <option value={30}>30 minutes</option>
-                                <option value={45}>45 minutes</option>
-                                <option value={60}>60 minutes</option>
-                                <option value={90}>90 minutes</option>
+                                <option value={10}>{t('chatbotEdit.min10')}</option>
+                                <option value={15}>{t('chatbotEdit.min15')}</option>
+                                <option value={30}>{t('chatbotEdit.min30')}</option>
+                                <option value={45}>{t('chatbotEdit.min45')}</option>
+                                <option value={60}>{t('chatbotEdit.min60')}</option>
+                                <option value={90}>{t('chatbotEdit.min90')}</option>
                               </select>
                             </div>
                             <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Appointment Title</label>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentTitle')}</label>
                               <input
                                 type="text"
                                 value={calendarConfig.appointmentTitle || ''}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentTitle: e.target.value })}
-                                placeholder="e.g., {{contactName}} - Consultation"
+                                placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
                               />
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Variables: {'{{contactName}}'}, {'{{contactEmail}}'}, {'{{contactPhone}}'}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('chatbotEdit.variablesColon')} {'{{contactName}}'}, {'{{contactEmail}}'}, {'{{contactPhone}}'}</p>
                             </div>
                           </>
                         )}
@@ -1661,26 +1661,26 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                         {calendarConfig.provider === 'ghl' && calendarConfig.calendarId && (
                           <>
                             <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">GHL Test Contact ID</label>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.ghlTestContactId')}</label>
                               <input
                                 type="text"
                                 value={calendarConfig.ghlTestContactId || ''}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, ghlTestContactId: e.target.value })}
-                                placeholder="e.g., abc123DEFxyz..."
+                                placeholder={t('chatbotEdit.ghlTestContactIdPlaceholder')}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                               />
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">GHL Contact ID used when testing. In production, the session ID is used as the contact ID.</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('chatbotEdit.ghlTestContactIdDesc')}</p>
                             </div>
                             <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">GHL Test Contact Name</label>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.ghlTestContactName')}</label>
                               <input
                                 type="text"
                                 value={calendarConfig.ghlTestContactName || ''}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, ghlTestContactName: e.target.value })}
-                                placeholder="e.g., John Doe"
+                                placeholder={t('chatbotEdit.ghlTestContactNamePlaceholder')}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                               />
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Contact name used when testing the chatbot.</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('chatbotEdit.ghlTestContactNameDesc')}</p>
                             </div>
                           </>
                         )}
@@ -1691,7 +1691,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                             onClick={addCalendarEntry}
                             className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
                           >
-                            + Add another calendar
+                            {t('chatbotEdit.addAnotherCalendar')}
                           </button>
                         )}
                       </>
@@ -1703,7 +1703,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                         {calendarConfig.calendars.map((entry, idx) => {
                           const isExpanded = expandedCalendarEntry === entry.id
                           const providerLabel = PROVIDER_NAMES[entry.provider] || ''
-                          const subtitle = entry.name || `Calendar ${idx + 1}`
+                          const subtitle = entry.name || t('chatbotEdit.calendarNum', { num: idx + 1 })
 
                           return (
                             <div key={entry.id} className="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
@@ -1734,27 +1734,27 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                               {isExpanded && (
                                 <div className="p-4 space-y-3 border-t border-gray-200 dark:border-dark-border">
                                   <div>
-                                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Name *</label>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.nameRequired')}</label>
                                     <input
                                       type="text"
                                       value={entry.name}
                                       onChange={(e) => updateCalendarEntry(entry.id, { name: e.target.value })}
-                                      placeholder="e.g., {{contactName}} - Consultation"
+                                      placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
                                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Scenario *</label>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.scenario')}</label>
                                     <textarea
                                       value={entry.scenario}
                                       onChange={(e) => updateCalendarEntry(entry.id, { scenario: e.target.value })}
-                                      placeholder="e.g., Use when customer wants a sales demo"
+                                      placeholder={t('chatbotEdit.scenarioPlaceholder')}
                                       rows={2}
                                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm resize-none"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Provider *</label>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.provider')}</label>
                                     {renderProviderDropdown(
                                       entry.provider,
                                       entry.integrationId,
@@ -1782,7 +1782,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                                   {entry.provider && (
                                     <>
                                       <div>
-                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Timezone</label>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.timezone')}</label>
                                         <select
                                           value={entry.timezone}
                                           onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
@@ -1794,30 +1794,30 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                                         </select>
                                       </div>
                                       <div>
-                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Duration</label>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.duration')}</label>
                                         <select
                                           value={entry.appointmentDuration || 30}
                                           onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
                                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                                         >
-                                          <option value={10}>10 minutes</option>
-                                          <option value={15}>15 minutes</option>
-                                          <option value={30}>30 minutes</option>
-                                          <option value={45}>45 minutes</option>
-                                          <option value={60}>60 minutes</option>
-                                          <option value={90}>90 minutes</option>
+                                          <option value={10}>{t('chatbotEdit.min10')}</option>
+                                          <option value={15}>{t('chatbotEdit.min15')}</option>
+                                          <option value={30}>{t('chatbotEdit.min30')}</option>
+                                          <option value={45}>{t('chatbotEdit.min45')}</option>
+                                          <option value={60}>{t('chatbotEdit.min60')}</option>
+                                          <option value={90}>{t('chatbotEdit.min90')}</option>
                                         </select>
                                       </div>
                                       <div>
-                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Appointment Title</label>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentTitle')}</label>
                                         <input
                                           type="text"
                                           value={entry.appointmentTitle || ''}
                                           onChange={(e) => updateCalendarEntry(entry.id, { appointmentTitle: e.target.value })}
-                                          placeholder="e.g., {{contactName}} - Consultation"
+                                          placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
                                           className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                                         />
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Variables: {'{{contactName}}'}, {'{{contactEmail}}'}, {'{{contactPhone}}'}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('chatbotEdit.variablesColon')} {'{{contactName}}'}, {'{{contactEmail}}'}, {'{{contactPhone}}'}</p>
                                       </div>
                                     </>
                                   )}
@@ -1832,32 +1832,32 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                           onClick={addCalendarEntry}
                           className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:border-primary-400 hover:text-primary-600 transition-colors"
                         >
-                          + Add Calendar
+                          {t('chatbotEdit.addCalendar')}
                         </button>
 
                         {calendarConfig.calendars.some(c => c.provider === 'ghl' && c.calendarId) && (
                           <>
                             <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">GHL Test Contact ID</label>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.ghlTestContactId')}</label>
                               <input
                                 type="text"
                                 value={calendarConfig.ghlTestContactId || ''}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, ghlTestContactId: e.target.value })}
-                                placeholder="e.g., abc123DEFxyz..."
+                                placeholder={t('chatbotEdit.ghlTestContactIdPlaceholder')}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                               />
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">GHL Contact ID used when testing. In production, the session ID is used as the contact ID.</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('chatbotEdit.ghlTestContactIdDesc')}</p>
                             </div>
                             <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">GHL Test Contact Name</label>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.ghlTestContactName')}</label>
                               <input
                                 type="text"
                                 value={calendarConfig.ghlTestContactName || ''}
                                 onChange={(e) => setCalendarConfig({ ...calendarConfig, ghlTestContactName: e.target.value })}
-                                placeholder="e.g., John Doe"
+                                placeholder={t('chatbotEdit.ghlTestContactNamePlaceholder')}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
                               />
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Contact name used when testing the chatbot.</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('chatbotEdit.ghlTestContactNameDesc')}</p>
                             </div>
                           </>
                         )}
@@ -1871,7 +1871,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   onClick={() => setShowCalendarModal(false)}
                   className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700"
                 >
-                  Done
+                  {t('chatbotEdit.done')}
                 </button>
               </div>
             </div>
@@ -1884,7 +1884,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tools</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.toolsModalTitle')}</h3>
               <button onClick={() => { setShowUnifiedToolsModal(false); setToolsSection(null) }} className="text-gray-500 hover:text-gray-700">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1898,15 +1898,15 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 <button onClick={() => setToolsSection(s => s === 'call' ? null : 'call')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
                   <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'call' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Call</span>
-                  {callConfig.enabled && callConfig.agentId && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">2 tools</span>}
+                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.call')}</span>
+                  {callConfig.enabled && callConfig.agentId && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">2 {t('chatbotEdit.tools')}</span>}
                 </button>
                 {toolsSection === 'call' && (
                   <div className="px-5 pb-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Enable Call Tool</label>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Trigger outbound voice calls using an AI agent.</p>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('chatbotEdit.enableCallTool')}</label>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t('chatbotEdit.callToolDesc')}</p>
                       </div>
                       <button onClick={() => setCallConfig({ ...callConfig, enabled: !callConfig.enabled })} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${callConfig.enabled ? 'bg-green-600' : 'bg-gray-300'}`}>
                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${callConfig.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
@@ -1915,16 +1915,16 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     {callConfig.enabled && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Voice Agent *</label>
+                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.voiceAgent')}</label>
                           <select value={callConfig.agentId} onChange={(e) => setCallConfig({ ...callConfig, agentId: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm">
-                            <option value="">Select an agent...</option>
-                            {agentsList.map(agent => (<option key={agent.id} value={agent.id}>{agent.name}{agent.vapiId ? '' : ' (not synced)'}</option>))}
+                            <option value="">{t('chatbotEdit.selectAgent')}</option>
+                            {agentsList.map(agent => (<option key={agent.id} value={agent.id}>{agent.name}{agent.vapiId ? '' : ` ${t('chatbotEdit.notSynced')}`}</option>))}
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Phone Number *</label>
+                          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.phoneNumber')}</label>
                           <select value={callConfig.phoneNumberId} onChange={(e) => setCallConfig({ ...callConfig, phoneNumberId: e.target.value })} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm">
-                            <option value="">Select a phone number...</option>
+                            <option value="">{t('chatbotEdit.selectPhoneNumber')}</option>
                             {phoneNumbersList.map(pn => (<option key={pn.id} value={pn.id}>{pn.phoneNumber}{pn.label ? ` (${pn.label})` : ''}</option>))}
                           </select>
                         </div>
@@ -1939,8 +1939,8 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 <button onClick={() => { setToolsSection(s => s === 'sheets' ? null : 'sheets'); if (sheetsConfig.integrationId) fetchSpreadsheets(sheetsConfig.integrationId, '') }} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
                   <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'sheets' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 013-3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6z" /></svg>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Google Sheets</span>
-                  {sheetsConfig.enabled && sheetsConfig.integrationId && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">6 tools</span>}
+                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.googleSheets')}</span>
+                  {sheetsConfig.enabled && sheetsConfig.integrationId && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">6 {t('chatbotEdit.tools')}</span>}
                 </button>
                 {toolsSection === 'sheets' && (
                   <div className="px-5 pb-4 space-y-3">
@@ -1948,31 +1948,31 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       <div className={`w-10 h-5 rounded-full relative transition-colors ${sheetsConfig.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={() => setSheetsConfig(prev => ({ ...prev, enabled: !prev.enabled }))}>
                         <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${sheetsConfig.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
                       </div>
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Google Sheets tools</span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t('chatbotEdit.enableGoogleSheets')}</span>
                     </label>
                     {sheetsConfig.enabled && (
                       <>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Google Account</label>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{t('chatbotEdit.googleAccount')}</label>
                           {calendarIntegrations.filter(i => i.provider === 'google').length === 0 ? (
-                            <p className="text-xs text-red-500">No Google accounts connected. Connect one in Calendar settings first.</p>
+                            <p className="text-xs text-red-500">{t('chatbotEdit.noGoogleAccounts')}</p>
                           ) : (
                             <select value={sheetsConfig.integrationId} onChange={e => { const newId = e.target.value; setSheetsConfig(prev => ({ ...prev, integrationId: newId, spreadsheetId: '', spreadsheetName: '' })); if (newId) fetchSpreadsheets(newId, '') }} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
-                              <option value="">Select account...</option>
+                              <option value="">{t('chatbotEdit.selectAccount')}</option>
                               {calendarIntegrations.filter(i => i.provider === 'google').map(i => (<option key={i.id} value={i.id}>{i.accountLabel || i.externalAccountId || `Google #${i.id}`}</option>))}
                             </select>
                           )}
                         </div>
                         {sheetsConfig.integrationId && (
                           <div>
-                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Default Spreadsheet <span className="text-gray-400">(optional)</span></label>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{t('chatbotEdit.defaultSpreadsheet')} <span className="text-gray-400">{t('chatbotEdit.noteInstructionOptional')}</span></label>
                             <div className="relative mb-2">
                               <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                              <input value={sheetSearch} onChange={e => { setSheetSearch(e.target.value); clearTimeout(window._sheetSearchTimeout); window._sheetSearchTimeout = setTimeout(() => fetchSpreadsheets(sheetsConfig.integrationId, e.target.value), 400) }} placeholder="Search spreadsheets..." className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                              <input value={sheetSearch} onChange={e => { setSheetSearch(e.target.value); clearTimeout(window._sheetSearchTimeout); window._sheetSearchTimeout = setTimeout(() => fetchSpreadsheets(sheetsConfig.integrationId, e.target.value), 400) }} placeholder={t('chatbotEdit.searchSpreadsheets')} className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
                             </div>
                             <div className="max-h-36 overflow-y-auto rounded-lg border border-gray-200 dark:border-dark-border">
                               {sheetFilesLoading ? (<div className="flex items-center justify-center py-4"><svg className="w-5 h-5 animate-spin text-green-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg></div>
-                              ) : sheetFiles.length === 0 ? (<p className="text-xs text-center py-3 text-gray-400">No spreadsheets found</p>
+                              ) : sheetFiles.length === 0 ? (<p className="text-xs text-center py-3 text-gray-400">{t('chatbotEdit.noSpreadsheetsFound')}</p>
                               ) : (sheetFiles.map(f => (
                                 <button key={f.id} onClick={() => setSheetsConfig(prev => ({ ...prev, spreadsheetId: f.id, spreadsheetName: f.name }))} className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-dark-hover transition ${f.id === sheetsConfig.spreadsheetId ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
                                   <span className="truncate flex-1">{f.name}</span>
@@ -1980,7 +1980,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                                 </button>
                               )))}
                             </div>
-                            {sheetsConfig.spreadsheetId && <button onClick={() => setSheetsConfig(prev => ({ ...prev, spreadsheetId: '', spreadsheetName: '' }))} className="mt-1 text-xs text-red-500 hover:underline">Clear selection</button>}
+                            {sheetsConfig.spreadsheetId && <button onClick={() => setSheetsConfig(prev => ({ ...prev, spreadsheetId: '', spreadsheetName: '' }))} className="mt-1 text-xs text-red-500 hover:underline">{t('chatbotEdit.clearSelection')}</button>}
                           </div>
                         )}
                       </>
@@ -1994,8 +1994,8 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 <button onClick={() => { setToolsSection(s => s === 'docs' ? null : 'docs'); if (docsConfig.integrationId) fetchDocuments(docsConfig.integrationId, '') }} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
                   <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'docs' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Google Docs</span>
-                  {docsConfig.enabled && docsConfig.integrationId && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">4 tools</span>}
+                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.googleDocs')}</span>
+                  {docsConfig.enabled && docsConfig.integrationId && <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">4 {t('chatbotEdit.tools')}</span>}
                 </button>
                 {toolsSection === 'docs' && (
                   <div className="px-5 pb-4 space-y-3">
@@ -2003,31 +2003,31 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       <div className={`w-10 h-5 rounded-full relative transition-colors ${docsConfig.enabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`} onClick={() => setDocsConfig(prev => ({ ...prev, enabled: !prev.enabled }))}>
                         <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all shadow ${docsConfig.enabled ? 'left-[22px]' : 'left-[2px]'}`} />
                       </div>
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Enable Google Docs tools</span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t('chatbotEdit.enableGoogleDocs')}</span>
                     </label>
                     {docsConfig.enabled && (
                       <>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Google Account</label>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{t('chatbotEdit.googleAccount')}</label>
                           {calendarIntegrations.filter(i => i.provider === 'google').length === 0 ? (
-                            <p className="text-xs text-red-500">No Google accounts connected. Connect one in Calendar settings first.</p>
+                            <p className="text-xs text-red-500">{t('chatbotEdit.noGoogleAccounts')}</p>
                           ) : (
                             <select value={docsConfig.integrationId} onChange={e => { const newId = e.target.value; setDocsConfig(prev => ({ ...prev, integrationId: newId, documentId: '', documentName: '' })); if (newId) fetchDocuments(newId, '') }} className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
-                              <option value="">Select account...</option>
+                              <option value="">{t('chatbotEdit.selectAccount')}</option>
                               {calendarIntegrations.filter(i => i.provider === 'google').map(i => (<option key={i.id} value={i.id}>{i.accountLabel || i.externalAccountId || `Google #${i.id}`}</option>))}
                             </select>
                           )}
                         </div>
                         {docsConfig.integrationId && (
                           <div>
-                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">Default Document <span className="text-gray-400">(optional)</span></label>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">{t('chatbotEdit.defaultDocument')} <span className="text-gray-400">{t('chatbotEdit.noteInstructionOptional')}</span></label>
                             <div className="relative mb-2">
                               <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                              <input value={docSearch} onChange={e => { setDocSearch(e.target.value); clearTimeout(window._docSearchTimeout); window._docSearchTimeout = setTimeout(() => fetchDocuments(docsConfig.integrationId, e.target.value), 400) }} placeholder="Search documents..." className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                              <input value={docSearch} onChange={e => { setDocSearch(e.target.value); clearTimeout(window._docSearchTimeout); window._docSearchTimeout = setTimeout(() => fetchDocuments(docsConfig.integrationId, e.target.value), 400) }} placeholder={t('chatbotEdit.searchDocuments')} className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
                             </div>
                             <div className="max-h-36 overflow-y-auto rounded-lg border border-gray-200 dark:border-dark-border">
                               {docFilesLoading ? (<div className="flex items-center justify-center py-4"><svg className="w-5 h-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg></div>
-                              ) : docFiles.length === 0 ? (<p className="text-xs text-center py-3 text-gray-400">No documents found</p>
+                              ) : docFiles.length === 0 ? (<p className="text-xs text-center py-3 text-gray-400">{t('chatbotEdit.noDocumentsFound')}</p>
                               ) : (docFiles.map(f => (
                                 <button key={f.id} onClick={() => setDocsConfig(prev => ({ ...prev, documentId: f.id, documentName: f.name }))} className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-dark-hover transition ${f.id === docsConfig.documentId ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}`}>
                                   <span className="truncate flex-1">{f.name}</span>
@@ -2035,7 +2035,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                                 </button>
                               )))}
                             </div>
-                            {docsConfig.documentId && <button onClick={() => setDocsConfig(prev => ({ ...prev, documentId: '', documentName: '' }))} className="mt-1 text-xs text-red-500 hover:underline">Clear selection</button>}
+                            {docsConfig.documentId && <button onClick={() => setDocsConfig(prev => ({ ...prev, documentId: '', documentName: '' }))} className="mt-1 text-xs text-red-500 hover:underline">{t('chatbotEdit.clearSelection')}</button>}
                           </div>
                         )}
                       </>
@@ -2179,18 +2179,18 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 <button onClick={() => setToolsSection(s => s === 'custom' ? null : 'custom')} className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors">
                   <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${toolsSection === 'custom' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                   <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">Custom API Tools</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.customTools')}</span>
                   {(() => { const c = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name)).length; return c > 0 ? <span className="text-[10px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">{c} tool{c > 1 ? 's' : ''}</span> : null })()}
                 </button>
                 {toolsSection === 'custom' && (
                   <div className="px-5 pb-4">
                     <div className="flex justify-end mb-2">
-                      <button onClick={() => { setToolForm({ type: 'apiRequest', name: '', description: '', method: 'POST', url: '', headers: '', body: '', timeoutSeconds: 20 }); setEditingToolIndex(null); setShowToolEditModal(true) }} className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium">+ Add Tool</button>
+                      <button onClick={() => { setToolForm({ type: 'apiRequest', name: '', description: '', method: 'POST', url: '', headers: '', body: '', timeoutSeconds: 20 }); setEditingToolIndex(null); setShowToolEditModal(true) }} className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 font-medium">{t('chatbotEdit.addTool')}</button>
                     </div>
                     {(() => {
                       const visibleTools = tools.filter(t => !t.name?.startsWith('check_calendar_availability_') && !t.name?.startsWith('book_appointment_') && !t.name?.startsWith('ghl_') && t.name !== 'make_call_now' && t.name !== 'schedule_call_later' && !['list_spreadsheets','get_spreadsheet_info','read_sheet_data','write_sheet_data','append_sheet_rows','create_spreadsheet','list_google_docs','read_google_doc','create_google_doc','append_to_google_doc'].includes(t.name))
                       return visibleTools.length === 0 ? (
-                        <p className="text-sm text-gray-400 text-center py-4">No custom tools yet.</p>
+                        <p className="text-sm text-gray-400 text-center py-4">{t('chatbotEdit.noCustomTools')}</p>
                       ) : (
                         <div className="space-y-2">
                           {visibleTools.map((tool) => {
@@ -2217,7 +2217,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
             </div>
             <div className="flex justify-end p-5 border-t border-gray-100 dark:border-dark-border">
-              <button onClick={() => { setShowUnifiedToolsModal(false); setToolsSection(null) }} className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700">Done</button>
+              <button onClick={() => { setShowUnifiedToolsModal(false); setToolsSection(null) }} className="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700">{t('chatbotEdit.done')}</button>
             </div>
           </div>
         </div>
@@ -2229,7 +2229,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
           <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editingToolIndex !== null ? 'Edit Tool' : 'Add Tool'}
+                {editingToolIndex !== null ? t('chatbotEdit.editTool') : t('chatbotEdit.addToolTitle')}
               </h3>
               <button onClick={() => setShowToolEditModal(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2239,7 +2239,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
             </div>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.name')}</label>
                 <input
                   type="text"
                   value={toolForm.name}
@@ -2249,18 +2249,18 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.description')}</label>
                 <input
                   type="text"
                   value={toolForm.description}
                   onChange={(e) => setToolForm({ ...toolForm, description: e.target.value })}
-                  placeholder="What this tool does"
+                  placeholder={t('chatbotEdit.whatThisToolDoes')}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
                 />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Method</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.method')}</label>
                   <select
                     value={toolForm.method}
                     onChange={(e) => setToolForm({ ...toolForm, method: e.target.value })}
@@ -2273,18 +2273,18 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   </select>
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">URL</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.url')}</label>
                   <input
                     type="url"
                     value={toolForm.url}
                     onChange={(e) => setToolForm({ ...toolForm, url: e.target.value })}
-                    placeholder="https://api.example.com/endpoint"
+                    placeholder={t('chatbotEdit.urlPlaceholder')}
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Body (JSON Schema)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.bodyJsonSchema')}</label>
                 <textarea
                   value={toolForm.body}
                   onChange={(e) => setToolForm({ ...toolForm, body: e.target.value })}
@@ -2298,14 +2298,14 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   onClick={() => setShowToolEditModal(false)}
                   className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover rounded-lg"
                 >
-                  Cancel
+                  {t('chatbotEdit.cancelBtn')}
                 </button>
                 <button
                   onClick={handleSaveTool}
                   disabled={!toolForm.name || !toolForm.url}
                   className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
                 >
-                  {editingToolIndex !== null ? 'Update' : 'Add'}
+                  {editingToolIndex !== null ? t('chatbotEdit.updateBtn') : t('chatbotEdit.addBtn')}
                 </button>
               </div>
             </div>
@@ -2327,7 +2327,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
           <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">AI Prompt Generator</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.aiPromptGenerator')}</h3>
               <button
                 onClick={() => { setShowPromptGenerator(false); setGeneratedPrompt(''); setPromptMode('generate'); resetWizard() }}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -2347,14 +2347,14 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     onClick={() => { setPromptMode('generate'); setGeneratedPrompt(''); resetWizard() }}
                     className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptMode === 'generate' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
                   >
-                    Generate New
+                    {t('chatbotEdit.generateNew')}
                   </button>
                   <button
                     type="button"
                     onClick={() => { setPromptMode('update'); setGeneratedPrompt(''); resetWizard() }}
                     className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${promptMode === 'update' ? 'bg-orange-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}
                   >
-                    Update Current
+                    {t('chatbotEdit.updateCurrent')}
                   </button>
                 </div>
               </div>
@@ -2367,19 +2367,19 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
               {promptMode === 'update' && !generatedPrompt && (
                 <>
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Language</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.language')}</label>
                     <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden w-48">
-                      <button type="button" onClick={() => setUpdateLanguage('en')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${updateLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>English</button>
-                      <button type="button" onClick={() => setUpdateLanguage('es')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${updateLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>Spanish</button>
+                      <button type="button" onClick={() => setUpdateLanguage('en')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${updateLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>{t('chatbotEdit.english')}</button>
+                      <button type="button" onClick={() => setUpdateLanguage('es')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${updateLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>{t('chatbotEdit.spanish')}</button>
                     </div>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Describe the changes you want to make:</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.describeChanges')}</label>
                     <textarea
                       value={updateDescription}
                       onChange={(e) => setUpdateDescription(e.target.value)}
                       rows={4}
-                      placeholder={updateLanguage === 'es' ? 'Describe los cambios que quieres hacer al prompt actual...' : 'Describe the changes you want to make to the current prompt...'}
+                      placeholder={t('chatbotEdit.describeChangesPlaceholder' + (updateLanguage === 'es' ? 'Es' : 'En'))}
                       className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                     />
                   </div>
@@ -2391,9 +2391,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     {generatingPrompt ? (
                       <>
                         <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                        Updating...
+                        {t('chatbotEdit.updating')}
                       </>
-                    ) : 'Update Prompt'}
+                    ) : t('chatbotEdit.updatePrompt')}
                   </button>
                 </>
               )}
@@ -2419,9 +2419,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     ))}
                   </div>
                   <div className="flex justify-center gap-8 text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    <span className={wizardStep >= 1 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>Bot Type</span>
-                    <span className={wizardStep >= 2 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>Business Details</span>
-                    <span className={wizardStep >= 3 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>Configuration</span>
+                    <span className={wizardStep >= 1 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>{t('chatbotEdit.botType')}</span>
+                    <span className={wizardStep >= 2 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>{t('chatbotEdit.businessDetails')}</span>
+                    <span className={wizardStep >= 3 ? 'text-purple-600 dark:text-purple-400 font-medium' : ''}>{t('chatbotEdit.configuration')}</span>
                   </div>
 
                   {/* Step 1: Bot Type + Language */}
@@ -2430,10 +2430,10 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       {/* Bot Type Cards */}
                       <div className="grid grid-cols-2 gap-3">
                         {[
-                          { id: 'sales', icon: '💰', label: 'Sales', desc: 'Qualify leads and close deals' },
-                          { id: 'support', icon: '🎧', label: 'Support', desc: 'Help customers with issues' },
-                          { id: 'booking', icon: '📅', label: 'Booking', desc: 'Schedule appointments' },
-                          { id: 'survey', icon: '📋', label: 'Survey', desc: 'Collect feedback and data' }
+                          { id: 'sales', icon: '💰', label: t('chatbotEdit.sales'), desc: t('chatbotEdit.salesDesc') },
+                          { id: 'support', icon: '🎧', label: t('chatbotEdit.support'), desc: t('chatbotEdit.supportDesc') },
+                          { id: 'booking', icon: '📅', label: t('chatbotEdit.booking'), desc: t('chatbotEdit.bookingDesc') },
+                          { id: 'survey', icon: '📋', label: t('chatbotEdit.survey'), desc: t('chatbotEdit.surveyDesc') }
                         ].map(bt => (
                           <button
                             key={bt.id}
@@ -2454,10 +2454,10 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
                       {/* Language Toggle */}
                       <div>
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Language</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.language')}</label>
                         <div className="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden w-48">
-                          <button type="button" onClick={() => setWizLanguage('en')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${wizLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>English</button>
-                          <button type="button" onClick={() => setWizLanguage('es')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${wizLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>Spanish</button>
+                          <button type="button" onClick={() => setWizLanguage('en')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${wizLanguage === 'en' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>{t('chatbotEdit.english')}</button>
+                          <button type="button" onClick={() => setWizLanguage('es')} className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${wizLanguage === 'es' ? 'bg-purple-600 text-white' : 'bg-white dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'}`}>{t('chatbotEdit.spanish')}</button>
                         </div>
                       </div>
                     </div>
@@ -2468,56 +2468,56 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     <div className="space-y-4">
                       {/* Company Name */}
                       <div>
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Company Name *</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.companyName')}</label>
                         <input
                           type="text"
                           value={wizCompanyName}
                           onChange={(e) => setWizCompanyName(e.target.value)}
-                          placeholder="e.g. Bright Smiles Dental"
+                          placeholder={t('chatbotEdit.companyNamePlaceholder')}
                           className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                         />
                       </div>
 
                       {/* Industry Dropdown */}
                       <div>
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Industry</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.industry')}</label>
                         <select
                           value={wizIndustry}
                           onChange={(e) => setWizIndustry(e.target.value)}
                           className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                         >
-                          <option value="">Select an industry</option>
-                          <option value="healthcare">Healthcare</option>
-                          <option value="realestate">Real Estate</option>
-                          <option value="legal">Legal</option>
-                          <option value="finance">Finance</option>
-                          <option value="education">Education</option>
-                          <option value="automotive">Automotive</option>
-                          <option value="restaurant">Restaurant</option>
-                          <option value="ecommerce">E-commerce</option>
-                          <option value="saas">SaaS</option>
-                          <option value="insurance">Insurance</option>
-                          <option value="homeservices">Home Services</option>
-                          <option value="other">Other</option>
+                          <option value="">{t('chatbotEdit.selectIndustry')}</option>
+                          <option value="healthcare">{t('chatbotEdit.healthcare')}</option>
+                          <option value="realestate">{t('chatbotEdit.realEstate')}</option>
+                          <option value="legal">{t('chatbotEdit.legal')}</option>
+                          <option value="finance">{t('chatbotEdit.finance')}</option>
+                          <option value="education">{t('chatbotEdit.education')}</option>
+                          <option value="automotive">{t('chatbotEdit.automotive')}</option>
+                          <option value="restaurant">{t('chatbotEdit.restaurant')}</option>
+                          <option value="ecommerce">{t('chatbotEdit.ecommerce')}</option>
+                          <option value="saas">{t('chatbotEdit.saas')}</option>
+                          <option value="insurance">{t('chatbotEdit.insurance')}</option>
+                          <option value="homeservices">{t('chatbotEdit.homeServices')}</option>
+                          <option value="other">{t('chatbotEdit.other')}</option>
                         </select>
                       </div>
 
                       {/* Tone Pills */}
                       <div>
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Tone</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.tone')}</label>
                         <div className="flex flex-wrap gap-2">
-                          {['professional', 'friendly', 'casual', 'formal', 'energetic'].map(t => (
+                          {['professional', 'friendly', 'casual', 'formal', 'energetic'].map(tn => (
                             <button
-                              key={t}
+                              key={tn}
                               type="button"
-                              onClick={() => setWizTone(t)}
+                              onClick={() => setWizTone(tn)}
                               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                                wizTone === t
+                                wizTone === tn
                                   ? 'bg-purple-600 text-white'
                                   : 'bg-gray-100 dark:bg-dark-hover text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-dark-border'
                               }`}
                             >
-                              {t.charAt(0).toUpperCase() + t.slice(1)}
+                              {t(`chatbotEdit.tone_${tn}`)}
                             </button>
                           ))}
                         </div>
@@ -2525,12 +2525,12 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
                       {/* Goals */}
                       <div>
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Goals / Objectives *</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.goalsObjectives')}</label>
                         <textarea
                           value={wizGoals}
                           onChange={(e) => setWizGoals(e.target.value)}
                           rows={3}
-                          placeholder={wizLanguage === 'es' ? 'Describe los objetivos principales de este chatbot...' : 'Describe the main goals for this chatbot. E.g. Answer billing questions, help with password resets...'}
+                          placeholder={t('chatbotEdit.goalsPlaceholder' + (wizLanguage === 'es' ? 'Es' : 'En'))}
                           className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                         />
                       </div>
@@ -2544,22 +2544,22 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       {wizBotType === 'sales' && (
                         <>
                           <div>
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Qualifying Questions</label>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.qualifyingQuestions')}</label>
                             <textarea
                               value={wizTypeConfig.qualifyingQuestions || ''}
                               onChange={(e) => setWizTypeConfig(prev => ({ ...prev, qualifyingQuestions: e.target.value }))}
                               rows={3}
-                              placeholder="List the questions the chatbot should ask to qualify leads..."
+                              placeholder={t('chatbotEdit.qualifyingQuestionsPlaceholder')}
                               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Common Objections</label>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.commonObjections')}</label>
                             <textarea
                               value={wizTypeConfig.commonObjections || ''}
                               onChange={(e) => setWizTypeConfig(prev => ({ ...prev, commonObjections: e.target.value }))}
                               rows={3}
-                              placeholder="List common objections and how to handle them..."
+                              placeholder={t('chatbotEdit.commonObjectionsPlaceholder')}
                               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
@@ -2570,22 +2570,22 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       {wizBotType === 'support' && (
                         <>
                           <div>
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Common Issues</label>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.commonIssues')}</label>
                             <textarea
                               value={wizTypeConfig.commonIssues || ''}
                               onChange={(e) => setWizTypeConfig(prev => ({ ...prev, commonIssues: e.target.value }))}
                               rows={3}
-                              placeholder="List common support issues the chatbot should handle..."
+                              placeholder={t('chatbotEdit.commonIssuesPlaceholder')}
                               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Escalation Rules</label>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.escalationRules')}</label>
                             <textarea
                               value={wizTypeConfig.escalationRules || ''}
                               onChange={(e) => setWizTypeConfig(prev => ({ ...prev, escalationRules: e.target.value }))}
                               rows={3}
-                              placeholder="Describe when and how to escalate to a human..."
+                              placeholder={t('chatbotEdit.escalationRulesPlaceholder')}
                               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
@@ -2596,22 +2596,22 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       {wizBotType === 'booking' && (
                         <>
                           <div>
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Services Offered</label>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.servicesOffered')}</label>
                             <textarea
                               value={wizTypeConfig.servicesOffered || ''}
                               onChange={(e) => setWizTypeConfig(prev => ({ ...prev, servicesOffered: e.target.value }))}
                               rows={3}
-                              placeholder="List the services available for booking..."
+                              placeholder={t('chatbotEdit.servicesOfferedPlaceholder')}
                               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Availability Notes</label>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.availabilityNotes')}</label>
                             <textarea
                               value={wizTypeConfig.availabilityNotes || ''}
                               onChange={(e) => setWizTypeConfig(prev => ({ ...prev, availabilityNotes: e.target.value }))}
                               rows={3}
-                              placeholder="Describe availability hours, booking rules, etc..."
+                              placeholder={t('chatbotEdit.availabilityNotesPlaceholder')}
                               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
@@ -2622,17 +2622,17 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       {wizBotType === 'survey' && (
                         <>
                           <div>
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Survey Questions</label>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.surveyQuestions')}</label>
                             <textarea
                               value={wizTypeConfig.surveyQuestions || ''}
                               onChange={(e) => setWizTypeConfig(prev => ({ ...prev, surveyQuestions: e.target.value }))}
                               rows={3}
-                              placeholder="List the survey questions the chatbot should ask..."
+                              placeholder={t('chatbotEdit.surveyQuestionsPlaceholder')}
                               className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Rating Scale</label>
+                            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.ratingScale')}</label>
                             <div className="flex gap-2">
                               {['1-5', '1-10', 'yes/no'].map(scale => (
                                 <button
@@ -2655,12 +2655,12 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
 
                       {/* Additional Notes (always shown) */}
                       <div>
-                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Additional Notes</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">{t('chatbotEdit.additionalNotes')}</label>
                         <textarea
                           value={wizAdditionalNotes}
                           onChange={(e) => setWizAdditionalNotes(e.target.value)}
                           rows={2}
-                          placeholder="Any extra context or instructions for the AI..."
+                          placeholder={t('chatbotEdit.additionalNotesPlaceholder')}
                           className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-hover text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                         />
                       </div>
@@ -2674,9 +2674,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                         {generatingPrompt ? (
                           <>
                             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                            Generating...
+                            {t('chatbotEdit.generating')}
                           </>
-                        ) : 'Generate Prompt'}
+                        ) : t('chatbotEdit.generatePrompt')}
                       </button>
                     </div>
                   )}
@@ -2687,7 +2687,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
               {generatedPrompt && (
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block">
-                    {promptMode === 'update' ? 'Updated Prompt:' : 'Generated Prompt:'}
+                    {promptMode === 'update' ? t('chatbotEdit.updatedPrompt') : t('chatbotEdit.generatedPrompt')}
                   </label>
                   <div className="p-4 rounded-lg bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border max-h-[50vh] overflow-y-auto">
                     <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{generatedPrompt}</p>
@@ -2705,7 +2705,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   disabled={wizardStep === 1}
                   className="flex items-center gap-1 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
-                  Back
+                  {t('chatbotEdit.back')}
                 </button>
                 {wizardStep < 3 && (
                   <button
@@ -2713,7 +2713,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     disabled={(wizardStep === 1 && !wizBotType) || (wizardStep === 2 && (!wizCompanyName.trim() || !wizGoals.trim()))}
                     className="flex items-center gap-1 px-5 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    Next
+                    {t('chatbotEdit.next')}
                   </button>
                 )}
               </div>
@@ -2727,13 +2727,13 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   disabled={generatingPrompt}
                   className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-50 transition-colors"
                 >
-                  {promptMode === 'update' ? 'Update Again' : 'Regenerate'}
+                  {promptMode === 'update' ? t('chatbotEdit.updateAgain') : t('chatbotEdit.regenerate')}
                 </button>
                 <button
                   onClick={handleUseGeneratedPrompt}
                   className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
                 >
-                  Use This Prompt
+                  {t('chatbotEdit.useThisPrompt')}
                 </button>
               </div>
             )}
