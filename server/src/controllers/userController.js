@@ -116,7 +116,7 @@ const getAgencyClients = async (req, res) => {
 // Create agency (OWNER only)
 const createAgency = async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, phoneNumber } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -137,12 +137,14 @@ const createAgency = async (req, res) => {
         email,
         password: hashedPassword,
         name,
+        phoneNumber: phoneNumber || null,
         role: ROLES.AGENCY
       },
       select: {
         id: true,
         email: true,
         name: true,
+        phoneNumber: true,
         role: true,
         createdAt: true
       }
