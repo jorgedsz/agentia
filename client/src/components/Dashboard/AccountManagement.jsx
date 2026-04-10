@@ -670,7 +670,7 @@ export default function AccountManagement() {
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.phoneNumber') || 'Phone Number'}</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('common.phoneNumber')}</label>
                 <input
                   type="tel"
                   value={formData.phoneNumber || ''}

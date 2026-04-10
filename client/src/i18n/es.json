@@ -20,6 +20,7 @@
     "name": "Nombre",
     "email": "Correo",
     "password": "Contraseña",
+    "phoneNumber": "Teléfono",
     "role": "Rol",
     "status": "Estado",
     "noResults": "No se encontraron resultados",
