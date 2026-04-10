@@ -351,6 +351,8 @@
     "billingDesc": "Ver tus tarifas de facturación",
     "branding": "Marca",
     "brandingDesc": "Logo y nombre de empresa",
+    "webhooks": "Webhooks",
+    "webhooksDesc": "Enviar datos a servicios externos en eventos",
     "slack": "Slack",
     "slackDesc": "Notificaciones webhook para tickets",
     "slackTitle": "Integración con Slack",

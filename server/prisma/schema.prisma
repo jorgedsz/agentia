@@ -181,6 +181,7 @@ model PlatformSettings {
   slackWebhookUrl    String?  // Encrypted - Slack incoming webhook URL
   n8nUrl             String?  // Encrypted - Self-hosted n8n instance URL
   n8nApiKey          String?  // Encrypted - n8n API key
+  accountWebhookUrl  String?  // Encrypted - Webhook URL for new account creation
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }

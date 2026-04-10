@@ -9,7 +9,7 @@ const getSettings = async (req, res) => {
     const settings = await req.prisma.platformSettings.findFirst();
 
     if (!settings) {
-      return res.json({ vapiApiKey: '', openaiApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', hasVapi: false, hasOpenai: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false });
+      return res.json({ vapiApiKey: '', openaiApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', hasVapi: false, hasOpenai: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false });
     }
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
@@ -17,6 +17,7 @@ const getSettings = async (req, res) => {
     const decryptedVapiPublic = settings.vapiPublicKey ? decrypt(settings.vapiPublicKey) : '';
     const decryptedElevenLabs = settings.elevenLabsApiKey ? decrypt(settings.elevenLabsApiKey) : '';
     const decryptedSlackWebhook = settings.slackWebhookUrl ? decrypt(settings.slackWebhookUrl) : '';
+    const decryptedAccountWebhook = settings.accountWebhookUrl ? decrypt(settings.accountWebhookUrl) : '';
 
     res.json({
       vapiApiKey: decryptedVapi ? mask(decryptedVapi, 4) : '',
@@ -24,11 +25,13 @@ const getSettings = async (req, res) => {
       vapiPublicKey: decryptedVapiPublic ? mask(decryptedVapiPublic, 4) : '',
       elevenLabsApiKey: decryptedElevenLabs ? mask(decryptedElevenLabs, 4) : '',
       slackWebhookUrl: decryptedSlackWebhook ? mask(decryptedSlackWebhook, 4) : '',
+      accountWebhookUrl: decryptedAccountWebhook ? mask(decryptedAccountWebhook, 4) : '',
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
       hasVapiPublicKey: !!decryptedVapiPublic,
       hasElevenLabs: !!decryptedElevenLabs,
-      hasSlackWebhook: !!decryptedSlackWebhook
+      hasSlackWebhook: !!decryptedSlackWebhook,
+      hasAccountWebhook: !!decryptedAccountWebhook
     });
   } catch (error) {
     console.error('Get platform settings error:', error);
@@ -42,7 +45,7 @@ const updateSettings = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can update platform settings' });
     }
 
-    const { vapiApiKey, openaiApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl } = req.body;
+    const { vapiApiKey, openaiApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl } = req.body;
 
     const existing = await req.prisma.platformSettings.findFirst();
 
@@ -62,6 +65,9 @@ const updateSettings = async (req, res) => {
     if (slackWebhookUrl !== undefined) {
       data.slackWebhookUrl = slackWebhookUrl ? encrypt(slackWebhookUrl) : null;
     }
+    if (accountWebhookUrl !== undefined) {
+      data.accountWebhookUrl = accountWebhookUrl ? encrypt(accountWebhookUrl) : null;
+    }
 
     let settings;
     if (existing) {
@@ -78,6 +84,7 @@ const updateSettings = async (req, res) => {
     const decryptedVapiPublic = settings.vapiPublicKey ? decrypt(settings.vapiPublicKey) : '';
     const decryptedElevenLabs = settings.elevenLabsApiKey ? decrypt(settings.elevenLabsApiKey) : '';
     const decryptedSlackWebhook = settings.slackWebhookUrl ? decrypt(settings.slackWebhookUrl) : '';
+    const decryptedAccountWebhook = settings.accountWebhookUrl ? decrypt(settings.accountWebhookUrl) : '';
 
     res.json({
       message: 'Platform settings updated',
@@ -86,11 +93,13 @@ const updateSettings = async (req, res) => {
       vapiPublicKey: decryptedVapiPublic ? mask(decryptedVapiPublic, 4) : '',
       elevenLabsApiKey: decryptedElevenLabs ? mask(decryptedElevenLabs, 4) : '',
       slackWebhookUrl: decryptedSlackWebhook ? mask(decryptedSlackWebhook, 4) : '',
+      accountWebhookUrl: decryptedAccountWebhook ? mask(decryptedAccountWebhook, 4) : '',
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
       hasVapiPublicKey: !!decryptedVapiPublic,
       hasElevenLabs: !!decryptedElevenLabs,
-      hasSlackWebhook: !!decryptedSlackWebhook
+      hasSlackWebhook: !!decryptedSlackWebhook,
+      hasAccountWebhook: !!decryptedAccountWebhook
     });
   } catch (error) {
     console.error('Update platform settings error:', error);

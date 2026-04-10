@@ -351,6 +351,8 @@
     "billingDesc": "View your billing rates",
     "branding": "Branding",
     "brandingDesc": "Logo and company name",
+    "webhooks": "Webhooks",
+    "webhooksDesc": "Send data to external services on events",
     "slack": "Slack",
     "slackDesc": "Webhook notifications for tickets",
     "slackTitle": "Slack Integration",

@@ -1,5 +1,38 @@
 const bcrypt = require('bcrypt');
 const { ROLES } = require('../middleware/roleMiddleware');
+const { decrypt } = require('../utils/encryption');
+
+// Fire account creation webhook (non-blocking)
+const fireAccountWebhook = async (prisma, account, type) => {
+  try {
+    const settings = await prisma.platformSettings.findFirst();
+    if (!settings?.accountWebhookUrl) return;
+
+    const url = decrypt(settings.accountWebhookUrl);
+    if (!url) return;
+
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'account.created',
+        type, // "client" or "agency"
+        account: {
+          id: account.id,
+          email: account.email,
+          name: account.name || null,
+          phoneNumber: account.phoneNumber || null,
+          role: account.role,
+          agencyId: account.agencyId || null,
+          createdAt: account.createdAt,
+        },
+        timestamp: new Date().toISOString(),
+      }),
+    }).catch(err => console.error('[Webhook] Account creation webhook failed:', err.message));
+  } catch (err) {
+    console.error('[Webhook] Error preparing account webhook:', err.message);
+  }
+};
 
 // Get all users (OWNER only) - includes owners, agencies, and clients
 const getAllUsers = async (req, res) => {
@@ -173,6 +206,9 @@ const createAgency = async (req, res) => {
       vapiKeyWarning = 'No VAPI keys available in the pool. Add more keys in Settings > VAPI Key Pool.';
     }
 
+    // Fire webhook
+    fireAccountWebhook(req.prisma, agency, 'agency');
+
     res.status(201).json({
       message: 'Agency created successfully',
       agency,
@@ -253,6 +289,9 @@ const createClient = async (req, res) => {
     } else {
       vapiKeyWarning = 'No VAPI keys available in the pool. Add more keys in Settings > VAPI Key Pool.';
     }
+
+    // Fire webhook
+    fireAccountWebhook(req.prisma, client, 'client');
 
     res.status(201).json({
       message: 'Client created successfully',
