@@ -2759,17 +2759,17 @@ function WebhooksTab() {
           <svg className="w-6 h-6 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
           </svg>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('settings.webhooksTitle') || 'Webhooks'}</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{t('settings.webhooksTitle')}</h2>
         </div>
-        <p className="text-gray-500 dark:text-gray-400 text-sm">{t('settings.webhooksSubtitle') || 'Send account data to external services when clients or agencies are created.'}</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">{t('settings.webhooksSubtitle')}</p>
       </div>
 
       {/* Account Creation Webhook */}
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('settings.accountWebhookUrl') || 'Account Creation Webhook URL'}</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('settings.accountWebhookHint') || 'A POST request with account details will be sent to this URL when a client or agency is created.'}</p>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white">{t('settings.accountWebhookUrl')}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('settings.accountWebhookHint')}</p>
           </div>
           {hasAccountWebhook && (
             <span className="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full">Active</span>
