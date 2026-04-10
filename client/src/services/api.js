@@ -396,6 +396,7 @@ const portalAxios = axios.create({
 export const portalAPI = {
   getClient: (token) => portalAxios.get(`/portal/${token}`),
   getSession: (token, sessionId) => portalAxios.get(`/portal/${token}/sessions/${sessionId}`),
+  getMessages: (token, sessionId) => portalAxios.get(`/portal/${token}/messages/${sessionId}`),
   generateToken: (clientId) => api.post(`/portal/generate/${clientId}`),
 }
 

@@ -8,6 +8,11 @@ function formatDate(dateStr) {
   })
 }
 
+function formatDateTime(dateStr) {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleString()
+}
+
 function formatDuration(seconds) {
   if (!seconds) return '0:00'
   const m = Math.floor(seconds / 60)
@@ -15,12 +20,24 @@ function formatDuration(seconds) {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+function truncate(str, len = 60) {
+  if (!str) return '-'
+  return str.length > len ? str.substring(0, len) + '...' : str
+}
+
+const STATUS_CONFIG = {
+  success: { label: 'Success', bg: 'bg-green-500/10 text-green-400 border border-green-500/30' },
+  error: { label: 'Error', bg: 'bg-red-500/10 text-red-400 border border-red-500/30' },
+}
+
 export default function ClientPortalPage() {
   const { token } = useParams()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [activeTab, setActiveTab] = useState('calls')
   const [filter, setFilter] = useState('all')
+  const [selectedMessage, setSelectedMessage] = useState(null)
 
   useEffect(() => {
     const fetchPortal = async () => {
@@ -43,14 +60,18 @@ export default function ClientPortalPage() {
   }, [data?.sessions, filter])
 
   const stats = useMemo(() => {
-    if (!data?.sessions) return { total: 0, inbound: 0, outbound: 0, withSummary: 0 }
+    if (!data) return { total: 0, inbound: 0, outbound: 0, withSummary: 0, totalMessages: 0, conversations: 0 }
+    const sessions = data.sessions || []
+    const msgSessions = data.messageSessions || []
     return {
-      total: data.sessions.length,
-      inbound: data.sessions.filter(s => s.type === 'inbound').length,
-      outbound: data.sessions.filter(s => s.type === 'outbound').length,
-      withSummary: data.sessions.filter(s => s.summary).length,
+      total: sessions.length,
+      inbound: sessions.filter(s => s.type === 'inbound').length,
+      outbound: sessions.filter(s => s.type === 'outbound').length,
+      withSummary: sessions.filter(s => s.summary).length,
+      totalMessages: msgSessions.reduce((sum, s) => sum + s.messageCount, 0),
+      conversations: msgSessions.length,
     }
-  }, [data?.sessions])
+  }, [data])
 
   if (loading) {
     return (
@@ -72,7 +93,7 @@ export default function ClientPortalPage() {
     )
   }
 
-  const { client } = data
+  const { client, messageSessions = [] } = data
 
   return (
     <div className="min-h-screen bg-dark-bg">
@@ -111,10 +132,10 @@ export default function ClientPortalPage() {
         {/* Stats Row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           {[
-            { label: 'Total Sessions', value: stats.total, color: 'text-white' },
-            { label: 'Inbound Calls', value: stats.inbound, color: 'text-blue-400' },
-            { label: 'Outbound Calls', value: stats.outbound, color: 'text-green-400' },
+            { label: 'Total Calls', value: stats.total, color: 'text-white' },
             { label: 'AI Reports', value: stats.withSummary, color: 'text-purple-400' },
+            { label: 'Messages', value: stats.totalMessages, color: 'text-blue-400' },
+            { label: 'Conversations', value: stats.conversations, color: 'text-green-400' },
           ].map((stat) => (
             <div key={stat.label} className="bg-dark-card border border-dark-border rounded-xl p-4 text-center">
               <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
@@ -123,78 +144,163 @@ export default function ClientPortalPage() {
           ))}
         </div>
 
-        {/* Filter Tabs */}
+        {/* Tabs: Calls / Messages */}
         <div className="flex gap-2 mb-6">
-          {[
-            { key: 'all', label: 'All' },
-            { key: 'inbound', label: 'Inbound' },
-            { key: 'outbound', label: 'Outbound' },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setFilter(tab.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filter === tab.key
-                  ? 'bg-accent-red/20 text-accent-red border border-accent-red/30'
-                  : 'bg-dark-card text-gray-400 border border-dark-border hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          <button
+            onClick={() => setActiveTab('calls')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'calls'
+                ? 'bg-accent-red/20 text-accent-red border border-accent-red/30'
+                : 'bg-dark-card text-gray-400 border border-dark-border hover:text-white'
+            }`}
+          >
+            Call Logs
+          </button>
+          <button
+            onClick={() => setActiveTab('messages')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'messages'
+                ? 'bg-accent-red/20 text-accent-red border border-accent-red/30'
+                : 'bg-dark-card text-gray-400 border border-dark-border hover:text-white'
+            }`}
+          >
+            Message Logs
+            {messageSessions.length > 0 && (
+              <span className="ml-2 px-1.5 py-0.5 text-xs bg-accent-red/20 text-accent-red rounded-full">
+                {messageSessions.length}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Session List */}
-        {filteredSessions.length === 0 ? (
-          <div className="bg-dark-card border border-dark-border rounded-xl p-12 text-center">
-            <p className="text-gray-400">No sessions found</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredSessions.map((session) => (
-              <Link
-                key={session.id}
-                to={`/portal/${token}/sessions/${session.id}`}
-                className="block bg-dark-card border border-dark-border rounded-xl p-4 hover:bg-dark-hover transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${
-                      session.type === 'inbound' ? 'bg-blue-400' : 'bg-green-400'
-                    }`} />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-medium">
-                          {session.type === 'inbound' ? 'Inbound' : 'Outbound'} Call
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                          session.type === 'inbound'
-                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
-                            : 'bg-green-500/10 text-green-400 border-green-500/30'
-                        }`}>
-                          {session.type}
-                        </span>
-                        {session.summary && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">
-                            AI Summary
-                          </span>
-                        )}
+        {/* ===== CALLS TAB ===== */}
+        {activeTab === 'calls' && (
+          <>
+            {/* Filter Tabs */}
+            <div className="flex gap-2 mb-6">
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'inbound', label: 'Inbound' },
+                { key: 'outbound', label: 'Outbound' },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setFilter(tab.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    filter === tab.key
+                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                      : 'bg-dark-card text-gray-500 border border-dark-border hover:text-gray-300'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Session List */}
+            {filteredSessions.length === 0 ? (
+              <div className="bg-dark-card border border-dark-border rounded-xl p-12 text-center">
+                <p className="text-gray-400">No call logs found</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredSessions.map((session) => (
+                  <Link
+                    key={session.id}
+                    to={`/portal/${token}/sessions/${session.id}`}
+                    className="block bg-dark-card border border-dark-border rounded-xl p-4 hover:bg-dark-hover transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${
+                          session.type === 'inbound' ? 'bg-blue-400' : 'bg-green-400'
+                        }`} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-medium">
+                              {session.type === 'inbound' ? 'Inbound' : 'Outbound'} Call
+                            </span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                              session.type === 'inbound'
+                                ? 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                                : 'bg-green-500/10 text-green-400 border-green-500/30'
+                            }`}>
+                              {session.type}
+                            </span>
+                            {session.summary && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">
+                                AI Summary
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-gray-400 text-sm mt-1">
+                            {formatDate(session.createdAt)} · {formatDuration(session.durationSeconds)}
+                            {session.outcome && session.outcome !== 'unknown' && (
+                              <span className="ml-2 capitalize">· {session.outcome}</span>
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-gray-400 text-sm mt-1">
-                        {formatDate(session.createdAt)} · {formatDuration(session.durationSeconds)}
-                        {session.outcome && session.outcome !== 'unknown' && (
-                          <span className="ml-2 capitalize">· {session.outcome}</span>
-                        )}
-                      </p>
+                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </div>
-                  </div>
-                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
-              </Link>
-            ))}
-          </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ===== MESSAGES TAB ===== */}
+        {activeTab === 'messages' && (
+          <>
+            {messageSessions.length === 0 ? (
+              <div className="bg-dark-card border border-dark-border rounded-xl p-12 text-center">
+                <svg className="w-12 h-12 mx-auto text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <p className="text-gray-400">No message logs yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {messageSessions.map((ms) => (
+                  <Link
+                    key={ms.sessionId}
+                    to={`/portal/${token}/messages/${encodeURIComponent(ms.sessionId)}`}
+                    className="block bg-dark-card border border-dark-border rounded-xl p-4 hover:bg-dark-hover transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-blue-400" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-white font-medium">
+                              {ms.chatbotName || 'Chatbot'}
+                            </span>
+                            {ms.contactName && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30">
+                                {ms.contactName}
+                              </span>
+                            )}
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30">
+                              {ms.messageCount} messages
+                            </span>
+                          </div>
+                          <p className="text-gray-400 text-sm mt-1">
+                            {formatDate(ms.firstMessageAt)} — {formatDate(ms.lastMessageAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
 

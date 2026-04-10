@@ -185,7 +185,7 @@ const createAgency = async (req, res) => {
 // Create client under agency (AGENCY or OWNER)
 const createClient = async (req, res) => {
   try {
-    const { email, password, name, agencyId } = req.body;
+    const { email, password, name, phoneNumber, agencyId } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -214,6 +214,7 @@ const createClient = async (req, res) => {
         email,
         password: hashedPassword,
         name,
+        phoneNumber: phoneNumber || null,
         role: ROLES.CLIENT,
         agencyId: assignedAgencyId
       },
@@ -221,6 +222,7 @@ const createClient = async (req, res) => {
         id: true,
         email: true,
         name: true,
+        phoneNumber: true,
         role: true,
         agencyId: true,
         createdAt: true

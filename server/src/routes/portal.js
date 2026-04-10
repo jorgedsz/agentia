@@ -12,4 +12,7 @@ router.get('/:token', portalController.getByToken);
 // Public — get session detail by token
 router.get('/:token/sessions/:sessionId', portalController.getSessionByToken);
 
+// Public — get chatbot message thread by token + sessionId
+router.get('/:token/messages/:sessionId', portalController.getMessagesByToken);
+
 module.exports = router;

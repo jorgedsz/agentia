@@ -14,6 +14,7 @@ model User {
   email             String             @unique
   password          String
   name              String?
+  phoneNumber       String?            // Client phone number
   role              String             @default("CLIENT") // OWNER, AGENCY, CLIENT
   vapiCredits       Float              @default(0) // VAPI call credits balance
   outboundRate      Float              @default(0.10) // $ per minute for outbound calls

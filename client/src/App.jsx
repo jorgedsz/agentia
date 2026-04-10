@@ -29,6 +29,7 @@ import TermsOfService from './components/Legal/TermsOfService'
 import DemoPage from './components/Demo/DemoPage'
 import ClientPortalPage from './components/Portal/ClientPortalPage'
 import SessionPortalPage from './components/Portal/SessionPortalPage'
+import MessagePortalPage from './components/Portal/MessagePortalPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -104,6 +105,7 @@ function App() {
         <Route path="/demo" element={<DemoPage />} />
         <Route path="/portal/:token" element={<ClientPortalPage />} />
         <Route path="/portal/:token/sessions/:sessionId" element={<SessionPortalPage />} />
+        <Route path="/portal/:token/messages/:sessionId" element={<MessagePortalPage />} />
         <Route
           path="/"
           element={

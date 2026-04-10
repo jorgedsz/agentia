@@ -36,9 +36,27 @@ const getByToken = async (req, res) => {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Also fetch chatbot message sessions grouped by sessionId
+    const messageSessions = await req.prisma.chatbotMessage.groupBy({
+      by: ['sessionId', 'chatbotName', 'contactName'],
+      where: { userId: user.id, isTest: false },
+      _count: true,
+      _max: { createdAt: true },
+      _min: { createdAt: true },
+      orderBy: { _max: { createdAt: 'desc' } },
+    });
+
     res.json({
       client: user,
       sessions: callLogs,
+      messageSessions: messageSessions.map(s => ({
+        sessionId: s.sessionId,
+        chatbotName: s.chatbotName,
+        contactName: s.contactName,
+        messageCount: s._count,
+        lastMessageAt: s._max.createdAt,
+        firstMessageAt: s._min.createdAt,
+      })),
     });
   } catch (error) {
     console.error('[Portal] getByToken error:', error);
@@ -90,6 +108,42 @@ const getSessionByToken = async (req, res) => {
   }
 };
 
+// PUBLIC — Get chatbot messages for a session by portal token
+const getMessagesByToken = async (req, res) => {
+  try {
+    const { token, sessionId } = req.params;
+
+    const user = await req.prisma.user.findUnique({
+      where: { portalToken: token },
+      select: { id: true, name: true, email: true, companyName: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Portal not found' });
+    }
+
+    const messages = await req.prisma.chatbotMessage.findMany({
+      where: { userId: user.id, sessionId, isTest: false },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (messages.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    res.json({
+      client: user,
+      messages,
+      sessionId,
+      chatbotName: messages[0].chatbotName,
+      contactName: messages[0].contactName,
+    });
+  } catch (error) {
+    console.error('[Portal] getMessagesByToken error:', error);
+    res.status(500).json({ error: 'Failed to load messages' });
+  }
+};
+
 // AUTH REQUIRED — Generate or retrieve portal token for a client
 const generateToken = async (req, res) => {
   try {
@@ -132,4 +186,4 @@ const generateToken = async (req, res) => {
   }
 };
 
-module.exports = { getByToken, getSessionByToken, generateToken };
+module.exports = { getByToken, getSessionByToken, getMessagesByToken, generateToken };
