@@ -5,6 +5,6 @@ builder = "nixpacks"
 providers = ["node"]
 
 [deploy]
-startCommand = "cd server && npx prisma db push --force-reset --accept-data-loss && npm start"
+startCommand = "cd server && npx prisma db push --accept-data-loss && npm start"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
