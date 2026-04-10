@@ -5,7 +5,7 @@ import Register from './components/Auth/Register'
 import DashboardLayout from './components/Dashboard/DashboardLayout'
 import DashboardContent from './components/Dashboard/DashboardContent'
 import AgentEdit from './components/Dashboard/AgentEdit'
-import TwilioSetup from './components/Dashboard/TwilioSetup'
+import TelephonySetup from './components/Dashboard/TelephonySetup'
 import PhoneNumbers from './components/Dashboard/PhoneNumbers'
 import SubAccounts from './components/Dashboard/SubAccounts'
 import Settings from './components/Dashboard/Settings'
@@ -133,7 +133,7 @@ function App() {
           <Route path="all-users" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="sub-accounts" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="credits" element={<Navigate to="/dashboard/accounts" replace />} />
-          <Route path="twilio-setup" element={<TwilioSetup />} />
+          <Route path="twilio-setup" element={<TelephonySetup />} />
           <Route path="phone-numbers" element={<PhoneNumbers />} />
           <Route path="settings" element={<Settings />} />
           <Route path="analytics" element={<Analytics />} />

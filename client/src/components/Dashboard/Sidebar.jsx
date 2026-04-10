@@ -109,7 +109,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     {
       title: 'Phone',
       items: [
-        { id: 'twilio-setup', label: 'Twilio Setup', icon: Icons.Twilio, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'twilio-setup', label: 'Phone Setup', icon: Icons.Phone, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'phone-numbers', label: 'Phone Numbers', icon: Icons.Phone, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     },

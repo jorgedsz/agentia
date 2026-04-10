@@ -9,10 +9,10 @@ router.use(authMiddleware);
 // List user's imported phone numbers
 router.get('/', phoneNumberController.listPhoneNumbers);
 
-// List available numbers from user's Twilio account
-router.get('/available', phoneNumberController.listAvailableNumbers);
+// List available numbers from a specific credential
+router.get('/available/:credentialId', phoneNumberController.listAvailableNumbers);
 
-// Import a phone number from Twilio to VAPI
+// Import a phone number to VAPI
 router.post('/import', phoneNumberController.importPhoneNumber);
 
 // Retry VAPI import for a phone number that failed

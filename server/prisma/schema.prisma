@@ -39,7 +39,7 @@ model User {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   agents            Agent[]
-  twilioCredentials TwilioCredentials?
+  telephonyCredentials TelephonyCredential[]
   teamMembers       TeamMember[]       @relation("AccountTeamMembers")
   ghlIntegration    GHLIntegration?
   calendarIntegrations CalendarIntegration[]
@@ -160,16 +160,32 @@ model Chatbot {
   updatedAt       DateTime @updatedAt
 }
 
-model TwilioCredentials {
-  id           Int           @id @default(autoincrement())
-  accountSid   String        // Encrypted
-  authToken    String        // Encrypted
-  userId       Int           @unique
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  phoneNumbers PhoneNumber[]
-  isVerified   Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+model TelephonyCredential {
+  id                Int           @id @default(autoincrement())
+  provider          String        // "twilio" | "vonage" | "telnyx"
+
+  // Twilio fields (encrypted)
+  accountSid        String?       // Encrypted Twilio Account SID
+  authToken         String?       // Encrypted Twilio Auth Token
+
+  // Vonage fields (encrypted)
+  apiKey            String?       // Encrypted Vonage API Key
+  apiSecret         String?       // Encrypted Vonage API Secret
+
+  // Telnyx fields (encrypted)
+  telnyxApiKey      String?       // Encrypted Telnyx API Key (v2)
+
+  // VAPI credential ID (returned by VAPI for Vonage/Telnyx)
+  vapiCredentialId  String?
+
+  isVerified        Boolean       @default(false)
+  userId            Int
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumbers      PhoneNumber[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([userId, provider])
 }
 
 model PlatformSettings {
@@ -215,21 +231,21 @@ model CallLog {
 }
 
 model PhoneNumber {
-  id                  Int               @id @default(autoincrement())
-  phoneNumber         String            // E.164 format
-  friendlyName        String?
-  twilioSid           String            // Twilio phone number SID
-  vapiPhoneNumberId   String?           // After VAPI import
-  status              String            @default("pending") // pending, active, error
-  twilioCredentialsId Int
-  twilioCredentials   TwilioCredentials @relation(fields: [twilioCredentialsId], references: [id], onDelete: Cascade)
-  agentId             String?
-  agent               Agent?            @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  id                      Int                  @id @default(autoincrement())
+  phoneNumber             String               // E.164 format
+  friendlyName            String?
+  provider                String               // "twilio" | "vonage" | "telnyx"
+  providerPhoneId         String?              // twilioSid, vonage number ID, telnyx ID
+  vapiPhoneNumberId       String?              // After VAPI import
+  status                  String               @default("pending") // pending, active, error
+  telephonyCredentialId   Int
+  telephonyCredential     TelephonyCredential  @relation(fields: [telephonyCredentialId], references: [id], onDelete: Cascade)
+  agentId                 String?
+  agent                   Agent?               @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
 
-  // Same Twilio number can exist for different credentials (different users)
-  @@unique([twilioSid, twilioCredentialsId])
+  @@unique([providerPhoneId, telephonyCredentialId])
 }
 
 model CustomVoice {

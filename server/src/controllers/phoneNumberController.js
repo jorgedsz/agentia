@@ -1,5 +1,7 @@
 const { decrypt } = require('../utils/encryption');
 const twilioService = require('../services/twilioService');
+const vonageService = require('../services/vonageService');
+const telnyxService = require('../services/telnyxService');
 const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
 
@@ -11,23 +13,14 @@ const listPhoneNumbers = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const credentials = await req.prisma.twilioCredentials.findUnique({
-      where: { userId }
-    });
-
-    if (!credentials) {
-      return res.status(404).json({ error: 'No Twilio credentials found. Please set up your credentials first.' });
-    }
-
     const phoneNumbers = await req.prisma.phoneNumber.findMany({
-      where: { twilioCredentialsId: credentials.id },
+      where: { telephonyCredential: { userId } },
       include: {
         agent: {
-          select: {
-            id: true,
-            name: true,
-            vapiId: true
-          }
+          select: { id: true, name: true, vapiId: true }
+        },
+        telephonyCredential: {
+          select: { id: true, provider: true }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -41,47 +34,47 @@ const listPhoneNumbers = async (req, res) => {
 };
 
 /**
- * List available phone numbers from user's Twilio account
- * GET /api/phone-numbers/available
+ * List available phone numbers from a specific credential
+ * GET /api/phone-numbers/available/:credentialId
  */
 const listAvailableNumbers = async (req, res) => {
   try {
     const userId = req.user.id;
+    const credentialId = parseInt(req.params.credentialId);
 
-    const credentials = await req.prisma.twilioCredentials.findUnique({
-      where: { userId }
+    const credential = await req.prisma.telephonyCredential.findUnique({
+      where: { id: credentialId }
     });
 
-    if (!credentials) {
-      return res.status(404).json({ error: 'No Twilio credentials found. Please set up your credentials first.' });
+    if (!credential) return res.status(404).json({ error: 'Credential not found' });
+    if (credential.userId !== userId) return res.status(403).json({ error: 'Access denied' });
+    if (!credential.isVerified) return res.status(400).json({ error: 'Please verify your credentials first.' });
+
+    let providerNumbers = [];
+
+    if (credential.provider === 'twilio') {
+      const sid = decrypt(credential.accountSid);
+      const token = decrypt(credential.authToken);
+      providerNumbers = await twilioService.listPhoneNumbers({ accountSid: sid, authToken: token });
+    } else if (credential.provider === 'vonage') {
+      const key = decrypt(credential.apiKey);
+      const secret = decrypt(credential.apiSecret);
+      providerNumbers = await vonageService.listPhoneNumbers(key, secret);
+    } else if (credential.provider === 'telnyx') {
+      const key = decrypt(credential.telnyxApiKey);
+      providerNumbers = await telnyxService.listPhoneNumbers(key);
     }
-
-    if (!credentials.isVerified) {
-      return res.status(400).json({ error: 'Please verify your Twilio credentials first.' });
-    }
-
-    // Decrypt credentials
-    const decryptedSid = decrypt(credentials.accountSid);
-    const decryptedToken = decrypt(credentials.authToken);
-
-    // Get phone numbers from Twilio
-    const twilioNumbers = await twilioService.listPhoneNumbers({
-      accountSid: decryptedSid,
-      authToken: decryptedToken
-    });
 
     // Get already imported numbers
     const importedNumbers = await req.prisma.phoneNumber.findMany({
-      where: { twilioCredentialsId: credentials.id },
-      select: { twilioSid: true }
+      where: { telephonyCredentialId: credential.id },
+      select: { providerPhoneId: true }
     });
+    const importedIds = new Set(importedNumbers.map(n => n.providerPhoneId));
 
-    const importedSids = new Set(importedNumbers.map(n => n.twilioSid));
-
-    // Mark which numbers are already imported
-    const numbersWithStatus = twilioNumbers.map(number => ({
+    const numbersWithStatus = providerNumbers.map(number => ({
       ...number,
-      isImported: importedSids.has(number.sid)
+      isImported: importedIds.has(number.sid || number.phoneNumber)
     }));
 
     res.json({ phoneNumbers: numbersWithStatus });
@@ -92,82 +85,83 @@ const listAvailableNumbers = async (req, res) => {
 };
 
 /**
- * Import a phone number from Twilio to VAPI
+ * Import a phone number from any provider to VAPI
  * POST /api/phone-numbers/import
  */
 const importPhoneNumber = async (req, res) => {
   try {
-    const { twilioSid, phoneNumber, friendlyName } = req.body;
+    const { credentialId, providerPhoneId, phoneNumber, friendlyName } = req.body;
     const userId = req.user.id;
 
-    console.log('Import request:', { twilioSid, phoneNumber, friendlyName, userId });
-
-    if (!twilioSid || !phoneNumber) {
-      return res.status(400).json({ error: 'twilioSid and phoneNumber are required' });
+    if (!credentialId || !phoneNumber) {
+      return res.status(400).json({ error: 'credentialId and phoneNumber are required' });
     }
 
-    const credentials = await req.prisma.twilioCredentials.findUnique({
-      where: { userId }
+    const credential = await req.prisma.telephonyCredential.findUnique({
+      where: { id: credentialId }
     });
 
-    if (!credentials) {
-      return res.status(404).json({ error: 'No Twilio credentials found' });
-    }
+    if (!credential) return res.status(404).json({ error: 'Credential not found' });
+    if (credential.userId !== userId) return res.status(403).json({ error: 'Access denied' });
+    if (!credential.isVerified) return res.status(400).json({ error: 'Please verify your credentials first' });
 
-    if (!credentials.isVerified) {
-      return res.status(400).json({ error: 'Please verify your Twilio credentials first' });
-    }
-
-    // Check if already imported by this user
-    const existing = await req.prisma.phoneNumber.findUnique({
-      where: {
-        twilioSid_twilioCredentialsId: {
-          twilioSid,
-          twilioCredentialsId: credentials.id
+    // Check if already imported
+    if (providerPhoneId) {
+      const existing = await req.prisma.phoneNumber.findUnique({
+        where: {
+          providerPhoneId_telephonyCredentialId: {
+            providerPhoneId,
+            telephonyCredentialId: credential.id
+          }
         }
+      });
+      if (existing) {
+        if (!existing.vapiPhoneNumberId) {
+          return res.status(400).json({ error: 'This phone number is already imported but not connected to VAPI. Use the retry button.' });
+        }
+        return res.status(400).json({ error: 'This phone number is already imported' });
       }
-    });
-
-    if (existing) {
-      // If already imported but VAPI failed, allow retry via the retry endpoint
-      if (!existing.vapiPhoneNumberId) {
-        return res.status(400).json({ error: 'This phone number is already imported but not connected to VAPI. Use the "Import to VAPI" button to retry.' });
-      }
-      return res.status(400).json({ error: 'This phone number is already imported' });
     }
-
-    // Decrypt credentials for VAPI import
-    const decryptedSid = decrypt(credentials.accountSid);
-    const decryptedToken = decrypt(credentials.authToken);
 
     let vapiPhoneNumberId = null;
     let status = 'pending';
 
     // Set per-account VAPI key
-    const vapiKeyImport = await getVapiKeyForUser(req.prisma, userId);
-    if (vapiKeyImport) vapiService.setApiKey(vapiKeyImport);
+    const vapiKey = await getVapiKeyForUser(req.prisma, userId);
+    if (vapiKey) vapiService.setApiKey(vapiKey);
 
-    // Import to VAPI if configured
     if (vapiService.isConfigured()) {
       try {
-        // First check if this number already exists in VAPI
-        const existingVapiNumber = await vapiService.findPhoneNumberByNumber(phoneNumber);
-
-        if (existingVapiNumber) {
-          // Reuse existing VAPI phone number
-          vapiPhoneNumberId = existingVapiNumber.id;
+        const existingVapi = await vapiService.findPhoneNumberByNumber(phoneNumber);
+        if (existingVapi) {
+          vapiPhoneNumberId = existingVapi.id;
           status = 'active';
-          console.log(`Reusing existing VAPI phone number: ${vapiPhoneNumberId}`);
         } else {
-          // Import new number to VAPI
-          const vapiResult = await vapiService.importTwilioNumber({
-            number: phoneNumber,
-            twilioAccountSid: decryptedSid,
-            twilioAuthToken: decryptedToken,
-            name: friendlyName
-          });
-          vapiPhoneNumberId = vapiResult.id;
-          status = 'active';
+          let vapiResult;
+          if (credential.provider === 'twilio') {
+            const sid = decrypt(credential.accountSid);
+            const token = decrypt(credential.authToken);
+            vapiResult = await vapiService.importTwilioNumber({
+              number: phoneNumber,
+              twilioAccountSid: sid,
+              twilioAuthToken: token,
+              name: friendlyName
+            });
+          } else if (credential.provider === 'vonage') {
+            vapiResult = await vapiService.importVonageNumber({
+              number: phoneNumber,
+              credentialId: credential.vapiCredentialId,
+              name: friendlyName
+            });
+          } else if (credential.provider === 'telnyx') {
+            vapiResult = await vapiService.importTelnyxNumber({
+              number: phoneNumber,
+              credentialId: credential.vapiCredentialId,
+              name: friendlyName
+            });
+          }
+          vapiPhoneNumberId = vapiResult?.id || null;
+          status = vapiPhoneNumberId ? 'active' : 'error';
         }
       } catch (vapiError) {
         console.error('VAPI import failed:', vapiError.message);
@@ -175,15 +169,15 @@ const importPhoneNumber = async (req, res) => {
       }
     }
 
-    // Store in database
     const newPhoneNumber = await req.prisma.phoneNumber.create({
       data: {
         phoneNumber,
         friendlyName,
-        twilioSid,
+        provider: credential.provider,
+        providerPhoneId: providerPhoneId || null,
         vapiPhoneNumberId,
         status,
-        twilioCredentialsId: credentials.id
+        telephonyCredentialId: credential.id
       }
     });
 
@@ -209,42 +203,22 @@ const assignToAgent = async (req, res) => {
 
     const phoneNumber = await req.prisma.phoneNumber.findUnique({
       where: { id: parseInt(id) },
-      include: {
-        twilioCredentials: true
-      }
+      include: { telephonyCredential: true }
     });
 
-    if (!phoneNumber) {
-      return res.status(404).json({ error: 'Phone number not found' });
-    }
+    if (!phoneNumber) return res.status(404).json({ error: 'Phone number not found' });
+    if (phoneNumber.telephonyCredential.userId !== userId) return res.status(403).json({ error: 'Access denied' });
 
-    // Verify ownership
-    if (phoneNumber.twilioCredentials.userId !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    // If agentId is null, we're unassigning
     let agent = null;
     if (agentId) {
-      agent = await req.prisma.agent.findUnique({
-        where: { id: agentId }
-      });
-
-      if (!agent) {
-        return res.status(404).json({ error: 'Agent not found' });
-      }
-
-      // Verify agent ownership
-      if (agent.userId !== userId) {
-        return res.status(403).json({ error: 'Access denied to this agent' });
-      }
+      agent = await req.prisma.agent.findUnique({ where: { id: agentId } });
+      if (!agent) return res.status(404).json({ error: 'Agent not found' });
+      if (agent.userId !== userId) return res.status(403).json({ error: 'Access denied to this agent' });
     }
 
-    // Set per-account VAPI key
-    const vapiKeyAssign = await getVapiKeyForUser(req.prisma, userId);
-    if (vapiKeyAssign) vapiService.setApiKey(vapiKeyAssign);
+    const vapiKey = await getVapiKeyForUser(req.prisma, userId);
+    if (vapiKey) vapiService.setApiKey(vapiKey);
 
-    // Update in VAPI if we have VAPI IDs
     if (vapiService.isConfigured() && phoneNumber.vapiPhoneNumberId) {
       try {
         if (agentId && agent?.vapiId) {
@@ -254,22 +228,14 @@ const assignToAgent = async (req, res) => {
         }
       } catch (vapiError) {
         console.error('VAPI assignment failed:', vapiError.message);
-        // Continue with local update even if VAPI fails
       }
     }
 
-    // Update in database
     const updated = await req.prisma.phoneNumber.update({
       where: { id: parseInt(id) },
-      data: { agentId: agentId ? agentId : null },
+      data: { agentId: agentId || null },
       include: {
-        agent: {
-          select: {
-            id: true,
-            name: true,
-            vapiId: true
-          }
-        }
+        agent: { select: { id: true, name: true, vapiId: true } }
       }
     });
 
@@ -294,39 +260,24 @@ const removePhoneNumber = async (req, res) => {
 
     const phoneNumber = await req.prisma.phoneNumber.findUnique({
       where: { id: parseInt(id) },
-      include: {
-        twilioCredentials: true
-      }
+      include: { telephonyCredential: true }
     });
 
-    if (!phoneNumber) {
-      return res.status(404).json({ error: 'Phone number not found' });
-    }
+    if (!phoneNumber) return res.status(404).json({ error: 'Phone number not found' });
+    if (phoneNumber.telephonyCredential.userId !== userId) return res.status(403).json({ error: 'Access denied' });
 
-    // Verify ownership
-    if (phoneNumber.twilioCredentials.userId !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
+    const vapiKey = await getVapiKeyForUser(req.prisma, userId);
+    if (vapiKey) vapiService.setApiKey(vapiKey);
 
-    // Set per-account VAPI key
-    const vapiKeyRemove = await getVapiKeyForUser(req.prisma, userId);
-    if (vapiKeyRemove) vapiService.setApiKey(vapiKeyRemove);
-
-    // Delete from VAPI if imported
     if (vapiService.isConfigured() && phoneNumber.vapiPhoneNumberId) {
       try {
         await vapiService.deletePhoneNumber(phoneNumber.vapiPhoneNumberId);
       } catch (vapiError) {
         console.error('VAPI deletion failed:', vapiError.message);
-        // Continue with local deletion
       }
     }
 
-    // Delete from database
-    await req.prisma.phoneNumber.delete({
-      where: { id: parseInt(id) }
-    });
-
+    await req.prisma.phoneNumber.delete({ where: { id: parseInt(id) } });
     res.json({ message: 'Phone number removed successfully' });
   } catch (error) {
     console.error('Error removing phone number:', error);
@@ -345,51 +296,53 @@ const retryVapiImport = async (req, res) => {
 
     const phoneNumber = await req.prisma.phoneNumber.findUnique({
       where: { id: parseInt(id) },
-      include: { twilioCredentials: true }
+      include: { telephonyCredential: true }
     });
 
-    if (!phoneNumber) {
-      return res.status(404).json({ error: 'Phone number not found' });
-    }
-
-    if (phoneNumber.twilioCredentials.userId !== userId) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    if (phoneNumber.vapiPhoneNumberId) {
-      return res.json({ message: 'Phone number is already imported to VAPI', phoneNumber });
-    }
-
-    const decryptedSid = decrypt(phoneNumber.twilioCredentials.accountSid);
-    const decryptedToken = decrypt(phoneNumber.twilioCredentials.authToken);
+    if (!phoneNumber) return res.status(404).json({ error: 'Phone number not found' });
+    if (phoneNumber.telephonyCredential.userId !== userId) return res.status(403).json({ error: 'Access denied' });
+    if (phoneNumber.vapiPhoneNumberId) return res.json({ message: 'Already imported to VAPI', phoneNumber });
 
     const vapiKey = await getVapiKeyForUser(req.prisma, userId);
-    if (!vapiKey) {
-      return res.status(400).json({ error: 'VAPI API key not configured' });
-    }
+    if (!vapiKey) return res.status(400).json({ error: 'VAPI API key not configured' });
     vapiService.setApiKey(vapiKey);
 
-    // Try to find existing or import new
+    const cred = phoneNumber.telephonyCredential;
     let vapiPhoneNumberId = null;
-    const existingVapiNumber = await vapiService.findPhoneNumberByNumber(phoneNumber.phoneNumber);
 
-    if (existingVapiNumber) {
-      vapiPhoneNumberId = existingVapiNumber.id;
-      console.log(`Retry: Reusing existing VAPI phone number: ${vapiPhoneNumberId}`);
+    const existingVapi = await vapiService.findPhoneNumberByNumber(phoneNumber.phoneNumber);
+    if (existingVapi) {
+      vapiPhoneNumberId = existingVapi.id;
     } else {
-      const vapiResult = await vapiService.importTwilioNumber({
-        number: phoneNumber.phoneNumber,
-        twilioAccountSid: decryptedSid,
-        twilioAuthToken: decryptedToken,
-        name: phoneNumber.friendlyName
-      });
-      vapiPhoneNumberId = vapiResult.id;
-      console.log(`Retry: Imported to VAPI: ${vapiPhoneNumberId}`);
+      let vapiResult;
+      if (cred.provider === 'twilio') {
+        const sid = decrypt(cred.accountSid);
+        const token = decrypt(cred.authToken);
+        vapiResult = await vapiService.importTwilioNumber({
+          number: phoneNumber.phoneNumber,
+          twilioAccountSid: sid,
+          twilioAuthToken: token,
+          name: phoneNumber.friendlyName
+        });
+      } else if (cred.provider === 'vonage') {
+        vapiResult = await vapiService.importVonageNumber({
+          number: phoneNumber.phoneNumber,
+          credentialId: cred.vapiCredentialId,
+          name: phoneNumber.friendlyName
+        });
+      } else if (cred.provider === 'telnyx') {
+        vapiResult = await vapiService.importTelnyxNumber({
+          number: phoneNumber.phoneNumber,
+          credentialId: cred.vapiCredentialId,
+          name: phoneNumber.friendlyName
+        });
+      }
+      vapiPhoneNumberId = vapiResult?.id || null;
     }
 
     const updated = await req.prisma.phoneNumber.update({
       where: { id: parseInt(id) },
-      data: { vapiPhoneNumberId, status: 'active' }
+      data: { vapiPhoneNumberId, status: vapiPhoneNumberId ? 'active' : 'error' }
     });
 
     res.json({ message: 'Phone number imported to VAPI successfully', phoneNumber: updated });

@@ -80,20 +80,30 @@ export const usersAPI = {
   delete: (id) => api.delete(`/users/${id}`)
 }
 
-// Twilio Credentials API
+// Twilio Credentials API (legacy — kept for backward compat)
 export const twilioAPI = {
   saveCredentials: (data) => api.post('/twilio/credentials', data),
   getCredentials: () => api.get('/twilio/credentials'),
   updateCredentials: (data) => api.put('/twilio/credentials', data),
   deleteCredentials: () => api.delete('/twilio/credentials'),
   verifyCredentials: () => api.post('/twilio/credentials/verify'),
-  getBalances: () => api.get('/twilio/balances')
+  getBalances: () => api.get('/telephony/balances')
+}
+
+// Telephony API (multi-provider: twilio, vonage, telnyx)
+export const telephonyAPI = {
+  saveCredentials: (data) => api.post('/telephony/credentials', data),
+  getCredentials: () => api.get('/telephony/credentials'),
+  updateCredentials: (id, data) => api.put(`/telephony/credentials/${id}`, data),
+  deleteCredentials: (id) => api.delete(`/telephony/credentials/${id}`),
+  verifyCredentials: (id) => api.post(`/telephony/credentials/${id}/verify`),
+  getBalances: () => api.get('/telephony/balances')
 }
 
 // Phone Numbers API
 export const phoneNumbersAPI = {
   list: () => api.get('/phone-numbers'),
-  listAvailable: () => api.get('/phone-numbers/available'),
+  listAvailable: (credentialId) => api.get(`/phone-numbers/available/${credentialId}`),
   import: (data) => api.post('/phone-numbers/import', data),
   assignToAgent: (id, agentId) => api.patch(`/phone-numbers/${id}/assign`, { agentId }),
   unassign: (id) => api.patch(`/phone-numbers/${id}/assign`, { agentId: null }),

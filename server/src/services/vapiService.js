@@ -633,6 +633,70 @@ class VapiService {
   }
 
   /**
+   * Import a Vonage phone number into VAPI
+   * @param {Object} phoneConfig - Phone configuration
+   * @param {string} phoneConfig.number - Phone number in E.164 format
+   * @param {string} phoneConfig.credentialId - VAPI credential ID for Vonage
+   * @param {string} [phoneConfig.name] - Optional friendly name
+   * @returns {Promise<Object>} - VAPI phone number object with id
+   */
+  async importVonageNumber(phoneConfig) {
+    const payload = {
+      provider: 'vonage',
+      number: phoneConfig.number,
+      credentialId: phoneConfig.credentialId,
+    };
+    if (phoneConfig.name) payload.name = phoneConfig.name;
+    return this.makeRequest('/phone-number', 'POST', payload);
+  }
+
+  /**
+   * Import a Telnyx phone number into VAPI
+   * @param {Object} phoneConfig - Phone configuration
+   * @param {string} phoneConfig.number - Phone number in E.164 format
+   * @param {string} phoneConfig.credentialId - VAPI credential ID for Telnyx
+   * @param {string} [phoneConfig.name] - Optional friendly name
+   * @returns {Promise<Object>} - VAPI phone number object with id
+   */
+  async importTelnyxNumber(phoneConfig) {
+    const payload = {
+      provider: 'telnyx',
+      number: phoneConfig.number,
+      credentialId: phoneConfig.credentialId,
+    };
+    if (phoneConfig.name) payload.name = phoneConfig.name;
+    return this.makeRequest('/phone-number', 'POST', payload);
+  }
+
+  /**
+   * Add a Vonage credential to VAPI
+   */
+  async addVonageCredential(apiKey, apiSecret) {
+    return this.makeRequest('/credential', 'POST', {
+      provider: 'vonage',
+      apiKey,
+      apiSecret,
+    });
+  }
+
+  /**
+   * Add a Telnyx credential to VAPI
+   */
+  async addTelnyxCredential(apiKey) {
+    return this.makeRequest('/credential', 'POST', {
+      provider: 'telnyx',
+      apiKey,
+    });
+  }
+
+  /**
+   * Delete a credential from VAPI
+   */
+  async deleteVapiCredential(credentialId) {
+    return this.makeRequest(`/credential/${credentialId}`, 'DELETE');
+  }
+
+  /**
    * Get a VAPI phone number by ID
    * @param {string} phoneNumberId - VAPI phone number ID
    * @returns {Promise<Object>} - Phone number details
