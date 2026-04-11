@@ -169,6 +169,7 @@ export default function ChatbotEdit() {
   const [docSearch, setDocSearch] = useState('')
 
   // Follow-Up Rules
+  const [bufferSeconds, setBufferSeconds] = useState(0)
   const [followUpRulesConfig, setFollowUpRulesConfig] = useState({ enabled: false, rules: [] })
   const [followUpLogs, setFollowUpLogs] = useState([])
   const [showFollowUpLogs, setShowFollowUpLogs] = useState(false)
@@ -248,6 +249,9 @@ export default function ChatbotEdit() {
       }
       if (config.ghlCrmConfig) {
         setGhlCrmConfig(config.ghlCrmConfig)
+      }
+      if (config.bufferSeconds !== undefined) {
+        setBufferSeconds(config.bufferSeconds)
       }
       if (config.followUpRulesConfig) {
         setFollowUpRulesConfig(config.followUpRulesConfig)
@@ -816,6 +820,7 @@ export default function ChatbotEdit() {
           docsConfig,
           ghlCrmConfig,
           followUpRulesConfig,
+          bufferSeconds,
           outputType: 'respond_to_webhook',
           outputUrl: outputUrl || '',
         }
@@ -1307,6 +1312,52 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     {t('chatbotEdit.responsesForwarded')}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Message Batching Section */}
+          <div>
+            <button
+              type="button"
+              onClick={() => toggleSection('batching')}
+              className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+            >
+              <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedSection === 'batching' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.messageBatching')}</span>
+              <span className={`text-xs font-medium ${bufferSeconds > 0 ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'}`}>
+                {bufferSeconds > 0 ? `${bufferSeconds}s` : t('chatbotEdit.off')}
+              </span>
+            </button>
+            {expandedSection === 'batching' && (
+              <div className="px-5 pb-4 space-y-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('chatbotEdit.messageBatchingDesc')}</p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.bufferDelay')}</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={0}
+                      max={30}
+                      value={bufferSeconds}
+                      onChange={(e) => setBufferSeconds(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
+                      className="w-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                    <span className="text-xs text-gray-400">
+                      {bufferSeconds === 0 ? t('chatbotEdit.messageBatchingDisabled') : `${bufferSeconds} ${t('chatbotEdit.seconds')}`}
+                    </span>
+                  </div>
+                </div>
+                {bufferSeconds > 0 && (
+                  <div className="px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <p className="text-xs text-amber-700 dark:text-amber-300">{t('chatbotEdit.messageBatchingWarning')}</p>
                   </div>
                 )}
               </div>

@@ -1924,6 +1924,13 @@
     "messageTemplatePlaceholder": "Hey {{contactName}}, just checking in...",
     "slackMessagePlaceholder": "Follow-up needed for {{contactName}}",
     "rules": "rules",
-    "rule": "rule"
+    "rule": "rule",
+    "messageBatching": "Message Batching",
+    "messageBatchingDesc": "When enabled, incoming messages are buffered for the specified duration. If another message arrives during the wait, the timer resets. All buffered messages are merged into a single request to n8n, so the AI responds once instead of per-message.",
+    "messageBatchingWarning": "When buffering is active, the webhook returns {\"queued\": true} immediately instead of the n8n response. The merged message is forwarded after the delay.",
+    "messageBatchingDisabled": "Disabled — messages forwarded immediately",
+    "bufferDelay": "Buffer delay (seconds)",
+    "seconds": "seconds",
+    "off": "Off"
   }
 }

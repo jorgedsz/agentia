@@ -412,10 +412,16 @@ app.use((err, req, res, next) => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
-  await prisma.$disconnect();
-  process.exit(0);
-});
+const messageBuffer = require('./services/messageBuffer');
+const { handleBufferFlush } = require('./controllers/chatbotController');
+
+function gracefulShutdown(signal) {
+  console.log(`[Server] ${signal} received, flushing message buffers...`);
+  messageBuffer.clearAll(handleBufferFlush);
+  prisma.$disconnect().then(() => process.exit(0));
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

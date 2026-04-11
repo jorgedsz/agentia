@@ -3,6 +3,7 @@ const { logAudit } = require('../utils/auditLog');
 const n8nService = require('../services/n8nService');
 const { getN8nConfig } = require('../utils/getN8nConfig');
 const { findGhlConnection, ghlRequest } = require('./ghlController');
+const messageBuffer = require('../services/messageBuffer');
 
 const getServerBaseUrl = () => {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
@@ -343,6 +344,95 @@ const testChatbot = async (req, res) => {
   }
 };
 
+// ── Helper: forward message to n8n, deduct credits, log ──────
+const MESSAGE_COST = 0.01;
+
+async function forwardToN8n(chatbot, forwardBody, prisma) {
+  const { message, sessionId, contactId, contactName } = forwardBody;
+
+  const n8nResponse = await fetch(chatbot.n8nWebhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(forwardBody),
+    signal: AbortSignal.timeout(60000)
+  });
+
+  const responseText = await n8nResponse.text().catch(() => '');
+
+  if (!n8nResponse.ok) {
+    console.error(`Webhook proxy upstream error ${n8nResponse.status}:`, responseText.substring(0, 500));
+
+    prisma.chatbotMessage.create({
+      data: {
+        chatbotId: chatbot.id,
+        chatbotName: chatbot.name,
+        userId: chatbot.userId,
+        sessionId: sessionId || 'default',
+        contactId: contactId || null,
+        contactName: contactName || null,
+        inputMessage: message,
+        outputMessage: null,
+        costCharged: 0,
+        status: 'error',
+        errorMessage: `Upstream error (${n8nResponse.status}): ${responseText.substring(0, 200) || 'No response'}`,
+      }
+    }).catch(err => console.error('Failed to log chatbot message:', err.message));
+
+    const err = new Error(`Upstream error (${n8nResponse.status}): ${responseText.substring(0, 200) || 'No response'}`);
+    err.statusCode = 502;
+    throw err;
+  }
+
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    data = { response: responseText };
+  }
+
+  // Deduct credit
+  try {
+    await prisma.user.update({
+      where: { id: chatbot.userId },
+      data: { vapiCredits: { decrement: MESSAGE_COST } }
+    });
+  } catch (creditErr) {
+    console.error('Failed to deduct chatbot message credit:', creditErr.message);
+  }
+
+  // Log successful message (fire-and-forget)
+  prisma.chatbotMessage.create({
+    data: {
+      chatbotId: chatbot.id,
+      chatbotName: chatbot.name,
+      userId: chatbot.userId,
+      sessionId: sessionId || 'default',
+      contactId: contactId || null,
+      contactName: contactName || null,
+      inputMessage: message,
+      outputMessage: data.response || data.output || JSON.stringify(data),
+      costCharged: MESSAGE_COST,
+      status: 'success',
+    }
+  }).catch(err => console.error('Failed to log chatbot message:', err.message));
+
+  return data;
+}
+
+// ── Buffer flush callback (fire-and-forget) ──────────────────
+
+function handleBufferFlush(bufferKey, mergedMessage, context) {
+  const { chatbot, forwardBody, prisma } = context;
+
+  const mergedBody = { ...forwardBody, message: mergedMessage, _buffered: true };
+
+  forwardToN8n(chatbot, mergedBody, prisma).catch(err => {
+    console.error(`[Chatbot] buffered flush failed for ${bufferKey}:`, err.message);
+  });
+}
+
+// ── Webhook proxy (public, no auth) ──────────────────────────
+
 const webhookProxy = async (req, res) => {
   try {
     const { id } = req.params;
@@ -369,8 +459,6 @@ const webhookProxy = async (req, res) => {
       return res.status(403).json({ error: 'Messages are currently paused for this account.' });
     }
 
-    // Check if owner has enough credits ($0.01 per message)
-    const MESSAGE_COST = 0.01;
     if ((chatbotOwner.vapiCredits || 0) < MESSAGE_COST) {
       return res.status(402).json({ error: 'Insufficient credits. Owner needs to add credits to continue.' });
     }
@@ -383,87 +471,30 @@ const webhookProxy = async (req, res) => {
       return res.status(422).json({ error: 'Chatbot has no workflow configured' });
     }
 
-    console.log(`Webhook proxy: chatbot ${id} (type: ${chatbot.chatbotType}) -> ${chatbot.n8nWebhookUrl}`);
-
     const resolvedContactId = contactId || sessionId || '';
     const forwardBody = { message, sessionId: sessionId || 'default', contactId: resolvedContactId };
-    if (contactName) {
-      forwardBody.contactName = contactName;
-    }
-    if (variables && typeof variables === 'object') {
-      forwardBody.variables = variables;
-    }
+    if (contactName) forwardBody.contactName = contactName;
+    if (variables && typeof variables === 'object') forwardBody.variables = variables;
 
-    const n8nResponse = await fetch(chatbot.n8nWebhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(forwardBody),
-      signal: AbortSignal.timeout(60000)
-    });
+    // Check for buffer/debounce config
+    const config = parseConfig(chatbot.config);
+    const bufferSeconds = config?.bufferSeconds || 0;
 
-    const responseText = await n8nResponse.text().catch(() => '');
-
-    if (!n8nResponse.ok) {
-      console.error(`Webhook proxy upstream error ${n8nResponse.status}:`, responseText.substring(0, 500));
-
-      // Log error message
-      req.prisma.chatbotMessage.create({
-        data: {
-          chatbotId: chatbot.id,
-          chatbotName: chatbot.name,
-          userId: chatbot.userId,
-          sessionId: sessionId || 'default',
-          contactId: resolvedContactId || null,
-          contactName: contactName || null,
-          inputMessage: message,
-          outputMessage: null,
-          costCharged: 0,
-          status: 'error',
-          errorMessage: `Upstream error (${n8nResponse.status}): ${responseText.substring(0, 200) || 'No response'}`,
-        }
-      }).catch(err => console.error('Failed to log chatbot message:', err.message));
-
-      return res.status(502).json({ error: `Upstream error (${n8nResponse.status}): ${responseText.substring(0, 200) || 'No response'}` });
+    if (bufferSeconds > 0) {
+      const bufferKey = `${chatbot.id}:${forwardBody.sessionId}`;
+      const context = { chatbot, forwardBody, prisma: req.prisma };
+      const result = messageBuffer.addMessage(bufferKey, message, bufferSeconds, context, handleBufferFlush);
+      return res.json({ queued: true, bufferSize: result.bufferSize });
     }
 
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      data = { response: responseText };
-    }
-
-    // Deduct $0.01 from owner's credits for this message
-    try {
-      await req.prisma.user.update({
-        where: { id: chatbot.userId },
-        data: { vapiCredits: { decrement: MESSAGE_COST } }
-      });
-    } catch (creditErr) {
-      console.error('Failed to deduct chatbot message credit:', creditErr.message);
-    }
-
-    // Log successful message (fire-and-forget)
-    req.prisma.chatbotMessage.create({
-      data: {
-        chatbotId: chatbot.id,
-        chatbotName: chatbot.name,
-        userId: chatbot.userId,
-        sessionId: sessionId || 'default',
-        contactId: resolvedContactId || null,
-        contactName: contactName || null,
-        inputMessage: message,
-        outputMessage: data.response || data.output || JSON.stringify(data),
-        costCharged: MESSAGE_COST,
-        status: 'success',
-      }
-    }).catch(err => console.error('Failed to log chatbot message:', err.message));
-
+    // Synchronous path (no buffering)
+    console.log(`Webhook proxy: chatbot ${id} (type: ${chatbot.chatbotType}) -> ${chatbot.n8nWebhookUrl}`);
+    const data = await forwardToN8n(chatbot, forwardBody, req.prisma);
     res.json(data);
   } catch (error) {
     const msg = error?.message || 'Unknown error';
     console.error('Webhook proxy error:', msg);
-    res.status(500).json({ error: msg });
+    res.status(error.statusCode || 500).json({ error: msg });
   }
 };
 
@@ -569,5 +600,6 @@ module.exports = {
   deleteChatbot,
   testChatbot,
   webhookProxy,
-  ghlRespond
+  ghlRespond,
+  handleBufferFlush
 };
