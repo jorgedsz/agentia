@@ -455,7 +455,17 @@ function handleBufferFlush(bufferKey, mergedMessage, context) {
 const webhookProxy = async (req, res) => {
   try {
     const { id } = req.params;
-    const { message, sessionId, variables, contactId, contactName } = req.body;
+    const body = req.body;
+
+    // Support GHL webhook format: message may be an object {type, body} or a string
+    // contactId may come as contact_id, contactId, customData.sessionId, or sessionId
+    const message = typeof body.message === 'string'
+      ? body.message
+      : (body.message?.body || body.customData?.message || '');
+    const contactId = body.contactId || body.contact_id || body.customData?.sessionId || body.sessionId || '';
+    const sessionId = body.sessionId || body.customData?.sessionId || body.contact_id || '';
+    const contactName = body.contactName || body.full_name || '';
+    const variables = body.variables || body.customData || null;
 
     if (!message) {
       return res.status(400).json({ error: 'message is required' });
@@ -490,12 +500,10 @@ const webhookProxy = async (req, res) => {
       return res.status(422).json({ error: 'Chatbot has no workflow configured' });
     }
 
-    const resolvedContactId = contactId || sessionId || '';
-    const forwardBody = { message, sessionId: sessionId || 'default', contactId: resolvedContactId };
+    const forwardBody = { message, sessionId: sessionId || 'default', contactId };
     if (contactName) forwardBody.contactName = contactName;
     if (variables && typeof variables === 'object') forwardBody.variables = variables;
-    console.log(`[Webhook proxy] chatbot=${id} incoming body:`, JSON.stringify(req.body));
-    console.log(`[Webhook proxy] forwarding to n8n:`, JSON.stringify(forwardBody));
+    console.log(`[Webhook proxy] chatbot=${id} resolved: message="${message}", contactId="${contactId}", sessionId="${sessionId || 'default'}", contactName="${contactName}"`);
 
     // Check for buffer/debounce config
     const config = parseConfig(chatbot.config);
