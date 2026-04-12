@@ -494,6 +494,8 @@ const webhookProxy = async (req, res) => {
     const forwardBody = { message, sessionId: sessionId || 'default', contactId: resolvedContactId };
     if (contactName) forwardBody.contactName = contactName;
     if (variables && typeof variables === 'object') forwardBody.variables = variables;
+    console.log(`[Webhook proxy] chatbot=${id} incoming body:`, JSON.stringify(req.body));
+    console.log(`[Webhook proxy] forwarding to n8n:`, JSON.stringify(forwardBody));
 
     // Check for buffer/debounce config
     const config = parseConfig(chatbot.config);
