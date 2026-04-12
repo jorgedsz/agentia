@@ -457,6 +457,7 @@ const webhookProxy = async (req, res) => {
   try {
     const { id } = req.params;
     const body = req.body;
+    console.log(`[Webhook proxy] RAW BODY:`, JSON.stringify(body, null, 2));
 
     // Support GHL webhook format: message may be an object {type, body} or a string
     // contactId may come as contact_id, contactId, customData.sessionId, or sessionId
