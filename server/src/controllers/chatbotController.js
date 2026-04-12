@@ -4,6 +4,7 @@ const n8nService = require('../services/n8nService');
 const { getN8nConfig } = require('../utils/getN8nConfig');
 const { findGhlConnection, ghlRequest } = require('./ghlController');
 const messageBuffer = require('../services/messageBuffer');
+const { transcribeAudio, analyzeImage } = require('../services/mediaProcessor');
 
 const getServerBaseUrl = () => {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
@@ -443,7 +444,6 @@ async function forwardToN8n(chatbot, forwardBody, prisma) {
 function handleBufferFlush(bufferKey, mergedMessage, context) {
   const { chatbot, forwardBody, prisma } = context;
 
-  console.log(`[Buffer flush] key="${bufferKey}" mergedMessage="${mergedMessage}" contactId="${forwardBody.contactId}"`);
   const mergedBody = { ...forwardBody, message: mergedMessage, _buffered: true };
 
   forwardToN8n(chatbot, mergedBody, prisma).catch(err => {
@@ -460,13 +460,39 @@ const webhookProxy = async (req, res) => {
 
     // Support GHL webhook format: message may be an object {type, body} or a string
     // contactId may come as contact_id, contactId, customData.sessionId, or sessionId
-    const message = typeof body.message === 'string'
-      ? body.message
-      : (body.message?.body || body.customData?.message || '');
     const contactId = body.contactId || body.contact_id || body.customData?.sessionId || body.sessionId || '';
     const sessionId = body.sessionId || body.customData?.sessionId || body.contact_id || '';
     const contactName = body.contactName || body.full_name || '';
     const variables = body.variables || body.customData || null;
+
+    // Detect media type from GHL message object
+    const msgObj = typeof body.message === 'object' ? body.message : null;
+    const msgType = msgObj?.type;
+    const mediaUrl = msgObj?.attachments?.[0]?.url
+      || msgObj?.attachments?.[0]
+      || msgObj?.attachment
+      || msgObj?.mediaUrl
+      || body.mediaUrl
+      || null;
+
+    let message;
+
+    if (msgType === 3 && mediaUrl) {
+      // Audio / voice note
+      console.log(`[Webhook proxy] Voice note detected (type=${msgType}), transcribing: ${mediaUrl}`);
+      const transcription = await transcribeAudio(mediaUrl);
+      message = `[Voice note]: ${transcription}`;
+    } else if (msgType === 2 && mediaUrl) {
+      // Image
+      console.log(`[Webhook proxy] Image detected (type=${msgType}), analyzing: ${mediaUrl}`);
+      const description = await analyzeImage(mediaUrl);
+      message = `[Image]: ${description}`;
+    } else {
+      // Text message (default)
+      message = typeof body.message === 'string'
+        ? body.message
+        : (msgObj?.body || body.customData?.message || '');
+    }
 
     if (!message) {
       return res.status(400).json({ error: 'message is required' });
