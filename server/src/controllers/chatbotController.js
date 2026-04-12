@@ -484,6 +484,7 @@ const webhookProxy = async (req, res) => {
       || /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(mediaUrl || '');
 
     let message;
+    console.log(`[Webhook proxy] media detection: msgText="${msgText}", mediaUrl="${mediaUrl}", isAudio=${isAudio}, isImage=${isImage}`);
 
     if (isAudio && mediaUrl) {
       console.log(`[Webhook proxy] Voice note detected, transcribing: ${mediaUrl}`);
