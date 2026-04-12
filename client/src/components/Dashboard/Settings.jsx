@@ -1922,6 +1922,12 @@ function APIKeysTab() {
   const [hasElevenLabs, setHasElevenLabs] = useState(false)
   const [maskedOpenai, setMaskedOpenai] = useState('')
   const [maskedElevenLabs, setMaskedElevenLabs] = useState('')
+  const [n8nUrl, setN8nUrl] = useState('')
+  const [n8nApiKey, setN8nApiKey] = useState('')
+  const [hasN8nUrl, setHasN8nUrl] = useState(false)
+  const [hasN8nApiKey, setHasN8nApiKey] = useState(false)
+  const [maskedN8nUrl, setMaskedN8nUrl] = useState('')
+  const [maskedN8nApiKey, setMaskedN8nApiKey] = useState('')
 
   useEffect(() => {
     if (isOwner && canEditVapiKeys) {
@@ -1989,6 +1995,10 @@ function APIKeysTab() {
       setHasElevenLabs(data.hasElevenLabs)
       setMaskedOpenai(data.openaiApiKey || '')
       setMaskedElevenLabs(data.elevenLabsApiKey || '')
+      setHasN8nUrl(data.hasN8nUrl)
+      setHasN8nApiKey(data.hasN8nApiKey)
+      setMaskedN8nUrl(data.n8nUrl || '')
+      setMaskedN8nApiKey(data.n8nApiKey || '')
     } catch (err) {
       setPlatError(err.response?.data?.error || 'Failed to load platform settings')
     } finally {
@@ -2053,14 +2063,22 @@ function APIKeysTab() {
       const payload = {}
       if (field === 'openai') payload.openaiApiKey = openaiApiKey
       if (field === 'elevenLabs') payload.elevenLabsApiKey = elevenLabsApiKey
+      if (field === 'n8nUrl') payload.n8nUrl = n8nUrl
+      if (field === 'n8nApiKey') payload.n8nApiKey = n8nApiKey
       const { data } = await platformSettingsAPI.update(payload)
       setHasOpenai(data.hasOpenai)
       setHasElevenLabs(data.hasElevenLabs)
       setMaskedOpenai(data.openaiApiKey || '')
       setMaskedElevenLabs(data.elevenLabsApiKey || '')
+      setHasN8nUrl(data.hasN8nUrl)
+      setHasN8nApiKey(data.hasN8nApiKey)
+      setMaskedN8nUrl(data.n8nUrl || '')
+      setMaskedN8nApiKey(data.n8nApiKey || '')
       setOpenaiApiKey('')
       setElevenLabsApiKey('')
-      const fieldLabel = field === 'elevenLabs' ? 'ElevenLabs' : 'OpenAI'
+      setN8nUrl('')
+      setN8nApiKey('')
+      const fieldLabel = { elevenLabs: 'ElevenLabs', openai: 'OpenAI', n8nUrl: 'n8n URL', n8nApiKey: 'n8n API Key' }[field] || field
       setPlatSuccess(`${fieldLabel} key updated successfully`)
       setTimeout(() => setPlatSuccess(''), 3000)
     } catch (err) {
@@ -2071,8 +2089,8 @@ function APIKeysTab() {
   }
 
   const handlePlatRemove = async (field) => {
-    const fieldLabel = field === 'elevenLabs' ? 'ElevenLabs' : 'OpenAI'
-    if (!confirm(`Are you sure you want to remove the ${fieldLabel} key?`)) return
+    const fieldLabel = { elevenLabs: 'ElevenLabs', openai: 'OpenAI', n8nUrl: 'n8n URL', n8nApiKey: 'n8n API Key' }[field] || field
+    if (!confirm(`Are you sure you want to remove the ${fieldLabel}?`)) return
     setPlatError('')
     setPlatSuccess('')
     setPlatSaving(true)
@@ -2080,11 +2098,17 @@ function APIKeysTab() {
       const payload = {}
       if (field === 'openai') payload.openaiApiKey = ''
       if (field === 'elevenLabs') payload.elevenLabsApiKey = ''
+      if (field === 'n8nUrl') payload.n8nUrl = ''
+      if (field === 'n8nApiKey') payload.n8nApiKey = ''
       const { data } = await platformSettingsAPI.update(payload)
       setHasOpenai(data.hasOpenai)
       setHasElevenLabs(data.hasElevenLabs)
       setMaskedOpenai(data.openaiApiKey || '')
       setMaskedElevenLabs(data.elevenLabsApiKey || '')
+      setHasN8nUrl(data.hasN8nUrl)
+      setHasN8nApiKey(data.hasN8nApiKey)
+      setMaskedN8nUrl(data.n8nUrl || '')
+      setMaskedN8nApiKey(data.n8nApiKey || '')
       setPlatSuccess(`${fieldLabel} key removed`)
       setTimeout(() => setPlatSuccess(''), 3000)
     } catch (err) {
@@ -2328,6 +2352,60 @@ function APIKeysTab() {
                 onRemove={() => handlePlatRemove('elevenLabs')}
                 saving={platSaving}
                 placeholder={hasElevenLabs ? t('settings.enterNewKey') : t('settings.enterElevenLabsKey')}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ===== n8n Integration Dropdown (OWNER only) ===== */}
+      {isOwner && (
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden">
+          <button
+            onClick={() => toggleSection('n8n')}
+            className="w-full flex items-center justify-between px-5 py-4 bg-white dark:bg-[#1e2024] hover:bg-gray-50 dark:hover:bg-[#252830] transition-colors"
+          >
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 text-left">n8n Integration</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5 text-left">Connect your self-hosted n8n instance for chatbot workflows</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+              {hasN8nUrl && hasN8nApiKey && (
+                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-green-500/15 text-green-400">
+                  Connected
+                </span>
+              )}
+              <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${openSections.n8n ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </button>
+          {openSections.n8n && (
+            <>
+              <KeyRow
+                title="n8n Instance URL"
+                description="The URL of your self-hosted n8n instance (e.g. https://n8n.yourdomain.com)"
+                hasKey={hasN8nUrl}
+                masked={maskedN8nUrl}
+                inputValue={n8nUrl}
+                onInputChange={(e) => setN8nUrl(e.target.value)}
+                onSave={() => handlePlatSave('n8nUrl')}
+                onRemove={() => handlePlatRemove('n8nUrl')}
+                saving={platSaving}
+                placeholder={hasN8nUrl ? 'Enter new URL' : 'https://n8n.yourdomain.com'}
+                statusLabel="Configured"
+              />
+              <KeyRow
+                title="n8n API Key"
+                description="API key from your n8n instance (Settings > API)"
+                hasKey={hasN8nApiKey}
+                masked={maskedN8nApiKey}
+                inputValue={n8nApiKey}
+                onInputChange={(e) => setN8nApiKey(e.target.value)}
+                onSave={() => handlePlatSave('n8nApiKey')}
+                onRemove={() => handlePlatRemove('n8nApiKey')}
+                saving={platSaving}
+                placeholder={hasN8nApiKey ? 'Enter new API key' : 'Enter n8n API key'}
               />
             </>
           )}
