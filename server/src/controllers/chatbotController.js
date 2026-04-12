@@ -466,9 +466,9 @@ const webhookProxy = async (req, res) => {
     const contactName = body.contactName || body.full_name || '';
     const variables = body.variables || body.customData || null;
 
-    // Resolve media URL — GHL puts it in variables.attachments (string) or body.attachments (array)
+    // Resolve media URL — GHL puts it in customData.attachments, variables.attachments, or body.attachments
     const msgObj = typeof body.message === 'object' ? body.message : null;
-    const rawAttachment = body.variables?.attachments || body.attachments?.[0];
+    const rawAttachment = body.customData?.attachments || body.variables?.attachments || body.attachments?.[0];
     const mediaUrl = typeof rawAttachment === 'string' ? rawAttachment
       : rawAttachment?.url
       || msgObj?.mediaUrl
