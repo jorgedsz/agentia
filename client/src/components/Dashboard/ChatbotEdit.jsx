@@ -1138,8 +1138,9 @@ export default function ChatbotEdit() {
               const curlExample = `curl -X POST ${webhookUrl} \\
   -H "Content-Type: application/json" \\
   -d '{
-    "message": "Hello!",
-    "sessionId": "user-123"${variables.length > 0 ? `,
+    "message": {"type": 1, "body": "Hello!"},
+    "sessionId": "user-123",
+    "attachments": []${variables.length > 0 ? `,
     "variables": {
 ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}
     }` : ''}
@@ -1186,8 +1187,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     <pre className="px-3 py-3 rounded-lg bg-gray-900 text-green-400 text-xs font-mono overflow-x-auto whitespace-pre">{curlExample}</pre>
                   </div>
                   <div className="text-xs text-gray-400 dark:text-gray-500 space-y-1">
-                    <p><strong className="text-gray-500 dark:text-gray-400">message</strong> (required) — The user's message</p>
+                    <p><strong className="text-gray-500 dark:text-gray-400">message</strong> (required) — {`{type, body}`} object or plain string. Types: 1=text, 2=image, 3=audio</p>
                     <p><strong className="text-gray-500 dark:text-gray-400">sessionId</strong> (optional) — Unique session ID for conversation memory</p>
+                    <p><strong className="text-gray-500 dark:text-gray-400">attachments</strong> (optional) — Array of media URLs (images, voice notes). Auto-transcribed/analyzed</p>
                     {variables.length > 0 && (
                       <p><strong className="text-gray-500 dark:text-gray-400">variables</strong> (optional) — Dynamic variables to inject into the prompt</p>
                     )}
