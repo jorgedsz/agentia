@@ -468,9 +468,9 @@ const webhookProxy = async (req, res) => {
     // Detect media type from GHL message object
     const msgObj = typeof body.message === 'object' ? body.message : null;
     const msgType = msgObj?.type;
-    const mediaUrl = msgObj?.attachments?.[0]?.url
-      || msgObj?.attachments?.[0]
-      || msgObj?.attachment
+    // GHL sends attachments as a top-level body.attachments array
+    const firstAttachment = body.attachments?.[0];
+    const mediaUrl = (typeof firstAttachment === 'string' ? firstAttachment : firstAttachment?.url)
       || msgObj?.mediaUrl
       || body.mediaUrl
       || null;
