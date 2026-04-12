@@ -1332,7 +1332,7 @@ function CalendarsTab() {
 
   // GHL state
   const [ghlStatus, setGhlStatus] = useState(null)
-  const [ghlConnectMode, setGhlConnectMode] = useState('oauth') // 'oauth' or 'bearer'
+  const [ghlConnectMode, setGhlConnectMode] = useState('bearer') // 'bearer' only
   const [ghlBearerToken, setGhlBearerToken] = useState('')
   const [ghlLocationId, setGhlLocationId] = useState('')
   const [showLocationId, setShowLocationId] = useState(false)
@@ -1398,24 +1398,6 @@ function CalendarsTab() {
       window.location.href = response.data.authorizationUrl
     } catch (err) {
       setError(err.response?.data?.error || `Failed to start ${providerId} OAuth flow`)
-      setConnecting('')
-    }
-  }
-
-  const handleGHLOAuthConnect = async () => {
-    setError('')
-    setConnecting('ghl')
-    try {
-      // Try unified calendar OAuth first, fall back to legacy
-      try {
-        const response = await calendarAPI.getOAuthUrl('ghl')
-        window.location.href = response.data.authorizationUrl
-      } catch {
-        const response = await ghlAPI.getAuthUrl()
-        window.location.href = response.data.authorizationUrl
-      }
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to start GHL OAuth flow')
       setConnecting('')
     }
   }
@@ -1551,7 +1533,6 @@ function CalendarsTab() {
                   <span className="text-sm text-green-700 dark:text-green-300">
                     {ghlStatus.locationName || 'GoHighLevel'}
                     {ghlStatus.connectionType === 'legacy' && <span className="text-yellow-600 ml-1">(PIT)</span>}
-                    {ghlStatus.connectionType === 'oauth' && <span className="text-blue-500 ml-1">(OAuth)</span>}
                   </span>
                 </div>
                 <button onClick={handleGHLDisconnect} className="text-xs text-red-500 hover:text-red-600">Disconnect</button>
@@ -1569,7 +1550,6 @@ function CalendarsTab() {
                     <span className="text-sm text-green-700 dark:text-green-300">
                       {integration.accountLabel || integration.externalAccountId}
                       {meta.connectionType === 'bearer' && <span className="text-yellow-600 ml-1">(PIT)</span>}
-                      {meta.connectionType === 'oauth' && <span className="text-blue-500 ml-1">(OAuth)</span>}
                     </span>
                   </div>
                   <button onClick={() => handleDisconnect(integration)} className="text-xs text-red-500 hover:text-red-600">Disconnect</button>
@@ -1581,85 +1561,39 @@ function CalendarsTab() {
 
         {/* Add account controls */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
+          <div className="space-y-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Paste your Private Integration Token from GHL Settings &gt; Integrations &gt; Private Integrations.
+            </p>
+            <input
+              type="password"
+              value={ghlBearerToken}
+              onChange={(e) => setGhlBearerToken(e.target.value)}
+              placeholder="pit-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              className="w-full px-3 py-2 bg-white dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400"
+            />
+            <input
+              type="text"
+              value={ghlLocationId}
+              onChange={(e) => setGhlLocationId(e.target.value)}
+              placeholder="Location ID"
+              className="w-full px-3 py-2 bg-white dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400"
+            />
             <button
-              onClick={() => setGhlConnectMode('oauth')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${ghlConnectMode === 'oauth' ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-border'}`}
-            >
-              OAuth
-            </button>
-            <button
-              onClick={() => setGhlConnectMode('bearer')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${ghlConnectMode === 'bearer' ? 'bg-primary-600 text-white' : 'bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-dark-border'}`}
-            >
-              Bearer Token (PIT)
-            </button>
-          </div>
-
-          {ghlConnectMode === 'oauth' ? (
-            <button
-              onClick={handleGHLOAuthConnect}
-              disabled={connecting === 'ghl'}
+              onClick={handleGHLBearerConnect}
+              disabled={savingGhlBearer || !ghlBearerToken.trim() || !ghlLocationId.trim()}
               className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm flex items-center gap-2"
             >
-              {connecting === 'ghl' ? (
+              {savingGhlBearer ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Redirecting...
+                  Connecting...
                 </>
               ) : (
-                (ghlStatus?.isConnected || getProviderIntegrations('ghl').length > 0) ? 'Add Another GHL Account' : 'Connect with GoHighLevel'
+                (ghlStatus?.isConnected || getProviderIntegrations('ghl').length > 0) ? 'Add Another GHL Account' : 'Connect with Bearer Token'
               )}
             </button>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Paste your Private Integration Token from GHL Settings &gt; Integrations &gt; Private Integrations.
-              </p>
-              <input
-                type="password"
-                value={ghlBearerToken}
-                onChange={(e) => setGhlBearerToken(e.target.value)}
-                placeholder="pit-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="w-full px-3 py-2 bg-white dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400"
-              />
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="ghl-location-id"
-                  checked={showLocationId}
-                  onChange={(e) => setShowLocationId(e.target.checked)}
-                  className="rounded border-gray-300 dark:border-dark-border text-primary-600 focus:ring-primary-500"
-                />
-                <label htmlFor="ghl-location-id" className="text-xs text-gray-500 dark:text-gray-400">
-                  Provide Location ID manually
-                </label>
-              </div>
-              {showLocationId && (
-                <input
-                  type="text"
-                  value={ghlLocationId}
-                  onChange={(e) => setGhlLocationId(e.target.value)}
-                  placeholder="Location ID"
-                  className="w-full px-3 py-2 bg-white dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400"
-                />
-              )}
-              <button
-                onClick={handleGHLBearerConnect}
-                disabled={savingGhlBearer || !ghlBearerToken.trim()}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm flex items-center gap-2"
-              >
-                {savingGhlBearer ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Connecting...
-                  </>
-                ) : (
-                  (ghlStatus?.isConnected || getProviderIntegrations('ghl').length > 0) ? 'Add Another GHL Account' : 'Connect with Bearer Token'
-                )}
-              </button>
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -1831,7 +1765,7 @@ function GHLIntegrationTab() {
     const ghlError = searchParams.get('ghl_error')
 
     if (ghlConnected === 'true') {
-      setSuccess('GoHighLevel connected successfully via OAuth!')
+      setSuccess('GoHighLevel connected successfully!')
     }
     if (ghlError) {
       setError(decodeURIComponent(ghlError))
@@ -1856,19 +1790,6 @@ function GHLIntegrationTab() {
       setError(err.response?.data?.error || 'Failed to fetch integration status')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleOAuthConnect = async () => {
-    setError('')
-    setConnecting(true)
-
-    try {
-      const response = await ghlAPI.getAuthUrl()
-      window.location.href = response.data.authorizationUrl
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to start OAuth flow')
-      setConnecting(false)
     }
   }
 
@@ -1940,28 +1861,6 @@ function GHLIntegrationTab() {
               </div>
             </div>
 
-            {status.connectionType === 'legacy' && (
-              <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-yellow-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">Legacy Connection</p>
-                    <p className="text-sm text-yellow-600 dark:text-yellow-300 mt-1">
-                      You're using a Private Integration Token. We recommend upgrading to OAuth for better security.
-                    </p>
-                    <button
-                      onClick={handleOAuthConnect}
-                      disabled={connecting}
-                      className="mt-2 px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 disabled:opacity-50"
-                    >
-                      {connecting ? 'Redirecting...' : 'Upgrade to OAuth'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             <button
               onClick={handleDisconnect}
@@ -1975,31 +1874,11 @@ function GHLIntegrationTab() {
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">Connect Your Account</h3>
 
-          <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4 mb-6">
+          <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Click the button below to securely connect your GoHighLevel account via OAuth.
+              Go to the Calendars tab to connect your GoHighLevel account using a Bearer Token (PIT).
             </p>
           </div>
-
-          <button
-            onClick={handleOAuthConnect}
-            disabled={connecting}
-            className="w-full px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-          >
-            {connecting ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                Redirecting...
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-                Connect with GoHighLevel
-              </>
-            )}
-          </button>
         </div>
       )}
     </div>
