@@ -91,9 +91,11 @@ const createChatbot = async (req, res) => {
     // Create n8n workflow if n8n is configured
     let n8nWorkflowId = null;
     let n8nWebhookUrl = null;
+    let n8nWarning = null;
     try {
       const n8nConfig = await getN8nConfig(req.prisma);
       if (n8nConfig) {
+        console.log('n8n config found, creating workflow for chatbot:', chatbot.id, 'n8n URL:', n8nConfig.url);
         n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
         const chatbotWithDecryptedUrl = { ...chatbot, outputUrl: outputUrl || null, config: config || {}, serverBaseUrl: getServerBaseUrl() };
         const workflow = await n8nService.createWorkflow(chatbotWithDecryptedUrl);
@@ -107,9 +109,14 @@ const createChatbot = async (req, res) => {
 
         // Activate the workflow
         await n8nService.activateWorkflow(workflow.id);
+        console.log('n8n workflow created and activated:', workflow.id);
+      } else {
+        console.warn('n8n config not found in PlatformSettings — skipping workflow creation');
+        n8nWarning = 'n8n is not configured. Go to Settings > API Keys > n8n Integration to set it up.';
       }
     } catch (n8nError) {
       console.error('n8n workflow creation failed (chatbot saved without workflow):', n8nError.message);
+      n8nWarning = `n8n workflow creation failed: ${n8nError.message}`;
     }
 
     logAudit(req.prisma, {
@@ -124,7 +131,7 @@ const createChatbot = async (req, res) => {
       req
     });
 
-    res.status(201).json({
+    const response = {
       message: 'Chatbot created successfully',
       chatbot: {
         ...chatbot,
@@ -133,7 +140,9 @@ const createChatbot = async (req, res) => {
         n8nWorkflowId,
         n8nWebhookUrl
       }
-    });
+    };
+    if (n8nWarning) response.n8nWarning = n8nWarning;
+    res.status(201).json(response);
   } catch (error) {
     console.error('Create chatbot error:', error);
     res.status(500).json({ error: 'Failed to create chatbot' });
@@ -168,9 +177,11 @@ const updateChatbot = async (req, res) => {
     });
 
     // Update n8n workflow if n8n is configured
+    let n8nWarning = null;
     try {
       const n8nConfig = await getN8nConfig(req.prisma);
       if (n8nConfig) {
+        console.log('n8n config found, updating workflow for chatbot:', chatbot.id, 'existing n8nWorkflowId:', existingChatbot.n8nWorkflowId);
         n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
         const decryptedOutputUrl = chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null;
         const chatbotForN8n = {
@@ -184,6 +195,7 @@ const updateChatbot = async (req, res) => {
           // Update existing workflow
           await n8nService.updateWorkflow(existingChatbot.n8nWorkflowId, chatbotForN8n);
           await n8nService.activateWorkflow(existingChatbot.n8nWorkflowId);
+          console.log('n8n workflow updated and activated:', existingChatbot.n8nWorkflowId);
         } else {
           // Create new workflow if one doesn't exist yet
           const workflow = await n8nService.createWorkflow(chatbotForN8n);
@@ -193,10 +205,15 @@ const updateChatbot = async (req, res) => {
             data: { n8nWorkflowId: String(workflow.id), n8nWebhookUrl }
           });
           await n8nService.activateWorkflow(workflow.id);
+          console.log('n8n workflow created and activated:', workflow.id);
         }
+      } else {
+        console.warn('n8n config not found in PlatformSettings — skipping workflow update');
+        n8nWarning = 'n8n is not configured. Go to Settings > API Keys > n8n Integration to set it up.';
       }
     } catch (n8nError) {
       console.error('n8n workflow update failed:', n8nError.message);
+      n8nWarning = `n8n workflow failed: ${n8nError.message}`;
     }
 
     logAudit(req.prisma, {
@@ -211,14 +228,16 @@ const updateChatbot = async (req, res) => {
       req
     });
 
-    res.json({
+    const response = {
       message: 'Chatbot updated successfully',
       chatbot: {
         ...chatbot,
         config: parseConfig(chatbot.config),
         outputUrl: chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null
       }
-    });
+    };
+    if (n8nWarning) response.n8nWarning = n8nWarning;
+    res.json(response);
   } catch (error) {
     console.error('Update chatbot error:', error);
     res.status(500).json({ error: 'Failed to update chatbot' });

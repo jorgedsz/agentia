@@ -802,7 +802,7 @@ export default function ChatbotEdit() {
       )
       const allTools = [...manualTools, ...calendarTools, ...callTools, ...sheetsTools, ...docsTools, ...ghlCrmTools]
 
-      await chatbotsAPI.update(id, {
+      const { data } = await chatbotsAPI.update(id, {
         name,
         chatbotType,
         outputType: 'respond_to_webhook',
@@ -826,7 +826,11 @@ export default function ChatbotEdit() {
         }
       })
 
-      setSuccess(t('chatbotEdit.chatbotSaved'))
+      if (data.n8nWarning) {
+        setError(data.n8nWarning)
+      } else {
+        setSuccess(t('chatbotEdit.chatbotSaved'))
+      }
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save chatbot')
