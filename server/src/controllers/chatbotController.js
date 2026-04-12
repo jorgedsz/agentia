@@ -443,6 +443,7 @@ async function forwardToN8n(chatbot, forwardBody, prisma) {
 function handleBufferFlush(bufferKey, mergedMessage, context) {
   const { chatbot, forwardBody, prisma } = context;
 
+  console.log(`[Buffer flush] key="${bufferKey}" mergedMessage="${mergedMessage}" contactId="${forwardBody.contactId}"`);
   const mergedBody = { ...forwardBody, message: mergedMessage, _buffered: true };
 
   forwardToN8n(chatbot, mergedBody, prisma).catch(err => {
@@ -512,7 +513,9 @@ const webhookProxy = async (req, res) => {
     if (bufferSeconds > 0) {
       const bufferKey = `${chatbot.id}:${forwardBody.sessionId}`;
       const context = { chatbot, forwardBody, prisma: req.prisma };
+      console.log(`[Webhook proxy] buffering message for key="${bufferKey}" (delay=${bufferSeconds}s)`);
       const result = messageBuffer.addMessage(bufferKey, message, bufferSeconds, context, handleBufferFlush);
+      console.log(`[Webhook proxy] buffer size: ${result.bufferSize}, flushed: ${result.flushed || false}`);
       return res.json({ queued: true, bufferSize: result.bufferSize });
     }
 
