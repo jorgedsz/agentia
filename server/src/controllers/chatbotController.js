@@ -465,26 +465,32 @@ const webhookProxy = async (req, res) => {
     const contactName = body.contactName || body.full_name || '';
     const variables = body.variables || body.customData || null;
 
-    // Detect media type from GHL message object
+    // Resolve media URL — GHL puts it in variables.attachments (string) or body.attachments (array)
     const msgObj = typeof body.message === 'object' ? body.message : null;
-    const msgType = msgObj?.type;
-    // GHL sends attachments as a top-level body.attachments array
-    const firstAttachment = body.attachments?.[0];
-    const mediaUrl = (typeof firstAttachment === 'string' ? firstAttachment : firstAttachment?.url)
+    const rawAttachment = body.variables?.attachments || body.attachments?.[0];
+    const mediaUrl = typeof rawAttachment === 'string' ? rawAttachment
+      : rawAttachment?.url
       || msgObj?.mediaUrl
       || body.mediaUrl
       || null;
 
+    // Detect media type: GHL message.type (2=image,3=audio), message text, or file extension
+    const msgType = msgObj?.type;
+    const msgText = typeof body.message === 'string' ? body.message : (msgObj?.body || '');
+    const isAudio = msgType === 3
+      || /voice\s*note/i.test(msgText)
+      || /\.(mp3|ogg|wav|m4a|webm|opus|aac)(\?|$)/i.test(mediaUrl || '');
+    const isImage = msgType === 2
+      || /\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(mediaUrl || '');
+
     let message;
 
-    if (msgType === 3 && mediaUrl) {
-      // Audio / voice note
-      console.log(`[Webhook proxy] Voice note detected (type=${msgType}), transcribing: ${mediaUrl}`);
+    if (isAudio && mediaUrl) {
+      console.log(`[Webhook proxy] Voice note detected, transcribing: ${mediaUrl}`);
       const transcription = await transcribeAudio(mediaUrl);
       message = `[Voice note]: ${transcription}`;
-    } else if (msgType === 2 && mediaUrl) {
-      // Image
-      console.log(`[Webhook proxy] Image detected (type=${msgType}), analyzing: ${mediaUrl}`);
+    } else if (isImage && mediaUrl) {
+      console.log(`[Webhook proxy] Image detected, analyzing: ${mediaUrl}`);
       const description = await analyzeImage(mediaUrl);
       message = `[Image]: ${description}`;
     } else {
