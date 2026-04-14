@@ -53,12 +53,16 @@ const getAllUsers = async (req, res) => {
         callsPaused: true,
         messagesPaused: true,
         agencyId: true,
+        whitelabelId: true,
         createdAt: true,
         agency: {
           select: { id: true, name: true, email: true }
         },
+        whitelabel: {
+          select: { id: true, name: true, email: true }
+        },
         _count: {
-          select: { clients: true, agents: true }
+          select: { clients: true, agents: true, agencies: true }
         },
         waProjects: {
           select: {
@@ -82,15 +86,21 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// Get all agencies (OWNER only)
+// Get all agencies (OWNER sees all, WHITELABEL sees their own)
 const getAllAgencies = async (req, res) => {
   try {
+    const where = { role: ROLES.AGENCY };
+    if (req.user.role === ROLES.WHITELABEL) {
+      where.whitelabelId = req.user.id;
+    }
+
     const agencies = await req.prisma.user.findMany({
-      where: { role: ROLES.AGENCY },
+      where,
       select: {
         id: true,
         email: true,
         name: true,
+        whitelabelId: true,
         createdAt: true,
         _count: {
           select: { clients: true }
@@ -106,15 +116,41 @@ const getAllAgencies = async (req, res) => {
   }
 };
 
-// Get agency's clients (AGENCY or OWNER)
+// Get agency's clients (AGENCY, WHITELABEL, or OWNER)
 const getAgencyClients = async (req, res) => {
   try {
-    const agencyId = req.user.role === ROLES.AGENCY
-      ? req.user.id
-      : parseInt(req.params.agencyId);
+    let where;
+
+    if (req.user.role === ROLES.AGENCY) {
+      where = { agencyId: req.user.id };
+    } else if (req.user.role === ROLES.WHITELABEL) {
+      if (req.params.agencyId) {
+        // Verify the agency belongs to this whitelabel
+        const agency = await req.prisma.user.findUnique({
+          where: { id: parseInt(req.params.agencyId) },
+          select: { whitelabelId: true }
+        });
+        if (!agency || agency.whitelabelId !== req.user.id) {
+          return res.status(403).json({ error: 'Agency does not belong to you' });
+        }
+        where = { agencyId: parseInt(req.params.agencyId) };
+      } else {
+        // All clients under whitelabel's agencies + direct clients
+        const myAgencies = await req.prisma.user.findMany({
+          where: { role: ROLES.AGENCY, whitelabelId: req.user.id },
+          select: { id: true }
+        });
+        const agencyIds = myAgencies.map(a => a.id);
+        where = { agencyId: { in: [...agencyIds, req.user.id] } };
+      }
+    } else {
+      // OWNER - specific agency or all
+      const agencyId = req.params.agencyId ? parseInt(req.params.agencyId) : undefined;
+      where = agencyId ? { agencyId } : { role: ROLES.CLIENT };
+    }
 
     const clients = await req.prisma.user.findMany({
-      where: { agencyId },
+      where,
       select: {
         id: true,
         email: true,
@@ -165,14 +201,25 @@ const createAgency = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const agencyData = {
+      email,
+      password: hashedPassword,
+      name,
+      phoneNumber: phoneNumber || null,
+      role: ROLES.AGENCY
+    };
+
+    // WHITELABEL: link agency to themselves
+    if (req.user.role === ROLES.WHITELABEL) {
+      agencyData.whitelabelId = req.user.id;
+    }
+    // OWNER: optionally link to a whitelabel
+    if (req.user.role === ROLES.OWNER && req.body.whitelabelId) {
+      agencyData.whitelabelId = parseInt(req.body.whitelabelId);
+    }
+
     const agency = await req.prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name,
-        phoneNumber: phoneNumber || null,
-        role: ROLES.AGENCY
-      },
+      data: agencyData,
       select: {
         id: true,
         email: true,
@@ -233,6 +280,21 @@ const createClient = async (req, res) => {
     let assignedAgencyId;
     if (req.user.role === ROLES.AGENCY) {
       assignedAgencyId = req.user.id;
+    } else if (req.user.role === ROLES.WHITELABEL) {
+      if (agencyId) {
+        // Verify the agency belongs to this whitelabel
+        const agency = await req.prisma.user.findUnique({
+          where: { id: parseInt(agencyId) },
+          select: { whitelabelId: true }
+        });
+        if (!agency || agency.whitelabelId !== req.user.id) {
+          return res.status(403).json({ error: 'Agency does not belong to you' });
+        }
+        assignedAgencyId = parseInt(agencyId);
+      } else {
+        // Link directly to whitelabel
+        assignedAgencyId = req.user.id;
+      }
     } else if (req.user.role === ROLES.OWNER) {
       assignedAgencyId = agencyId || null;
     }
@@ -335,7 +397,7 @@ const updateUserRole = async (req, res) => {
   }
 };
 
-// Delete user/client (OWNER or AGENCY for their clients)
+// Delete user/client (OWNER, WHITELABEL, or AGENCY for their clients)
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -359,6 +421,23 @@ const deleteUser = async (req, res) => {
       return res.status(403).json({ error: 'Cannot delete an owner account' });
     }
 
+    // WHITELABEL can delete their agencies and their agencies' clients
+    if (req.user.role === ROLES.WHITELABEL) {
+      if (targetUser.whitelabelId === req.user.id) {
+        // Direct agency - OK
+      } else if (targetUser.agencyId) {
+        const agency = await req.prisma.user.findUnique({
+          where: { id: targetUser.agencyId },
+          select: { whitelabelId: true }
+        });
+        if (!agency || agency.whitelabelId !== req.user.id) {
+          return res.status(403).json({ error: 'Cannot delete this user' });
+        }
+      } else {
+        return res.status(403).json({ error: 'Cannot delete this user' });
+      }
+    }
+
     // AGENCY can only delete their own clients
     if (req.user.role === ROLES.AGENCY && targetUser.agencyId !== req.user.id) {
       return res.status(403).json({ error: 'Cannot delete this client' });
@@ -374,6 +453,14 @@ const deleteUser = async (req, res) => {
       where: { assignedUserId: targetId },
       data: { assignedUserId: null }
     });
+
+    // Unlink agencies if deleting a whitelabel
+    if (targetUser.role === ROLES.WHITELABEL) {
+      await req.prisma.user.updateMany({
+        where: { whitelabelId: targetId },
+        data: { whitelabelId: null }
+      });
+    }
 
     // Unlink clients if deleting an agency
     if (targetUser.role === ROLES.AGENCY) {
@@ -394,7 +481,7 @@ const deleteUser = async (req, res) => {
   }
 };
 
-// Update user billing (credits and rates) - OWNER only
+// Update user billing (credits and rates) - OWNER and WHITELABEL
 const updateUserBilling = async (req, res) => {
   try {
     const { id } = req.params;
@@ -406,6 +493,23 @@ const updateUserBilling = async (req, res) => {
 
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
+    }
+
+    // WHITELABEL can only manage billing for their agencies and clients
+    if (req.user.role === ROLES.WHITELABEL) {
+      let allowed = false;
+      if (targetUser.whitelabelId === req.user.id) {
+        allowed = true;
+      } else if (targetUser.agencyId) {
+        const agency = await req.prisma.user.findUnique({
+          where: { id: targetUser.agencyId },
+          select: { whitelabelId: true }
+        });
+        if (agency && agency.whitelabelId === req.user.id) allowed = true;
+      }
+      if (!allowed) {
+        return res.status(403).json({ error: 'Cannot manage billing for this user' });
+      }
     }
 
     const updateData = {};
@@ -511,6 +615,28 @@ const getDashboardStats = async (req, res) => {
         req.prisma.callLog.count()
       ]);
       stats = { totalClients, totalAgencies, totalAgents, totalCalls };
+    } else if (role === ROLES.WHITELABEL) {
+      const myAgencies = await req.prisma.user.findMany({
+        where: { role: ROLES.AGENCY, whitelabelId: id },
+        select: { id: true }
+      });
+      const agencyIds = myAgencies.map(a => a.id);
+      const userIds = [id, ...agencyIds];
+
+      // Clients under my agencies + directly under me
+      const clientIds = await req.prisma.user.findMany({
+        where: { role: ROLES.CLIENT, agencyId: { in: userIds } },
+        select: { id: true }
+      });
+      const allUserIds = [...userIds, ...clientIds.map(c => c.id)];
+
+      const [totalAgencies, totalClients, totalAgents, totalCalls] = await Promise.all([
+        Promise.resolve(agencyIds.length),
+        Promise.resolve(clientIds.length),
+        req.prisma.agent.count({ where: { userId: { in: allUserIds } } }),
+        req.prisma.callLog.count({ where: { userId: { in: allUserIds } } })
+      ]);
+      stats = { totalAgencies, totalClients, totalAgents, totalCalls };
     } else if (role === ROLES.AGENCY) {
       const [totalClients, totalAgents, totalCalls] = await Promise.all([
         req.prisma.user.count({ where: { agencyId: id } }),
@@ -565,6 +691,21 @@ const getDashboardOverview = async (req, res) => {
       callUserFilter = {};
       agentFilter = {};
       clientFilter = { role: ROLES.CLIENT };
+    } else if (role === ROLES.WHITELABEL) {
+      // Whitelabel sees own + agencies + agencies' clients
+      const myAgencies = await req.prisma.user.findMany({
+        where: { role: ROLES.AGENCY, whitelabelId: id },
+        select: { id: true }
+      });
+      const agencyIds = myAgencies.map(a => a.id);
+      const myClients = await req.prisma.user.findMany({
+        where: { role: ROLES.CLIENT, agencyId: { in: [id, ...agencyIds] } },
+        select: { id: true }
+      });
+      const allUserIds = [id, ...agencyIds, ...myClients.map(c => c.id)];
+      callUserFilter = { userId: { in: allUserIds } };
+      agentFilter = { userId: { in: allUserIds } };
+      clientFilter = { agencyId: { in: [id, ...agencyIds] } };
     } else if (role === ROLES.AGENCY) {
       // Agency sees own + their clients' data
       const clientIds = await req.prisma.user.findMany({
@@ -613,12 +754,12 @@ const getDashboardOverview = async (req, res) => {
       req.prisma.agent.count({
         where: { ...agentFilter, createdAt: { gte: weekAgo } }
       }),
-      // Total clients (OWNER/AGENCY only)
-      (role === ROLES.OWNER || role === ROLES.AGENCY)
+      // Total clients (OWNER/WHITELABEL/AGENCY only)
+      (role === ROLES.OWNER || role === ROLES.WHITELABEL || role === ROLES.AGENCY)
         ? req.prisma.user.count({ where: clientFilter })
         : Promise.resolve(0),
-      // New clients this month (OWNER/AGENCY only)
-      (role === ROLES.OWNER || role === ROLES.AGENCY)
+      // New clients this month (OWNER/WHITELABEL/AGENCY only)
+      (role === ROLES.OWNER || role === ROLES.WHITELABEL || role === ROLES.AGENCY)
         ? req.prisma.user.count({ where: { ...clientFilter, createdAt: { gte: monthAgo } } })
         : Promise.resolve(0),
       // Daily calls for last 7 days
@@ -680,9 +821,9 @@ const getDashboardOverview = async (req, res) => {
       duration: a._sum.durationSeconds || 0
     }));
 
-    // Top clients (OWNER/AGENCY only)
+    // Top clients (OWNER/WHITELABEL/AGENCY only)
     let topClients = [];
-    if (role === ROLES.OWNER || role === ROLES.AGENCY) {
+    if (role === ROLES.OWNER || role === ROLES.WHITELABEL || role === ROLES.AGENCY) {
       const clientUserFilter = role === ROLES.OWNER
         ? {}
         : { userId: { in: (await req.prisma.user.findMany({ where: { agencyId: id }, select: { id: true } })).map(c => c.id) } };

@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 
 const ROLES = {
   OWNER: 'OWNER',
+  WHITELABEL: 'WHITELABEL',
   AGENCY: 'AGENCY',
   CLIENT: 'CLIENT'
 };
@@ -25,13 +26,58 @@ const getAccessibleAccounts = async (req, res) => {
       accounts = await req.prisma.user.findMany({
         where: {
           id: { not: user.id },
-          role: { in: [ROLES.AGENCY, ROLES.CLIENT] }
+          role: { in: [ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] }
         },
         select: {
           id: true,
           email: true,
           name: true,
           role: true,
+          whitelabelId: true,
+          voiceAgentsEnabled: true,
+          chatbotsEnabled: true,
+          crmEnabled: true,
+          agentGeneratorEnabled: true,
+          callsPaused: true,
+          messagesPaused: true,
+          agency: {
+            select: { id: true, name: true, email: true }
+          },
+          whitelabel: {
+            select: { id: true, name: true, email: true }
+          },
+          _count: {
+            select: { agents: true, clients: true, agencies: true }
+          }
+        },
+        orderBy: [{ role: 'asc' }, { name: 'asc' }]
+      });
+    } else if (user.role === ROLES.WHITELABEL) {
+      // Whitelabel can access their agencies and those agencies' clients
+      const myAgencies = await req.prisma.user.findMany({
+        where: { role: ROLES.AGENCY, whitelabelId: user.id },
+        select: { id: true }
+      });
+      const agencyIds = myAgencies.map(a => a.id);
+
+      accounts = await req.prisma.user.findMany({
+        where: {
+          id: { not: user.id },
+          OR: [
+            { whitelabelId: user.id, role: ROLES.AGENCY },
+            { agencyId: { in: [...agencyIds, user.id] }, role: ROLES.CLIENT }
+          ]
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          agencyId: true,
+          whitelabelId: true,
+          vapiCredits: true,
+          outboundRate: true,
+          inboundRate: true,
           voiceAgentsEnabled: true,
           chatbotsEnabled: true,
           crmEnabled: true,
@@ -118,7 +164,28 @@ const switchAccount = async (req, res) => {
     }
 
     // Authorization checks
-    if (user.role === ROLES.AGENCY) {
+    if (user.role === ROLES.WHITELABEL) {
+      // Whitelabel can switch to their agencies and those agencies' clients
+      let allowed = false;
+      if (targetUser.role === ROLES.AGENCY) {
+        const agency = await req.prisma.user.findUnique({
+          where: { id: targetUser.id },
+          select: { whitelabelId: true }
+        });
+        if (agency && agency.whitelabelId === user.id) allowed = true;
+      } else if (targetUser.role === ROLES.CLIENT && targetUser.agencyId) {
+        const agency = await req.prisma.user.findUnique({
+          where: { id: targetUser.agencyId },
+          select: { whitelabelId: true }
+        });
+        if (agency && agency.whitelabelId === user.id) allowed = true;
+        // Also allow direct clients
+        if (targetUser.agencyId === user.id) allowed = true;
+      }
+      if (!allowed) {
+        return res.status(403).json({ error: 'You can only access your own agencies and their clients' });
+      }
+    } else if (user.role === ROLES.AGENCY) {
       // Agency can only switch to their own clients
       if (targetUser.agencyId !== user.id) {
         return res.status(403).json({ error: 'You can only access your own clients' });

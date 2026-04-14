@@ -8,14 +8,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Role: OWNER = full access, AGENCY = access to own clients, CLIENT = own account only
+// Role: OWNER = full access, WHITELABEL = manages agencies, AGENCY = access to own clients, CLIENT = own account only
 model User {
   id                Int                @id @default(autoincrement())
   email             String             @unique
   password          String
   name              String?
   phoneNumber       String?            // Client phone number
-  role              String             @default("CLIENT") // OWNER, AGENCY, CLIENT
+  role              String             @default("CLIENT") // OWNER, WHITELABEL, AGENCY, CLIENT
   vapiCredits       Float              @default(0) // VAPI call credits balance
   outboundRate      Float              @default(0.10) // $ per minute for outbound calls
   inboundRate       Float              @default(0.05) // $ per minute for inbound calls
@@ -33,6 +33,9 @@ model User {
   messagesPaused     Boolean           @default(false)
   portalToken        String?           @unique // Shareable read-only portal token
   whopCustomerId    String?            // Whop customer/user ID
+  whitelabelId      Int?               // If AGENCY, belongs to this whitelabel
+  whitelabel        User?              @relation("WhitelabelAgencies", fields: [whitelabelId], references: [id])
+  agencies          User[]             @relation("WhitelabelAgencies") // If WHITELABEL, these are their agencies
   agencyId          Int?               // If CLIENT, belongs to this agency
   agency            User?              @relation("AgencyClients", fields: [agencyId], references: [id])
   clients           User[]             @relation("AgencyClients") // If AGENCY, these are their clients

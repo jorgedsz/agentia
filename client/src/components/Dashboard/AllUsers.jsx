@@ -5,6 +5,7 @@ import { usersAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
+  WHITELABEL: 'WHITELABEL',
   AGENCY: 'AGENCY',
   CLIENT: 'CLIENT'
 }
@@ -50,6 +51,7 @@ export default function AllUsers() {
   const getRoleBadgeColor = (role) => {
     switch (role) {
       case ROLES.OWNER: return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+      case ROLES.WHITELABEL: return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
       case ROLES.AGENCY: return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
       default: return 'bg-green-500/20 text-green-400 border-green-500/30'
     }
@@ -194,7 +196,7 @@ export default function AllUsers() {
           />
         </div>
         <div className="flex gap-2">
-          {['all', ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT].map((f) => (
+          {['all', ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}

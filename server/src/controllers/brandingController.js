@@ -26,10 +26,30 @@ exports.getBranding = async (req, res) => {
       companyName: user.companyName,
       companyLogo: user.companyLogo,
       companyTagline: user.companyTagline,
-      canEdit: user.role === 'OWNER' || user.role === 'AGENCY'
+      canEdit: user.role === 'OWNER' || user.role === 'WHITELABEL' || user.role === 'AGENCY'
     };
 
-    // If client and no custom branding, inherit from agency
+    // If agency and no custom branding, inherit from whitelabel
+    if (user.role === 'AGENCY' && !user.companyName && !user.companyLogo) {
+      const agencyFull = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { whitelabelId: true }
+      });
+      if (agencyFull?.whitelabelId) {
+        const wl = await prisma.user.findUnique({
+          where: { id: agencyFull.whitelabelId },
+          select: { companyName: true, companyLogo: true, companyTagline: true }
+        });
+        if (wl && (wl.companyName || wl.companyLogo)) {
+          branding.companyName = wl.companyName;
+          branding.companyLogo = wl.companyLogo;
+          branding.companyTagline = wl.companyTagline;
+          branding.inheritedFrom = 'whitelabel';
+        }
+      }
+    }
+
+    // If client and no custom branding, inherit from agency (or agency's whitelabel)
     if (user.role === 'CLIENT' && user.agencyId && !user.companyName && !user.companyLogo) {
       const agency = await prisma.user.findUnique({
         where: { id: user.agencyId },
@@ -67,8 +87,8 @@ exports.updateBranding = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (user.role !== 'OWNER' && user.role !== 'AGENCY') {
-      return res.status(403).json({ error: 'Only owners and agencies can update branding' });
+    if (user.role !== 'OWNER' && user.role !== 'WHITELABEL' && user.role !== 'AGENCY') {
+      return res.status(403).json({ error: 'Only owners, whitelabels, and agencies can update branding' });
     }
 
     const { companyName, companyLogo, companyTagline } = req.body;

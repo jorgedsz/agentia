@@ -3,6 +3,7 @@ import { useTheme } from '../../context/ThemeContext'
 
 const ROLES = {
   OWNER: 'OWNER',
+  WHITELABEL: 'WHITELABEL',
   AGENCY: 'AGENCY',
   CLIENT: 'CLIENT'
 }
@@ -100,10 +101,10 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     {
       title: 'Management',
       items: [
-        { id: 'clients', label: 'Clients', icon: Icons.Users, roles: [ROLES.OWNER, ROLES.AGENCY] },
-        { id: 'agencies', label: 'Agencies', icon: Icons.Agency, roles: [ROLES.OWNER] },
+        { id: 'clients', label: 'Clients', icon: Icons.Users, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
+        { id: 'agencies', label: 'Agencies', icon: Icons.Agency, roles: [ROLES.OWNER, ROLES.WHITELABEL] },
         { id: 'all-users', label: 'All Users', icon: Icons.Users, roles: [ROLES.OWNER] },
-        { id: 'sub-accounts', label: 'Sub Accounts', icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'sub-accounts', label: 'Sub Accounts', icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
       ]
     },
     {
@@ -116,7 +117,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
     {
       title: 'System',
       items: [
-        { id: 'call-logs', label: 'Call Logs', icon: Icons.Logs, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'call-logs', label: 'Call Logs', icon: Icons.Logs, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
         { id: 'settings', label: 'Settings', icon: Icons.Settings, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     }

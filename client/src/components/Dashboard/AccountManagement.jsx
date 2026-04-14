@@ -5,6 +5,7 @@ import { authAPI, usersAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
+  WHITELABEL: 'WHITELABEL',
   AGENCY: 'AGENCY',
   CLIENT: 'CLIENT'
 }
@@ -50,7 +51,7 @@ export default function AccountManagement() {
       if (user?.role === ROLES.OWNER) {
         const response = await usersAPI.getAll()
         setAccounts(response.data.users)
-      } else if (user?.role === ROLES.AGENCY) {
+      } else if (user?.role === ROLES.WHITELABEL || user?.role === ROLES.AGENCY) {
         const response = await authAPI.getAccessibleAccounts()
         setAccounts(response.data.accounts)
       }
@@ -75,6 +76,7 @@ export default function AccountManagement() {
   const getRoleBadgeColor = (role) => {
     switch (role) {
       case ROLES.OWNER: return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+      case ROLES.WHITELABEL: return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
       case ROLES.AGENCY: return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
       default: return 'bg-green-500/20 text-green-400 border-green-500/30'
     }
@@ -241,7 +243,7 @@ export default function AccountManagement() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {(user?.role === ROLES.OWNER || user?.role === ROLES.AGENCY) && (
+            {(user?.role === ROLES.OWNER || user?.role === ROLES.WHITELABEL || user?.role === ROLES.AGENCY) && (
               <button
                 onClick={() => { setShowModal('client'); setFormData({}); setError(''); }}
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 text-sm"
@@ -252,7 +254,7 @@ export default function AccountManagement() {
                 {t('dashboardContent.addClient')}
               </button>
             )}
-            {user?.role === ROLES.OWNER && (
+            {(user?.role === ROLES.OWNER || user?.role === ROLES.WHITELABEL) && (
               <button
                 onClick={() => { setShowModal('agency'); setFormData({}); setError(''); }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
@@ -283,7 +285,7 @@ export default function AccountManagement() {
           />
         </div>
         <div className="flex gap-2">
-          {['all', ROLES.AGENCY, ROLES.CLIENT].map((f) => (
+          {['all', ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT].filter(f => f === 'all' || user?.role === ROLES.OWNER || f !== ROLES.WHITELABEL).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -392,7 +394,7 @@ export default function AccountManagement() {
                             )}
                           </button>
                         )}
-                        {(user?.role === ROLES.OWNER || (user?.role === ROLES.AGENCY && account.agencyId === user?.id)) && (
+                        {(user?.role === ROLES.OWNER || user?.role === ROLES.WHITELABEL || (user?.role === ROLES.AGENCY && account.agencyId === user?.id)) && (
                           <button
                             onClick={() => openBillingModal(account)}
                             className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors"
@@ -400,7 +402,7 @@ export default function AccountManagement() {
                             {t('common.manageBilling')}
                           </button>
                         )}
-                        {account.id !== user?.id && (user?.role === ROLES.OWNER || (user?.role === ROLES.AGENCY && account.agencyId === user?.id)) && (
+                        {account.id !== user?.id && (user?.role === ROLES.OWNER || user?.role === ROLES.WHITELABEL || (user?.role === ROLES.AGENCY && account.agencyId === user?.id)) && (
                           <button
                             onClick={() => handleDeleteUser(account)}
                             className="px-3 py-1.5 text-red-500 text-sm rounded-lg hover:bg-red-500/10 transition-colors"
