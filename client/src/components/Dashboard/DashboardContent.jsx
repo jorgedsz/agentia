@@ -573,6 +573,24 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
     ? Math.round(((data.callsToday - data.callsYesterday) / data.callsYesterday) * 100)
     : data.callsToday > 0 ? 100 : 0
 
+  const messagesChange = data.messagesYesterday > 0
+    ? Math.round(((data.messagesToday - data.messagesYesterday) / data.messagesYesterday) * 100)
+    : data.messagesToday > 0 ? 100 : 0
+
+  // Merge daily calls + messages into unified chart data
+  const mergedDailyData = (() => {
+    const map = {}
+    for (const d of (data.dailyCalls || [])) {
+      if (!map[d.date]) map[d.date] = { date: d.date, calls: 0, messages: 0 }
+      map[d.date].calls = d.count
+    }
+    for (const d of (data.dailyMessages || [])) {
+      if (!map[d.date]) map[d.date] = { date: d.date, calls: 0, messages: 0 }
+      map[d.date].messages = d.count
+    }
+    return Object.values(map).sort((a, b) => a.date.localeCompare(b.date))
+  })()
+
   const formatDuration = (seconds) => {
     if (!seconds) return '0m'
     const mins = Math.floor(seconds / 60)
@@ -588,7 +606,11 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
       return (
         <div className="bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg px-3 py-2 shadow-lg">
           <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
-          <p className="text-sm font-semibold text-gray-900 dark:text-white">{payload[0].value} {t('overview.calls')}</p>
+          {payload.map((entry, i) => (
+            <p key={i} className="text-sm font-semibold" style={{ color: entry.color }}>
+              {entry.value} {entry.dataKey === 'calls' ? t('overview.calls') : (t('overview.messages') || 'Messages')}
+            </p>
+          ))}
         </div>
       )
     }
@@ -598,7 +620,7 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
   return (
     <div className="space-y-6">
       {/* Row 1: Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Calls Today */}
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
           <div className="flex items-center justify-between">
@@ -615,6 +637,27 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
             <div className="w-12 h-12 bg-teal-500/10 rounded-lg flex items-center justify-center">
               <svg className="w-6 h-6 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Messages Today */}
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('overview.messagesToday') || 'Messages Today'}</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{data.messagesToday || 0}</p>
+              <p className="text-xs mt-1">
+                <span className={messagesChange >= 0 ? 'text-green-500' : 'text-red-500'}>
+                  {messagesChange >= 0 ? '+' : ''}{messagesChange}%
+                </span>
+                <span className="text-gray-400 dark:text-gray-500 ml-1">{t('overview.vsYesterday')}</span>
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-indigo-500/10 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
           </div>
@@ -696,16 +739,20 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Left: Calls Overview Chart */}
         <div className="lg:col-span-3 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('overview.callsOverview')}</h2>
-          {data.dailyCalls && data.dailyCalls.length > 0 ? (
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('overview.activityOverview') || 'Activity Overview'}</h2>
+          {mergedDailyData.length > 0 ? (
             <>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={data.dailyCalls} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                  <AreaChart data={mergedDailyData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#6b7280" stopOpacity={0.3} />
                         <stop offset="95%" stopColor="#6b7280" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:opacity-20" />
@@ -719,22 +766,31 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
                     />
                     <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} allowDecimals={false} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Area type="monotone" dataKey="count" stroke="#6b7280" fill="url(#colorCalls)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="calls" stroke="#6b7280" fill="url(#colorCalls)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="messages" stroke="#6366f1" fill="url(#colorMessages)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-              <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-dark-border">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-dark-border">
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{t('overview.totalCalls')}</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">{data.summary?.totalCalls || 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('overview.totalMessages') || 'Total Messages'}</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">{data.messagesSummary?.totalMessages || 0}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{t('overview.totalDuration')}</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">{formatDuration(data.summary?.totalDuration)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('overview.totalCost')}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('overview.callsCost') || 'Calls Cost'}</p>
                   <p className="text-lg font-semibold text-gray-900 dark:text-white">${(data.summary?.totalCost || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('overview.chatbotsCost') || 'Chatbots Cost'}</p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">${(data.messagesSummary?.totalCost || 0).toFixed(2)}</p>
                 </div>
               </div>
             </>
@@ -771,6 +827,39 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">{agent.calls}</p>
                       <p className="text-xs text-gray-400">${agent.cost.toFixed(2)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">{t('overview.noDataYet')}</p>
+            )}
+          </div>
+
+          {/* Top Chatbots */}
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('overview.topChatbots') || 'Top Chatbots'}</h2>
+              <button onClick={() => navigate('/dashboard/chatbots')} className="text-sm text-primary-500 hover:text-primary-400">
+                {t('overview.viewAll')} &gt;
+              </button>
+            </div>
+            {data.topChatbots && data.topChatbots.length > 0 ? (
+              <div className="space-y-3">
+                {data.topChatbots.map((chatbot, idx) => (
+                  <div key={chatbot.id} className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full ${AVATAR_COLORS[(idx + 2) % AVATAR_COLORS.length]} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0`}>
+                      {(chatbot.name || '?')[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{chatbot.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {chatbot.messages} {t('overview.messages') || 'messages'} &middot; ${chatbot.cost.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{chatbot.messages}</p>
+                      <p className="text-xs text-gray-400">${chatbot.cost.toFixed(2)}</p>
                     </div>
                   </div>
                 ))}

@@ -620,12 +620,18 @@ const getAdvancedAnalytics = async (req, res) => {
         revenueByProductMap[slug].revenue += up.amount;
       }
 
-      // Credits consumed (all call costs in range)
-      const creditsAgg = await req.prisma.callLog.aggregate({
-        where: dateFilter,
-        _sum: { costCharged: true }
-      });
-      const creditsConsumed = creditsAgg._sum.costCharged || 0;
+      // Credits consumed (all call costs + chatbot message costs in range)
+      const [creditsAgg, chatbotCreditsAgg] = await Promise.all([
+        req.prisma.callLog.aggregate({
+          where: dateFilter,
+          _sum: { costCharged: true }
+        }),
+        req.prisma.chatbotMessage.aggregate({
+          where: dateFilter,
+          _sum: { costCharged: true }
+        })
+      ]);
+      const creditsConsumed = (creditsAgg._sum.costCharged || 0) + (chatbotCreditsAgg._sum.costCharged || 0);
 
       // Total remaining credits across all users
       const creditsRemAgg = await req.prisma.user.aggregate({
@@ -934,17 +940,112 @@ const getAdvancedAnalytics = async (req, res) => {
         }
       }
 
+      const chatbotCountWhere = userRole === 'OWNER' ? {} : growthAgentWhere;
+      const totalChatbots = await req.prisma.chatbot.count({ where: chatbotCountWhere });
+
       growth = {
         agentsOverTime: Object.entries(agentsOverTimeMap)
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([month, count]) => ({ month, count })),
         totalAgents: allGrowthAgents.length,
+        totalChatbots,
         totalCalendarIntegrations,
         productAdoption
       };
     }
 
-    res.json({ revenue, agents, calls, clients, growth });
+    // ── CHATBOTS ──
+    const chatbotMsgWhere = { ...userFilter, ...dateFilter };
+
+    const totalChatbotMessages = await req.prisma.chatbotMessage.aggregate({
+      where: chatbotMsgWhere,
+      _count: { id: true },
+      _sum: { costCharged: true }
+    });
+
+    // Per-chatbot stats
+    const perChatbotRaw = await req.prisma.chatbotMessage.groupBy({
+      by: ['chatbotId', 'chatbotName'],
+      where: chatbotMsgWhere,
+      _count: { id: true },
+      _sum: { costCharged: true }
+    });
+
+    // Per-chatbot status breakdown
+    const chatbotStatusRaw = await req.prisma.chatbotMessage.groupBy({
+      by: ['chatbotId', 'status'],
+      where: chatbotMsgWhere,
+      _count: { id: true }
+    });
+    const chatbotStatusMap = {};
+    for (const row of chatbotStatusRaw) {
+      if (!chatbotStatusMap[row.chatbotId]) chatbotStatusMap[row.chatbotId] = {};
+      chatbotStatusMap[row.chatbotId][row.status] = row._count.id;
+    }
+
+    const perChatbot = perChatbotRaw.map(c => {
+      const statuses = chatbotStatusMap[c.chatbotId] || {};
+      const total = c._count.id;
+      const successCount = statuses.success || 0;
+      const errorCount = statuses.error || 0;
+      return {
+        chatbotId: c.chatbotId,
+        name: c.chatbotName || 'Unknown',
+        totalMessages: total,
+        totalCost: parseFloat((c._sum.costCharged || 0).toFixed(2)),
+        successCount,
+        errorCount,
+        successRate: total > 0 ? parseFloat(((successCount / total) * 100).toFixed(1)) : 0
+      };
+    }).sort((a, b) => b.totalMessages - a.totalMessages);
+
+    // Daily chatbot message counts
+    const chatbotDailyRaw = await req.prisma.chatbotMessage.findMany({
+      where: chatbotMsgWhere,
+      select: { createdAt: true, status: true }
+    });
+    const chatbotDailyMap = {};
+    const chatbotStatusTotals = { success: 0, error: 0 };
+    for (const msg of chatbotDailyRaw) {
+      const day = msg.createdAt.toISOString().slice(0, 10);
+      if (!chatbotDailyMap[day]) chatbotDailyMap[day] = { date: day, total: 0, success: 0, error: 0 };
+      chatbotDailyMap[day].total++;
+      if (msg.status === 'error') {
+        chatbotDailyMap[day].error++;
+        chatbotStatusTotals.error++;
+      } else {
+        chatbotDailyMap[day].success++;
+        chatbotStatusTotals.success++;
+      }
+    }
+    const chatbotDailyCounts = Object.values(chatbotDailyMap).sort((a, b) => a.date.localeCompare(b.date));
+
+    // Chatbot utilization by day (top 5 chatbots)
+    const top5ChatbotIds = perChatbot.slice(0, 5).map(c => c.chatbotId);
+    const chatbotUtilRaw = top5ChatbotIds.length > 0 ? await req.prisma.chatbotMessage.findMany({
+      where: { ...chatbotMsgWhere, chatbotId: { in: top5ChatbotIds } },
+      select: { chatbotId: true, chatbotName: true, createdAt: true }
+    }) : [];
+    const chatbotUtilMap = {};
+    for (const msg of chatbotUtilRaw) {
+      const day = msg.createdAt.toISOString().slice(0, 10);
+      const key = `${day}-${msg.chatbotId}`;
+      if (!chatbotUtilMap[key]) {
+        chatbotUtilMap[key] = { date: day, chatbotId: msg.chatbotId, chatbotName: msg.chatbotName || 'Unknown', messages: 0 };
+      }
+      chatbotUtilMap[key].messages++;
+    }
+
+    const chatbots = {
+      totalMessages: totalChatbotMessages._count.id || 0,
+      totalCost: parseFloat((totalChatbotMessages._sum.costCharged || 0).toFixed(2)),
+      perChatbot,
+      dailyCounts: chatbotDailyCounts,
+      statusTotals: chatbotStatusTotals,
+      utilizationByDay: Object.values(chatbotUtilMap).sort((a, b) => a.date.localeCompare(b.date))
+    };
+
+    res.json({ revenue, agents, calls, clients, growth, chatbots });
   } catch (error) {
     console.error('Get advanced analytics error:', error);
     res.status(500).json({ error: 'Failed to get advanced analytics' });

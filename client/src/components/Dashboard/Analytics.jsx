@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { callsAPI } from '../../services/api'
+import { callsAPI, chatbotMessagesAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 import { useAuth } from '../../context/AuthContext'
 import {
@@ -118,6 +118,7 @@ export default function Analytics() {
   const tabs = useMemo(() => {
     const allTabs = [
       { id: 'calls', label: t('analytics.tabCalls'), roles: ['OWNER', 'AGENCY', 'CLIENT'] },
+      { id: 'chatbots', label: t('analytics.tabChatbots') || 'Chatbots', roles: ['OWNER', 'AGENCY', 'CLIENT'] },
       { id: 'revenue', label: t('analytics.tabRevenue'), roles: ['OWNER'] },
       { id: 'agents', label: t('analytics.tabAgents'), roles: ['OWNER', 'AGENCY', 'CLIENT'] },
       { id: 'clients', label: t('analytics.tabClients'), roles: ['OWNER', 'AGENCY'] },
@@ -245,6 +246,7 @@ export default function Analytics() {
 
       {/* Tab Content */}
       {activeTab === 'calls' && <CallsTab data={data} advancedCalls={advancedData?.calls} t={t} />}
+      {activeTab === 'chatbots' && <ChatbotsTab data={advancedData?.chatbots} t={t} />}
       {activeTab === 'revenue' && <RevenueTab data={advancedData?.revenue} t={t} />}
       {activeTab === 'agents' && <AgentsTab data={advancedData?.agents} t={t} />}
       {activeTab === 'clients' && <ClientsTab data={advancedData?.clients} t={t} />}
@@ -413,6 +415,163 @@ function CallsTab({ data, advancedCalls, t }) {
             </div>
           )}
         </>
+      )}
+    </>
+  )
+}
+
+// ─── CHATBOTS TAB ───
+function ChatbotsTab({ data, t }) {
+  if (!data) return <EmptyState message={t('analytics.noChatbotData') || 'No chatbot data available'} />
+
+  const STATUS_COLORS = {
+    success: '#22c55e',
+    error: '#ef4444'
+  }
+
+  const statusPieData = useMemo(() => {
+    if (!data?.statusTotals) return []
+    return Object.entries(data.statusTotals)
+      .filter(([, count]) => count > 0)
+      .map(([key, value]) => ({
+        name: key === 'success' ? (t('analytics.success') || 'Success') : (t('analytics.error') || 'Error'),
+        value,
+        color: STATUS_COLORS[key] || '#9ca3af'
+      }))
+  }, [data, t])
+
+  const bestSuccessRate = data.perChatbot?.length > 0 ? Math.max(...data.perChatbot.map(c => c.successRate)) : 0
+  const avgCostPerMessage = data.totalMessages > 0 ? data.totalCost / data.totalMessages : 0
+
+  // Utilization chart: pivot by date with chatbot names as keys
+  const utilizationChartData = useMemo(() => {
+    const dateMap = {}
+    for (const row of data.utilizationByDay || []) {
+      if (!dateMap[row.date]) dateMap[row.date] = { date: row.date }
+      dateMap[row.date][row.chatbotName] = row.messages
+    }
+    return Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date))
+  }, [data])
+
+  const chatbotNames = useMemo(() => {
+    const names = new Set()
+    for (const row of data.utilizationByDay || []) names.add(row.chatbotName)
+    return [...names]
+  }, [data])
+
+  return (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard title={t('analytics.totalMessages') || 'Total Messages'} value={data.totalMessages || 0}
+          icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>}
+          color="blue" />
+        <StatCard title={t('analytics.totalChatbotCost') || 'Total Cost'} value={formatCurrency(data.totalCost)}
+          icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+          color="green" />
+        <StatCard title={t('analytics.bestSuccessRate') || 'Best Success Rate'} value={`${bestSuccessRate.toFixed(1)}%`}
+          icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+          color="emerald" />
+        <StatCard title={t('analytics.avgCostPerMessage') || 'Avg Cost/Message'} value={formatCurrency(avgCostPerMessage)}
+          icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>}
+          color="violet" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Status Distribution */}
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          <SectionTitle>{t('analytics.statusDistribution') || 'Status Distribution'}</SectionTitle>
+          {statusPieData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={statusPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value">
+                  {statusPieData.map((entry, index) => (<Cell key={index} fill={entry.color} />))}
+                </Pie>
+                <Tooltip contentStyle={TOOLTIP_STYLE} />
+                <Legend verticalAlign="bottom" height={36}
+                  formatter={(value) => <span className="text-xs text-gray-600 dark:text-gray-400">{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[260px] text-gray-400 text-sm">{t('analytics.noChatbotData') || 'No data'}</div>
+          )}
+        </div>
+
+        {/* Daily Message Volume */}
+        <div className="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          <SectionTitle>{t('analytics.dailyMessageVolume') || 'Daily Message Volume'}</SectionTitle>
+          {data.dailyCounts?.length > 0 ? (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={data.dailyCounts}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9ca3af' }}
+                  tickFormatter={(val) => { const d = new Date(val); return `${d.getMonth() + 1}/${d.getDate()}` }} />
+                <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} allowDecimals={false} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} />
+                <Legend formatter={(value) => <span className="text-xs text-gray-600 dark:text-gray-400">{value === 'success' ? (t('analytics.success') || 'Success') : (t('analytics.error') || 'Error')}</span>} />
+                <Bar dataKey="success" stackId="a" fill="#22c55e" />
+                <Bar dataKey="error" stackId="a" fill="#ef4444" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[260px] text-gray-400 text-sm">{t('analytics.noChatbotData') || 'No data'}</div>
+          )}
+        </div>
+      </div>
+
+      {/* Per-Chatbot Performance Table */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+          <SectionTitle>{t('analytics.chatbotPerformance') || 'Chatbot Performance'}</SectionTitle>
+        </div>
+        {data.perChatbot?.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-4 py-3">{t('analytics.chatbotName') || 'Chatbot'}</th>
+                  <th className="px-4 py-3 text-right">{t('analytics.totalMessages') || 'Messages'}</th>
+                  <th className="px-4 py-3 text-right">{t('analytics.success') || 'Success'}</th>
+                  <th className="px-4 py-3 text-right">{t('analytics.errors') || 'Errors'}</th>
+                  <th className="px-4 py-3 text-right">{t('analytics.successRateCol') || 'Success Rate'}</th>
+                  <th className="px-4 py-3 text-right">{t('analytics.costCol')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
+                {data.perChatbot.map((c) => (
+                  <tr key={c.chatbotId}>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">{c.name}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">{c.totalMessages}</td>
+                    <td className="px-4 py-3 text-sm text-right text-green-600 dark:text-green-400">{c.successCount}</td>
+                    <td className="px-4 py-3 text-sm text-right text-red-600 dark:text-red-400">{c.errorCount}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">{c.successRate}%</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">{formatCurrency(c.totalCost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <div className="p-6 text-center text-gray-400 text-sm">{t('analytics.noChatbotData') || 'No chatbot data'}</div>}
+      </div>
+
+      {/* Chatbot Utilization Chart */}
+      {utilizationChartData.length > 0 && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+          <SectionTitle>{t('analytics.chatbotUtilization') || 'Chatbot Utilization'}</SectionTitle>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={utilizationChartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9ca3af' }}
+                tickFormatter={(val) => { const d = new Date(val); return `${d.getMonth() + 1}/${d.getDate()}` }} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} allowDecimals={false} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
+              <Legend formatter={(v) => <span className="text-xs text-gray-600 dark:text-gray-400">{v}</span>} />
+              {chatbotNames.map((name, i) => (
+                <Area key={name} type="monotone" dataKey={name} stackId="1"
+                  stroke={CHART_COLORS[i % CHART_COLORS.length]} fill={CHART_COLORS[i % CHART_COLORS.length]} fillOpacity={0.3} />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </>
   )

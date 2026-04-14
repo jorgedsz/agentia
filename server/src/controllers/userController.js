@@ -722,6 +722,18 @@ const getDashboardOverview = async (req, res) => {
       agentFilter = { userId: id };
     }
 
+    // Build chatbot message filter based on role
+    let chatbotUserFilter = {};
+    if (role === ROLES.OWNER) {
+      chatbotUserFilter = {};
+    } else if (role === ROLES.WHITELABEL) {
+      chatbotUserFilter = callUserFilter; // same user set
+    } else if (role === ROLES.AGENCY) {
+      chatbotUserFilter = callUserFilter;
+    } else {
+      chatbotUserFilter = { userId: id };
+    }
+
     // Run all queries in parallel
     const [
       callsToday,
@@ -733,7 +745,12 @@ const getDashboardOverview = async (req, res) => {
       newClientsThisMonth,
       dailyCalls,
       summaryAgg,
-      topAgentsRaw
+      topAgentsRaw,
+      messagesToday,
+      messagesYesterday,
+      dailyMessages,
+      messagesSummaryAgg,
+      topChatbotsRaw
     ] = await Promise.all([
       // Calls today
       req.prisma.callLog.count({
@@ -783,6 +800,36 @@ const getDashboardOverview = async (req, res) => {
         _sum: { costCharged: true, durationSeconds: true },
         orderBy: { _count: { id: 'desc' } },
         take: 5
+      }),
+      // Chatbot messages today
+      req.prisma.chatbotMessage.count({
+        where: { ...chatbotUserFilter, createdAt: { gte: todayStart } }
+      }),
+      // Chatbot messages yesterday
+      req.prisma.chatbotMessage.count({
+        where: { ...chatbotUserFilter, createdAt: { gte: yesterdayStart, lt: todayStart } }
+      }),
+      // Daily chatbot messages for last 7 days
+      req.prisma.chatbotMessage.groupBy({
+        by: ['createdAt'],
+        where: { ...chatbotUserFilter, createdAt: { gte: weekAgo } },
+        _count: { id: true },
+        orderBy: { createdAt: 'asc' }
+      }),
+      // Chatbot messages summary aggregates
+      req.prisma.chatbotMessage.aggregate({
+        where: { ...chatbotUserFilter, createdAt: { gte: weekAgo } },
+        _count: { id: true },
+        _sum: { costCharged: true }
+      }),
+      // Top chatbots by message count
+      req.prisma.chatbotMessage.groupBy({
+        by: ['chatbotId', 'chatbotName'],
+        where: { ...chatbotUserFilter },
+        _count: { id: true },
+        _sum: { costCharged: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 5
       })
     ]);
 
@@ -801,6 +848,30 @@ const getDashboardOverview = async (req, res) => {
       }
     });
     const dailyCallsFormatted = Object.entries(dailyMap).map(([date, count]) => ({ date, count }));
+
+    // Process daily chatbot messages into date buckets
+    const dailyMsgMap = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(todayStart);
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      dailyMsgMap[key] = 0;
+    }
+    dailyMessages.forEach(row => {
+      const key = new Date(row.createdAt).toISOString().split('T')[0];
+      if (dailyMsgMap[key] !== undefined) {
+        dailyMsgMap[key] += row._count.id;
+      }
+    });
+    const dailyMessagesFormatted = Object.entries(dailyMsgMap).map(([date, count]) => ({ date, count }));
+
+    // Top chatbots
+    const topChatbots = topChatbotsRaw.map(c => ({
+      id: c.chatbotId,
+      name: c.chatbotName || `Chatbot #${c.chatbotId}`,
+      messages: c._count.id,
+      cost: c._sum.costCharged || 0
+    }));
 
     // Fetch agent names for top agents
     const agentIds = topAgentsRaw.filter(a => a.agentId).map(a => a.agentId);
@@ -872,7 +943,16 @@ const getDashboardOverview = async (req, res) => {
         totalCost: summaryAgg._sum.costCharged || 0
       },
       topAgents,
-      topClients
+      topClients,
+      // Chatbot data
+      messagesToday,
+      messagesYesterday,
+      dailyMessages: dailyMessagesFormatted,
+      messagesSummary: {
+        totalMessages: messagesSummaryAgg._count.id || 0,
+        totalCost: messagesSummaryAgg._sum.costCharged || 0
+      },
+      topChatbots
     });
   } catch (error) {
     console.error('Get dashboard overview error:', error);
