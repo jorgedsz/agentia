@@ -71,6 +71,7 @@ export const usersAPI = {
   getAll: () => api.get('/users'),
   getAgencies: () => api.get('/users/agencies'),
   createAgency: (data) => api.post('/users/agencies', data),
+  createWhitelabel: (data) => api.post('/users/whitelabels', data),
   getClients: (agencyId) => agencyId
     ? api.get(`/users/clients/${agencyId}`)
     : api.get('/users/clients'),

@@ -16,6 +16,9 @@ router.get('/overview', userController.getDashboardOverview);
 // Get all users (OWNER only)
 router.get('/', requireRole(ROLES.OWNER), userController.getAllUsers);
 
+// Create whitelabel (OWNER only)
+router.post('/whitelabels', requireRole(ROLES.OWNER), userController.createWhitelabel);
+
 // Get all agencies (OWNER and WHITELABEL)
 router.get('/agencies', requireRole(ROLES.OWNER, ROLES.WHITELABEL), userController.getAllAgencies);
 

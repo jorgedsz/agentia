@@ -880,12 +880,87 @@ const getDashboardOverview = async (req, res) => {
   }
 };
 
+// Create whitelabel (OWNER only)
+const createWhitelabel = async (req, res) => {
+  try {
+    const { email, password, name, phoneNumber } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const existingUser = await req.prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const whitelabel = await req.prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+        phoneNumber: phoneNumber || null,
+        role: ROLES.WHITELABEL
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phoneNumber: true,
+        role: true,
+        createdAt: true
+      }
+    });
+
+    // Auto-assign a VAPI key from the pool
+    let vapiKeyWarning = null;
+    const availableKey = await req.prisma.vapiKeyPool.findFirst({
+      where: { assignedUserId: null }
+    });
+    if (availableKey) {
+      await req.prisma.$transaction([
+        req.prisma.vapiKeyPool.update({
+          where: { id: availableKey.id },
+          data: { assignedUserId: whitelabel.id }
+        }),
+        req.prisma.user.update({
+          where: { id: whitelabel.id },
+          data: {
+            vapiApiKey: availableKey.vapiApiKey,
+            vapiPublicKey: availableKey.vapiPublicKey
+          }
+        })
+      ]);
+    } else {
+      vapiKeyWarning = 'No VAPI keys available in the pool. Add more keys in Settings > VAPI Key Pool.';
+    }
+
+    // Fire webhook
+    fireAccountWebhook(req.prisma, whitelabel, 'whitelabel');
+
+    res.status(201).json({
+      message: 'Whitelabel created successfully',
+      whitelabel,
+      vapiKeyWarning
+    });
+  } catch (error) {
+    console.error('Create whitelabel error:', error);
+    res.status(500).json({ error: 'Failed to create whitelabel' });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getAllAgencies,
   getAgencyClients,
   createAgency,
   createClient,
+  createWhitelabel,
   updateUserRole,
   updateUserBilling,
   deleteUser,
