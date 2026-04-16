@@ -266,8 +266,8 @@ export default function DashboardLayout() {
     {
       title: t('sidebar.sectionSystem'),
       items: [
-        { id: 'call-logs', path: '/dashboard/call-logs', label: t('sidebar.callLogs'), icon: Icons.Logs, roles: [ROLES.OWNER, ROLES.AGENCY] },
-        { id: 'message-logs', path: '/dashboard/message-logs', label: t('sidebar.messageLogs'), icon: Icons.Chatbot, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'call-logs', path: '/dashboard/call-logs', label: t('sidebar.callLogs'), icon: Icons.Logs, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'message-logs', path: '/dashboard/message-logs', label: t('sidebar.messageLogs'), icon: Icons.Chatbot, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'scheduled-calls', path: '/dashboard/scheduled-calls', label: t('sidebar.scheduledCalls'), icon: Icons.ScheduledCalls, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'settings', path: '/dashboard/settings', label: t('sidebar.settings'), icon: Icons.Settings, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'support', path: '/dashboard/support', label: t('sidebar.support'), icon: Icons.Support, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
