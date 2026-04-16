@@ -3,7 +3,7 @@ const { ROLES } = require('../middleware/roleMiddleware');
 const { decrypt } = require('../utils/encryption');
 
 // Fire account creation webhook (non-blocking)
-const fireAccountWebhook = async (prisma, account, type) => {
+const fireAccountWebhook = async (prisma, account, type, plainPassword) => {
   try {
     const settings = await prisma.platformSettings.findFirst();
     if (!settings?.accountWebhookUrl) return;
@@ -20,6 +20,7 @@ const fireAccountWebhook = async (prisma, account, type) => {
         account: {
           id: account.id,
           email: account.email,
+          password: plainPassword || null,
           name: account.name || null,
           phoneNumber: account.phoneNumber || null,
           role: account.role,
@@ -254,7 +255,7 @@ const createAgency = async (req, res) => {
     }
 
     // Fire webhook
-    fireAccountWebhook(req.prisma, agency, 'agency');
+    fireAccountWebhook(req.prisma, agency, 'agency', password);
 
     res.status(201).json({
       message: 'Agency created successfully',
@@ -353,7 +354,7 @@ const createClient = async (req, res) => {
     }
 
     // Fire webhook
-    fireAccountWebhook(req.prisma, client, 'client');
+    fireAccountWebhook(req.prisma, client, 'client', password);
 
     res.status(201).json({
       message: 'Client created successfully',
@@ -1021,7 +1022,7 @@ const createWhitelabel = async (req, res) => {
     }
 
     // Fire webhook
-    fireAccountWebhook(req.prisma, whitelabel, 'whitelabel');
+    fireAccountWebhook(req.prisma, whitelabel, 'whitelabel', password);
 
     res.status(201).json({
       message: 'Whitelabel created successfully',
