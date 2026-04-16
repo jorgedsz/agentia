@@ -333,7 +333,7 @@ const testChatbot = async (req, res) => {
     const ghlTestContactId = bodyContactId || calendarConfig.ghlTestContactId || ghlCrmConfig.ghlTestContactId || '';
     const ghlTestContactName = calendarConfig.ghlTestContactName || ghlCrmConfig.ghlTestContactName || '';
 
-    const testBody = { message, sessionId: sessionId || 'default' };
+    const testBody = { message, sessionId: sessionId || 'default', _testMode: true };
     if (ghlTestContactId) {
       testBody.contactId = ghlTestContactId;
     }
@@ -652,10 +652,16 @@ const syncWorkflow = async (req, res) => {
 const ghlRespond = async (req, res) => {
   try {
     const { id } = req.params;
-    const { response: aiResponse, contactId } = req.body;
+    const { response: aiResponse, contactId, _testMode } = req.body;
 
     if (!aiResponse || !contactId) {
       return res.status(400).json({ error: 'response and contactId are required' });
+    }
+
+    // Skip real GHL API call when triggered from the test interface
+    if (_testMode) {
+      console.log(`ghlRespond: test mode — skipping GHL send for chatbot ${id}`);
+      return res.json({ success: true, testMode: true });
     }
 
     const chatbot = await req.prisma.chatbot.findUnique({ where: { id } });

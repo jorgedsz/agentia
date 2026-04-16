@@ -122,7 +122,7 @@ class N8nService {
       typeVersion: 2,
       position: [400, 300],
       parameters: {
-        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nconst now = new Date();\nresolved += '\\n\\nCurrent date and time: ' + now.toISOString() + ' (' + now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }) + ')';\nconst contactId = $json.body?.contactId || $json.body?.sessionId || "";\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: contactId, contactName: $json.body?.contactName || "" } }];`
+        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nconst now = new Date();\nresolved += '\\n\\nCurrent date and time: ' + now.toISOString() + ' (' + now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }) + ')';\nconst contactId = $json.body?.contactId || $json.body?.sessionId || "";\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: contactId, contactName: $json.body?.contactName || "", _testMode: $json.body?._testMode || false } }];`
       }
     };
     nodes.push(resolveVarsNode);
@@ -281,7 +281,7 @@ class N8nService {
           method: 'POST',
           sendBody: true,
           specifyBody: 'json',
-          jsonBody: `={{ JSON.stringify({ response: $json.output, contactId: $('Resolve Variables').first().json.contactId }) }}`
+          jsonBody: `={{ JSON.stringify({ response: $json.output, contactId: $('Resolve Variables').first().json.contactId, _testMode: $('Resolve Variables').first().json._testMode }) }}`
         }
       };
       nodes.push(ghlRespondNode);
