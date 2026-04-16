@@ -565,6 +565,57 @@ const webhookProxy = async (req, res) => {
 };
 
 /**
+ * Sync/regenerate the n8n workflow for an existing chatbot.
+ * Useful after workflow template changes without needing to re-save the chatbot.
+ * POST /api/chatbots/:id/sync-workflow (authenticated)
+ */
+const syncWorkflow = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const chatbot = await req.prisma.chatbot.findFirst({
+      where: { id, userId: req.user.id }
+    });
+
+    if (!chatbot) {
+      return res.status(404).json({ error: 'Chatbot not found' });
+    }
+
+    const n8nConfig = await getN8nConfig(req.prisma);
+    if (!n8nConfig) {
+      return res.status(422).json({ error: 'n8n is not configured' });
+    }
+
+    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+    const decryptedOutputUrl = chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null;
+    const chatbotForN8n = {
+      ...chatbot,
+      outputUrl: decryptedOutputUrl,
+      config: parseConfig(chatbot.config) || {},
+      serverBaseUrl: getServerBaseUrl()
+    };
+
+    if (chatbot.n8nWorkflowId) {
+      await n8nService.updateWorkflow(chatbot.n8nWorkflowId, chatbotForN8n);
+      await n8nService.activateWorkflow(chatbot.n8nWorkflowId);
+    } else {
+      const workflow = await n8nService.createWorkflow(chatbotForN8n);
+      const n8nWebhookUrl = `${n8nConfig.url.replace(/\/+$/, '')}/webhook/chatbot-${chatbot.id}`;
+      await req.prisma.chatbot.update({
+        where: { id: chatbot.id },
+        data: { n8nWorkflowId: String(workflow.id), n8nWebhookUrl }
+      });
+      await n8nService.activateWorkflow(workflow.id);
+    }
+
+    res.json({ message: 'Workflow synced successfully' });
+  } catch (error) {
+    console.error('Sync workflow error:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to sync workflow' });
+  }
+};
+
+/**
  * GHL respond endpoint — called by n8n HTTP Request node for GHL chatbot types.
  * Sends the AI response to the contact via GHL Conversations API.
  * POST /api/chatbots/:id/ghl-respond (public, no auth)
@@ -587,8 +638,8 @@ const ghlRespond = async (req, res) => {
 
     const conn = await findGhlConnection(chatbot.userId, req.prisma);
     if (!conn) {
-      console.error('ghlRespond: no GHL connection found for user', chatbot.userId);
-      return res.status(422).json({ error: 'No GHL connection found for this account' });
+      console.warn('ghlRespond: no GHL connection found for user', chatbot.userId, '— skipping GHL send (test/no-GHL mode)');
+      return res.json({ success: true, skipped: true, reason: 'No GHL connection configured — message not sent to GHL' });
     }
 
     await ghlRequest('/conversations/messages', conn.token, {
@@ -665,6 +716,7 @@ module.exports = {
   toggleChatbot,
   deleteChatbot,
   testChatbot,
+  syncWorkflow,
   webhookProxy,
   ghlRespond,
   handleBufferFlush

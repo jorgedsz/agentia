@@ -31,4 +31,7 @@ router.delete('/:id', chatbotController.deleteChatbot);
 // POST /api/chatbots/:id/test - Test chatbot with streaming chat
 router.post('/:id/test', chatbotController.testChatbot);
 
+// POST /api/chatbots/:id/sync-workflow - Regenerate n8n workflow from current config
+router.post('/:id/sync-workflow', chatbotController.syncWorkflow);
+
 module.exports = router;

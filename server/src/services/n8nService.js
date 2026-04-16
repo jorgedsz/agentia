@@ -288,6 +288,11 @@ class N8nService {
     }
 
     // 8. Single Respond to Webhook node (used by both production and test triggers)
+    // For GHL types, $json at this point is the HTTP response from Send GHL Message,
+    // so we must reference the AI Chat Agent output directly by node name.
+    const aiOutputExpr = isGhlType && serverBaseUrl
+      ? `$('AI Chat Agent').first().json.output`
+      : `$json.output`;
     const respondNode = {
       id: 'respond-webhook',
       name: 'Respond to Webhook',
@@ -296,7 +301,7 @@ class N8nService {
       position: [isGhlType && serverBaseUrl ? 1050 : 900, 300],
       parameters: {
         respondWith: 'json',
-        responseBody: `={{ JSON.stringify({ response: $json.output, chatbotId: "${chatbot.id}" }) }}`
+        responseBody: `={{ JSON.stringify({ response: ${aiOutputExpr}, chatbotId: "${chatbot.id}" }) }}`
       }
     };
     nodes.push(respondNode);

@@ -61,6 +61,7 @@ export const chatbotsAPI = {
   toggle: (id) => api.post(`/chatbots/${id}/toggle`),
   delete: (id) => api.delete(`/chatbots/${id}`),
   test: (id, message, sessionId, contactId) => api.post(`/chatbots/${id}/test`, { message, sessionId, contactId }),
+  syncWorkflow: (id) => api.post(`/chatbots/${id}/sync-workflow`),
   getFollowUpLogs: (chatbotId) => api.get('/chatbot-follow-ups/logs', { params: { chatbotId } })
 }
 

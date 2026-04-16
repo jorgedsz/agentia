@@ -16,7 +16,7 @@ const fireAccountWebhook = async (prisma, account, type) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         event: 'account.created',
-        type, // "client" or "agency"
+        type, // "client", "agency", or "whitelabel"
         account: {
           id: account.id,
           email: account.email,

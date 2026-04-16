@@ -119,6 +119,7 @@ export default function ChatbotEdit() {
 
   // Test chatbot modal
   const [showTestModal, setShowTestModal] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   // Collapsible sections
   const [expandedSection, setExpandedSection] = useState(null)
@@ -850,6 +851,19 @@ export default function ChatbotEdit() {
     }
   }
 
+  const handleSyncWorkflow = async () => {
+    setSyncing(true)
+    try {
+      await chatbotsAPI.syncWorkflow(id)
+      setSuccess('Workflow synced successfully')
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to sync workflow')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   // Prompt generator
   const handleGeneratePrompt = async () => {
     if (!wizCompanyName.trim() || !wizGoals.trim() || !wizBotType) return
@@ -1033,6 +1047,17 @@ export default function ChatbotEdit() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
             {t('chatbotEdit.test')}
+          </button>
+          <button
+            onClick={handleSyncWorkflow}
+            disabled={syncing}
+            title="Regenerate n8n workflow from current config"
+            className="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-violet-600 bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/30 flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {syncing ? 'Syncing...' : 'Sync Workflow'}
           </button>
           <button
             onClick={handleToggle}
