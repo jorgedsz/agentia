@@ -316,6 +316,12 @@ const testChatbot = async (req, res) => {
       return res.status(422).json({ error: 'Chatbot has no n8n workflow configured. Save the chatbot first.' });
     }
 
+    // Check credits
+    const owner = await req.prisma.user.findUnique({ where: { id: req.user.id }, select: { vapiCredits: true } });
+    if ((owner?.vapiCredits || 0) < TEST_MESSAGE_COST) {
+      return res.status(402).json({ error: 'Insufficient credits to run a test message.' });
+    }
+
     // Use the test webhook URL (appends -test to the production webhook path)
     const testWebhookUrl = chatbot.n8nWebhookUrl.replace(/\/chatbot-([^/]+)$/, '/chatbot-$1-test');
 
@@ -354,9 +360,31 @@ const testChatbot = async (req, res) => {
       return { response: text };
     });
 
-    res.json({
-      response: data.response || data.output || data.text || JSON.stringify(data)
-    });
+    const aiResponse = data.response || data.output || data.text || JSON.stringify(data);
+
+    // Deduct test credits (fire-and-forget)
+    req.prisma.user.update({
+      where: { id: req.user.id },
+      data: { vapiCredits: { decrement: TEST_MESSAGE_COST } }
+    }).catch(err => console.error('Failed to deduct test chatbot credit:', err.message));
+
+    // Log test message
+    req.prisma.chatbotMessage.create({
+      data: {
+        chatbotId: chatbot.id,
+        chatbotName: chatbot.name,
+        userId: chatbot.userId,
+        sessionId: testBody.sessionId || 'default',
+        contactId: testBody.contactId || null,
+        contactName: testBody.contactName || null,
+        inputMessage: message,
+        outputMessage: aiResponse,
+        costCharged: TEST_MESSAGE_COST,
+        status: 'success',
+      }
+    }).catch(err => console.error('Failed to log test chatbot message:', err.message));
+
+    res.json({ response: aiResponse });
   } catch (error) {
     const msg = error?.message || 'Unknown error';
     console.error('Test chatbot error:', msg, error);
@@ -366,6 +394,7 @@ const testChatbot = async (req, res) => {
 
 // ── Helper: forward message to n8n, deduct credits, log ──────
 const MESSAGE_COST = 0.01;
+const TEST_MESSAGE_COST = 0.0025;
 
 async function forwardToN8n(chatbot, forwardBody, prisma) {
   const { message, sessionId, contactId, contactName } = forwardBody;
