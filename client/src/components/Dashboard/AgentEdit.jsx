@@ -6142,7 +6142,7 @@ If the customer asks to be called back at a later time:
                             >
                               <option value="">{ta('chatbotTriggerSelectPlaceholder')}</option>
                               {availableChatbots.map(c => (
-                                <option key={c.id} value={c.id}>{c.name} ({c.chatbotType === 'ghl_sms' ? 'SMS' : c.chatbotType === 'ghl_whatsapp' ? 'WhatsApp' : 'Webhook'})</option>
+                                <option key={c.id} value={c.id}>{c.name} ({c.chatbotType === 'ghl_sms' ? 'SMS' : c.chatbotType === 'ghl_whatsapp' ? 'WhatsApp' : c.chatbotType === 'ghl_facebook' ? 'Facebook' : c.chatbotType === 'ghl_instagram' ? 'Instagram' : 'Webhook'})</option>
                               ))}
                             </select>
                           )
@@ -6154,12 +6154,17 @@ If the customer asks to be called back at a later time:
                         if (!chatbotTriggerConfig.chatbotId) return null
                         const selectedChatbot = chatbotsList.find(c => c.id === chatbotTriggerConfig.chatbotId)
                         if (!selectedChatbot) return null
-                        const isGHL = selectedChatbot.chatbotType === 'ghl_sms' || selectedChatbot.chatbotType === 'ghl_whatsapp'
+                        const isGHL = selectedChatbot.chatbotType?.startsWith('ghl_')
+                        const ghlChannelLabel = selectedChatbot.chatbotType === 'ghl_sms' ? 'SMS'
+                          : selectedChatbot.chatbotType === 'ghl_whatsapp' ? 'WhatsApp'
+                          : selectedChatbot.chatbotType === 'ghl_facebook' ? 'Facebook'
+                          : selectedChatbot.chatbotType === 'ghl_instagram' ? 'Instagram'
+                          : ''
                         return isGHL ? (
                           <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 dark:border-amber-500">
                             <svg className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             <p className="text-sm text-amber-800 dark:text-amber-200">
-                              This chatbot uses <span className="font-semibold">GoHighLevel</span>. The contact ID from the call will be used to send the follow-up message via GHL {selectedChatbot.chatbotType === 'ghl_sms' ? 'SMS' : 'WhatsApp'}.
+                              This chatbot uses <span className="font-semibold">GoHighLevel</span>. The contact ID from the call will be used to send the follow-up message via GHL {ghlChannelLabel}.
                             </p>
                           </div>
                         ) : (

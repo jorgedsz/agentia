@@ -669,7 +669,13 @@ const ghlRespond = async (req, res) => {
       return res.status(404).json({ error: 'Chatbot not found' });
     }
 
-    const messageType = chatbot.chatbotType === 'ghl_whatsapp' ? 'WhatsApp' : 'SMS';
+    const messageTypeMap = {
+      ghl_whatsapp: 'WhatsApp',
+      ghl_facebook: 'FB',
+      ghl_instagram: 'IG',
+      ghl_sms: 'SMS'
+    };
+    const messageType = messageTypeMap[chatbot.chatbotType] || 'SMS';
 
     const conn = await findGhlConnection(chatbot.userId, req.prisma);
     if (!conn) {

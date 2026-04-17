@@ -1705,6 +1705,8 @@
     "respondToWebhook": "Respond to Webhook",
     "ghlSms": "GHL SMS",
     "ghlWhatsapp": "GHL WhatsApp",
+    "ghlFacebook": "GHL Facebook",
+    "ghlInstagram": "GHL Instagram",
     "test": "Test",
     "deactivate": "Deactivate",
     "activate": "Activate",

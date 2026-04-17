@@ -1034,6 +1034,8 @@ export default function ChatbotEdit() {
                 <option value="standard">{t('chatbotEdit.respondToWebhook')}</option>
                 <option value="ghl_sms">{t('chatbotEdit.ghlSms')}</option>
                 <option value="ghl_whatsapp">{t('chatbotEdit.ghlWhatsapp')}</option>
+                <option value="ghl_facebook">{t('chatbotEdit.ghlFacebook')}</option>
+                <option value="ghl_instagram">{t('chatbotEdit.ghlInstagram')}</option>
               </select>
             </div>
           </div>
