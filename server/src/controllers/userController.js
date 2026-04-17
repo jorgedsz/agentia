@@ -25,6 +25,8 @@ const fireAccountWebhook = async (prisma, account, type, plainPassword) => {
           phoneNumber: account.phoneNumber || null,
           role: account.role,
           agencyId: account.agencyId || null,
+          planType: account.planType || null,
+          planPrice: account.planPrice ?? null,
           createdAt: account.createdAt,
         },
         timestamp: new Date().toISOString(),
@@ -230,6 +232,7 @@ const createAgency = async (req, res) => {
         name: true,
         phoneNumber: true,
         role: true,
+        planPrice: true,
         createdAt: true
       }
     });
@@ -331,6 +334,8 @@ const createClient = async (req, res) => {
         phoneNumber: true,
         role: true,
         agencyId: true,
+        planType: true,
+        planPrice: true,
         createdAt: true
       }
     });
@@ -1010,6 +1015,7 @@ const createWhitelabel = async (req, res) => {
         name: true,
         phoneNumber: true,
         role: true,
+        planPrice: true,
         createdAt: true
       }
     });
