@@ -257,10 +257,9 @@ class N8nService {
       typeVersion: 1.3,
       position: [650, 700],
       parameters: {
-        sessionKey: 'sessionId',
-        contextWindowLength: 10,
         sessionIdType: 'customKey',
-        sessionId: `={{ $('Resolve Variables').first().json.sessionId || "default" }}`
+        sessionKey: `={{ $('Resolve Variables').first().json.sessionId || "default" }}`,
+        contextWindowLength: 10
       }
     };
     nodes.push(memoryNode);
