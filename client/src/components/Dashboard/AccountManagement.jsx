@@ -32,6 +32,8 @@ export default function AccountManagement() {
     agentGeneratorEnabled: false,
     callsPaused: false,
     messagesPaused: false,
+    planType: '',
+    planPrice: '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -109,6 +111,8 @@ export default function AccountManagement() {
       agentGeneratorEnabled: targetUser.agentGeneratorEnabled || false,
       callsPaused: targetUser.callsPaused || false,
       messagesPaused: targetUser.messagesPaused || false,
+      planType: targetUser.planType || '',
+      planPrice: targetUser.planPrice != null ? String(targetUser.planPrice) : '',
     })
     setError('')
     setSuccess('')
@@ -116,7 +120,7 @@ export default function AccountManagement() {
 
   const closeBillingModal = () => {
     setEditingUser(null)
-    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, callsPaused: false, messagesPaused: false })
+    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, callsPaused: false, messagesPaused: false, planType: '', planPrice: '' })
   }
 
   const handleBillingSubmit = async (e) => {
@@ -139,6 +143,10 @@ export default function AccountManagement() {
       data.agentGeneratorEnabled = billingForm.agentGeneratorEnabled
       data.callsPaused = billingForm.callsPaused
       data.messagesPaused = billingForm.messagesPaused
+      if (editingUser.role === ROLES.CLIENT) {
+        data.planType = billingForm.planType || null
+      }
+      data.planPrice = billingForm.planPrice !== '' ? billingForm.planPrice : null
 
       await usersAPI.updateBilling(editingUser.id, data)
       setSuccess('Billing updated successfully')
@@ -366,9 +374,19 @@ export default function AccountManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getRoleBadgeColor(account.role)}`}>
-                        {account.role}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full border w-fit ${getRoleBadgeColor(account.role)}`}>
+                          {account.role}
+                        </span>
+                        {account.role === ROLES.CLIENT && account.planType && (
+                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 w-fit">
+                            {account.planType}
+                          </span>
+                        )}
+                        {account.planPrice != null && (
+                          <span className="text-xs text-gray-400">${account.planPrice.toFixed(2)}/mo</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`font-medium ${getCreditColor(account.vapiCredits || 0)}`}>
@@ -628,6 +646,41 @@ export default function AccountManagement() {
                 </div>
               </div>
 
+              {/* Plan Section */}
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Plan</label>
+                {editingUser.role === ROLES.CLIENT && (
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Plan Type</label>
+                    <select
+                      value={billingForm.planType}
+                      onChange={(e) => setBillingForm({ ...billingForm, planType: e.target.value })}
+                      className="w-full px-3 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    >
+                      <option value="">— No plan —</option>
+                      <option value="DIY">DIY</option>
+                      <option value="DFY">DFY</option>
+                      <option value="Partnership">Partnership</option>
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Plan Price ($/mo)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={billingForm.planPrice}
+                      onChange={(e) => setBillingForm({ ...billingForm, planPrice: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full pl-7 pr-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Actions */}
               <div className="flex gap-3 pt-4">
                 <button
@@ -714,6 +767,34 @@ export default function AccountManagement() {
                   required
                 />
               </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plan Type</label>
+                <select
+                  value={formData.planType || ''}
+                  onChange={(e) => setFormData({ ...formData, planType: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">— No plan —</option>
+                  <option value="DIY">DIY</option>
+                  <option value="DFY">DFY</option>
+                  <option value="Partnership">Partnership</option>
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plan Price ($/mo)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.planPrice || ''}
+                    onChange={(e) => setFormData({ ...formData, planPrice: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-4 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
               <div className="flex gap-3 mt-6">
                 <button
                   type="button"
@@ -792,6 +873,21 @@ export default function AccountManagement() {
                   required
                 />
               </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plan Price ($/mo)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.planPrice || ''}
+                    onChange={(e) => setFormData({ ...formData, planPrice: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-4 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
               <div className="flex gap-3 mt-6">
                 <button
                   type="button"
@@ -869,6 +965,21 @@ export default function AccountManagement() {
                   className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
                   required
                 />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Plan Price ($/mo)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.planPrice || ''}
+                    onChange={(e) => setFormData({ ...formData, planPrice: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-4 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
               </div>
               <div className="flex gap-3 mt-6">
                 <button

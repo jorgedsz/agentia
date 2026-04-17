@@ -55,6 +55,8 @@ const getAllUsers = async (req, res) => {
         messagesPaused: true,
         agencyId: true,
         whitelabelId: true,
+        planType: true,
+        planPrice: true,
         createdAt: true,
         agency: {
           select: { id: true, name: true, email: true }
@@ -186,7 +188,7 @@ const getAgencyClients = async (req, res) => {
 // Create agency (OWNER only)
 const createAgency = async (req, res) => {
   try {
-    const { email, password, name, phoneNumber } = req.body;
+    const { email, password, name, phoneNumber, planPrice } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -207,7 +209,8 @@ const createAgency = async (req, res) => {
       password: hashedPassword,
       name,
       phoneNumber: phoneNumber || null,
-      role: ROLES.AGENCY
+      role: ROLES.AGENCY,
+      planPrice: planPrice ? parseFloat(planPrice) : null
     };
 
     // WHITELABEL: link agency to themselves
@@ -271,7 +274,7 @@ const createAgency = async (req, res) => {
 // Create client under agency (AGENCY or OWNER)
 const createClient = async (req, res) => {
   try {
-    const { email, password, name, phoneNumber, agencyId } = req.body;
+    const { email, password, name, phoneNumber, agencyId, planType, planPrice } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -317,7 +320,9 @@ const createClient = async (req, res) => {
         name,
         phoneNumber: phoneNumber || null,
         role: ROLES.CLIENT,
-        agencyId: assignedAgencyId
+        agencyId: assignedAgencyId,
+        planType: planType || null,
+        planPrice: planPrice ? parseFloat(planPrice) : null
       },
       select: {
         id: true,
@@ -486,7 +491,7 @@ const deleteUser = async (req, res) => {
 const updateUserBilling = async (req, res) => {
   try {
     const { id } = req.params;
-    const { credits, creditOperation, outboundRate, inboundRate, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, callsPaused, messagesPaused } = req.body;
+    const { credits, creditOperation, outboundRate, inboundRate, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, callsPaused, messagesPaused, planType, planPrice } = req.body;
 
     const targetUser = await req.prisma.user.findUnique({
       where: { id: parseInt(id) }
@@ -568,6 +573,14 @@ const updateUserBilling = async (req, res) => {
       updateData.messagesPaused = Boolean(messagesPaused);
     }
 
+    // Handle plan type (CLIENT only) and plan price (all types)
+    if (planType !== undefined) {
+      updateData.planType = planType || null;
+    }
+    if (planPrice !== undefined) {
+      updateData.planPrice = planPrice !== '' ? parseFloat(planPrice) : null;
+    }
+
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: 'No valid fields to update' });
     }
@@ -588,7 +601,9 @@ const updateUserBilling = async (req, res) => {
         crmEnabled: true,
         agentGeneratorEnabled: true,
         callsPaused: true,
-        messagesPaused: true
+        messagesPaused: true,
+        planType: true,
+        planPrice: true
       }
     });
 
@@ -964,7 +979,7 @@ const getDashboardOverview = async (req, res) => {
 // Create whitelabel (OWNER only)
 const createWhitelabel = async (req, res) => {
   try {
-    const { email, password, name, phoneNumber } = req.body;
+    const { email, password, name, phoneNumber, planPrice } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
@@ -986,7 +1001,8 @@ const createWhitelabel = async (req, res) => {
         password: hashedPassword,
         name,
         phoneNumber: phoneNumber || null,
-        role: ROLES.WHITELABEL
+        role: ROLES.WHITELABEL,
+        planPrice: planPrice ? parseFloat(planPrice) : null
       },
       select: {
         id: true,

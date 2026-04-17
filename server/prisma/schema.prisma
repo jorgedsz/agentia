@@ -31,6 +31,8 @@ model User {
   agentGeneratorEnabled Boolean        @default(false)
   callsPaused        Boolean           @default(false)
   messagesPaused     Boolean           @default(false)
+  planType           String?            // CLIENT only: "DIY", "DFY", "Partnership"
+  planPrice          Float?             // Monthly plan price for any account type
   portalToken        String?           @unique // Shareable read-only portal token
   whopCustomerId    String?            // Whop customer/user ID
   whitelabelId      Int?               // If AGENCY, belongs to this whitelabel
