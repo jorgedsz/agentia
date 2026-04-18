@@ -124,7 +124,7 @@ const createTicket = async (req, res) => {
         userId: req.user.id
       },
       include: {
-        user: { select: { id: true, name: true, email: true, role: true } },
+        user: { select: { id: true, name: true, email: true, role: true, phoneNumber: true } },
         _count: { select: { replies: true } }
       }
     });
@@ -136,7 +136,7 @@ const createTicket = async (req, res) => {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `🎫 *New Support Ticket #${ticket.id}*\n*Title:* ${ticket.title}\n*Priority:* ${ticket.priority}\n*Category:* ${ticket.category}\n*Created by:* ${ticket.user.name || ticket.user.email}`
+            text: `🎫 *New Support Ticket #${ticket.id}*\n*Title:* ${ticket.title}\n*Priority:* ${ticket.priority}\n*Category:* ${ticket.category}\n*Created by:* ${ticket.user.name || ticket.user.email}\n*Phone:* ${ticket.user.phoneNumber || 'N/A'}\n*Description:* ${ticket.description}`
           }
         }
       ]
