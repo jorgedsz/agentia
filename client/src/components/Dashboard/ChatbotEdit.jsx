@@ -1144,26 +1144,70 @@ export default function ChatbotEdit() {
           </button>
         </div>
 
-        {/* Collapsible Sections */}
-        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden divide-y divide-gray-200 dark:divide-dark-border">
+        {/* Card Grid — 4 sections matching top tile style */}
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
 
-          {/* Webhook URL Section */}
-          <div>
-            <button
-              type="button"
-              onClick={() => toggleSection('webhook')}
-              className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
-            >
-              <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedSection === 'webhook' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.webhookUrl')}</span>
-              <span className="text-xs text-green-600 dark:text-green-400 font-medium">{t('chatbotEdit.ready')}</span>
-            </button>
-            {expandedSection === 'webhook' && (() => {
+          {/* Webhook URL Card */}
+          <button
+            type="button"
+            onClick={() => toggleSection('webhook')}
+            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${expandedSection === 'webhook' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'}`}
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('chatbotEdit.webhookUrl')}</span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+            <span className="text-[10px] text-green-600 dark:text-green-400 font-medium truncate max-w-full">{t('chatbotEdit.ready')}</span>
+          </button>
+
+          {/* Variables Card */}
+          <button
+            type="button"
+            onClick={() => toggleSection('variables')}
+            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${expandedSection === 'variables' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'}`}
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+              {t('chatbotEdit.variables')}
+              {variables.length > 0 && <span className="inline-flex items-center justify-center w-4 h-4 ml-1 text-[10px] font-bold rounded-full bg-green-500 text-white">{variables.length}</span>}
+            </span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9l.879 2.121z" />
+            </svg>
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-full">{variables.length > 0 ? `${variables.length}` : '—'}</span>
+          </button>
+
+          {/* Webhook Forwarding Card */}
+          <button
+            type="button"
+            onClick={() => toggleSection('forwarding')}
+            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${expandedSection === 'forwarding' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : outputUrl ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'}`}
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('chatbotEdit.webhookForwarding')}</span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+            <span className={`text-[10px] font-medium truncate max-w-full ${outputUrl ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>{outputUrl ? t('chatbotEdit.activeLabel') : t('chatbotEdit.notSet')}</span>
+          </button>
+
+          {/* Message Batching Card */}
+          <button
+            type="button"
+            onClick={() => toggleSection('batching')}
+            className={`flex flex-col items-center gap-2 p-5 rounded-xl border-2 transition-all ${expandedSection === 'batching' ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : bufferSeconds > 0 ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-dark-border hover:border-gray-300 dark:hover:border-gray-600'}`}
+          >
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{t('chatbotEdit.messageBatching')}</span>
+            <svg className="w-7 h-7 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <span className={`text-[10px] font-medium truncate max-w-full ${bufferSeconds > 0 ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'}`}>{bufferSeconds > 0 ? `${bufferSeconds}s` : t('chatbotEdit.off')}</span>
+          </button>
+        </div>
+
+        {/* Expanded panel for active section */}
+        {expandedSection && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
+          {expandedSection === 'webhook' && (() => {
               const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
               const webhookUrl = `${apiBaseUrl}/chatbots/${id}/webhook`
               const curlExample = `curl -X POST ${webhookUrl} \\
@@ -1178,7 +1222,8 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
   }'`
 
               return (
-                <div className="px-5 pb-4 space-y-3">
+                <div className="px-5 py-4 space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.webhookUrl')}</h4>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{t('chatbotEdit.webhookDesc')}</p>
                   <div className="flex items-center gap-2">
                     <input
@@ -1228,29 +1273,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 </div>
               )
             })()}
-          </div>
-
-          {/* Variables Section */}
-          <div>
-            <button
-              type="button"
-              onClick={() => toggleSection('variables')}
-              className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
-            >
-              <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedSection === 'variables' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9l.879 2.121z" />
-              </svg>
-              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.variables')}</span>
-              {variables.length > 0 && (
-                <span className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded-full bg-green-500 text-white">{variables.length}</span>
-              )}
-            </button>
             {expandedSection === 'variables' && (
-              <div className="px-5 pb-4 space-y-3">
+              <div className="px-5 py-4 space-y-3">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.variables')}</h4>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{t('chatbotEdit.variablesDesc')}</p>
                 {variables.length > 0 && (
                   <div className="space-y-2">
@@ -1311,30 +1336,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Webhook Forwarding Section */}
-          <div>
-            <button
-              type="button"
-              onClick={() => toggleSection('forwarding')}
-              className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
-            >
-              <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedSection === 'forwarding' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.webhookForwarding')}</span>
-              {outputUrl ? (
-                <span className="text-xs text-green-600 dark:text-green-400 font-medium">{t('chatbotEdit.activeLabel')}</span>
-              ) : (
-                <span className="text-xs text-gray-400">{t('chatbotEdit.notSet')}</span>
-              )}
-            </button>
             {expandedSection === 'forwarding' && (
-              <div className="px-5 pb-4 space-y-3">
+              <div className="px-5 py-4 space-y-3">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.webhookForwarding')}</h4>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{t('chatbotEdit.webhookForwardingDesc')}</p>
                 <input
                   type="url"
@@ -1353,28 +1357,9 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 )}
               </div>
             )}
-          </div>
-
-          {/* Message Batching Section */}
-          <div>
-            <button
-              type="button"
-              onClick={() => toggleSection('batching')}
-              className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
-            >
-              <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${expandedSection === 'batching' ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              <svg className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">{t('chatbotEdit.messageBatching')}</span>
-              <span className={`text-xs font-medium ${bufferSeconds > 0 ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400'}`}>
-                {bufferSeconds > 0 ? `${bufferSeconds}s` : t('chatbotEdit.off')}
-              </span>
-            </button>
             {expandedSection === 'batching' && (
-              <div className="px-5 pb-4 space-y-3">
+              <div className="px-5 py-4 space-y-3">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.messageBatching')}</h4>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{t('chatbotEdit.messageBatchingDesc')}</p>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.bufferDelay')}</label>
@@ -1399,9 +1384,8 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 )}
               </div>
             )}
-          </div>
-
         </div>
+        )}
 
         {/* System Prompt */}
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
