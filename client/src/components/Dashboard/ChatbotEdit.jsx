@@ -190,6 +190,9 @@ export default function ChatbotEdit() {
   // Unified tools modal
   const [showUnifiedToolsModal, setShowUnifiedToolsModal] = useState(false)
   const [toolsSection, setToolsSection] = useState(null)
+  const [expandedOppIdx, setExpandedOppIdx] = useState(null)
+  const [expandedTagIdx, setExpandedTagIdx] = useState(null)
+  const [expandedWorkflowIdx, setExpandedWorkflowIdx] = useState(null)
 
   // Load chatbot data
   useEffect(() => {
@@ -2186,107 +2189,141 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t('chatbotEdit.opportunity')}</span>
-                        <button type="button" onClick={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (_) {} } setGhlCrmConfig(prev => ({ ...prev, opportunities: [...(prev.opportunities || []), { pipelineId: '', pipelineName: '', stageId: '', stageName: '', scenario: '', noteInstruction: '' }] })) }} className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium px-2 py-1 rounded-md hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" /></svg>{t('chatbotEdit.add')}</button>
+                        <button type="button" onClick={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (_) {} } setGhlCrmConfig(prev => { const next = [...(prev.opportunities || []), { pipelineId: '', pipelineName: '', stageId: '', stageName: '', scenario: '', noteInstruction: '' }]; setExpandedOppIdx(next.length - 1); return { ...prev, opportunities: next } }) }} className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium px-2 py-1 rounded-md hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" /></svg>{t('chatbotEdit.add')}</button>
                       </div>
                       {(ghlCrmConfig.opportunities || []).length === 0 && <p className="text-xs text-gray-400 text-center py-3 rounded-xl bg-gray-50/60 dark:bg-white/[0.02]">{t('chatbotEdit.noOpportunities')}</p>}
-                      {(ghlCrmConfig.opportunities || []).map((opp, i) => (
-                        <div key={i} className="rounded-xl bg-gray-50 dark:bg-white/[0.03] p-4 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('chatbotEdit.opportunityNum', { num: i + 1 })}</span>
-                            <button type="button" onClick={() => setGhlCrmConfig(prev => ({ ...prev, opportunities: prev.opportunities.filter((_, j) => j !== i) }))} className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                      {(ghlCrmConfig.opportunities || []).map((opp, i) => {
+                        const isOpen = expandedOppIdx === i
+                        return (
+                        <div key={i} className="rounded-xl bg-gray-50 dark:bg-white/[0.03] overflow-hidden">
+                          <div className="flex items-center gap-2 px-4 py-3">
+                            <button type="button" onClick={() => setExpandedOppIdx(isOpen ? null : i)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                              <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                              <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 flex-shrink-0">{t('chatbotEdit.opportunityNum', { num: i + 1 })}</span>
+                              {opp.pipelineName && <span className="text-xs text-gray-600 dark:text-gray-300 truncate">· {opp.pipelineName}{opp.stageName ? ` / ${opp.stageName}` : ''}</span>}
+                            </button>
+                            <button type="button" onClick={() => { setGhlCrmConfig(prev => ({ ...prev, opportunities: prev.opportunities.filter((_, j) => j !== i) })); setExpandedOppIdx(cur => cur === i ? null : (cur > i ? cur - 1 : cur)) }} className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex-shrink-0"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                           </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.pipeline')}</label>
-                            <select value={opp.pipelineId} onChange={(e) => { const sel = ghlPipelines.find(p => p.id === e.target.value); setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], pipelineId: e.target.value, pipelineName: sel?.name || '', stageId: '', stageName: '' }; return { ...prev, opportunities: arr } }) }} onFocus={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (_) {} } }} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition">
-                              <option value="">{t('chatbotEdit.selectPipeline')}</option>
-                              {ghlPipelines.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
-                            </select>
-                          </div>
-                          {opp.pipelineId && (() => { const stages = ghlPipelines.find(p => p.id === opp.pipelineId)?.stages || []; return stages.length > 0 ? (
-                            <div>
-                              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.stage')}</label>
-                              <select value={opp.stageId} onChange={(e) => { const sel = stages.find(s => s.id === e.target.value); setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], stageId: e.target.value, stageName: sel?.name || '' }; return { ...prev, opportunities: arr } }) }} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition">
-                                <option value="">{t('chatbotEdit.selectStage')}</option>
-                                {stages.map(s => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                              </select>
+                          {isOpen && (
+                            <div className="px-4 pb-4 space-y-2.5">
+                              <div>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.pipeline')}</label>
+                                <select value={opp.pipelineId} onChange={(e) => { const sel = ghlPipelines.find(p => p.id === e.target.value); setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], pipelineId: e.target.value, pipelineName: sel?.name || '', stageId: '', stageName: '' }; return { ...prev, opportunities: arr } }) }} onFocus={async () => { if (ghlPipelines.length === 0) { try { const { data } = await ghlAPI.getPipelines(); setGhlPipelines(data.pipelines || []) } catch (_) {} } }} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition">
+                                  <option value="">{t('chatbotEdit.selectPipeline')}</option>
+                                  {ghlPipelines.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                                </select>
+                              </div>
+                              {opp.pipelineId && (() => { const stages = ghlPipelines.find(p => p.id === opp.pipelineId)?.stages || []; return stages.length > 0 ? (
+                                <div>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.stage')}</label>
+                                  <select value={opp.stageId} onChange={(e) => { const sel = stages.find(s => s.id === e.target.value); setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], stageId: e.target.value, stageName: sel?.name || '' }; return { ...prev, opportunities: arr } }) }} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition">
+                                    <option value="">{t('chatbotEdit.selectStage')}</option>
+                                    {stages.map(s => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                                  </select>
+                                </div>
+                              ) : null })()}
+                              <div>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.whenToUse')}</label>
+                                <input type="text" value={opp.scenario} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], scenario: e.target.value }; return { ...prev, opportunities: arr } })} placeholder={t('chatbotEdit.whenToUsePlaceholder')} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.noteInstruction')} <span className="text-gray-400">{t('chatbotEdit.noteInstructionOptional')}</span></label>
+                                <input type="text" value={opp.noteInstruction || ''} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], noteInstruction: e.target.value }; return { ...prev, opportunities: arr } })} placeholder={t('chatbotEdit.noteInstructionPlaceholder')} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition" />
+                              </div>
                             </div>
-                          ) : null })()}
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.whenToUse')}</label>
-                            <input type="text" value={opp.scenario} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], scenario: e.target.value }; return { ...prev, opportunities: arr } })} placeholder={t('chatbotEdit.whenToUsePlaceholder')} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition" />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.noteInstruction')} <span className="text-gray-400">{t('chatbotEdit.noteInstructionOptional')}</span></label>
-                            <input type="text" value={opp.noteInstruction || ''} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], noteInstruction: e.target.value }; return { ...prev, opportunities: arr } })} placeholder={t('chatbotEdit.noteInstructionPlaceholder')} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition" />
-                          </div>
+                          )}
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
 
                     {/* ── Add Tags (multi) ── */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t('chatbotEdit.addTags')}</span>
-                        <button type="button" onClick={async () => { if (ghlTags.length === 0) { try { const { data } = await ghlAPI.getTags(); setGhlTags(data.tags || []) } catch (_) {} } setGhlCrmConfig(prev => ({ ...prev, tagSets: [...(prev.tagSets || []), { tags: [], scenario: '' }] })) }} className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium px-2 py-1 rounded-md hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" /></svg>{t('chatbotEdit.add')}</button>
+                        <button type="button" onClick={async () => { if (ghlTags.length === 0) { try { const { data } = await ghlAPI.getTags(); setGhlTags(data.tags || []) } catch (_) {} } setGhlCrmConfig(prev => { const next = [...(prev.tagSets || []), { tags: [], scenario: '' }]; setExpandedTagIdx(next.length - 1); return { ...prev, tagSets: next } }) }} className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium px-2 py-1 rounded-md hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" /></svg>{t('chatbotEdit.add')}</button>
                       </div>
                       {(ghlCrmConfig.tagSets || []).length === 0 && <p className="text-xs text-gray-400 text-center py-3 rounded-xl bg-gray-50/60 dark:bg-white/[0.02]">{t('chatbotEdit.noTagRules')}</p>}
-                      {(ghlCrmConfig.tagSets || []).map((ts, i) => (
-                        <div key={i} className="rounded-xl bg-gray-50 dark:bg-white/[0.03] p-4 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('chatbotEdit.tagSetNum', { num: i + 1 })}</span>
-                            <button type="button" onClick={() => setGhlCrmConfig(prev => ({ ...prev, tagSets: prev.tagSets.filter((_, j) => j !== i) }))} className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                      {(ghlCrmConfig.tagSets || []).map((ts, i) => {
+                        const isOpen = expandedTagIdx === i
+                        const summary = (ts.tags || []).slice(0, 3).join(', ') + ((ts.tags || []).length > 3 ? '…' : '')
+                        return (
+                        <div key={i} className="rounded-xl bg-gray-50 dark:bg-white/[0.03] overflow-hidden">
+                          <div className="flex items-center gap-2 px-4 py-3">
+                            <button type="button" onClick={() => setExpandedTagIdx(isOpen ? null : i)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                              <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                              <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 flex-shrink-0">{t('chatbotEdit.tagSetNum', { num: i + 1 })}</span>
+                              {summary && <span className="text-xs text-gray-600 dark:text-gray-300 truncate">· {summary}</span>}
+                            </button>
+                            <button type="button" onClick={() => { setGhlCrmConfig(prev => ({ ...prev, tagSets: prev.tagSets.filter((_, j) => j !== i) })); setExpandedTagIdx(cur => cur === i ? null : (cur > i ? cur - 1 : cur)) }} className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex-shrink-0"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                           </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1.5">{t('chatbotEdit.tags')}</label>
-                            {(ts.tags || []).length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mb-2">
-                                {(ts.tags || []).map((tag, ti) => (
-                                  <span key={ti} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-0.5 rounded-full text-xs bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300">
-                                    {tag}
-                                    <button type="button" onClick={() => setGhlCrmConfig(prev => { const arr = [...prev.tagSets]; arr[i] = { ...arr[i], tags: arr[i].tags.filter((_, j) => j !== ti) }; return { ...prev, tagSets: arr } })} className="hover:text-red-500 rounded-full hover:bg-orange-200/50 dark:hover:bg-orange-400/20 p-0.5 transition-colors"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
-                                  </span>
-                                ))}
+                          {isOpen && (
+                            <div className="px-4 pb-4 space-y-2.5">
+                              <div>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1.5">{t('chatbotEdit.tags')}</label>
+                                {(ts.tags || []).length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mb-2">
+                                    {(ts.tags || []).map((tag, ti) => (
+                                      <span key={ti} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-0.5 rounded-full text-xs bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300">
+                                        {tag}
+                                        <button type="button" onClick={() => setGhlCrmConfig(prev => { const arr = [...prev.tagSets]; arr[i] = { ...arr[i], tags: arr[i].tags.filter((_, j) => j !== ti) }; return { ...prev, tagSets: arr } })} className="hover:text-red-500 rounded-full hover:bg-orange-200/50 dark:hover:bg-orange-400/20 p-0.5 transition-colors"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                <select onChange={(e) => { if (e.target.value && !(ts.tags || []).includes(e.target.value)) { setGhlCrmConfig(prev => { const arr = [...prev.tagSets]; arr[i] = { ...arr[i], tags: [...(arr[i].tags || []), e.target.value] }; return { ...prev, tagSets: arr } }) } e.target.value = '' }} onFocus={async () => { if (ghlTags.length === 0) { try { const { data } = await ghlAPI.getTags(); setGhlTags(data.tags || []) } catch (_) {} } }} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition">
+                                  <option value="">{t('chatbotEdit.addATag')}</option>
+                                  {ghlTags.filter(gt => !(ts.tags || []).includes(gt.name)).map(gt => (<option key={gt.id} value={gt.name}>{gt.name}</option>))}
+                                </select>
                               </div>
-                            )}
-                            <select onChange={(e) => { if (e.target.value && !(ts.tags || []).includes(e.target.value)) { setGhlCrmConfig(prev => { const arr = [...prev.tagSets]; arr[i] = { ...arr[i], tags: [...(arr[i].tags || []), e.target.value] }; return { ...prev, tagSets: arr } }) } e.target.value = '' }} onFocus={async () => { if (ghlTags.length === 0) { try { const { data } = await ghlAPI.getTags(); setGhlTags(data.tags || []) } catch (_) {} } }} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition">
-                              <option value="">{t('chatbotEdit.addATag')}</option>
-                              {ghlTags.filter(gt => !(ts.tags || []).includes(gt.name)).map(gt => (<option key={gt.id} value={gt.name}>{gt.name}</option>))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.whenToUse')}</label>
-                            <input type="text" value={ts.scenario} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.tagSets]; arr[i] = { ...arr[i], scenario: e.target.value }; return { ...prev, tagSets: arr } })} placeholder={t('chatbotEdit.whenToUsePlaceholder')} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition" />
-                          </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.whenToUse')}</label>
+                                <input type="text" value={ts.scenario} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.tagSets]; arr[i] = { ...arr[i], scenario: e.target.value }; return { ...prev, tagSets: arr } })} placeholder={t('chatbotEdit.whenToUsePlaceholder')} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition" />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
 
                     {/* ── Add to Workflow (multi) ── */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{t('chatbotEdit.addToWorkflow')}</span>
-                        <button type="button" onClick={async () => { if (ghlWorkflows.length === 0) { try { const { data } = await ghlAPI.getWorkflows(); setGhlWorkflows(data.workflows || []) } catch (_) {} } setGhlCrmConfig(prev => ({ ...prev, workflows: [...(prev.workflows || []), { workflowId: '', workflowName: '', scenario: '' }] })) }} className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium px-2 py-1 rounded-md hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" /></svg>{t('chatbotEdit.add')}</button>
+                        <button type="button" onClick={async () => { if (ghlWorkflows.length === 0) { try { const { data } = await ghlAPI.getWorkflows(); setGhlWorkflows(data.workflows || []) } catch (_) {} } setGhlCrmConfig(prev => { const next = [...(prev.workflows || []), { workflowId: '', workflowName: '', scenario: '' }]; setExpandedWorkflowIdx(next.length - 1); return { ...prev, workflows: next } }) }} className="inline-flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium px-2 py-1 rounded-md hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" /></svg>{t('chatbotEdit.add')}</button>
                       </div>
                       {(ghlCrmConfig.workflows || []).length === 0 && <p className="text-xs text-gray-400 text-center py-3 rounded-xl bg-gray-50/60 dark:bg-white/[0.02]">{t('chatbotEdit.noWorkflows')}</p>}
-                      {(ghlCrmConfig.workflows || []).map((wf, i) => (
-                        <div key={i} className="rounded-xl bg-gray-50 dark:bg-white/[0.03] p-4 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('chatbotEdit.workflowNum', { num: i + 1 })}</span>
-                            <button type="button" onClick={() => setGhlCrmConfig(prev => ({ ...prev, workflows: prev.workflows.filter((_, j) => j !== i) }))} className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                      {(ghlCrmConfig.workflows || []).map((wf, i) => {
+                        const isOpen = expandedWorkflowIdx === i
+                        return (
+                        <div key={i} className="rounded-xl bg-gray-50 dark:bg-white/[0.03] overflow-hidden">
+                          <div className="flex items-center gap-2 px-4 py-3">
+                            <button type="button" onClick={() => setExpandedWorkflowIdx(isOpen ? null : i)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+                              <svg className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                              <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 flex-shrink-0">{t('chatbotEdit.workflowNum', { num: i + 1 })}</span>
+                              {wf.workflowName && <span className="text-xs text-gray-600 dark:text-gray-300 truncate">· {wf.workflowName}</span>}
+                            </button>
+                            <button type="button" onClick={() => { setGhlCrmConfig(prev => ({ ...prev, workflows: prev.workflows.filter((_, j) => j !== i) })); setExpandedWorkflowIdx(cur => cur === i ? null : (cur > i ? cur - 1 : cur)) }} className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex-shrink-0"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                           </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.workflow')}</label>
-                            <select value={wf.workflowId} onChange={(e) => { const sel = ghlWorkflows.find(w => w.id === e.target.value); setGhlCrmConfig(prev => { const arr = [...prev.workflows]; arr[i] = { ...arr[i], workflowId: e.target.value, workflowName: sel?.name || '' }; return { ...prev, workflows: arr } }) }} onFocus={async () => { if (ghlWorkflows.length === 0) { try { const { data } = await ghlAPI.getWorkflows(); setGhlWorkflows(data.workflows || []) } catch (_) {} } }} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition">
-                              <option value="">{t('chatbotEdit.selectWorkflow')}</option>
-                              {ghlWorkflows.map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.whenToUse')}</label>
-                            <input type="text" value={wf.scenario} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.workflows]; arr[i] = { ...arr[i], scenario: e.target.value }; return { ...prev, workflows: arr } })} placeholder={t('chatbotEdit.whenToUsePlaceholder')} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition" />
-                          </div>
+                          {isOpen && (
+                            <div className="px-4 pb-4 space-y-2.5">
+                              <div>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.workflow')}</label>
+                                <select value={wf.workflowId} onChange={(e) => { const sel = ghlWorkflows.find(w => w.id === e.target.value); setGhlCrmConfig(prev => { const arr = [...prev.workflows]; arr[i] = { ...arr[i], workflowId: e.target.value, workflowName: sel?.name || '' }; return { ...prev, workflows: arr } }) }} onFocus={async () => { if (ghlWorkflows.length === 0) { try { const { data } = await ghlAPI.getWorkflows(); setGhlWorkflows(data.workflows || []) } catch (_) {} } }} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition">
+                                  <option value="">{t('chatbotEdit.selectWorkflow')}</option>
+                                  {ghlWorkflows.map(w => (<option key={w.id} value={w.id}>{w.name}</option>))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.whenToUse')}</label>
+                                <input type="text" value={wf.scenario} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.workflows]; arr[i] = { ...arr[i], scenario: e.target.value }; return { ...prev, workflows: arr } })} placeholder={t('chatbotEdit.whenToUsePlaceholder')} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition" />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </div>
                 )}
