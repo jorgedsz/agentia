@@ -2412,10 +2412,17 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                           </select>
                         </div>
 
-                        {/* Days Threshold */}
+                        {/* Threshold (value + unit) */}
                         <div>
-                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.daysThreshold')}</label>
-                          <input type="number" min={1} value={rule.daysThreshold || 3} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], daysThreshold: parseInt(e.target.value) || 1 }; return { ...prev, rules } })} className="w-24 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.threshold')}</label>
+                          <div className="flex items-center gap-2">
+                            <input type="number" min={1} value={rule.thresholdValue ?? rule.daysThreshold ?? 3} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; const v = parseInt(e.target.value) || 1; rules[rIdx] = { ...rules[rIdx], thresholdValue: v }; return { ...prev, rules } })} className="w-24 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white" />
+                            <select value={rule.thresholdUnit || 'days'} onChange={(e) => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], thresholdUnit: e.target.value }; return { ...prev, rules } })} className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                              <option value="minutes">{t('chatbotEdit.minutes')}</option>
+                              <option value="hours">{t('chatbotEdit.hours')}</option>
+                              <option value="days">{t('chatbotEdit.days')}</option>
+                            </select>
+                          </div>
                         </div>
 
                         {/* Pipeline & Stage (opp_in_stage only) */}

@@ -56,8 +56,19 @@ async function processChatbotFollowUps(prisma) {
 
 // ── Rule Processors ───────────────────────────────────────
 
+function getThresholdMs(rule) {
+  const value = rule.thresholdValue ?? rule.daysThreshold;
+  if (!value) return null;
+  const unit = rule.thresholdUnit || 'days';
+  const multiplier = unit === 'minutes' ? 60 * 1000
+    : unit === 'hours' ? 60 * 60 * 1000
+    : 24 * 60 * 60 * 1000;
+  return value * multiplier;
+}
+
 async function processOppInStageRule(prisma, chatbot, rule, ruleIndex) {
-  if (!rule.pipelineId || !rule.stageId || !rule.daysThreshold) return;
+  const thresholdMs = getThresholdMs(rule);
+  if (!rule.pipelineId || !rule.stageId || !thresholdMs) return;
 
   const conn = await findGhlConnection(chatbot.userId, prisma);
   if (!conn) {
@@ -65,7 +76,7 @@ async function processOppInStageRule(prisma, chatbot, rule, ruleIndex) {
     return;
   }
 
-  const thresholdDate = new Date(Date.now() - rule.daysThreshold * 24 * 60 * 60 * 1000);
+  const thresholdDate = new Date(Date.now() - thresholdMs);
   let page = 1;
   let hasMore = true;
 
@@ -104,9 +115,10 @@ async function processOppInStageRule(prisma, chatbot, rule, ruleIndex) {
 }
 
 async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex) {
-  if (!rule.daysThreshold) return;
+  const thresholdMs = getThresholdMs(rule);
+  if (!thresholdMs) return;
 
-  const thresholdDate = new Date(Date.now() - rule.daysThreshold * 24 * 60 * 60 * 1000);
+  const thresholdDate = new Date(Date.now() - thresholdMs);
 
   const inactiveContacts = await prisma.$queryRaw`
     SELECT "contactId", MAX("createdAt") as "lastMessageAt"
