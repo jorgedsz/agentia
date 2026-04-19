@@ -11,4 +11,7 @@ router.get('/', brandingController.getBranding);
 // PUT /api/branding - Update branding (OWNER and AGENCY only)
 router.put('/', brandingController.updateBranding);
 
+// PUT /api/branding/:userId - Set branding for a specific user (OWNER only)
+router.put('/:userId', brandingController.setBrandingForUser);
+
 module.exports = router;
