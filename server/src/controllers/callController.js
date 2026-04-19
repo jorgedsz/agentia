@@ -121,7 +121,7 @@ const createCall = async (req, res) => {
     const phoneNumber = await req.prisma.phoneNumber.findFirst({
       where: {
         id: parseInt(phoneNumberId),
-        twilioCredentials: {
+        telephonyCredential: {
           userId: req.user.id
         }
       }
