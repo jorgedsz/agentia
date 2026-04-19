@@ -10,15 +10,17 @@ const generateToken = (userId) => {
 
 const register = async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { email: rawEmail, password, name } = req.body;
 
-    if (!email || !password) {
+    if (!rawEmail || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
+
+    const email = String(rawEmail).trim().toLowerCase();
 
     // Check if user already exists
     const existingUser = await req.prisma.user.findUnique({
@@ -65,11 +67,13 @@ const register = async (req, res) => {
 
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email: rawEmail, password } = req.body;
 
-    if (!email || !password) {
+    if (!rawEmail || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
+
+    const email = String(rawEmail).trim().toLowerCase();
 
     // Find user
     const user = await req.prisma.user.findUnique({
