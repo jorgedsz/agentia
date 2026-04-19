@@ -264,6 +264,66 @@ class N8nService {
     };
     nodes.push(memoryNode);
 
+    // 6b. Clear Memory path — separate webhook trigger and Memory Manager node.
+    // The Memory Manager shares the same underlying memory store as the AI
+    // Agent's Memory Buffer, so deleting here actually drops history the bot
+    // will read on the next message.
+    const clearWebhookNode = {
+      id: 'clear-memory-webhook',
+      name: 'Clear Memory Webhook',
+      type: 'n8n-nodes-base.webhook',
+      typeVersion: 2,
+      position: [250, 900],
+      parameters: {
+        path: `chatbot-${chatbot.id}-clear`,
+        httpMethod: 'POST',
+        responseMode: 'responseNode',
+        options: {}
+      },
+      webhookId: `chatbot-${chatbot.id}-clear`
+    };
+    nodes.push(clearWebhookNode);
+
+    const clearMemoryBufferNode = {
+      id: 'clear-memory-buffer',
+      name: 'Clear Memory Buffer',
+      type: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
+      typeVersion: 1.3,
+      position: [450, 1050],
+      parameters: {
+        sessionIdType: 'customKey',
+        sessionKey: `={{ $json.body?.sessionId || "default" }}`,
+        contextWindowLength: 10
+      }
+    };
+    nodes.push(clearMemoryBufferNode);
+
+    const memoryManagerNode = {
+      id: 'memory-manager',
+      name: 'Memory Manager',
+      type: '@n8n/n8n-nodes-langchain.memoryManager',
+      typeVersion: 1.1,
+      position: [500, 900],
+      parameters: {
+        mode: 'delete',
+        deleteMode: 'all'
+      }
+    };
+    nodes.push(memoryManagerNode);
+
+    const clearRespondNode = {
+      id: 'clear-respond',
+      name: 'Clear Respond',
+      type: 'n8n-nodes-base.respondToWebhook',
+      typeVersion: 1.1,
+      position: [750, 900],
+      parameters: {
+        respondWith: 'json',
+        responseBody: `={{ JSON.stringify({ cleared: true, sessionId: $('Clear Memory Webhook').first().json.body?.sessionId || "default" }) }}`
+      }
+    };
+    nodes.push(clearRespondNode);
+
     // 7. For GHL chatbot types, add HTTP Request node to send response via GHL API
     const isGhlType = chatbot.chatbotType?.startsWith('ghl_');
     const serverBaseUrl = chatbot.serverBaseUrl;
@@ -376,6 +436,18 @@ class N8nService {
       ai_memory: [[{ node: 'AI Chat Agent', type: 'ai_memory', index: 0 }]]
     };
 
+    // Clear memory path: webhook -> Memory Manager -> respond; memory buffer
+    // attached via ai_memory so the manager can operate on the shared store.
+    connections['Clear Memory Webhook'] = {
+      main: [[{ node: 'Memory Manager', type: 'main', index: 0 }]]
+    };
+    connections['Memory Manager'] = {
+      main: [[{ node: 'Clear Respond', type: 'main', index: 0 }]]
+    };
+    connections['Clear Memory Buffer'] = {
+      ai_memory: [[{ node: 'Memory Manager', type: 'ai_memory', index: 0 }]]
+    };
+
     return {
       name: workflowName,
       nodes,
@@ -463,18 +535,6 @@ class N8nService {
   async deleteWorkflow(workflowId) {
     console.log('Deleting n8n workflow:', workflowId);
     return this.makeRequest(`/workflows/${workflowId}`, 'DELETE');
-  }
-
-  // Flush the Memory Buffer Window node's in-memory session store by cycling
-  // the workflow. All conversation history across every sessionId is dropped.
-  async clearMemory(workflowId) {
-    console.log('Clearing n8n memory for workflow:', workflowId);
-    try {
-      await this.deactivateWorkflow(workflowId);
-    } catch (err) {
-      console.log('Deactivate before memory clear (may already be inactive):', err.message);
-    }
-    return this.activateWorkflow(workflowId);
   }
 
   async getWorkflow(workflowId) {

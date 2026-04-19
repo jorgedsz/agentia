@@ -700,6 +700,22 @@ const ghlRespond = async (req, res) => {
   }
 };
 
+// Hit the Memory Manager webhook for a specific session. Returns the HTTP
+// status code so the caller can detect a missing clear path (404).
+async function postClearMemory(clearUrl, sessionId) {
+  try {
+    const resp = await fetch(clearUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+      signal: AbortSignal.timeout(15000)
+    });
+    return resp.status;
+  } catch {
+    return 0;
+  }
+}
+
 const clearMemory = async (req, res) => {
   try {
     const { id } = req.params;
@@ -712,17 +728,49 @@ const clearMemory = async (req, res) => {
       return res.status(404).json({ error: 'Chatbot not found' });
     }
 
-    if (!chatbot.n8nWorkflowId) {
+    if (!chatbot.n8nWebhookUrl || !chatbot.n8nWorkflowId) {
       return res.status(422).json({ error: 'Chatbot has no n8n workflow yet' });
     }
 
-    const n8nConfig = await getN8nConfig(req.prisma);
-    if (!n8nConfig) {
-      return res.status(422).json({ error: 'n8n is not configured' });
+    // Derive the clear-memory webhook URL from the production one
+    const clearUrl = chatbot.n8nWebhookUrl.replace(/\/chatbot-([^/]+)$/, '/chatbot-$1-clear');
+
+    // Gather every sessionId we've ever seen for this chatbot plus "default".
+    const sessionRows = await req.prisma.chatbotMessage.findMany({
+      where: { chatbotId: id },
+      select: { sessionId: true },
+      distinct: ['sessionId']
+    });
+    const sessionIds = Array.from(new Set([
+      'default',
+      ...sessionRows.map(r => r.sessionId).filter(Boolean)
+    ]));
+
+    // Probe the clear webhook. If it 404s the workflow was deployed before the
+    // Memory Manager path existed — re-sync once, then proceed.
+    const probeStatus = await postClearMemory(clearUrl, sessionIds[0]);
+    if (probeStatus === 404) {
+      const n8nConfig = await getN8nConfig(req.prisma);
+      if (!n8nConfig) {
+        return res.status(422).json({ error: 'n8n is not configured' });
+      }
+      n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+      const chatbotForN8n = {
+        ...chatbot,
+        outputUrl: chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null,
+        config: parseConfig(chatbot.config) || {},
+        serverBaseUrl: getServerBaseUrl()
+      };
+      await n8nService.updateWorkflow(chatbot.n8nWorkflowId, chatbotForN8n);
+      await n8nService.activateWorkflow(chatbot.n8nWorkflowId);
     }
 
-    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
-    await n8nService.clearMemory(chatbot.n8nWorkflowId);
+    // Fire clear for each known session
+    const results = await Promise.all(
+      sessionIds.map(async sid => ({ sid, status: await postClearMemory(clearUrl, sid) }))
+    );
+    const cleared = results.filter(r => r.status >= 200 && r.status < 300).length;
+    const failed = results.length - cleared;
 
     logAudit(req.prisma, {
       userId: req.user.id,
@@ -732,11 +780,15 @@ const clearMemory = async (req, res) => {
       action: 'chatbot.clear_memory',
       resourceType: 'chatbot',
       resourceId: id,
-      details: { name: chatbot.name },
+      details: { name: chatbot.name, sessionsCleared: cleared, sessionsFailed: failed },
       req
     });
 
-    res.json({ message: 'Chatbot memory cleared' });
+    if (cleared === 0) {
+      return res.status(502).json({ error: 'Failed to clear memory on n8n' });
+    }
+
+    res.json({ message: 'Chatbot memory cleared', sessionsCleared: cleared, sessionsFailed: failed });
   } catch (error) {
     console.error('Clear memory error:', error.message);
     res.status(500).json({ error: error.message || 'Failed to clear memory' });
