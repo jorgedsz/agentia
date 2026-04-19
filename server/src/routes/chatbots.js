@@ -34,4 +34,7 @@ router.post('/:id/test', chatbotController.testChatbot);
 // POST /api/chatbots/:id/sync-workflow - Regenerate n8n workflow from current config
 router.post('/:id/sync-workflow', chatbotController.syncWorkflow);
 
+// POST /api/chatbots/:id/clear-memory - Flush the n8n memory buffer for every session
+router.post('/:id/clear-memory', chatbotController.clearMemory);
+
 module.exports = router;

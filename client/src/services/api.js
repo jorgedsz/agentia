@@ -62,6 +62,7 @@ export const chatbotsAPI = {
   delete: (id) => api.delete(`/chatbots/${id}`),
   test: (id, message, sessionId, contactId) => api.post(`/chatbots/${id}/test`, { message, sessionId, contactId }),
   syncWorkflow: (id) => api.post(`/chatbots/${id}/sync-workflow`),
+  clearMemory: (id) => api.post(`/chatbots/${id}/clear-memory`),
   getFollowUpLogs: (chatbotId) => api.get('/chatbot-follow-ups/logs', { params: { chatbotId } })
 }
 

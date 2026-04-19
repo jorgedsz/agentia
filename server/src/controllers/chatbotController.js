@@ -700,6 +700,49 @@ const ghlRespond = async (req, res) => {
   }
 };
 
+const clearMemory = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const chatbot = await req.prisma.chatbot.findFirst({
+      where: { id, userId: req.user.id, isArchived: false }
+    });
+
+    if (!chatbot) {
+      return res.status(404).json({ error: 'Chatbot not found' });
+    }
+
+    if (!chatbot.n8nWorkflowId) {
+      return res.status(422).json({ error: 'Chatbot has no n8n workflow yet' });
+    }
+
+    const n8nConfig = await getN8nConfig(req.prisma);
+    if (!n8nConfig) {
+      return res.status(422).json({ error: 'n8n is not configured' });
+    }
+
+    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+    await n8nService.clearMemory(chatbot.n8nWorkflowId);
+
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
+      actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
+      actorType: req.isTeamMember ? 'team_member' : 'user',
+      action: 'chatbot.clear_memory',
+      resourceType: 'chatbot',
+      resourceId: id,
+      details: { name: chatbot.name },
+      req
+    });
+
+    res.json({ message: 'Chatbot memory cleared' });
+  } catch (error) {
+    console.error('Clear memory error:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to clear memory' });
+  }
+};
+
 const deleteChatbot = async (req, res) => {
   try {
     const { id } = req.params;
@@ -758,6 +801,7 @@ module.exports = {
   deleteChatbot,
   testChatbot,
   syncWorkflow,
+  clearMemory,
   webhookProxy,
   ghlRespond,
   handleBufferFlush

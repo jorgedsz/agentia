@@ -13,6 +13,7 @@ export default function ChatbotList() {
   const [chatbots, setChatbots] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [clearingMemoryId, setClearingMemoryId] = useState(null)
 
   useEffect(() => {
     fetchChatbots()
@@ -54,6 +55,18 @@ export default function ChatbotList() {
       setChatbots(chatbots.map(c => c.id === id ? { ...c, isActive: data.chatbot.isActive } : c))
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to toggle chatbot')
+    }
+  }
+
+  const handleClearMemory = async (id, name) => {
+    if (!window.confirm(`Clear the conversation memory for every session of "${name}"? This cannot be undone.`)) return
+    setClearingMemoryId(id)
+    try {
+      await chatbotsAPI.clearMemory(id)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to clear memory')
+    } finally {
+      setClearingMemoryId(null)
     }
   }
 
@@ -174,6 +187,23 @@ export default function ChatbotList() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Edit
+                </button>
+                <button
+                  onClick={() => handleClearMemory(chatbot.id, chatbot.name)}
+                  disabled={clearingMemoryId === chatbot.id}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors disabled:opacity-50"
+                  title="Clear memory"
+                >
+                  {clearingMemoryId === chatbot.id ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
                 </button>
                 <button
                   onClick={() => handleDelete(chatbot.id, chatbot.name)}

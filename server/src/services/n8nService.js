@@ -465,6 +465,18 @@ class N8nService {
     return this.makeRequest(`/workflows/${workflowId}`, 'DELETE');
   }
 
+  // Flush the Memory Buffer Window node's in-memory session store by cycling
+  // the workflow. All conversation history across every sessionId is dropped.
+  async clearMemory(workflowId) {
+    console.log('Clearing n8n memory for workflow:', workflowId);
+    try {
+      await this.deactivateWorkflow(workflowId);
+    } catch (err) {
+      console.log('Deactivate before memory clear (may already be inactive):', err.message);
+    }
+    return this.activateWorkflow(workflowId);
+  }
+
   async getWorkflow(workflowId) {
     return this.makeRequest(`/workflows/${workflowId}`);
   }
