@@ -719,6 +719,7 @@ async function postClearMemory(clearUrl, sessionId) {
 const clearMemory = async (req, res) => {
   try {
     const { id } = req.params;
+    const { sessionId: reqSessionId, contactId: reqContactId } = req.body || {};
 
     const chatbot = await req.prisma.chatbot.findFirst({
       where: { id, userId: req.user.id, isArchived: false }
@@ -735,16 +736,35 @@ const clearMemory = async (req, res) => {
     // Derive the clear-memory webhook URL from the production one
     const clearUrl = chatbot.n8nWebhookUrl.replace(/\/chatbot-([^/]+)$/, '/chatbot-$1-clear');
 
-    // Gather every sessionId we've ever seen for this chatbot plus "default".
-    const sessionRows = await req.prisma.chatbotMessage.findMany({
-      where: { chatbotId: id },
-      select: { sessionId: true },
-      distinct: ['sessionId']
-    });
-    const sessionIds = Array.from(new Set([
-      'default',
-      ...sessionRows.map(r => r.sessionId).filter(Boolean)
-    ]));
+    // Resolve the sessions to clear based on the requested scope.
+    let sessionIds;
+    let scope;
+    if (reqSessionId) {
+      sessionIds = [String(reqSessionId)];
+      scope = `session:${reqSessionId}`;
+    } else if (reqContactId) {
+      const rows = await req.prisma.chatbotMessage.findMany({
+        where: { chatbotId: id, contactId: String(reqContactId) },
+        select: { sessionId: true },
+        distinct: ['sessionId']
+      });
+      sessionIds = rows.map(r => r.sessionId).filter(Boolean);
+      if (sessionIds.length === 0) {
+        return res.status(404).json({ error: `No sessions found for contactId "${reqContactId}"` });
+      }
+      scope = `contact:${reqContactId}`;
+    } else {
+      const sessionRows = await req.prisma.chatbotMessage.findMany({
+        where: { chatbotId: id },
+        select: { sessionId: true },
+        distinct: ['sessionId']
+      });
+      sessionIds = Array.from(new Set([
+        'default',
+        ...sessionRows.map(r => r.sessionId).filter(Boolean)
+      ]));
+      scope = 'all';
+    }
 
     // Probe the clear webhook. If it 404s the workflow was deployed before the
     // Memory Manager path existed — re-sync once, then proceed.
@@ -780,7 +800,7 @@ const clearMemory = async (req, res) => {
       action: 'chatbot.clear_memory',
       resourceType: 'chatbot',
       resourceId: id,
-      details: { name: chatbot.name, sessionsCleared: cleared, sessionsFailed: failed },
+      details: { name: chatbot.name, scope, sessionsCleared: cleared, sessionsFailed: failed },
       req
     });
 
@@ -788,7 +808,7 @@ const clearMemory = async (req, res) => {
       return res.status(502).json({ error: 'Failed to clear memory on n8n' });
     }
 
-    res.json({ message: 'Chatbot memory cleared', sessionsCleared: cleared, sessionsFailed: failed });
+    res.json({ message: 'Chatbot memory cleared', scope, sessionsCleared: cleared, sessionsFailed: failed });
   } catch (error) {
     console.error('Clear memory error:', error.message);
     res.status(500).json({ error: error.message || 'Failed to clear memory' });

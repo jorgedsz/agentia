@@ -121,6 +121,10 @@ export default function ChatbotEdit() {
   const [showTestModal, setShowTestModal] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [clearingMemory, setClearingMemory] = useState(false)
+  const [showClearMemoryModal, setShowClearMemoryModal] = useState(false)
+  const [clearMemoryScope, setClearMemoryScope] = useState('all')
+  const [clearMemorySessionId, setClearMemorySessionId] = useState('')
+  const [clearMemoryContactId, setClearMemoryContactId] = useState('')
 
   // Collapsible sections
   const [expandedSection, setExpandedSection] = useState(null)
@@ -869,12 +873,35 @@ export default function ChatbotEdit() {
     }
   }
 
+  const openClearMemoryModal = () => {
+    setClearMemoryScope('all')
+    setClearMemorySessionId('')
+    setClearMemoryContactId('')
+    setShowClearMemoryModal(true)
+  }
+
   const handleClearMemory = async () => {
-    if (!window.confirm('Clear the conversation memory for every session of this chatbot? This cannot be undone.')) return
+    let body = {}
+    let confirmMsg = 'Clear the conversation memory for every session of this chatbot? This cannot be undone.'
+    if (clearMemoryScope === 'session') {
+      const sid = clearMemorySessionId.trim()
+      if (!sid) { setError('Session ID is required'); return }
+      body = { sessionId: sid }
+      confirmMsg = `Clear memory for session "${sid}"? This cannot be undone.`
+    } else if (clearMemoryScope === 'contact') {
+      const cid = clearMemoryContactId.trim()
+      if (!cid) { setError('Contact ID is required'); return }
+      body = { contactId: cid }
+      confirmMsg = `Clear memory for contact "${cid}" (all their sessions)? This cannot be undone.`
+    }
+    if (!window.confirm(confirmMsg)) return
+
     setClearingMemory(true)
     try {
-      await chatbotsAPI.clearMemory(id)
-      setSuccess('Chatbot memory cleared')
+      const { data } = await chatbotsAPI.clearMemory(id, body)
+      setShowClearMemoryModal(false)
+      const cleared = data?.sessionsCleared ?? 0
+      setSuccess(`Memory cleared (${cleared} session${cleared === 1 ? '' : 's'})`)
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to clear memory')
@@ -1081,9 +1108,9 @@ export default function ChatbotEdit() {
             {syncing ? 'Syncing...' : 'Sync Workflow'}
           </button>
           <button
-            onClick={handleClearMemory}
+            onClick={openClearMemoryModal}
             disabled={clearingMemory}
-            title="Wipe conversation memory for every session via n8n"
+            title="Wipe conversation memory — all sessions, a single session, or all sessions for a contact"
             className="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-amber-600 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 flex items-center gap-1.5 disabled:opacity-50"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2680,6 +2707,112 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
           chatbot={{ id, name, config: { modelName, systemPrompt } }}
           onClose={() => setShowTestModal(false)}
         />
+      )}
+
+      {/* Clear Memory Modal */}
+      {showClearMemoryModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Clear Chatbot Memory</h3>
+              <button
+                onClick={() => setShowClearMemoryModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Pick what to wipe. This cannot be undone.
+              </p>
+
+              <div className="space-y-2">
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-dark-border cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover">
+                  <input
+                    type="radio"
+                    name="clearScope"
+                    value="all"
+                    checked={clearMemoryScope === 'all'}
+                    onChange={(e) => setClearMemoryScope(e.target.value)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">All sessions</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Wipe memory for every session this chatbot has ever handled.</div>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-dark-border cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover">
+                  <input
+                    type="radio"
+                    name="clearScope"
+                    value="session"
+                    checked={clearMemoryScope === 'session'}
+                    onChange={(e) => setClearMemoryScope(e.target.value)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">One session</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Wipe memory for a specific sessionId only.</div>
+                    {clearMemoryScope === 'session' && (
+                      <input
+                        type="text"
+                        value={clearMemorySessionId}
+                        onChange={(e) => setClearMemorySessionId(e.target.value)}
+                        placeholder="e.g. default, +5491122334455"
+                        className="w-full px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                      />
+                    )}
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-dark-border cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover">
+                  <input
+                    type="radio"
+                    name="clearScope"
+                    value="contact"
+                    checked={clearMemoryScope === 'contact'}
+                    onChange={(e) => setClearMemoryScope(e.target.value)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">One contact</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Wipe every session linked to a given contactId.</div>
+                    {clearMemoryScope === 'contact' && (
+                      <input
+                        type="text"
+                        value={clearMemoryContactId}
+                        onChange={(e) => setClearMemoryContactId(e.target.value)}
+                        placeholder="GHL contactId or phone number"
+                        className="w-full px-3 py-1.5 text-sm rounded border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white"
+                      />
+                    )}
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 p-4 border-t border-gray-100 dark:border-dark-border">
+              <button
+                onClick={() => setShowClearMemoryModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-hover rounded-lg hover:bg-gray-200 dark:hover:bg-dark-border"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearMemory}
+                disabled={clearingMemory}
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50"
+              >
+                {clearingMemory ? 'Clearing...' : 'Clear Memory'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* AI Prompt Generator Modal - 3-Step Wizard */}
