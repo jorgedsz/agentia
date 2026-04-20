@@ -175,8 +175,8 @@ app.use(cors({
 // Whop webhook needs raw body BEFORE express.json() parses it
 app.use('/api/whop/webhook', express.raw({ type: 'application/json' }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/', generalLimiter);
 
 // Make prisma available in routes

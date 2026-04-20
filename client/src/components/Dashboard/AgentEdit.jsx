@@ -1948,7 +1948,14 @@ If the customer asks to be called back at a later time:
       console.error('=== SAVE ERROR ===', err)
       console.error('Response data:', err.response?.data)
       console.error('Message:', err.message)
-      setError(err.response?.data?.error || ta('failedSaveAgent'))
+      const status = err.response?.status
+      const serverError = err.response?.data?.error
+      const fallback = status === 413
+        ? 'Payload too large — agent config exceeds server limit'
+        : status
+          ? `${ta('failedSaveAgent')} (HTTP ${status})`
+          : `${ta('failedSaveAgent')}: ${err.message || 'network error'}`
+      setError(serverError || fallback)
     } finally {
       setSaving(false)
     }
