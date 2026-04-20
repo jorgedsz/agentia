@@ -730,7 +730,16 @@ const bookAppointment = async (req, res) => {
     if (!contactName && req.query.contactName) {
       try { contactName = decodeURIComponent(req.query.contactName); } catch { contactName = req.query.contactName; }
     }
-    const contactId = req.query.contactId || functionArgs.contactId || null;
+    // Treat unresolved template vars (e.g. "{{contactId}}") as missing
+    const rawContactId = req.query.contactId || functionArgs.contactId || null;
+    const isUnresolved = (v) => typeof v === 'string' && /^\s*\{\{[^}]+\}\}\s*$/.test(v);
+    const contactId = rawContactId && !isUnresolved(rawContactId) ? rawContactId : null;
+
+    // Fallback: pick up the caller's phone from the Vapi tool-call envelope so we
+    // can look up (or create) the GHL contact by phone when no id/email is given
+    const callerPhone = req.body.message?.call?.customer?.number
+      || req.body.message?.customer?.number
+      || null;
 
     // Resolve {{variable}} placeholders in the title template
     let title = functionArgs.title || req.query.title || null;
@@ -748,8 +757,8 @@ const bookAppointment = async (req, res) => {
     console.log('Query params:', JSON.stringify(req.query));
     console.log('Function args:', JSON.stringify(functionArgs));
 
-    if (!calendarId || !startTime || (!contactEmail && !contactId)) {
-      return res.json({ results: [{ error: 'calendarId, startTime, and contactEmail (or contactId) are required' }] });
+    if (!calendarId || !startTime || (!contactEmail && !contactId && !callerPhone && !contactPhone)) {
+      return res.json({ results: [{ error: 'calendarId, startTime, and contactEmail (or contactId or phone) are required' }] });
     }
     if (!userId) {
       return res.json({ results: [{ error: 'userId is required' }] });
@@ -783,7 +792,7 @@ const bookAppointment = async (req, res) => {
     const duration = parseInt(req.query.duration) || 30;
     const calendarProvider = createCalendarProvider(integration, req.prisma);
     const result = await calendarProvider.bookAppointment(calendarId, {
-      startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration, contactId
+      startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration, contactId, callerPhone
     });
 
     res.json({ results: [result] });

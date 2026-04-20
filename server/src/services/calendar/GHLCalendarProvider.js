@@ -166,29 +166,36 @@ class GHLCalendarProvider extends CalendarProvider {
 
   async bookAppointment(calendarId, params) {
     const token = await this.getValidToken();
-    const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration, contactId: providedContactId } = params;
+    const { startTime, endTime, title, contactName, contactEmail, contactPhone, notes, timezone, duration, contactId: providedContactId, callerPhone } = params;
     const appointmentDuration = duration || 30;
 
-    // Use provided contactId (from sessionId in production, or test config) or find/create by email
+    // Use provided contactId (from sessionId in production, or test config) or find/create by email/phone
     let contactId = providedContactId || null;
 
+    // Phone to use for lookup/create: explicit contactPhone arg wins, else the caller's number
+    const phoneForLookup = contactPhone || callerPhone || null;
+
     if (!contactId) {
+      const searchQuery = contactEmail || phoneForLookup;
+      if (!searchQuery) {
+        throw new Error('Failed to find or create contact: need email, phone, or contactId');
+      }
+
       const searchResponse = await this._ghlRequest(
-        `/contacts/search?locationId=${this.locationId}&query=${encodeURIComponent(contactEmail)}`,
+        `/contacts/search?locationId=${this.locationId}&query=${encodeURIComponent(searchQuery)}`,
         token
       );
 
       if (searchResponse.contacts && searchResponse.contacts.length > 0) {
         contactId = searchResponse.contacts[0].id;
       } else {
+        const body = { locationId: this.locationId };
+        if (contactEmail) body.email = contactEmail;
+        if (contactName) body.name = contactName;
+        if (phoneForLookup) body.phone = phoneForLookup;
         const createContactResponse = await this._ghlRequest('/contacts', token, {
           method: 'POST',
-          body: JSON.stringify({
-            locationId: this.locationId,
-            email: contactEmail,
-            name: contactName || '',
-            phone: contactPhone || ''
-          })
+          body: JSON.stringify(body)
         });
         contactId = createContactResponse.contact?.id;
       }

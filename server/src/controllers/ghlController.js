@@ -535,7 +535,6 @@ const bookAppointment = async (req, res) => {
     const calendarId = req.query.calendarId || functionArgs.calendarId;
     const timezone = req.query.timezone || functionArgs.timezone;
     const userId = req.query.userId || functionArgs.userId;
-    const presetContactId = req.query.contactId || null;
 
     // Get dynamic params from function arguments (provided by LLM)
     const {
@@ -548,6 +547,17 @@ const bookAppointment = async (req, res) => {
       notes
     } = functionArgs;
 
+    // Accept contactId from query (preset) or LLM args, and treat unresolved
+    // template variables (e.g. "{{contactId}}") as missing
+    const rawContactId = req.query.contactId || functionArgs.contactId || null;
+    const isUnresolved = (v) => typeof v === 'string' && /^\s*\{\{[^}]+\}\}\s*$/.test(v);
+    const presetContactId = rawContactId && !isUnresolved(rawContactId) ? rawContactId : null;
+
+    // Caller's phone from Vapi tool-call envelope, used as fallback lookup key
+    const callerPhone = req.body.message?.call?.customer?.number
+      || req.body.message?.customer?.number
+      || null;
+
     console.log('=== GHL BOOK APPOINTMENT ===');
     console.log('CalendarId:', calendarId, '| UserId:', userId);
     console.log('ContactId:', presetContactId, '| ContactEmail:', contactEmail, '| ContactName:', contactName);
@@ -555,9 +565,11 @@ const bookAppointment = async (req, res) => {
     console.log('Query params:', JSON.stringify(req.query));
     console.log('Function args:', JSON.stringify(functionArgs));
 
-    if (!calendarId || !startTime || (!contactEmail && !presetContactId)) {
+    const phoneForLookup = contactPhone || callerPhone || null;
+
+    if (!calendarId || !startTime || (!contactEmail && !presetContactId && !phoneForLookup)) {
       return res.json({
-        results: [{ error: 'calendarId, startTime, and contactEmail (or contactId) are required' }]
+        results: [{ error: 'calendarId, startTime, and contactEmail (or contactId or phone) are required' }]
       });
     }
 
@@ -586,22 +598,21 @@ const bookAppointment = async (req, res) => {
       let contactId = presetContactId || null;
 
       if (!contactId) {
-        // Try to find existing contact by email
+        // Search by email if available, otherwise by phone
+        const searchQuery = contactEmail || phoneForLookup;
         const searchResponse = await ghlRequest(
-          `/contacts/search?locationId=${locationId}&query=${encodeURIComponent(contactEmail)}`,
+          `/contacts/search?locationId=${locationId}&query=${encodeURIComponent(searchQuery)}`,
           token
         );
 
         if (searchResponse.contacts && searchResponse.contacts.length > 0) {
           contactId = searchResponse.contacts[0].id;
         } else {
-          // Create new contact
-          const contactData = {
-            locationId,
-            email: contactEmail,
-            name: contactName || '',
-            phone: contactPhone || ''
-          };
+          // Create new contact (only include fields that are actually present)
+          const contactData = { locationId };
+          if (contactEmail) contactData.email = contactEmail;
+          if (contactName) contactData.name = contactName;
+          if (phoneForLookup) contactData.phone = phoneForLookup;
 
           const createContactResponse = await ghlRequest('/contacts', token, {
             method: 'POST',
