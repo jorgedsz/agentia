@@ -142,15 +142,23 @@ const createCall = async (req, res) => {
     }
     vapiService.setApiKey(vapiKey);
 
-    // Create the call via VAPI
-    const call = await vapiService.createCall({
+    // Outbound-specific first message override (test call is outbound too)
+    const agentConfig = agent.config ? (typeof agent.config === 'string' ? JSON.parse(agent.config) : agent.config) : {};
+    const outboundGreeting = agentConfig.firstMessageOutbound;
+    const callPayload = {
       assistantId: agent.vapiId,
       phoneNumberId: phoneNumber.vapiPhoneNumberId,
       customer: {
         number: customerNumber,
         name: customerName
       }
-    });
+    };
+    if (outboundGreeting && outboundGreeting.trim()) {
+      callPayload.assistantOverrides = { firstMessage: outboundGreeting };
+    }
+
+    // Create the call via VAPI
+    const call = await vapiService.createCall(callPayload);
 
     console.log('[Call] VAPI response:', JSON.stringify(call, null, 2));
 

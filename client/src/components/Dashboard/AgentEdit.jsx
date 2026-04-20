@@ -424,6 +424,7 @@ export default function AgentEdit() {
   const [language, setLanguage] = useState('en')
   const [systemPrompt, setSystemPrompt] = useState('')
   const [firstMessage, setFirstMessage] = useState('')
+  const [firstMessageOutbound, setFirstMessageOutbound] = useState('')
   const [modelProvider, setModelProvider] = useState('openai')
   const [modelName, setModelName] = useState('gpt-4o')
   const [voiceProvider, setVoiceProvider] = useState('11labs')
@@ -1040,6 +1041,7 @@ export default function AgentEdit() {
       // Use base prompt if available (without auto-generated calendar instructions)
       setSystemPrompt(agentData.config?.systemPromptBase || agentData.config?.systemPrompt || '')
       setFirstMessage(agentData.config?.firstMessage || '')
+      setFirstMessageOutbound(agentData.config?.firstMessageOutbound || '')
       setLanguage(agentData.config?.language || 'en')
       setModelProvider(agentData.config?.modelProvider || 'openai')
       setModelName(agentData.config?.modelName || 'gpt-4o')
@@ -1853,6 +1855,7 @@ If the customer asks to be called back at a later time:
           systemPrompt: finalSystemPrompt,
           systemPromptBase: systemPrompt, // Store original prompt without calendar instructions
           firstMessage,
+          firstMessageOutbound,
           language,
           modelProvider,
           modelName,
@@ -2558,6 +2561,24 @@ If the customer asks to be called back at a later time:
                 className={`w-full px-4 py-3 rounded-lg border ${!firstMessage.trim() && error ? 'border-red-500' : 'border-gray-300 dark:border-dark-border'} bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent`}
               />
             </div>
+          </div>
+
+          {/* Outbound First Message Override */}
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-2">
+              {ta('firstMessageOutbound')}
+            </label>
+            <div className="relative">
+              <label className="absolute -top-2 left-3 px-1 bg-white dark:bg-dark-card text-xs text-gray-500">{ta('firstMessageOutbound')}</label>
+              <input
+                type="text"
+                value={firstMessageOutbound}
+                onChange={(e) => setFirstMessageOutbound(e.target.value)}
+                placeholder={ta('firstMessageOutboundPlaceholder')}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{ta('firstMessageOutboundHint')}</p>
           </div>
 
           {/* Voice Selection - Card-based picker */}

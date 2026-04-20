@@ -204,6 +204,13 @@ async function processCallbacks(prisma) {
           }
         };
 
+        // Outbound-specific first message override
+        const agentConfig = agent.config ? (typeof agent.config === 'string' ? JSON.parse(agent.config) : agent.config) : {};
+        const outboundGreeting = agentConfig.firstMessageOutbound;
+        if (outboundGreeting && outboundGreeting.trim()) {
+          callConfig.assistantOverrides = { firstMessage: outboundGreeting };
+        }
+
         console.log(`Callback #${callback.id}: Initiating call to ${callback.customerNumber} via agent ${agent.name}`);
         const call = await vapiService.createCall(callConfig);
 

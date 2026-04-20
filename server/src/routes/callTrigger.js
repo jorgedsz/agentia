@@ -209,6 +209,12 @@ router.post('/', async (req, res) => {
       variableValues: variables
     };
 
+    // Outbound-specific first message override
+    const outboundGreeting = agentConfig.firstMessageOutbound;
+    if (outboundGreeting && outboundGreeting.trim()) {
+      callConfig.assistantOverrides.firstMessage = outboundGreeting;
+    }
+
     // 6. Create the call via VAPI
     const call = await vapiService.createCall(callConfig);
 

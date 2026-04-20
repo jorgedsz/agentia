@@ -221,6 +221,15 @@ async function processFollowUps(prisma) {
           };
         }
 
+        // Outbound-specific first message override
+        const outboundGreeting = agentConfig.firstMessageOutbound;
+        if (outboundGreeting && outboundGreeting.trim()) {
+          callConfig.assistantOverrides = {
+            ...(callConfig.assistantOverrides || {}),
+            firstMessage: outboundGreeting
+          };
+        }
+
         // 6. Create the outbound call via VAPI
         console.log(`[Follow-Up] #${followUp.id}: Initiating call to ${followUp.customerNumber} via agent ${agent.name} (attempt ${followUp.attemptNumber}/${followUp.maxAttempts})`);
         const call = await vapiService.createCall(callConfig);

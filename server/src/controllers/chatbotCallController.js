@@ -77,6 +77,13 @@ async function triggerCall(req, res) {
       callConfig.customer.name = customerName;
     }
 
+    // Outbound-specific first message override
+    const agentConfig = agent.config ? (typeof agent.config === 'string' ? JSON.parse(agent.config) : agent.config) : {};
+    const outboundGreeting = agentConfig.firstMessageOutbound;
+    if (outboundGreeting && outboundGreeting.trim()) {
+      callConfig.assistantOverrides = { firstMessage: outboundGreeting };
+    }
+
     console.log(`[Chatbot Call] Triggering immediate call to ${customerNumber} via agent ${agent.name} (${agentId})`);
     const call = await vapiService.createCall(callConfig);
 
