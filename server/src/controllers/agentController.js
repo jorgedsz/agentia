@@ -293,10 +293,13 @@ const updateAgent = async (req, res) => {
     });
 
     const isOwner = req.user.role === 'OWNER';
+    // For non-owners we hide the detailed VAPI diagnostics, but the save
+    // itself succeeded — route it through vapiNotice (green) so the UI
+    // doesn't render "Agent saved" in red.
     res.json({
       message: vapiWarning ? (isOwner ? vapiWarning : 'Agent saved') : 'Agent updated successfully',
-      vapiWarning: isOwner ? vapiWarning : (vapiWarning ? 'Agent saved' : null),
-      vapiNotice: isOwner ? vapiNotice : null,
+      vapiWarning: isOwner ? vapiWarning : null,
+      vapiNotice: isOwner ? vapiNotice : (vapiWarning ? 'Agent saved' : vapiNotice),
       vapiSyncInfo: isOwner ? vapiSyncInfo : null,
       agent: { ...agent, config: parseConfig(agent.config) }
     });
