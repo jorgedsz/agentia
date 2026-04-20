@@ -129,7 +129,10 @@ const update = async (req, res) => {
   try {
     if (!isOwner(req)) return res.status(403).json({ error: 'Only OWNER can edit recurring payments' });
     const id = parseInt(req.params.id);
-    const existing = await req.prisma.recurringPayment.findUnique({ where: { id } });
+    const existing = await req.prisma.recurringPayment.findUnique({
+      where: { id },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
     if (!existing) return res.status(404).json({ error: 'Not found' });
 
     const { description, amount, currency, periodLabel, periodDays, daysBeforeNotify, nextPaymentDate, status, notes } = req.body;
@@ -150,6 +153,36 @@ const update = async (req, res) => {
     if (nextPaymentDate !== undefined) data.nextPaymentDate = new Date(nextPaymentDate);
     if (status !== undefined && ['active', 'paused', 'cancelled'].includes(status)) data.status = status;
     if (notes !== undefined) data.notes = notes || null;
+
+    // Whop plan prices are fixed at creation. If amount changed, spin a new plan
+    // so the next generated checkout link charges the new amount.
+    const newAmount = data.amount ?? existing.amount;
+    const amountChanged = data.amount !== undefined && data.amount !== existing.amount;
+    if (amountChanged) {
+      try {
+        const clientEmail = existing.user?.email || 'client';
+        let productId = existing.whopProductId;
+        if (!productId) {
+          const product = await whopService.createProduct(
+            `Recurring - ${existing.user?.name || clientEmail} - $${newAmount}`,
+            data.description ?? existing.description ?? `Recurring payment for ${clientEmail}`
+          );
+          productId = product.id;
+          data.whopProductId = productId;
+        }
+        const plan = await whopService.createPlan(productId, {
+          price: newAmount,
+          billingCycle: 'lifetime',
+          name: `Recurring $${newAmount} - ${clientEmail}`,
+        });
+        data.whopPlanId = plan.id;
+        data.lastCheckoutUrl = null; // old link was priced at the old amount
+        console.log(`[RecurringPayment] id=${id} amount changed ${existing.amount} → ${newAmount}; new Whop plan ${plan.id}`);
+      } catch (err) {
+        console.error('recurringPayment.update: Whop plan regeneration failed:', err.response?.data || err.message);
+        return res.status(500).json({ error: 'Failed to regenerate Whop plan for new amount. Old plan still active.' });
+      }
+    }
 
     const item = await req.prisma.recurringPayment.update({
       where: { id },
