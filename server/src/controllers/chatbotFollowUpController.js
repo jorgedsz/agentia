@@ -1,7 +1,8 @@
 const axios = require('axios');
 const { findGhlConnection, ghlRequest } = require('./ghlController');
+const { getApiKeys } = require('../utils/getApiKeys');
 
-const INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const INTERVAL_MS = 60 * 1000; // 1 minute
 let schedulerInterval = null;
 let isProcessing = false;
 
@@ -9,7 +10,8 @@ let isProcessing = false;
 
 function startScheduler(prisma) {
   if (schedulerInterval) return;
-  console.log('[Chatbot Follow-Up] Scheduler started (interval: 5 min)');
+  console.log('[Chatbot Follow-Up] Scheduler started (interval: 1 min)');
+  processChatbotFollowUps(prisma);
   schedulerInterval = setInterval(() => processChatbotFollowUps(prisma), INTERVAL_MS);
 }
 
@@ -98,13 +100,18 @@ async function processOppInStageRule(prisma, chatbot, rule, ruleIndex) {
       const lastChange = new Date(opp.lastStageChangeAt || opp.updatedAt || opp.createdAt);
       if (lastChange > thresholdDate) continue;
 
-      // Check dedup
-      const existing = await prisma.chatbotFollowUpLog.findFirst({
-        where: { chatbotId: chatbot.id, ruleIndex, targetId: opp.id },
-      });
-      if (existing) continue;
-
       for (const action of rule.actions || []) {
+        const done = await prisma.chatbotFollowUpLog.findFirst({
+          where: {
+            chatbotId: chatbot.id,
+            ruleIndex,
+            targetId: opp.id,
+            actionType: action.type,
+            status: 'completed',
+          },
+        });
+        if (done) continue;
+
         await executeAction(prisma, chatbot, conn, rule, ruleIndex, opp.id, opp.contact, action);
       }
     }
@@ -131,23 +138,53 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex)
   `;
 
   const conn = await findGhlConnection(chatbot.userId, prisma);
+  const needsOpp = (rule.actions || []).some(a => a.type === 'move_stage');
 
   for (const contact of inactiveContacts) {
-    const existing = await prisma.chatbotFollowUpLog.findFirst({
-      where: { chatbotId: chatbot.id, ruleIndex, targetId: contact.contactId },
-    });
-    if (existing) continue;
+    // Look up the contact's opportunity when the rule moves stages. If a
+    // pipelineId is configured, restrict to it; otherwise pick the first
+    // opportunity the contact has.
+    let opportunityId = null;
+    if (needsOpp && conn) {
+      try {
+        const pipelineFilter = rule.pipelineId ? `&pipeline_id=${rule.pipelineId}` : '';
+        const data = await ghlRequest(
+          `/opportunities/search?location_id=${conn.locationId}&contact_id=${contact.contactId}${pipelineFilter}`,
+          conn.token
+        );
+        const opps = data?.opportunities || [];
+        if (opps.length) opportunityId = opps[0].id;
+      } catch (err) {
+        console.error(`[Chatbot Follow-Up] Opportunity lookup failed for contact ${contact.contactId}:`, err.message);
+      }
+    }
 
     for (const action of rule.actions || []) {
-      await executeAction(prisma, chatbot, conn, rule, ruleIndex, contact.contactId, { id: contact.contactId }, action);
+      // Skip if this exact action already completed for this contact.
+      const done = await prisma.chatbotFollowUpLog.findFirst({
+        where: {
+          chatbotId: chatbot.id,
+          ruleIndex,
+          targetId: contact.contactId,
+          actionType: action.type,
+          status: 'completed',
+        },
+      });
+      if (done) continue;
+
+      const ghlTargetId = action.type === 'move_stage' && opportunityId
+        ? opportunityId
+        : contact.contactId;
+      await executeAction(prisma, chatbot, conn, rule, ruleIndex, contact.contactId, { id: contact.contactId }, action, ghlTargetId);
     }
   }
 }
 
 // ── Action Executors ──────────────────────────────────────
 
-async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, contact, action) {
+async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, contact, action, ghlTargetId) {
   const contactName = contact?.name || contact?.firstName || contact?.contactName || 'there';
+  const ghlId = ghlTargetId || targetId;
   try {
     switch (action.type) {
       case 'send_message':
@@ -157,10 +194,10 @@ async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, c
         await executeAiMessage(prisma, chatbot, action, contact, contactName, targetId);
         break;
       case 'move_stage':
-        await executeMoveStage(conn, targetId, action);
+        await executeMoveStage(conn, ghlId, action);
         break;
       case 'add_tag':
-        await executeAddTag(conn, contact?.id || targetId, action);
+        await executeAddTag(conn, contact?.id || ghlId, action);
         break;
       case 'notify_slack':
         await executeNotifySlack(prisma, action, contactName);
@@ -170,8 +207,16 @@ async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, c
         return;
     }
 
-    await prisma.chatbotFollowUpLog.create({
-      data: {
+    await prisma.chatbotFollowUpLog.upsert({
+      where: {
+        chatbotId_ruleIndex_targetId_actionType: {
+          chatbotId: chatbot.id,
+          ruleIndex,
+          targetId,
+          actionType: action.type,
+        },
+      },
+      create: {
         chatbotId: chatbot.id,
         ruleIndex,
         conditionType: rule.conditionType,
@@ -179,16 +224,32 @@ async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, c
         actionType: action.type,
         status: 'completed',
       },
+      update: {
+        status: 'completed',
+        details: null,
+      },
     });
   } catch (err) {
     console.error(`[Chatbot Follow-Up] Action ${action.type} failed for ${targetId}:`, err.message);
-    await prisma.chatbotFollowUpLog.create({
-      data: {
+    await prisma.chatbotFollowUpLog.upsert({
+      where: {
+        chatbotId_ruleIndex_targetId_actionType: {
+          chatbotId: chatbot.id,
+          ruleIndex,
+          targetId,
+          actionType: action.type,
+        },
+      },
+      create: {
         chatbotId: chatbot.id,
         ruleIndex,
         conditionType: rule.conditionType,
         targetId,
         actionType: action.type,
+        status: 'failed',
+        details: JSON.stringify({ error: err.message }),
+      },
+      update: {
         status: 'failed',
         details: JSON.stringify({ error: err.message }),
       },
@@ -208,6 +269,11 @@ async function executeSendMessage(chatbot, action, contact, contactName) {
 
 async function executeAiMessage(prisma, chatbot, action, contact, contactName, targetId) {
   if (!chatbot.n8nWebhookUrl) throw new Error('No n8nWebhookUrl configured');
+
+  const { openaiApiKey } = await getApiKeys(prisma);
+  if (!openaiApiKey) {
+    throw new Error('OpenAI API key not configured — set OPENAI_API_KEY env var or Platform Settings → openaiApiKey.');
+  }
 
   // Fetch recent conversation history for this contact
   const recentMessages = await prisma.chatbotMessage.findMany({
@@ -245,7 +311,7 @@ async function executeAiMessage(prisma, chatbot, action, contact, contactName, t
     : 'unknown';
 
   const OpenAI = require('openai');
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const openai = new OpenAI({ apiKey: openaiApiKey });
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
