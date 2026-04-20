@@ -277,7 +277,47 @@ async function advanceToNextCycle(prisma, entry, { whopPaymentId, source }) {
   });
 
   console.log(`[RecurringPayment] Advanced id=${entry.id} (source=${source}) → next ${next.toISOString()}`);
+
+  // Fire confirmation webhook (best-effort — never blocks the cycle advance)
+  sendConfirmation(prisma, updated, { whopPaymentId, source, paidAt: now }).catch((err) => {
+    console.error(`[RecurringPayment] Confirmation webhook failed for id=${entry.id}:`, err.message);
+  });
+
   return updated;
+}
+
+// ── Internal: send a payment-confirmed webhook ──
+async function sendConfirmation(prisma, entry, { whopPaymentId, source, paidAt }) {
+  const settings = await prisma.platformSettings.findFirst();
+  const webhookEnc = settings?.recurringPaymentWebhookUrl;
+  const webhookUrl = webhookEnc ? decrypt(webhookEnc) : '';
+  if (!webhookUrl) return; // silently skip if not configured
+
+  const client = entry.user;
+  const payload = {
+    type: 'recurring_payment_confirmed',
+    recurringPaymentId: entry.id,
+    client: {
+      id: client?.id,
+      name: client?.name || null,
+      email: client?.email || null,
+      phoneNumber: client?.phoneNumber || null,
+      companyName: client?.companyName || null,
+    },
+    amount: entry.amount,
+    currency: entry.currency,
+    period: entry.periodLabel,
+    periodDays: entry.periodDays,
+    paidAt: (paidAt || new Date()).toISOString(),
+    nextPaymentDate: entry.nextPaymentDate,
+    whopPaymentId: whopPaymentId || null,
+    source: source || 'unknown',
+    description: entry.description || null,
+    sentAt: new Date().toISOString(),
+  };
+
+  await axios.post(webhookUrl, payload, { timeout: 15000 });
+  console.log(`[RecurringPayment] Confirmation webhook sent for id=${entry.id} (source=${source})`);
 }
 
 // ── Internal: send a notification via webhook ──
