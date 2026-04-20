@@ -220,7 +220,31 @@ const updateAgent = async (req, res) => {
       } catch (vapiError) {
         console.error('=== VAPI FAILED ===');
         console.error('Error:', vapiError.message);
-        vapiWarning = `Agent saved locally but VAPI update failed: ${vapiError.message}`;
+
+        // Self-heal: if the stored vapiId points at an assistant that no
+        // longer exists in VAPI, clear it and create a fresh one so the
+        // agent is usable again without manual DB surgery.
+        const msg = vapiError.message || '';
+        const assistantMissing = /does not exist/i.test(msg) || /couldn'?t get assistant/i.test(msg);
+        if (assistantMissing) {
+          try {
+            console.log('=== VAPI SELF-HEAL: recreating missing assistant ===');
+            const fixedConfig = rewriteToolUrls(config) || config;
+            const vapiAgent = await vapiService.createAgent({ name, ...fixedConfig });
+            await req.prisma.agent.update({
+              where: { id: id },
+              data: { vapiId: vapiAgent.id }
+            });
+            existingAgent.vapiId = vapiAgent.id;
+            vapiWarning = `Previous VAPI assistant was missing — created a new one (${vapiAgent.id}).`;
+            vapiSyncInfo = { vapiId: vapiAgent.id, recreated: true };
+          } catch (recreateErr) {
+            console.error('=== VAPI SELF-HEAL FAILED ===', recreateErr.message);
+            vapiWarning = `Agent saved locally but VAPI recreate failed: ${recreateErr.message}`;
+          }
+        } else {
+          vapiWarning = `Agent saved locally but VAPI update failed: ${vapiError.message}`;
+        }
       }
     } else if (!existingAgent.vapiId && vapiKey) {
       // Agent was created without VAPI — try to create it now
