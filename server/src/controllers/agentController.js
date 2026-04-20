@@ -179,6 +179,7 @@ const updateAgent = async (req, res) => {
 
     // Update VAPI agent if exists
     let vapiWarning = null;
+    let vapiNotice = null;
     let vapiSyncInfo = null;
     const vapiKey = await getVapiKeyForUser(req.prisma, req.user.id);
     if (existingAgent.vapiId && vapiKey) {
@@ -236,7 +237,7 @@ const updateAgent = async (req, res) => {
               data: { vapiId: vapiAgent.id }
             });
             existingAgent.vapiId = vapiAgent.id;
-            vapiWarning = `Previous VAPI assistant was missing — created a new one (${vapiAgent.id}).`;
+            vapiNotice = `Previous VAPI assistant was missing — created a new one (${vapiAgent.id}).`;
             vapiSyncInfo = { vapiId: vapiAgent.id, recreated: true };
           } catch (recreateErr) {
             console.error('=== VAPI SELF-HEAL FAILED ===', recreateErr.message);
@@ -295,6 +296,7 @@ const updateAgent = async (req, res) => {
     res.json({
       message: vapiWarning ? (isOwner ? vapiWarning : 'Agent saved') : 'Agent updated successfully',
       vapiWarning: isOwner ? vapiWarning : (vapiWarning ? 'Agent saved' : null),
+      vapiNotice: isOwner ? vapiNotice : null,
       vapiSyncInfo: isOwner ? vapiSyncInfo : null,
       agent: { ...agent, config: parseConfig(agent.config) }
     });

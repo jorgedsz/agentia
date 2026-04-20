@@ -1930,6 +1930,9 @@ If the customer asks to be called back at a later time:
       if (response.data?.vapiWarning) {
         setError(response.data.vapiWarning)
         setTimeout(() => setError(''), 10000)
+      } else if (response.data?.vapiNotice) {
+        setSuccess(response.data.vapiNotice)
+        setTimeout(() => setSuccess(''), 8000)
       } else if (syncInfo) {
         const webhookStatus = syncInfo.webhookUrl && syncInfo.webhookUrl !== 'NOT SET' ? '' : ` | ${ta('webhookNotSet')}`
         setSuccess(`${ta('agentSavedSynced')} (${syncInfo.savedTools} ${ta('tools')}, ${ta('prompt')}: ${syncInfo.savedPromptLength} ${ta('chars')}${webhookStatus})`)
