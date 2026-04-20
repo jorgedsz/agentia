@@ -54,6 +54,10 @@ const whopRoutes = require('./routes/whop');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
+// Railway (and most PaaS) sit behind a load balancer that sets
+// X-Forwarded-For. Trust the first proxy so express-rate-limit and
+// req.ip resolve client addresses correctly.
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;

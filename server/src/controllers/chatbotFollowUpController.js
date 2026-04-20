@@ -95,7 +95,16 @@ async function processOppInStageRule(prisma, chatbot, rule, ruleIndex, openaiAva
   const actions = (rule.actions || []).filter(a => openaiAvailable || a.type !== 'ai_message');
   if (!actions.length) return;
 
+  // Circuit breaker on consecutive GHL 429s.
+  let consecutiveRateLimits = 0;
+  const RATE_LIMIT_CIRCUIT_BREAKER = 3;
+
   while (hasMore) {
+    if (consecutiveRateLimits >= RATE_LIMIT_CIRCUIT_BREAKER) {
+      console.warn(`[Chatbot Follow-Up] Aborting opp_in_stage rule ${ruleIndex} — GHL rate limit tripped.`);
+      break;
+    }
+
     let opps;
     try {
       const data = await ghlRequest(
@@ -104,8 +113,14 @@ async function processOppInStageRule(prisma, chatbot, rule, ruleIndex, openaiAva
       );
       opps = data?.opportunities || [];
       hasMore = opps.length === 20;
+      consecutiveRateLimits = 0;
     } catch (err) {
       console.error(`[Chatbot Follow-Up] GHL search error:`, err.message);
+      if (/too many requests|rate limit/i.test(err.message || '')) {
+        consecutiveRateLimits++;
+        await sleep(2000);
+        continue;
+      }
       break;
     }
 
@@ -161,7 +176,18 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
   const actions = (rule.actions || []).filter(a => openaiAvailable || a.type !== 'ai_message');
   if (!actions.length) return;
 
+  // Circuit breaker: if GHL keeps returning 429 we bail out of the run
+  // instead of grinding through every contact. The next scheduler tick
+  // (30 min later) will retry with a fresh quota.
+  let consecutiveRateLimits = 0;
+  const RATE_LIMIT_CIRCUIT_BREAKER = 3;
+
   for (const contact of inactiveContacts) {
+    if (consecutiveRateLimits >= RATE_LIMIT_CIRCUIT_BREAKER) {
+      console.warn(`[Chatbot Follow-Up] Aborting rule ${ruleIndex} — GHL rate limit tripped. Will retry next cycle.`);
+      break;
+    }
+
     // Look up the contact's opportunity when the rule moves stages. If a
     // pipelineId is configured, restrict to it; otherwise pick the first
     // opportunity the contact has.
@@ -175,8 +201,13 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
         );
         const opps = data?.opportunities || [];
         if (opps.length) opportunityId = opps[0].id;
+        consecutiveRateLimits = 0;
       } catch (err) {
         console.error(`[Chatbot Follow-Up] Opportunity lookup failed for contact ${contact.contactId}:`, err.message);
+        if (/too many requests|rate limit/i.test(err.message || '')) {
+          consecutiveRateLimits++;
+          continue;
+        }
       }
     }
 
