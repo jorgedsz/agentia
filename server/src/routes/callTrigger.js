@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const vapiService = require('../services/vapiService');
-const { getApiKeys } = require('../utils/getApiKeys');
+const { getVapiKeyForUser } = require('../utils/getApiKeys');
 const { decrypt } = require('../utils/encryption');
 
 // POST /api/call/trigger - Trigger outbound calls (requires x-api-key header)
@@ -172,12 +172,14 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // 4. Set up VAPI API key
-    const { vapiApiKey } = await getApiKeys(req.prisma);
+    // 4. Set up VAPI API key — use the same per-user lookup the agent
+    // save flow uses, so the call trigger talks to the same VAPI account
+    // that owns the assistant.
+    const vapiApiKey = await getVapiKeyForUser(req.prisma, parseInt(clientId));
     if (!vapiApiKey) {
       return res.status(500).json({
         success: false,
-        error: 'VAPI API key is not configured. Please set it in Platform Settings.'
+        error: 'VAPI API key is not configured. Please set it in Account Settings or Platform Settings.'
       });
     }
     vapiService.setApiKey(vapiApiKey);
