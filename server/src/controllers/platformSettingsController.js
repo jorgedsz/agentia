@@ -9,7 +9,7 @@ const getSettings = async (req, res) => {
     const settings = await req.prisma.platformSettings.findFirst();
 
     if (!settings) {
-      return res.json({ vapiApiKey: '', openaiApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', n8nUrl: '', n8nApiKey: '', hasVapi: false, hasOpenai: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false, hasN8nUrl: false, hasN8nApiKey: false });
+      return res.json({ vapiApiKey: '', openaiApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', recurringPaymentWebhookUrl: '', n8nUrl: '', n8nApiKey: '', hasVapi: false, hasOpenai: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false, hasRecurringPaymentWebhook: false, hasN8nUrl: false, hasN8nApiKey: false });
     }
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
@@ -18,6 +18,7 @@ const getSettings = async (req, res) => {
     const decryptedElevenLabs = settings.elevenLabsApiKey ? decrypt(settings.elevenLabsApiKey) : '';
     const decryptedSlackWebhook = settings.slackWebhookUrl ? decrypt(settings.slackWebhookUrl) : '';
     const decryptedAccountWebhook = settings.accountWebhookUrl ? decrypt(settings.accountWebhookUrl) : '';
+    const decryptedRecurringWebhook = settings.recurringPaymentWebhookUrl ? decrypt(settings.recurringPaymentWebhookUrl) : '';
     const decryptedN8nUrl = settings.n8nUrl ? decrypt(settings.n8nUrl) : '';
     const decryptedN8nApiKey = settings.n8nApiKey ? decrypt(settings.n8nApiKey) : '';
 
@@ -28,6 +29,7 @@ const getSettings = async (req, res) => {
       elevenLabsApiKey: decryptedElevenLabs ? mask(decryptedElevenLabs, 4) : '',
       slackWebhookUrl: decryptedSlackWebhook ? mask(decryptedSlackWebhook, 4) : '',
       accountWebhookUrl: decryptedAccountWebhook ? mask(decryptedAccountWebhook, 4) : '',
+      recurringPaymentWebhookUrl: decryptedRecurringWebhook ? mask(decryptedRecurringWebhook, 4) : '',
       n8nUrl: decryptedN8nUrl ? mask(decryptedN8nUrl, 4) : '',
       n8nApiKey: decryptedN8nApiKey ? mask(decryptedN8nApiKey, 4) : '',
       hasVapi: !!decryptedVapi,
@@ -36,6 +38,7 @@ const getSettings = async (req, res) => {
       hasElevenLabs: !!decryptedElevenLabs,
       hasSlackWebhook: !!decryptedSlackWebhook,
       hasAccountWebhook: !!decryptedAccountWebhook,
+      hasRecurringPaymentWebhook: !!decryptedRecurringWebhook,
       hasN8nUrl: !!decryptedN8nUrl,
       hasN8nApiKey: !!decryptedN8nApiKey
     });
@@ -51,7 +54,7 @@ const updateSettings = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can update platform settings' });
     }
 
-    const { vapiApiKey, openaiApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl, n8nUrl, n8nApiKey } = req.body;
+    const { vapiApiKey, openaiApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl, recurringPaymentWebhookUrl, n8nUrl, n8nApiKey } = req.body;
 
     const existing = await req.prisma.platformSettings.findFirst();
 
@@ -73,6 +76,9 @@ const updateSettings = async (req, res) => {
     }
     if (accountWebhookUrl !== undefined) {
       data.accountWebhookUrl = accountWebhookUrl ? encrypt(accountWebhookUrl) : null;
+    }
+    if (recurringPaymentWebhookUrl !== undefined) {
+      data.recurringPaymentWebhookUrl = recurringPaymentWebhookUrl ? encrypt(recurringPaymentWebhookUrl) : null;
     }
     if (n8nUrl !== undefined) {
       data.n8nUrl = n8nUrl ? encrypt(n8nUrl) : null;
@@ -97,6 +103,7 @@ const updateSettings = async (req, res) => {
     const decryptedElevenLabs = settings.elevenLabsApiKey ? decrypt(settings.elevenLabsApiKey) : '';
     const decryptedSlackWebhook = settings.slackWebhookUrl ? decrypt(settings.slackWebhookUrl) : '';
     const decryptedAccountWebhook = settings.accountWebhookUrl ? decrypt(settings.accountWebhookUrl) : '';
+    const decryptedRecurringWebhook = settings.recurringPaymentWebhookUrl ? decrypt(settings.recurringPaymentWebhookUrl) : '';
     const decryptedN8nUrl = settings.n8nUrl ? decrypt(settings.n8nUrl) : '';
     const decryptedN8nApiKey = settings.n8nApiKey ? decrypt(settings.n8nApiKey) : '';
 
@@ -108,6 +115,7 @@ const updateSettings = async (req, res) => {
       elevenLabsApiKey: decryptedElevenLabs ? mask(decryptedElevenLabs, 4) : '',
       slackWebhookUrl: decryptedSlackWebhook ? mask(decryptedSlackWebhook, 4) : '',
       accountWebhookUrl: decryptedAccountWebhook ? mask(decryptedAccountWebhook, 4) : '',
+      recurringPaymentWebhookUrl: decryptedRecurringWebhook ? mask(decryptedRecurringWebhook, 4) : '',
       n8nUrl: decryptedN8nUrl ? mask(decryptedN8nUrl, 4) : '',
       n8nApiKey: decryptedN8nApiKey ? mask(decryptedN8nApiKey, 4) : '',
       hasVapi: !!decryptedVapi,
@@ -116,6 +124,7 @@ const updateSettings = async (req, res) => {
       hasElevenLabs: !!decryptedElevenLabs,
       hasSlackWebhook: !!decryptedSlackWebhook,
       hasAccountWebhook: !!decryptedAccountWebhook,
+      hasRecurringPaymentWebhook: !!decryptedRecurringWebhook,
       hasN8nUrl: !!decryptedN8nUrl,
       hasN8nApiKey: !!decryptedN8nApiKey
     });

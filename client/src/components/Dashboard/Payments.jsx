@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { paymentsAPI, usersAPI, whopAPI } from '../../services/api'
+import { paymentsAPI, usersAPI, whopAPI, recurringPaymentsAPI } from '../../services/api'
 import WhopCheckoutModal from './WhopCheckoutModal'
 
 const ROLES = {
@@ -46,6 +46,13 @@ export default function Payments() {
   const [syncingWhop, setSyncingWhop] = useState(false)
   const [searchParams] = useSearchParams()
 
+  // Recurring payments
+  const [recurringPayments, setRecurringPayments] = useState([])
+  const [recurringLoading, setRecurringLoading] = useState(false)
+  const [recurringModal, setRecurringModal] = useState(null) // null | 'create' | item
+  const [recurringForm, setRecurringForm] = useState({ userId: '', description: '', amount: '', currency: 'USD', periodLabel: 'monthly', periodDays: 30, daysBeforeNotify: 3, firstPaymentDate: '', notes: '' })
+  const [recurringSaving, setRecurringSaving] = useState(false)
+
   useEffect(() => { fetchData() }, [])
 
   // Detect checkout success from redirect
@@ -85,6 +92,112 @@ export default function Payments() {
       setError(err.response?.data?.error || 'Failed to load data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchRecurringPayments = async () => {
+    setRecurringLoading(true)
+    try {
+      const { data } = await recurringPaymentsAPI.list()
+      setRecurringPayments(data.items || [])
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load recurring payments')
+    } finally {
+      setRecurringLoading(false)
+    }
+  }
+
+  const openCreateRecurring = () => {
+    setRecurringForm({ userId: '', description: '', amount: '', currency: 'USD', periodLabel: 'monthly', periodDays: 30, daysBeforeNotify: 3, firstPaymentDate: '', notes: '' })
+    setRecurringModal('create')
+  }
+
+  const openEditRecurring = (item) => {
+    setRecurringForm({
+      userId: item.userId,
+      description: item.description || '',
+      amount: item.amount,
+      currency: item.currency,
+      periodLabel: item.periodLabel,
+      periodDays: item.periodDays,
+      daysBeforeNotify: item.daysBeforeNotify,
+      firstPaymentDate: item.nextPaymentDate ? new Date(item.nextPaymentDate).toISOString().slice(0, 10) : '',
+      notes: item.notes || '',
+    })
+    setRecurringModal(item)
+  }
+
+  const saveRecurring = async () => {
+    setRecurringSaving(true)
+    setError('')
+    try {
+      if (recurringModal === 'create') {
+        if (!recurringForm.userId) throw new Error('Select a client')
+        if (!parseFloat(recurringForm.amount)) throw new Error('Enter a valid amount')
+        await recurringPaymentsAPI.create(recurringForm)
+        setSuccess('Recurring payment created')
+      } else {
+        const payload = {
+          description: recurringForm.description,
+          amount: recurringForm.amount,
+          currency: recurringForm.currency,
+          periodLabel: recurringForm.periodLabel,
+          periodDays: recurringForm.periodDays,
+          daysBeforeNotify: recurringForm.daysBeforeNotify,
+          nextPaymentDate: recurringForm.firstPaymentDate || undefined,
+          notes: recurringForm.notes,
+        }
+        await recurringPaymentsAPI.update(recurringModal.id, payload)
+        setSuccess('Recurring payment updated')
+      }
+      setRecurringModal(null)
+      fetchRecurringPayments()
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Failed to save recurring payment')
+    } finally {
+      setRecurringSaving(false)
+    }
+  }
+
+  const toggleRecurringStatus = async (item) => {
+    try {
+      const newStatus = item.status === 'active' ? 'paused' : 'active'
+      await recurringPaymentsAPI.update(item.id, { status: newStatus })
+      fetchRecurringPayments()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to update status')
+    }
+  }
+
+  const markRecurringPaid = async (item) => {
+    try {
+      await recurringPaymentsAPI.markPaid(item.id)
+      setSuccess('Marked as paid — advanced to next cycle')
+      fetchRecurringPayments()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to mark paid')
+    }
+  }
+
+  const fireRecurringNotification = async (item) => {
+    if (!confirm(`Send payment notification to ${item.user?.email} now?`)) return
+    try {
+      await recurringPaymentsAPI.fireNow(item.id)
+      setSuccess('Notification sent to webhook')
+      fetchRecurringPayments()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to send notification')
+    }
+  }
+
+  const deleteRecurring = async (item) => {
+    if (!confirm(`Delete recurring payment for ${item.user?.email}? This does not cancel the Whop plan.`)) return
+    try {
+      await recurringPaymentsAPI.remove(item.id)
+      setSuccess('Recurring payment deleted')
+      fetchRecurringPayments()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to delete')
     }
   }
 
@@ -368,6 +481,12 @@ export default function Payments() {
           >
             Transactions
           </button>
+          <button
+            onClick={() => { setActiveTab('recurring'); fetchRecurringPayments() }}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'recurring' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+          >
+            Recurring Payments
+          </button>
         </div>
       )}
 
@@ -590,6 +709,158 @@ export default function Payments() {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* Recurring Payments Tab (OWNER only) */}
+      {activeTab === 'recurring' && user?.role === ROLES.OWNER && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border">
+          <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recurring Payments</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Configure per-client recurring billing. Every notification fires a webhook with the amount, client phone number, and a fresh Whop payment link.</p>
+            </div>
+            <button onClick={openCreateRecurring} className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors">
+              New Recurring Payment
+            </button>
+          </div>
+
+          {recurringLoading ? (
+            <div className="p-8 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div></div>
+          ) : recurringPayments.length === 0 ? (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">No recurring payments yet</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-dark-border text-left text-gray-500 dark:text-gray-400">
+                    <th className="px-4 py-3 font-medium">Client</th>
+                    <th className="px-4 py-3 font-medium">Amount</th>
+                    <th className="px-4 py-3 font-medium">Period</th>
+                    <th className="px-4 py-3 font-medium">Notify</th>
+                    <th className="px-4 py-3 font-medium">Next payment</th>
+                    <th className="px-4 py-3 font-medium">Last paid</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recurringPayments.map(item => (
+                    <tr key={item.id} className="border-b border-gray-100 dark:border-dark-border/50">
+                      <td className="px-4 py-3">
+                        <div className="text-gray-900 dark:text-white">{item.user?.name || item.user?.email}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{item.user?.phoneNumber || 'no phone'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-white font-medium">{formatCurrency(item.amount)} {item.currency}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 capitalize">{item.periodLabel} <span className="text-xs text-gray-400">({item.periodDays}d)</span></td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{item.daysBeforeNotify}d before</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">{item.nextPaymentDate ? new Date(item.nextPaymentDate).toLocaleDateString() : '—'}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 text-xs">{item.lastPaidAt ? new Date(item.lastPaidAt).toLocaleDateString() : '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${item.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : item.status === 'paused' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-1 justify-end flex-wrap">
+                          <button onClick={() => fireRecurringNotification(item)} className="px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-gray-300" title="Send notification now">Send</button>
+                          <button onClick={() => markRecurringPaid(item)} className="px-2 py-1 text-xs border border-green-300 dark:border-green-800 text-green-700 dark:text-green-400 rounded hover:bg-green-50 dark:hover:bg-green-900/20">Mark paid</button>
+                          <button onClick={() => toggleRecurringStatus(item)} className="px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-gray-300">{item.status === 'active' ? 'Pause' : 'Resume'}</button>
+                          <button onClick={() => openEditRecurring(item)} className="px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-gray-300">Edit</button>
+                          <button onClick={() => deleteRecurring(item)} className="px-2 py-1 text-xs border border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-900/20">Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Recurring Payment Modal */}
+      {recurringModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-200 dark:border-dark-border">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {recurringModal === 'create' ? 'New Recurring Payment' : 'Edit Recurring Payment'}
+              </h3>
+            </div>
+            <div className="p-4 space-y-3">
+              {recurringModal === 'create' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Client</label>
+                  <select
+                    value={recurringForm.userId}
+                    onChange={e => setRecurringForm(f => ({ ...f, userId: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                  >
+                    <option value="">Select a client…</option>
+                    {allUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name || u.email} — {u.email}{u.phoneNumber ? ` · ${u.phoneNumber}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description (optional)</label>
+                <input type="text" value={recurringForm.description} onChange={e => setRecurringForm(f => ({ ...f, description: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" placeholder="e.g. Monthly retainer" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount</label>
+                  <input type="number" min="0.01" step="0.01" value={recurringForm.amount} onChange={e => setRecurringForm(f => ({ ...f, amount: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Currency</label>
+                  <select value={recurringForm.currency} onChange={e => setRecurringForm(f => ({ ...f, currency: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Period</label>
+                  <select value={recurringForm.periodLabel} onChange={e => setRecurringForm(f => ({ ...f, periodLabel: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm">
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="annual">Annual</option>
+                    <option value="custom">Custom (days)</option>
+                  </select>
+                </div>
+                {recurringForm.periodLabel === 'custom' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Days</label>
+                    <input type="number" min="1" value={recurringForm.periodDays} onChange={e => setRecurringForm(f => ({ ...f, periodDays: parseInt(e.target.value) || 30 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Days before payment to notify</label>
+                <input type="number" min="0" value={recurringForm.daysBeforeNotify} onChange={e => setRecurringForm(f => ({ ...f, daysBeforeNotify: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Webhook fires N days before the charge date.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{recurringModal === 'create' ? 'First payment date' : 'Next payment date'}</label>
+                <input type="date" value={recurringForm.firstPaymentDate} onChange={e => setRecurringForm(f => ({ ...f, firstPaymentDate: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                {recurringModal === 'create' && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Leave blank to set it one period from today.</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (optional)</label>
+                <textarea rows={2} value={recurringForm.notes} onChange={e => setRecurringForm(f => ({ ...f, notes: e.target.value }))} className="w-full px-3 py-2 border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+              </div>
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-dark-border flex justify-end gap-2">
+              <button onClick={() => setRecurringModal(null)} className="px-4 py-2 border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-dark-hover">Cancel</button>
+              <button onClick={saveRecurring} disabled={recurringSaving} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 disabled:opacity-50">
+                {recurringSaving ? 'Saving…' : (recurringModal === 'create' ? 'Create' : 'Save')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

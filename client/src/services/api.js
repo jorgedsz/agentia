@@ -291,6 +291,16 @@ export const paymentsAPI = {
   getTransactionHistory: (params) => api.get('/payments/transactions', { params }),
 }
 
+// Recurring Payments API
+export const recurringPaymentsAPI = {
+  list: () => api.get('/recurring-payments'),
+  create: (data) => api.post('/recurring-payments', data),
+  update: (id, data) => api.patch(`/recurring-payments/${id}`, data),
+  remove: (id) => api.delete(`/recurring-payments/${id}`),
+  markPaid: (id) => api.post(`/recurring-payments/${id}/mark-paid`),
+  fireNow: (id) => api.post(`/recurring-payments/${id}/fire-now`),
+}
+
 // Tools API (test HTTP requests via proxy)
 export const toolsAPI = {
   testRequest: (data) => api.post('/tools/test-request', data)

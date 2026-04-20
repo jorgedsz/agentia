@@ -57,6 +57,7 @@ model User {
   transactions         Transaction[]
   creditPurchases      CreditPurchase[]
   waProjects           WaProject[]        @relation("UserWaProjects")
+  recurringPayments    RecurringPayment[] @relation("ClientRecurringPayments")
 }
 
 model VapiKeyPool {
@@ -203,6 +204,7 @@ model PlatformSettings {
   n8nUrl             String?  // Encrypted - Self-hosted n8n instance URL
   n8nApiKey          String?  // Encrypted - n8n API key
   accountWebhookUrl  String?  // Encrypted - Webhook URL for new account creation
+  recurringPaymentWebhookUrl String? // Encrypted - Webhook URL for recurring payment notifications
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -491,6 +493,33 @@ model ChatbotFollowUpLog {
 
   @@unique([chatbotId, ruleIndex, targetId, actionType])
   @@index([chatbotId, createdAt])
+}
+
+model RecurringPayment {
+  id                   Int       @id @default(autoincrement())
+  userId               Int       // Client being billed
+  user                 User      @relation("ClientRecurringPayments", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy            Int       // Owner who created this
+  description          String?
+  amount               Float
+  currency             String    @default("USD")
+  periodDays           Int       @default(30) // Billing period in days
+  periodLabel          String    @default("monthly") // monthly, quarterly, annual, custom
+  daysBeforeNotify     Int       @default(3) // Notify N days before nextPaymentDate
+  nextPaymentDate      DateTime
+  lastPaidAt           DateTime?
+  lastNotifiedAt       DateTime?
+  lastNotifiedForDate  DateTime? // nextPaymentDate value at last notification (dedup)
+  status               String    @default("active") // active, paused, cancelled
+  whopProductId        String?
+  whopPlanId           String?
+  lastCheckoutUrl      String?   // Most recent generated checkout URL
+  lastWhopPaymentId    String?   // Last Whop payment matched to this recurring payment
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([status, nextPaymentDate])
 }
 
 model WaProject {

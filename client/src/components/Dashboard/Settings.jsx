@@ -2635,6 +2635,9 @@ function WebhooksTab() {
   const [webhookUrl, setWebhookUrl] = useState('')
   const [hasAccountWebhook, setHasAccountWebhook] = useState(false)
   const [maskedUrl, setMaskedUrl] = useState('')
+  const [recurringWebhookUrl, setRecurringWebhookUrl] = useState('')
+  const [hasRecurringWebhook, setHasRecurringWebhook] = useState(false)
+  const [recurringMaskedUrl, setRecurringMaskedUrl] = useState('')
   const { t } = useLanguage()
 
   useEffect(() => {
@@ -2647,6 +2650,8 @@ function WebhooksTab() {
       const { data } = await platformSettingsAPI.get()
       setHasAccountWebhook(data.hasAccountWebhook)
       setMaskedUrl(data.accountWebhookUrl || '')
+      setHasRecurringWebhook(data.hasRecurringPaymentWebhook)
+      setRecurringMaskedUrl(data.recurringPaymentWebhookUrl || '')
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load settings')
     } finally {
@@ -2681,6 +2686,42 @@ function WebhooksTab() {
       const { data } = await platformSettingsAPI.update({ accountWebhookUrl: '' })
       setHasAccountWebhook(data.hasAccountWebhook)
       setMaskedUrl(data.accountWebhookUrl || '')
+      setSuccess('Webhook URL removed')
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to remove webhook')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveRecurring = async () => {
+    setError('')
+    setSuccess('')
+    setSaving(true)
+    try {
+      const { data } = await platformSettingsAPI.update({ recurringPaymentWebhookUrl: recurringWebhookUrl })
+      setHasRecurringWebhook(data.hasRecurringPaymentWebhook)
+      setRecurringMaskedUrl(data.recurringPaymentWebhookUrl || '')
+      setRecurringWebhookUrl('')
+      setSuccess('Recurring payment webhook saved')
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save webhook')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveRecurring = async () => {
+    if (!confirm('Remove the recurring payment webhook URL?')) return
+    setError('')
+    setSuccess('')
+    setSaving(true)
+    try {
+      const { data } = await platformSettingsAPI.update({ recurringPaymentWebhookUrl: '' })
+      setHasRecurringWebhook(data.hasRecurringPaymentWebhook)
+      setRecurringMaskedUrl(data.recurringPaymentWebhookUrl || '')
       setSuccess('Webhook URL removed')
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
@@ -2761,6 +2802,49 @@ function WebhooksTab() {
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
             {saving ? 'Saving...' : hasAccountWebhook ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {/* Recurring Payment Webhook */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white">Recurring Payment Webhook URL</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Fires before each recurring payment is due. Payload includes client info, phone number, amount, and a fresh Whop payment link.</p>
+          </div>
+          {hasRecurringWebhook && (
+            <span className="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full">Active</span>
+          )}
+        </div>
+
+        {hasRecurringWebhook && (
+          <div className="mb-4 flex items-center justify-between bg-gray-50 dark:bg-dark-hover p-3 rounded-lg">
+            <code className="text-sm text-gray-600 dark:text-gray-300 font-mono">{recurringMaskedUrl}</code>
+            <button
+              onClick={handleRemoveRecurring}
+              disabled={saving}
+              className="ml-3 px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 text-xs font-medium disabled:opacity-50"
+            >
+              Remove
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <input
+            type="password"
+            value={recurringWebhookUrl}
+            onChange={(e) => setRecurringWebhookUrl(e.target.value)}
+            placeholder={hasRecurringWebhook ? 'Enter new URL to replace...' : 'https://your-webhook-url.com/recurring-payments'}
+            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+          />
+          <button
+            onClick={handleSaveRecurring}
+            disabled={saving || !recurringWebhookUrl.trim()}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {saving ? 'Saving...' : hasRecurringWebhook ? 'Update' : 'Save'}
           </button>
         </div>
       </div>

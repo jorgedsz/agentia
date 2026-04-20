@@ -51,6 +51,8 @@ const portalRoutes = require('./routes/portal');
 const googleWorkspaceRoutes = require('./routes/googleWorkspace');
 const trainingRoutes = require('./routes/training');
 const whopRoutes = require('./routes/whop');
+const recurringPaymentRoutes = require('./routes/recurringPayments');
+const recurringPaymentController = require('./controllers/recurringPaymentController');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -225,6 +227,7 @@ app.use('/api/portal', portalRoutes);
 app.use('/api/google-workspace', googleWorkspaceRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/whop', whopRoutes);
+app.use('/api/recurring-payments', recurringPaymentRoutes);
 
 // ── WhatsApp API endpoints ─────────────────────────────────
 
@@ -432,4 +435,5 @@ server.listen(PORT, () => {
   callbackController.startScheduler(prisma);
   followUpController.startScheduler(prisma);
   chatbotFollowUpController.startScheduler(prisma);
+  recurringPaymentController.startScheduler(prisma);
 });

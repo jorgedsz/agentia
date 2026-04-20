@@ -1,4 +1,5 @@
 const whopService = require('../services/whopService');
+const recurringPaymentController = require('./recurringPaymentController');
 
 // Credit tiers available for purchase ($1 = 1 credit)
 const CREDIT_TIERS = [1, 10, 25, 50, 100];
@@ -239,7 +240,20 @@ async function handlePaymentSucceeded(prisma, data, metadata) {
     return;
   }
 
-  const type = metadata.type; // 'subscription' or 'credits'
+  const type = metadata.type; // 'subscription', 'credits', or 'recurring_payment'
+
+  // Recurring payment flow — advance cycle instead of the subscription/credits paths
+  if (type === 'recurring_payment' || metadata.recurringPaymentId) {
+    try {
+      const handled = await recurringPaymentController.handleWhopPaymentForRecurring(prisma, data, metadata);
+      if (handled) {
+        console.log(`[Whop Webhook] Recurring payment advanced for payment ${paymentId}`);
+        return;
+      }
+    } catch (err) {
+      console.error('[Whop Webhook] recurring payment handler error:', err.message);
+    }
+  }
 
   // Update whopCustomerId if available
   if (data.user?.id) {
