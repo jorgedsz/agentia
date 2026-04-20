@@ -1677,11 +1677,11 @@ ${mIsEs
           // Single calendar prompt
           const singleCal = activeCalendars[0]
           const isSingleGhl = singleCal.provider === 'ghl'
+          const isEs = effectiveLanguage === 'es'
           const ghlNote = isSingleGhl ? (isEs
             ? `\n\n### DATOS DEL CLIENTE (YA IDENTIFICADO)\nEl cliente ya está identificado en el sistema. Su contactId es: "{{contactId}}"\nPROHIBIDO pedir nombre, email, teléfono o cualquier dato personal. Usa este contactId directamente al agendar.`
             : `\n\n### CUSTOMER DATA (ALREADY IDENTIFIED)\nThe customer is already identified in the system. Their contactId is: "{{contactId}}"\nFORBIDDEN to ask for name, email, phone, or any personal data. Use this contactId directly when booking.`) : ''
 
-          const isEs = effectiveLanguage === 'es'
           const calendarInstructions = `
 
 ## ${isEs ? 'INSTRUCCIONES DE AGENDAMIENTO DE CITAS (PRIORIDAD — ANULA CUALQUIER FLUJO DE FASES O GUIÓN)' : 'APPOINTMENT BOOKING INSTRUCTIONS (PRIORITY — OVERRIDE ANY PHASE/SCRIPT FLOW)'}
