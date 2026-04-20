@@ -44,7 +44,16 @@ export default {
           800: '#991b1b',
           900: '#7f1d1d',
         }
-      }
+      },
+      keyframes: {
+        'slide-in-right': {
+          '0%': { transform: 'translateX(120%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+      },
+      animation: {
+        'slide-in-right': 'slide-in-right 0.25s ease-out',
+      },
     },
   },
   plugins: [],
