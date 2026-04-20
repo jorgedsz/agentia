@@ -2,7 +2,7 @@ const axios = require('axios');
 const { findGhlConnection, ghlRequest } = require('./ghlController');
 const { getApiKeys } = require('../utils/getApiKeys');
 
-const INTERVAL_MS = 60 * 1000; // 1 minute
+const INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 let schedulerInterval = null;
 let isProcessing = false;
 
@@ -10,7 +10,7 @@ let isProcessing = false;
 
 function startScheduler(prisma) {
   if (schedulerInterval) return;
-  console.log('[Chatbot Follow-Up] Scheduler started (interval: 1 min)');
+  console.log('[Chatbot Follow-Up] Scheduler started (interval: 30 min)');
   processChatbotFollowUps(prisma);
   schedulerInterval = setInterval(() => processChatbotFollowUps(prisma), INTERVAL_MS);
 }
