@@ -154,10 +154,14 @@ const update = async (req, res) => {
     if (status !== undefined && ['active', 'paused', 'cancelled'].includes(status)) data.status = status;
     if (notes !== undefined) data.notes = notes || null;
 
-    // Whop plan prices are fixed at creation. If amount changed, spin a new plan
-    // so the next generated checkout link charges the new amount.
+    // Whop plan prices are fixed at creation. If amount changed, try to spin a
+    // new plan so the next checkout link charges the new amount. We do this
+    // BEFORE the DB write when possible, but failures here must not block the
+    // core update — the amount still persists and the scheduler will retry
+    // plan generation at next notification time.
     const newAmount = data.amount ?? existing.amount;
     const amountChanged = data.amount !== undefined && data.amount !== existing.amount;
+    let whopWarning = null;
     if (amountChanged) {
       try {
         const clientEmail = existing.user?.email || 'client';
@@ -176,11 +180,14 @@ const update = async (req, res) => {
           name: `Recurring $${newAmount} - ${clientEmail}`,
         });
         data.whopPlanId = plan.id;
-        data.lastCheckoutUrl = null; // old link was priced at the old amount
+        data.lastCheckoutUrl = null;
         console.log(`[RecurringPayment] id=${id} amount changed ${existing.amount} → ${newAmount}; new Whop plan ${plan.id}`);
       } catch (err) {
-        console.error('recurringPayment.update: Whop plan regeneration failed:', err.response?.data || err.message);
-        return res.status(500).json({ error: 'Failed to regenerate Whop plan for new amount. Old plan still active.' });
+        whopWarning = `Amount updated, but Whop plan regeneration failed (${err.response?.data?.message || err.message}). Next checkout link will still be generated on demand.`;
+        console.error('recurringPayment.update: Whop plan regeneration failed — continuing with DB update:', err.response?.data || err.message);
+        // Clear the stale Whop plan so fireNow/scheduler will re-attempt
+        data.whopPlanId = null;
+        data.lastCheckoutUrl = null;
       }
     }
 
@@ -191,7 +198,7 @@ const update = async (req, res) => {
         user: { select: { id: true, name: true, email: true, phoneNumber: true, companyName: true } },
       },
     });
-    res.json({ item });
+    res.json({ item, ...(whopWarning ? { warning: whopWarning } : {}) });
   } catch (err) {
     console.error('recurringPayment.update error:', err);
     res.status(500).json({ error: 'Failed to update recurring payment' });
@@ -292,27 +299,55 @@ async function sendNotification(prisma, entry) {
     });
   }
 
+  // Lazy plan creation: if plan is missing (e.g. amount was updated and regen
+  // failed at edit time), create one now so the webhook has a valid link.
+  let whopPlanId = entry.whopPlanId;
+  let whopProductId = entry.whopProductId;
+  if (!whopPlanId) {
+    try {
+      if (!whopProductId) {
+        const product = await whopService.createProduct(
+          `Recurring - ${client?.name || client?.email || 'client'} - $${entry.amount}`,
+          entry.description || `Recurring payment for ${client?.email || 'client'}`
+        );
+        whopProductId = product.id;
+      }
+      const plan = await whopService.createPlan(whopProductId, {
+        price: entry.amount,
+        billingCycle: 'lifetime',
+        name: `Recurring $${entry.amount} - ${client?.email || 'client'}`,
+      });
+      whopPlanId = plan.id;
+      await prisma.recurringPayment.update({
+        where: { id: entry.id },
+        data: { whopPlanId, whopProductId },
+      });
+      console.log(`[RecurringPayment] Lazy-created Whop plan ${whopPlanId} for id=${entry.id}`);
+    } catch (err) {
+      console.error(`[RecurringPayment] Lazy plan creation failed for id=${entry.id}:`, err.response?.data || err.message);
+      throw new Error('Failed to create Whop plan for recurring payment');
+    }
+  }
+
   // Generate a fresh Whop checkout session for this cycle
   let checkoutUrl = null;
   let checkoutId = null;
-  if (entry.whopPlanId) {
-    try {
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-      const session = await whopService.createCheckoutSession({
-        planId: entry.whopPlanId,
-        metadata: {
-          userId: String(entry.userId),
-          type: 'recurring_payment',
-          recurringPaymentId: String(entry.id),
-        },
-        redirectUrl: `${clientUrl}/payments?checkout=success`,
-      });
-      checkoutUrl = session.purchase_url;
-      checkoutId = session.id;
-    } catch (err) {
-      console.error(`[RecurringPayment] Whop checkout creation failed for id=${entry.id}:`, err.response?.data || err.message);
-      throw new Error('Failed to generate Whop checkout link');
-    }
+  try {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const session = await whopService.createCheckoutSession({
+      planId: whopPlanId,
+      metadata: {
+        userId: String(entry.userId),
+        type: 'recurring_payment',
+        recurringPaymentId: String(entry.id),
+      },
+      redirectUrl: `${clientUrl}/payments?checkout=success`,
+    });
+    checkoutUrl = session.purchase_url;
+    checkoutId = session.id;
+  } catch (err) {
+    console.error(`[RecurringPayment] Whop checkout creation failed for id=${entry.id}:`, err.response?.data || err.message);
+    throw new Error('Failed to generate Whop checkout link');
   }
 
   const payload = {

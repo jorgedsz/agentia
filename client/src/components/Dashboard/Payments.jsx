@@ -147,8 +147,12 @@ export default function Payments() {
           nextPaymentDate: recurringForm.firstPaymentDate || undefined,
           notes: recurringForm.notes,
         }
-        await recurringPaymentsAPI.update(recurringModal.id, payload)
-        setSuccess('Recurring payment updated')
+        const { data } = await recurringPaymentsAPI.update(recurringModal.id, payload)
+        if (data?.warning) {
+          setError(data.warning)
+        } else {
+          setSuccess('Recurring payment updated')
+        }
       }
       setRecurringModal(null)
       fetchRecurringPayments()
