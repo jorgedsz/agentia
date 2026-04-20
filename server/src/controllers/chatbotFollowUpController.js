@@ -19,6 +19,14 @@ async function processChatbotFollowUps(prisma) {
   if (isProcessing) return;
   isProcessing = true;
   try {
+    // Pre-check OpenAI availability once per run so we can skip ai_message
+    // actions gracefully instead of logging a key-missing error per contact.
+    const { openaiApiKey } = await getApiKeys(prisma);
+    const openaiAvailable = !!openaiApiKey;
+    if (!openaiAvailable) {
+      console.warn('[Chatbot Follow-Up] OpenAI key not configured — ai_message actions will be skipped this cycle.');
+    }
+
     const chatbots = await prisma.chatbot.findMany({
       where: { isActive: true, isArchived: false },
     });
@@ -40,9 +48,9 @@ async function processChatbotFollowUps(prisma) {
         const rule = followUpRulesConfig.rules[ruleIndex];
         try {
           if (rule.conditionType === 'opp_in_stage') {
-            await processOppInStageRule(prisma, chatbot, rule, ruleIndex);
+            await processOppInStageRule(prisma, chatbot, rule, ruleIndex, openaiAvailable);
           } else if (rule.conditionType === 'inactive_conversation') {
-            await processInactiveConversationRule(prisma, chatbot, rule, ruleIndex);
+            await processInactiveConversationRule(prisma, chatbot, rule, ruleIndex, openaiAvailable);
           }
         } catch (err) {
           console.error(`[Chatbot Follow-Up] Rule ${ruleIndex} error for chatbot ${chatbot.id}:`, err.message);
@@ -68,7 +76,7 @@ function getThresholdMs(rule) {
   return value * multiplier;
 }
 
-async function processOppInStageRule(prisma, chatbot, rule, ruleIndex) {
+async function processOppInStageRule(prisma, chatbot, rule, ruleIndex, openaiAvailable = true) {
   const thresholdMs = getThresholdMs(rule);
   if (!rule.pipelineId || !rule.stageId || !thresholdMs) return;
 
@@ -81,6 +89,11 @@ async function processOppInStageRule(prisma, chatbot, rule, ruleIndex) {
   const thresholdDate = new Date(Date.now() - thresholdMs);
   let page = 1;
   let hasMore = true;
+
+  // Skip ai_message when OpenAI isn't configured — prevents per-contact
+  // key-missing log spam.
+  const actions = (rule.actions || []).filter(a => openaiAvailable || a.type !== 'ai_message');
+  if (!actions.length) return;
 
   while (hasMore) {
     let opps;
@@ -100,7 +113,7 @@ async function processOppInStageRule(prisma, chatbot, rule, ruleIndex) {
       const lastChange = new Date(opp.lastStageChangeAt || opp.updatedAt || opp.createdAt);
       if (lastChange > thresholdDate) continue;
 
-      for (const action of rule.actions || []) {
+      for (const action of actions) {
         const done = await prisma.chatbotFollowUpLog.findFirst({
           where: {
             chatbotId: chatbot.id,
@@ -114,6 +127,9 @@ async function processOppInStageRule(prisma, chatbot, rule, ruleIndex) {
 
         await executeAction(prisma, chatbot, conn, rule, ruleIndex, opp.id, opp.contact, action);
       }
+
+      // Throttle between opportunities too.
+      await sleep(250);
     }
 
     if (hasMore) await sleep(1000);
@@ -121,7 +137,7 @@ async function processOppInStageRule(prisma, chatbot, rule, ruleIndex) {
   }
 }
 
-async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex) {
+async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex, openaiAvailable = true) {
   const thresholdMs = getThresholdMs(rule);
   if (!thresholdMs) return;
 
@@ -139,6 +155,11 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex)
 
   const conn = await findGhlConnection(chatbot.userId, prisma);
   const needsOpp = (rule.actions || []).some(a => a.type === 'move_stage');
+
+  // Filter out ai_message actions when OpenAI isn't configured so we
+  // don't spam the log with key-missing errors for every contact.
+  const actions = (rule.actions || []).filter(a => openaiAvailable || a.type !== 'ai_message');
+  if (!actions.length) return;
 
   for (const contact of inactiveContacts) {
     // Look up the contact's opportunity when the rule moves stages. If a
@@ -159,7 +180,7 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex)
       }
     }
 
-    for (const action of rule.actions || []) {
+    for (const action of actions) {
       // Skip if this exact action already completed for this contact.
       const done = await prisma.chatbotFollowUpLog.findFirst({
         where: {
@@ -177,6 +198,10 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex)
         : contact.contactId;
       await executeAction(prisma, chatbot, conn, rule, ruleIndex, contact.contactId, { id: contact.contactId }, action, ghlTargetId);
     }
+
+    // Throttle between contacts to stay under GHL's rate limit (the
+    // opportunity lookup + move_stage + tag mutations add up quickly).
+    await sleep(250);
   }
 }
 

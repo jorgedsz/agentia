@@ -99,42 +99,61 @@ const getValidToken = async (integration, prisma) => {
 
 /**
  * Helper function to make GHL API requests
- * GHL Private Integration tokens require specific headers
+ * GHL Private Integration tokens require specific headers.
+ * Retries on 429 (rate limit) using Retry-After when provided, with
+ * capped exponential backoff otherwise.
  */
 const ghlRequest = async (endpoint, token, options = {}, apiVersion = '2021-07-28') => {
   const url = `${GHL_API_BASE}${endpoint}`;
-  console.log('GHL API Request:', url, 'Version:', apiVersion);
+  const maxAttempts = 4;
+  let lastErrorText = '';
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Version': apiVersion,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...options.headers
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log('GHL API Request:', url, 'Version:', apiVersion);
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Version': apiVersion,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...options.headers
+      }
+    });
+
+    const responseText = await response.text();
+    console.log('GHL API Response status:', response.status);
+
+    if (response.status === 429 && attempt < maxAttempts) {
+      const retryAfter = parseFloat(response.headers.get('retry-after') || '') || 0;
+      const waitMs = retryAfter > 0
+        ? Math.min(retryAfter * 1000, 10000)
+        : Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      console.warn(`GHL 429 on ${endpoint}. Retrying in ${waitMs}ms (attempt ${attempt}/${maxAttempts - 1}).`);
+      await new Promise(r => setTimeout(r, waitMs));
+      lastErrorText = responseText;
+      continue;
     }
-  });
 
-  const responseText = await response.text();
-  console.log('GHL API Response status:', response.status);
+    if (!response.ok) {
+      let error;
+      try {
+        error = JSON.parse(responseText);
+      } catch {
+        error = { message: responseText || 'Unknown error' };
+      }
+      console.error('GHL API Error:', error);
+      throw new Error(error.message || error.error || `GHL API error: ${response.status}`);
+    }
 
-  if (!response.ok) {
-    let error;
     try {
-      error = JSON.parse(responseText);
+      return JSON.parse(responseText);
     } catch {
-      error = { message: responseText || 'Unknown error' };
+      return responseText;
     }
-    console.error('GHL API Error:', error);
-    throw new Error(error.message || error.error || `GHL API error: ${response.status}`);
   }
 
-  try {
-    return JSON.parse(responseText);
-  } catch {
-    return responseText;
-  }
+  throw new Error(`GHL API rate limited after ${maxAttempts} attempts: ${lastErrorText || 'Too Many Requests'}`);
 };
 
 /**
