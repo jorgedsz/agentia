@@ -287,11 +287,12 @@ class VapiService {
     // Add artifact plan
     agentConfig.artifactPlan = this.buildArtifactPlan(config);
 
-    // Stop Speaking Plan
+    // Stop Speaking Plan — VAPI caps voiceSeconds at 0.5, so clamp to
+    // avoid 400s on agents whose stored config predates the UI limit.
     if (config.stopSpeakingEnabled) {
       agentConfig.stopSpeakingPlan = {
         numWords: config.stopSpeakingNumWords ?? 2,
-        voiceSeconds: config.stopSpeakingVoiceSeconds ?? 0.2,
+        voiceSeconds: Math.min(config.stopSpeakingVoiceSeconds ?? 0.2, 0.5),
         backoffSeconds: config.stopSpeakingBackoffSeconds ?? 1
       };
     }
@@ -492,11 +493,12 @@ class VapiService {
       artifactPlan: this.buildArtifactPlan(config)
     };
 
-    // Stop Speaking Plan
+    // Stop Speaking Plan — VAPI caps voiceSeconds at 0.5, so clamp to
+    // avoid 400s on agents whose stored config predates the UI limit.
     if (config.stopSpeakingEnabled) {
       updateData.stopSpeakingPlan = {
         numWords: config.stopSpeakingNumWords ?? 2,
-        voiceSeconds: config.stopSpeakingVoiceSeconds ?? 0.2,
+        voiceSeconds: Math.min(config.stopSpeakingVoiceSeconds ?? 0.2, 0.5),
         backoffSeconds: config.stopSpeakingBackoffSeconds ?? 1
       };
     } else {

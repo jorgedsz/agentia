@@ -4982,7 +4982,7 @@ If the customer asks to be called back at a later time:
                         <input
                           type="range"
                           min={0.1}
-                          max={2}
+                          max={0.5}
                           step={0.1}
                           value={callBehaviorSettings.stopSpeakingVoiceSeconds}
                           onChange={(e) => setCallBehaviorSettings({ ...callBehaviorSettings, stopSpeakingVoiceSeconds: parseFloat(e.target.value) })}
