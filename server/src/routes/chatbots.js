@@ -16,6 +16,9 @@ router.get('/', chatbotController.getChatbots);
 // GET /api/chatbots/:id - Get single chatbot
 router.get('/:id', chatbotController.getChatbot);
 
+// POST /api/chatbots/test-db-connection - Probe a Postgres connection for SQL agents
+router.post('/test-db-connection', chatbotController.testDbConnection);
+
 // POST /api/chatbots - Create new chatbot
 router.post('/', chatbotController.createChatbot);
 

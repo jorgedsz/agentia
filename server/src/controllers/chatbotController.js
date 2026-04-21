@@ -24,6 +24,51 @@ const parseConfig = (config) => {
   }
 };
 
+// Detect the iv:tag:ciphertext hex shape produced by utils/encryption.encrypt().
+const ENCRYPTED_RE = /^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/i;
+const isEncrypted = (val) => typeof val === 'string' && ENCRYPTED_RE.test(val);
+
+// Encrypt SQL-agent DB credentials before they hit the `config` JSON column.
+// Idempotent: if the string is already ciphertext (user saved without editing), leave it alone.
+const encryptDbCredentials = (config) => {
+  if (!config || !config.database) return config;
+  const db = { ...config.database };
+  if (db.connectionString && !isEncrypted(db.connectionString)) {
+    db.connectionString = encrypt(db.connectionString);
+  }
+  return { ...config, database: db };
+};
+
+// Mask DB credentials for UI responses. Clients never see the ciphertext or plaintext —
+// they get a display-only preview and a flag so the UI can decide whether to prompt for a new value.
+const maskConnectionString = (raw) => {
+  if (!raw) return '';
+  const tail = raw.slice(-6);
+  return `••••••••${tail}`;
+};
+
+const maskDbCredentials = (config) => {
+  if (!config || !config.database || !config.database.connectionString) return config;
+  let preview = '';
+  try {
+    const plaintext = isEncrypted(config.database.connectionString)
+      ? decrypt(config.database.connectionString)
+      : config.database.connectionString;
+    preview = maskConnectionString(plaintext);
+  } catch {
+    preview = '••••••••';
+  }
+  return {
+    ...config,
+    database: {
+      ...config.database,
+      connectionString: '',
+      connectionStringPreview: preview,
+      hasConnectionString: true,
+    },
+  };
+};
+
 const getChatbots = async (req, res) => {
   try {
     const chatbots = await req.prisma.chatbot.findMany({
@@ -33,7 +78,7 @@ const getChatbots = async (req, res) => {
 
     const chatbotsWithParsedConfig = chatbots.map(chatbot => ({
       ...chatbot,
-      config: parseConfig(chatbot.config),
+      config: maskDbCredentials(parseConfig(chatbot.config)),
       outputUrl: chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null
     }));
 
@@ -59,7 +104,7 @@ const getChatbot = async (req, res) => {
     res.json({
       chatbot: {
         ...chatbot,
-        config: parseConfig(chatbot.config),
+        config: maskDbCredentials(parseConfig(chatbot.config)),
         outputUrl: chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null
       }
     });
@@ -77,6 +122,8 @@ const createChatbot = async (req, res) => {
       return res.status(400).json({ error: 'Chatbot name is required' });
     }
 
+    const persistedConfig = config ? encryptDbCredentials(config) : null;
+
     const chatbot = await req.prisma.chatbot.create({
       data: {
         name,
@@ -84,7 +131,7 @@ const createChatbot = async (req, res) => {
         chatbotType: chatbotType || 'standard',
         outputType: outputType || 'respond_to_webhook',
         outputUrl: outputUrl ? encrypt(outputUrl) : null,
-        config: config ? JSON.stringify(config) : null,
+        config: persistedConfig ? JSON.stringify(persistedConfig) : null,
         userId: req.user.id
       }
     });
@@ -98,7 +145,7 @@ const createChatbot = async (req, res) => {
       if (n8nConfig) {
         console.log('n8n config found, creating workflow for chatbot:', chatbot.id, 'n8n URL:', n8nConfig.url);
         n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
-        const chatbotWithDecryptedUrl = { ...chatbot, outputUrl: outputUrl || null, config: config || {}, serverBaseUrl: getServerBaseUrl() };
+        const chatbotWithDecryptedUrl = { ...chatbot, outputUrl: outputUrl || null, config: persistedConfig || {}, serverBaseUrl: getServerBaseUrl() };
         const workflow = await n8nService.createWorkflow(chatbotWithDecryptedUrl);
         n8nWorkflowId = workflow.id;
         n8nWebhookUrl = `${n8nConfig.url.replace(/\/+$/, '')}/webhook/chatbot-${chatbot.id}`;
@@ -136,7 +183,7 @@ const createChatbot = async (req, res) => {
       message: 'Chatbot created successfully',
       chatbot: {
         ...chatbot,
-        config: parseConfig(chatbot.config),
+        config: maskDbCredentials(parseConfig(chatbot.config)),
         outputUrl: outputUrl || null,
         n8nWorkflowId,
         n8nWebhookUrl
@@ -163,10 +210,26 @@ const updateChatbot = async (req, res) => {
       return res.status(404).json({ error: 'Chatbot not found' });
     }
 
+    let persistedConfig = config || null;
+    if (persistedConfig && persistedConfig.database) {
+      const incoming = persistedConfig.database;
+      // Client-side sends an empty connectionString when the user didn't retype the masked value —
+      // in that case keep the previously saved ciphertext instead of wiping it.
+      if (!incoming.connectionString) {
+        const prev = parseConfig(existingChatbot.config);
+        const prevCs = prev?.database?.connectionString || '';
+        persistedConfig = {
+          ...persistedConfig,
+          database: { ...incoming, connectionString: prevCs },
+        };
+      }
+      persistedConfig = encryptDbCredentials(persistedConfig);
+    }
+
     const updateData = {
       name: name || existingChatbot.name,
       description: description !== undefined ? (description || null) : existingChatbot.description,
-      config: config ? JSON.stringify(config) : existingChatbot.config,
+      config: persistedConfig ? JSON.stringify(persistedConfig) : existingChatbot.config,
       outputType: outputType || existingChatbot.outputType,
       outputUrl: outputUrl ? encrypt(outputUrl) : (outputUrl === '' ? null : existingChatbot.outputUrl)
     };
@@ -188,7 +251,7 @@ const updateChatbot = async (req, res) => {
         const chatbotForN8n = {
           ...chatbot,
           outputUrl: decryptedOutputUrl,
-          config: config || parseConfig(chatbot.config) || {},
+          config: persistedConfig || parseConfig(chatbot.config) || {},
           serverBaseUrl: getServerBaseUrl()
         };
 
@@ -233,7 +296,7 @@ const updateChatbot = async (req, res) => {
       message: 'Chatbot updated successfully',
       chatbot: {
         ...chatbot,
-        config: parseConfig(chatbot.config),
+        config: maskDbCredentials(parseConfig(chatbot.config)),
         outputUrl: chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null
       }
     };
@@ -285,7 +348,7 @@ const toggleChatbot = async (req, res) => {
       message: `Chatbot ${newActive ? 'activated' : 'deactivated'} successfully`,
       chatbot: {
         ...updated,
-        config: parseConfig(updated.config),
+        config: maskDbCredentials(parseConfig(updated.config)),
         outputUrl: updated.outputUrl ? decrypt(updated.outputUrl) : null
       }
     });
@@ -864,6 +927,67 @@ const deleteChatbot = async (req, res) => {
   }
 };
 
+// SQL-agent DB connection probe. Accepts a plaintext connection string OR an existing chatbot id
+// (so the user can re-test an already-saved connection without retyping it). For now Postgres only —
+// `pg` is already a server dependency. Queries `SELECT 1` with a short timeout and returns success or
+// a normalized error message.
+const testDbConnection = async (req, res) => {
+  try {
+    const { type = 'postgres', connectionString: rawCs, chatbotId } = req.body || {};
+
+    if (type !== 'postgres') {
+      return res.status(400).json({ error: `Unsupported database type: ${type}` });
+    }
+
+    let connectionString = rawCs;
+    if (!connectionString && chatbotId) {
+      const cb = await req.prisma.chatbot.findFirst({
+        where: { id: chatbotId, userId: req.user.id },
+        select: { config: true }
+      });
+      if (!cb) return res.status(404).json({ error: 'Chatbot not found' });
+      const cfg = parseConfig(cb.config);
+      const stored = cfg?.database?.connectionString;
+      if (!stored) return res.status(400).json({ error: 'No stored connection string for this chatbot' });
+      try {
+        connectionString = isEncrypted(stored) ? decrypt(stored) : stored;
+      } catch {
+        return res.status(400).json({ error: 'Stored connection string is corrupted — re-enter it' });
+      }
+    }
+
+    if (!connectionString) {
+      return res.status(400).json({ error: 'connectionString is required' });
+    }
+
+    const { Client } = require('pg');
+    const client = new Client({
+      connectionString,
+      connectionTimeoutMillis: 8000,
+      statement_timeout: 8000,
+      query_timeout: 8000,
+    });
+
+    const start = Date.now();
+    try {
+      await client.connect();
+      const result = await client.query('SELECT 1 AS ok');
+      await client.end();
+      return res.json({
+        success: true,
+        latencyMs: Date.now() - start,
+        rowCount: result.rowCount
+      });
+    } catch (dbErr) {
+      try { await client.end(); } catch {}
+      return res.status(400).json({ error: dbErr.message || 'Failed to connect' });
+    }
+  } catch (error) {
+    console.error('testDbConnection error:', error);
+    res.status(500).json({ error: 'Failed to test connection' });
+  }
+};
+
 module.exports = {
   getChatbots,
   getChatbot,
@@ -872,6 +996,7 @@ module.exports = {
   toggleChatbot,
   deleteChatbot,
   testChatbot,
+  testDbConnection,
   syncWorkflow,
   clearMemory,
   webhookProxy,

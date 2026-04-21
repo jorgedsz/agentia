@@ -180,6 +180,17 @@ export default function ChatbotEdit() {
   const [followUpLogs, setFollowUpLogs] = useState([])
   const [showFollowUpLogs, setShowFollowUpLogs] = useState(false)
 
+  // Agent kind (conversational | sql_agent) + optional SQL database connection
+  const [agentKind, setAgentKind] = useState('conversational')
+  const [databaseConfig, setDatabaseConfig] = useState({
+    type: 'postgres',
+    connectionString: '',
+    connectionStringPreview: '',
+    hasConnectionString: false,
+  })
+  const [dbTestStatus, setDbTestStatus] = useState(null) // { ok: boolean, message: string, latencyMs?: number }
+  const [dbTesting, setDbTesting] = useState(false)
+
   // GHL CRM settings
   const [ghlCrmConfig, setGhlCrmConfig] = useState({
     createNote: false,
@@ -265,6 +276,17 @@ export default function ChatbotEdit() {
       }
       if (config.followUpRulesConfig) {
         setFollowUpRulesConfig(config.followUpRulesConfig)
+      }
+      if (config.agentKind) {
+        setAgentKind(config.agentKind)
+      }
+      if (config.database) {
+        setDatabaseConfig({
+          type: config.database.type || 'postgres',
+          connectionString: '',
+          connectionStringPreview: config.database.connectionStringPreview || '',
+          hasConnectionString: !!config.database.hasConnectionString,
+        })
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load chatbot')
@@ -812,28 +834,37 @@ export default function ChatbotEdit() {
       )
       const allTools = [...manualTools, ...calendarTools, ...callTools, ...sheetsTools, ...docsTools, ...ghlCrmTools]
 
+      const configPayload = {
+        systemPrompt,
+        systemPromptBase: systemPrompt,
+        modelProvider: 'openai',
+        modelName,
+        tools: allTools,
+        variables,
+        calendarConfig,
+        callConfig,
+        sheetsConfig,
+        docsConfig,
+        ghlCrmConfig,
+        followUpRulesConfig,
+        bufferSeconds,
+        outputType: 'respond_to_webhook',
+        outputUrl: outputUrl || '',
+        agentKind,
+      }
+      if (agentKind === 'sql_agent') {
+        configPayload.database = {
+          type: databaseConfig.type || 'postgres',
+          connectionString: databaseConfig.connectionString || '',
+        }
+      }
+
       const { data } = await chatbotsAPI.update(id, {
         name,
         chatbotType,
         outputType: 'respond_to_webhook',
         outputUrl: outputUrl || '',
-        config: {
-          systemPrompt,
-          systemPromptBase: systemPrompt,
-          modelProvider: 'openai',
-          modelName,
-          tools: allTools,
-          variables,
-          calendarConfig,
-          callConfig,
-          sheetsConfig,
-          docsConfig,
-          ghlCrmConfig,
-          followUpRulesConfig,
-          bufferSeconds,
-          outputType: 'respond_to_webhook',
-          outputUrl: outputUrl || '',
-        }
+        config: configPayload
       })
 
       if (data.n8nWarning) {
@@ -1071,6 +1102,9 @@ export default function ChatbotEdit() {
             <div className="flex items-center gap-2 mt-1">
               <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-dark-hover dark:text-gray-400'}`}>
                 {isActive ? t('chatbotEdit.active') : t('chatbotEdit.inactive')}
+              </span>
+              <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${agentKind === 'sql_agent' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                {agentKind === 'sql_agent' ? 'SQL Agent' : 'Conversational'}
               </span>
               <select
                 value={chatbotType}
@@ -1438,6 +1472,82 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
               </div>
             )}
         </div>
+        )}
+
+        {/* SQL Agent — Database Connection */}
+        {agentKind === 'sql_agent' && (
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Database Connection</h3>
+              <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                SQL Agent
+              </span>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              The agent will run read-only SQL against this database to answer questions.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Database type</label>
+                <select
+                  value={databaseConfig.type}
+                  onChange={(e) => setDatabaseConfig(prev => ({ ...prev, type: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="postgres">PostgreSQL</option>
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Connection string</label>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  value={databaseConfig.connectionString}
+                  onChange={(e) => {
+                    setDatabaseConfig(prev => ({ ...prev, connectionString: e.target.value }))
+                    setDbTestStatus(null)
+                  }}
+                  placeholder={databaseConfig.hasConnectionString ? `Saved: ${databaseConfig.connectionStringPreview || '••••••••'} (leave blank to keep)` : 'postgresql://user:password@host:5432/dbname'}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                type="button"
+                disabled={dbTesting || (!databaseConfig.connectionString && !databaseConfig.hasConnectionString)}
+                onClick={async () => {
+                  setDbTesting(true)
+                  setDbTestStatus(null)
+                  try {
+                    const payload = { type: databaseConfig.type }
+                    if (databaseConfig.connectionString) {
+                      payload.connectionString = databaseConfig.connectionString
+                    } else {
+                      payload.chatbotId = id
+                    }
+                    const { data } = await chatbotsAPI.testDbConnection(payload)
+                    setDbTestStatus({ ok: true, message: `Connected (${data.latencyMs} ms)`, latencyMs: data.latencyMs })
+                  } catch (err) {
+                    setDbTestStatus({ ok: false, message: err.response?.data?.error || 'Failed to connect' })
+                  } finally {
+                    setDbTesting(false)
+                  }
+                }}
+                className="px-3 py-2 text-sm font-medium rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
+              >
+                {dbTesting ? 'Testing...' : 'Test connection'}
+              </button>
+              {dbTestStatus && (
+                <span className={`text-sm ${dbTestStatus.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {dbTestStatus.ok ? '✓ ' : '✗ '}{dbTestStatus.message}
+                </span>
+              )}
+            </div>
+            <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+              Credentials are encrypted at rest. We recommend a read-only database user scoped to the tables the agent should access.
+            </p>
+          </div>
         )}
 
         {/* System Prompt */}

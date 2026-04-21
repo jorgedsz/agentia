@@ -63,7 +63,8 @@ export const chatbotsAPI = {
   test: (id, message, sessionId, contactId) => api.post(`/chatbots/${id}/test`, { message, sessionId, contactId }),
   syncWorkflow: (id) => api.post(`/chatbots/${id}/sync-workflow`),
   clearMemory: (id, body = {}) => api.post(`/chatbots/${id}/clear-memory`, body),
-  getFollowUpLogs: (chatbotId) => api.get('/chatbot-follow-ups/logs', { params: { chatbotId } })
+  getFollowUpLogs: (chatbotId) => api.get('/chatbot-follow-ups/logs', { params: { chatbotId } }),
+  testDbConnection: (body) => api.post('/chatbots/test-db-connection', body)
 }
 
 // Users/Clients API (for OWNER and AGENCY)
