@@ -2,7 +2,11 @@ const axios = require('axios');
 const { findGhlConnection, ghlRequest } = require('./ghlController');
 const { getApiKeys } = require('../utils/getApiKeys');
 
-const INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const INTERVAL_MS = 60 * 1000; // 1 minute — short tick so minute-granularity thresholds fire close to on-time
+// opp_in_stage paginates GHL every run, so we keep it on the original 30-min cadence
+// instead of hammering GHL each minute.
+const OPP_IN_STAGE_INTERVAL_MS = 30 * 60 * 1000;
+let lastOppInStageRunAt = 0;
 let schedulerInterval = null;
 let isProcessing = false;
 
@@ -10,7 +14,7 @@ let isProcessing = false;
 
 function startScheduler(prisma) {
   if (schedulerInterval) return;
-  console.log('[Chatbot Follow-Up] Scheduler started (interval: 30 min)');
+  console.log('[Chatbot Follow-Up] Scheduler started (interval: 1 min)');
   processChatbotFollowUps(prisma);
   schedulerInterval = setInterval(() => processChatbotFollowUps(prisma), INTERVAL_MS);
 }
@@ -23,13 +27,13 @@ async function processChatbotFollowUps(prisma) {
     // actions gracefully instead of logging a key-missing error per contact.
     const { openaiApiKey } = await getApiKeys(prisma);
     const openaiAvailable = !!openaiApiKey;
-    if (!openaiAvailable) {
-      console.warn('[Chatbot Follow-Up] OpenAI key not configured — ai_message actions will be skipped this cycle.');
-    }
 
     const chatbots = await prisma.chatbot.findMany({
       where: { isActive: true, isArchived: false },
     });
+
+    const runOppInStage = Date.now() - lastOppInStageRunAt >= OPP_IN_STAGE_INTERVAL_MS;
+    if (runOppInStage) lastOppInStageRunAt = Date.now();
 
     for (const chatbot of chatbots) {
       let config;
@@ -42,12 +46,11 @@ async function processChatbotFollowUps(prisma) {
       const followUpRulesConfig = config.followUpRulesConfig;
       if (!followUpRulesConfig?.enabled || !followUpRulesConfig.rules?.length) continue;
 
-      console.log(`[Chatbot Follow-Up] Processing chatbot "${chatbot.name}" (${chatbot.id})`);
-
       for (let ruleIndex = 0; ruleIndex < followUpRulesConfig.rules.length; ruleIndex++) {
         const rule = followUpRulesConfig.rules[ruleIndex];
         try {
           if (rule.conditionType === 'opp_in_stage') {
+            if (!runOppInStage) continue;
             await processOppInStageRule(prisma, chatbot, rule, ruleIndex, openaiAvailable);
           } else if (rule.conditionType === 'inactive_conversation') {
             await processInactiveConversationRule(prisma, chatbot, rule, ruleIndex, openaiAvailable);
