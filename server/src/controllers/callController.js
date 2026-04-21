@@ -3,6 +3,7 @@ const { getVapiKeyForUser } = require('../utils/getApiKeys');
 const { decryptPHI } = require('../utils/phiEncryption');
 const { logAudit } = require('../utils/auditLog');
 const { getAgentRate } = require('../utils/pricingUtils');
+const { findGhlConnection, ghlRequest } = require('./ghlController');
 
 // Categorize a VAPI call into an outcome
 const categorizeOutcome = (call) => {
@@ -153,8 +154,48 @@ const createCall = async (req, res) => {
         name: customerName
       }
     };
+
+    // Build variableValues so {{contactId}} / {{customerPhone}} substitute in the
+    // agent's system prompt and tool body templates. Without this, a UI test call
+    // has no context and the LLM forwards literal "{{contactId}}" to GHL.
+    const variableValues = { customerPhone: customerNumber };
+    if (customerName) variableValues.firstName = customerName;
+
+    // If the agent uses a GHL calendar, resolve (or create) the GHL contact by
+    // phone so contactId is injected for the call.
+    const calCfg = agentConfig.calendarConfig || {};
+    const calList = (calCfg.calendars && calCfg.calendars.length) ? calCfg.calendars : [calCfg];
+    const hasGhlCal = calList.some(c => c?.provider === 'ghl' && c?.calendarId);
+    if (hasGhlCal) {
+      try {
+        const conn = await findGhlConnection(req.user.id, req.prisma);
+        if (conn) {
+          let contactId = null;
+          const search = await ghlRequest(
+            `/contacts/search?locationId=${conn.locationId}&query=${encodeURIComponent(customerNumber)}`,
+            conn.token
+          ).catch(() => null);
+          if (search?.contacts?.length) {
+            contactId = search.contacts[0].id;
+          } else {
+            const body = { locationId: conn.locationId, phone: customerNumber };
+            if (customerName) body.name = customerName;
+            const created = await ghlRequest('/contacts', conn.token, {
+              method: 'POST',
+              body: JSON.stringify(body)
+            }).catch(() => null);
+            contactId = created?.contact?.id || null;
+          }
+          if (contactId) variableValues.contactId = contactId;
+        }
+      } catch (e) {
+        console.error('[Call] GHL contact resolve failed:', e.message);
+      }
+    }
+
+    callPayload.assistantOverrides = { variableValues };
     if (outboundGreeting && outboundGreeting.trim()) {
-      callPayload.assistantOverrides = { firstMessage: outboundGreeting };
+      callPayload.assistantOverrides.firstMessage = outboundGreeting;
     }
 
     // Create the call via VAPI
