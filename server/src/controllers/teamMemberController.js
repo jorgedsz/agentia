@@ -7,6 +7,12 @@ const TEAM_ROLES = {
   USER: 'user'
 };
 
+// Only the account owner (direct login) or an admin team member may mutate team members.
+function canManageTeam(req) {
+  if (!req.isTeamMember) return true;
+  return req.teamMember?.teamRole === TEAM_ROLES.ADMIN;
+}
+
 /**
  * Get all team members for the current account
  * GET /api/team-members
@@ -42,6 +48,9 @@ const getTeamMembers = async (req, res) => {
  */
 const createTeamMember = async (req, res) => {
   try {
+    if (!canManageTeam(req)) {
+      return res.status(403).json({ error: 'Only account owners and admin team members can manage team members' });
+    }
     const { email, password, name, teamRole } = req.body;
     const accountId = req.user.id;
 
@@ -114,6 +123,9 @@ const createTeamMember = async (req, res) => {
  */
 const updateTeamMember = async (req, res) => {
   try {
+    if (!canManageTeam(req)) {
+      return res.status(403).json({ error: 'Only account owners and admin team members can manage team members' });
+    }
     const { id } = req.params;
     const { name, teamRole, isActive, password } = req.body;
     const accountId = req.user.id;
@@ -183,8 +195,16 @@ const updateTeamMember = async (req, res) => {
  */
 const deleteTeamMember = async (req, res) => {
   try {
+    if (!canManageTeam(req)) {
+      return res.status(403).json({ error: 'Only account owners and admin team members can manage team members' });
+    }
     const { id } = req.params;
     const accountId = req.user.id;
+
+    // Admins can't delete themselves — would lock them out of their own session.
+    if (req.isTeamMember && req.teamMember?.id === parseInt(id)) {
+      return res.status(400).json({ error: 'You cannot delete your own team member account' });
+    }
 
     // Verify team member belongs to this account
     const existing = await req.prisma.teamMember.findFirst({

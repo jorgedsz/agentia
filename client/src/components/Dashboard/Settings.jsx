@@ -1096,7 +1096,7 @@ function TeamAccessTab() {
       : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
   }
 
-  if (isTeamMember) {
+  if (isTeamMember && teamMember?.teamRole !== TEAM_ROLES.ADMIN) {
     return (
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
         <div className="flex items-center gap-3 text-yellow-500">
@@ -1105,7 +1105,7 @@ function TeamAccessTab() {
           </svg>
           <p className="text-sm">
             You are logged in as a team member ({teamMember?.teamRole}).
-            Only account owners can manage team access.
+            Only account owners and admin team members can manage team access.
           </p>
         </div>
       </div>
