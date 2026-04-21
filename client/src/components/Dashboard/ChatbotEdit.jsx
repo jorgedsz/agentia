@@ -1120,35 +1120,39 @@ export default function ChatbotEdit() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+      <div className="mb-6">
+        {/* Title row */}
+        <div className="flex items-start gap-3 mb-4">
           <button
             onClick={() => navigate('/dashboard/chatbots')}
-            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover"
+            className="mt-1.5 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+            title={t('chatbotEdit.back') || 'Back'}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <div>
+          <div className="flex-1 min-w-0">
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="text-2xl font-bold text-gray-900 dark:text-white bg-transparent border-none outline-none focus:ring-0 p-0"
+              className="w-full text-3xl font-bold tracking-tight text-gray-900 dark:text-white bg-transparent border-none outline-none focus:ring-0 p-0"
               placeholder={t('chatbotEdit.chatbotName')}
             />
-            <div className="flex items-center gap-2 mt-1">
-              <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-dark-hover dark:text-gray-400'}`}>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full ${isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-dark-hover dark:text-gray-400'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-500' : 'bg-gray-400'}`} />
                 {isActive ? t('chatbotEdit.active') : t('chatbotEdit.inactive')}
               </span>
-              <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${agentKind === 'sql_agent' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+              <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full ${agentKind === 'sql_agent' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
                 {agentKind === 'sql_agent' ? 'SQL Agent' : 'Conversational'}
               </span>
+              <span className="hidden sm:inline-block w-px h-4 bg-gray-200 dark:bg-dark-border mx-1" />
               <select
                 value={chatbotType}
                 onChange={(e) => setChatbotType(e.target.value)}
-                className="text-xs font-medium rounded-full px-2.5 py-0.5 border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                className="text-xs font-medium rounded-full px-3 py-1 border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
               >
                 <option value="standard">{t('chatbotEdit.respondToWebhook')}</option>
                 <option value="ghl_sms">{t('chatbotEdit.ghlSms')}</option>
@@ -1159,61 +1163,82 @@ export default function ChatbotEdit() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowTestModal(true)}
-            className="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 flex items-center gap-1.5"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            {t('chatbotEdit.test')}
-          </button>
-          <button
-            onClick={handleSyncWorkflow}
-            disabled={syncing}
-            title="Regenerate n8n workflow from current config"
-            className="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-violet-600 bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/30 flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            {syncing ? 'Syncing...' : 'Sync Workflow'}
-          </button>
-          <button
-            onClick={openExecutionsModal}
-            title="View recent executions and which nodes ran"
-            className="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 flex items-center gap-1.5"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-            </svg>
-            Executions
-          </button>
-          <button
-            onClick={openClearMemoryModal}
-            disabled={clearingMemory}
-            title="Wipe conversation memory — all sessions, a single session, or all sessions for a contact"
-            className="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-amber-600 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            {clearingMemory ? 'Clearing...' : 'Clear Memory'}
-          </button>
-          <button
-            onClick={handleToggle}
-            className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${isActive ? 'text-orange-600 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100' : 'text-green-600 bg-green-50 dark:bg-green-900/20 hover:bg-green-100'}`}
-          >
-            {isActive ? t('chatbotEdit.deactivate') : t('chatbotEdit.activate')}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
-          >
-            {saving ? t('chatbotEdit.saving') : t('chatbotEdit.save')}
-          </button>
+
+        {/* Action bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-white/60 dark:bg-dark-card/60 backdrop-blur-sm border border-gray-200 dark:border-dark-border rounded-2xl p-2">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleSyncWorkflow}
+              disabled={syncing}
+              title="Regenerate n8n workflow from current config"
+              className="inline-flex items-center justify-center w-9 h-9 text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-xl transition-colors disabled:opacity-50"
+            >
+              <svg className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+            <button
+              onClick={openExecutionsModal}
+              title="View recent executions and which nodes ran"
+              className="inline-flex items-center justify-center w-9 h-9 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </button>
+            <button
+              onClick={openClearMemoryModal}
+              disabled={clearingMemory}
+              title="Wipe conversation memory — all sessions, a single session, or all sessions for a contact"
+              className="inline-flex items-center justify-center w-9 h-9 text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-xl transition-colors disabled:opacity-50"
+            >
+              <svg className={`w-4 h-4 ${clearingMemory ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowTestModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors whitespace-nowrap"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+              {t('chatbotEdit.test')}
+            </button>
+            <button
+              onClick={handleToggle}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-xl transition-colors whitespace-nowrap ${isActive ? 'text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover' : 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {isActive ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                )}
+              </svg>
+              {isActive ? t('chatbotEdit.deactivate') : t('chatbotEdit.activate')}
+            </button>
+            <span className="w-px h-7 bg-gray-200 dark:bg-dark-border mx-1" />
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-xl shadow-sm hover:shadow transition-all disabled:opacity-50 whitespace-nowrap"
+            >
+              {saving ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+              {saving ? t('chatbotEdit.saving') : t('chatbotEdit.save')}
+            </button>
+          </div>
         </div>
       </div>
 
