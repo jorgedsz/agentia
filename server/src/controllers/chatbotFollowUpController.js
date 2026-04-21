@@ -184,9 +184,26 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
   const actions = (rule.actions || []).filter(a => openaiAvailable || a.type !== 'ai_message');
   if (!actions.length) return;
 
+  // Batch-load already-completed action log entries for this rule in one
+  // query, so we can skip contacts whose actions are all done BEFORE
+  // making any GHL calls. Without this, a 1-min tick would re-query GHL
+  // for every already-processed contact on every tick.
+  const actionTypes = actions.map(a => a.type);
+  const doneLogs = await prisma.chatbotFollowUpLog.findMany({
+    where: {
+      chatbotId: chatbot.id,
+      ruleIndex,
+      actionType: { in: actionTypes },
+      status: 'completed',
+    },
+    select: { targetId: true, actionType: true },
+  });
+  const doneSet = new Set(doneLogs.map(l => `${l.targetId}::${l.actionType}`));
+  const isDone = (contactId, actionType) => doneSet.has(`${contactId}::${actionType}`);
+
   // Circuit breaker: if GHL keeps returning 429 we bail out of the run
   // instead of grinding through every contact. The next scheduler tick
-  // (30 min later) will retry with a fresh quota.
+  // retries with a fresh quota.
   let consecutiveRateLimits = 0;
   const RATE_LIMIT_CIRCUIT_BREAKER = 3;
 
@@ -196,11 +213,16 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
       break;
     }
 
-    // Look up the contact's opportunity when the rule moves stages. If a
-    // pipelineId is configured, restrict to it; otherwise pick the first
-    // opportunity the contact has.
+    // Short-circuit: if every action for this contact is already completed,
+    // don't touch GHL at all.
+    const pendingActions = actions.filter(a => !isDone(contact.contactId, a.type));
+    if (pendingActions.length === 0) continue;
+
+    // Look up the contact's opportunity only when at least one pending action
+    // is move_stage (otherwise we don't need the opportunity id).
+    const pendingNeedsOpp = needsOpp && pendingActions.some(a => a.type === 'move_stage');
     let opportunityId = null;
-    if (needsOpp && conn) {
+    if (pendingNeedsOpp && conn) {
       try {
         const pipelineFilter = rule.pipelineId ? `&pipeline_id=${rule.pipelineId}` : '';
         const data = await ghlRequest(
@@ -219,27 +241,14 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
       }
     }
 
-    for (const action of actions) {
-      // Skip if this exact action already completed for this contact.
-      const done = await prisma.chatbotFollowUpLog.findFirst({
-        where: {
-          chatbotId: chatbot.id,
-          ruleIndex,
-          targetId: contact.contactId,
-          actionType: action.type,
-          status: 'completed',
-        },
-      });
-      if (done) continue;
-
+    for (const action of pendingActions) {
       const ghlTargetId = action.type === 'move_stage' && opportunityId
         ? opportunityId
         : contact.contactId;
       await executeAction(prisma, chatbot, conn, rule, ruleIndex, contact.contactId, { id: contact.contactId }, action, ghlTargetId);
     }
 
-    // Throttle between contacts to stay under GHL's rate limit (the
-    // opportunity lookup + move_stage + tag mutations add up quickly).
+    // Throttle between contacts that actually triggered GHL work.
     await sleep(250);
   }
 }
