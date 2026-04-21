@@ -540,12 +540,17 @@ const bookAppointment = async (req, res) => {
     const {
       startTime,
       endTime,
-      title,
       contactName,
       contactEmail,
       contactPhone,
       notes
     } = functionArgs;
+
+    // Title template: prefer LLM-provided title, else the configured one from the tool URL
+    let title = functionArgs.title || req.query.title || null;
+    if (title) {
+      try { title = decodeURIComponent(title); } catch {}
+    }
 
     // Accept contactId from query (preset) or LLM args, and treat unresolved
     // template variables (e.g. "{{contactId}}") as missing
@@ -635,6 +640,20 @@ const bookAppointment = async (req, res) => {
         appointmentEndTime = start.toISOString();
       }
 
+      // Resolve {{variable}} placeholders in the title template (post-contact-lookup
+      // so {{contact.name}} can fall back to the looked-up name).
+      let resolvedTitle = title;
+      if (resolvedTitle) {
+        const vars = {
+          contactName, contactEmail, contactPhone, contactId,
+          'contact.name': contactName,
+          'contact.email': contactEmail,
+          'contact.phone': contactPhone,
+          'contact.id': contactId
+        };
+        resolvedTitle = resolvedTitle.replace(/\{\{([\w.]+)\}\}/g, (_, key) => vars[key] || '');
+      }
+
       // Book the appointment
       const appointmentData = {
         calendarId,
@@ -642,7 +661,7 @@ const bookAppointment = async (req, res) => {
         contactId,
         startTime,
         endTime: appointmentEndTime,
-        title: title || 'Appointment',
+        title: resolvedTitle || 'Appointment',
         appointmentStatus: 'confirmed',
         notes: notes || ''
       };

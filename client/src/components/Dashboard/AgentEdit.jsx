@@ -505,8 +505,9 @@ export default function AgentEdit() {
     enableCheckAvailability: true,
     enableCreateEvent: true,
     contactId: '',       // GHL contact ID for testing (optional)
+    appointmentTitle: '', // Optional title template for created appointments (supports {{contact.name}}, {{contactName}}, etc.)
     requiredFields: { contactName: true, contactEmail: true, contactPhone: false }, // Which contact fields the agent must collect
-    calendars: []        // Multi-calendar: [{ id, name, scenario, provider, integrationId, calendarId, timezone, appointmentDuration, contactId, requiredFields }]
+    calendars: []        // Multi-calendar: [{ id, name, scenario, provider, integrationId, calendarId, timezone, appointmentDuration, contactId, appointmentTitle, requiredFields }]
   })
 
   // Per-calendar-entry dropdown data: { [entryId]: { calendars: [], loading: false, error: '' } }
@@ -813,6 +814,7 @@ export default function AgentEdit() {
       timezone: calendarConfig.timezone,
       appointmentDuration: calendarConfig.appointmentDuration,
       contactId: calendarConfig.contactId,
+      appointmentTitle: calendarConfig.appointmentTitle,
       requiredFields: calendarConfig.requiredFields
     }]
   }
@@ -1309,6 +1311,11 @@ export default function AgentEdit() {
           // Add GHL contact ID for testing if provided (static test ID only)
           if (cal.provider === 'ghl' && cal.contactId) {
             queryParamsObj.contactId = cal.contactId
+          }
+
+          // Optional appointment title template (resolved server-side with contact vars)
+          if (cal.appointmentTitle) {
+            queryParamsObj.title = cal.appointmentTitle
           }
 
           const queryParams = new URLSearchParams(queryParamsObj).toString()
@@ -4069,6 +4076,20 @@ If the customer asks to be called back at a later time:
                               <p className="text-xs text-gray-400 mt-1.5">{ta('contactIdHelp')}</p>
                             </div>
                           )}
+
+                          {/* Appointment / Meeting invite title */}
+                          {calendarConfig.provider && (
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentTitle')}</label>
+                              <input
+                                type="text"
+                                value={calendarConfig.appointmentTitle || ''}
+                                onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentTitle: e.target.value })}
+                                placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
+                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                              />
+                            </div>
+                          )}
                         </>
                       )}
 
@@ -4251,6 +4272,18 @@ If the customer asks to be called back at a later time:
                                       <p className="text-xs text-gray-400 mt-1.5">{ta('contactIdHelp')}</p>
                                     </div>
                                   )}
+
+                                  {/* Appointment / Meeting invite title */}
+                                  <div>
+                                    <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t('chatbotEdit.appointmentTitle')}</label>
+                                    <input
+                                      type="text"
+                                      value={entry.appointmentTitle || ''}
+                                      onChange={(e) => updateCalendarEntry(entry.id, { appointmentTitle: e.target.value })}
+                                      placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
+                                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                                    />
+                                  </div>
                                 </>
                               )}
                             </div>

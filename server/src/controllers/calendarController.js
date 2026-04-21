@@ -741,13 +741,20 @@ const bookAppointment = async (req, res) => {
       || req.body.message?.customer?.number
       || null;
 
-    // Resolve {{variable}} placeholders in the title template
+    // Resolve {{variable}} placeholders in the title template.
+    // Supports flat keys (contactName) and dotted keys (contact.name) for parity with ChatbotEdit UI.
     let title = functionArgs.title || req.query.title || null;
     if (title) {
       // Decode URL-encoded braces (URLSearchParams encodes {{ to %7B%7B)
       try { title = decodeURIComponent(title); } catch {}
-      const vars = { contactName, contactEmail, contactPhone, contactId };
-      title = title.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] || '');
+      const vars = {
+        contactName, contactEmail, contactPhone, contactId,
+        'contact.name': contactName,
+        'contact.email': contactEmail,
+        'contact.phone': contactPhone,
+        'contact.id': contactId
+      };
+      title = title.replace(/\{\{([\w.]+)\}\}/g, (_, key) => vars[key] || '');
     }
 
     console.log('=== BOOK APPOINTMENT ===');
