@@ -67,9 +67,14 @@ async function processChatbotFollowUps(prisma) {
 // ── Rule Processors ───────────────────────────────────────
 
 function getThresholdMs(rule) {
-  const value = rule.thresholdValue ?? rule.daysThreshold;
+  let value = rule.thresholdValue ?? rule.daysThreshold;
   if (!value) return null;
   const unit = rule.thresholdUnit || 'days';
+  // The scheduler ticks every 30 minutes (INTERVAL_MS), so anything smaller
+  // than 30 min is meaningless. Snap minute thresholds to the nearest 30.
+  if (unit === 'minutes') {
+    value = Math.max(30, Math.round(value / 30) * 30);
+  }
   const multiplier = unit === 'minutes' ? 60 * 1000
     : unit === 'hours' ? 60 * 60 * 1000
     : 24 * 60 * 60 * 1000;
