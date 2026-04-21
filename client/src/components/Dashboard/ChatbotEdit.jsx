@@ -191,6 +191,15 @@ export default function ChatbotEdit() {
   const [dbTestStatus, setDbTestStatus] = useState(null) // { ok: boolean, message: string, latencyMs?: number }
   const [dbTesting, setDbTesting] = useState(false)
 
+  // Execution logs
+  const [showExecutionsModal, setShowExecutionsModal] = useState(false)
+  const [executionsLoading, setExecutionsLoading] = useState(false)
+  const [executionsError, setExecutionsError] = useState('')
+  const [executions, setExecutions] = useState([])
+  const [selectedExecutionId, setSelectedExecutionId] = useState(null)
+  const [selectedExecutionDetail, setSelectedExecutionDetail] = useState(null)
+  const [executionDetailLoading, setExecutionDetailLoading] = useState(false)
+
   // GHL CRM settings
   const [ghlCrmConfig, setGhlCrmConfig] = useState({
     createNote: false,
@@ -292,6 +301,36 @@ export default function ChatbotEdit() {
       setError(err.response?.data?.error || 'Failed to load chatbot')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const openExecutionsModal = async () => {
+    setShowExecutionsModal(true)
+    setExecutionsError('')
+    setSelectedExecutionId(null)
+    setSelectedExecutionDetail(null)
+    setExecutionsLoading(true)
+    try {
+      const { data } = await chatbotsAPI.listExecutions(id, 20)
+      setExecutions(data.executions || [])
+    } catch (err) {
+      setExecutionsError(err.response?.data?.error || 'Failed to load executions')
+    } finally {
+      setExecutionsLoading(false)
+    }
+  }
+
+  const loadExecutionDetail = async (executionId) => {
+    setSelectedExecutionId(executionId)
+    setSelectedExecutionDetail(null)
+    setExecutionDetailLoading(true)
+    try {
+      const { data } = await chatbotsAPI.getExecutionDetail(id, executionId)
+      setSelectedExecutionDetail(data)
+    } catch (err) {
+      setExecutionsError(err.response?.data?.error || 'Failed to load execution detail')
+    } finally {
+      setExecutionDetailLoading(false)
     }
   }
 
@@ -1140,6 +1179,16 @@ export default function ChatbotEdit() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             {syncing ? 'Syncing...' : 'Sync Workflow'}
+          </button>
+          <button
+            onClick={openExecutionsModal}
+            title="View recent executions and which nodes ran"
+            className="px-3 py-2 text-sm font-medium rounded-lg transition-colors text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 flex items-center gap-1.5"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            Executions
           </button>
           <button
             onClick={openClearMemoryModal}
@@ -3341,6 +3390,141 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showExecutionsModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowExecutionsModal(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Execution Logs</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Recent runs of this chatbot's n8n workflow</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={openExecutionsModal}
+                  disabled={executionsLoading}
+                  title="Refresh"
+                  className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover disabled:opacity-50"
+                >
+                  <svg className={`w-5 h-5 ${executionsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+                <button onClick={() => setShowExecutionsModal(false)} className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            {executionsError && (
+              <div className="mx-5 mt-4 bg-red-500/10 border border-red-500/30 text-red-500 px-4 py-3 rounded-lg text-sm">
+                {executionsError}
+              </div>
+            )}
+            <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-[320px_1fr]">
+              <div className="border-r border-gray-100 dark:border-dark-border overflow-y-auto">
+                {executionsLoading && !executions.length ? (
+                  <div className="p-6 text-center text-sm text-gray-500">Loading executions...</div>
+                ) : executions.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-gray-500">
+                    No executions yet. Send a message through the chatbot to create one.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-gray-100 dark:divide-dark-border">
+                    {executions.map(exec => {
+                      const started = exec.startedAt ? new Date(exec.startedAt) : null
+                      const stopped = exec.stoppedAt ? new Date(exec.stoppedAt) : null
+                      const durationMs = started && stopped ? (stopped - started) : null
+                      return (
+                        <li key={exec.id}>
+                          <button
+                            onClick={() => loadExecutionDetail(exec.id)}
+                            className={`w-full text-left px-4 py-3 transition-colors ${selectedExecutionId === exec.id ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`inline-block w-2 h-2 rounded-full ${exec.status === 'success' ? 'bg-green-500' : exec.status === 'error' ? 'bg-red-500' : exec.status === 'running' ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+                              <span className="text-xs font-medium text-gray-900 dark:text-white">{exec.status || 'unknown'}</span>
+                              <span className="text-[11px] text-gray-500 ml-auto">#{exec.id}</span>
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {started ? started.toLocaleString() : '—'}
+                              {durationMs !== null && <span className="ml-2">({durationMs}ms)</span>}
+                            </div>
+                            <div className="text-[11px] text-gray-400 mt-0.5">mode: {exec.mode || '—'}</div>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+              <div className="overflow-y-auto p-5">
+                {!selectedExecutionId ? (
+                  <div className="h-full flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                    Select an execution to see the nodes that ran.
+                  </div>
+                ) : executionDetailLoading ? (
+                  <div className="text-sm text-gray-500">Loading execution detail...</div>
+                ) : !selectedExecutionDetail ? (
+                  <div className="text-sm text-gray-500">No detail available.</div>
+                ) : (
+                  <div>
+                    <div className="mb-4 flex items-center gap-3">
+                      <h4 className="text-base font-semibold text-gray-900 dark:text-white">Execution #{selectedExecutionDetail.execution.id}</h4>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${selectedExecutionDetail.execution.status === 'success' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : selectedExecutionDetail.execution.status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
+                        {selectedExecutionDetail.execution.status}
+                      </span>
+                    </div>
+                    {selectedExecutionDetail.nodes.length === 0 ? (
+                      <div className="text-sm text-gray-500">No node run data available.</div>
+                    ) : (
+                      <ol className="space-y-2">
+                        {selectedExecutionDetail.nodes.map((n, idx) => (
+                          <li key={`${n.nodeName}-${n.runIndex}-${idx}`} className="border border-gray-200 dark:border-dark-border rounded-lg">
+                            <details>
+                              <summary className="cursor-pointer list-none px-4 py-3 flex items-center gap-3">
+                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-dark-hover text-xs font-medium text-gray-700 dark:text-gray-300">
+                                  {idx + 1}
+                                </span>
+                                <span className={`inline-block w-2 h-2 rounded-full ${n.status === 'success' ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <span className="text-sm font-medium text-gray-900 dark:text-white truncate flex-1">{n.nodeName}</span>
+                                {typeof n.executionTime === 'number' && (
+                                  <span className="text-xs text-gray-500">{n.executionTime}ms</span>
+                                )}
+                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </summary>
+                              <div className="border-t border-gray-100 dark:border-dark-border px-4 py-3 space-y-2">
+                                {n.error && (
+                                  <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-500 px-3 py-2 rounded">
+                                    <div className="font-medium">{n.error.name || 'Error'}</div>
+                                    <div className="mt-0.5">{n.error.message}</div>
+                                  </div>
+                                )}
+                                {n.output && (
+                                  <div>
+                                    <div className="text-[11px] font-medium text-gray-500 mb-1">Output preview</div>
+                                    <pre className="text-[11px] bg-gray-50 dark:bg-dark-bg border border-gray-100 dark:border-dark-border rounded p-2 overflow-auto max-h-60 font-mono">{JSON.stringify(n.output, null, 2)}</pre>
+                                  </div>
+                                )}
+                                {!n.output && !n.error && (
+                                  <div className="text-xs text-gray-400">(no output captured)</div>
+                                )}
+                              </div>
+                            </details>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

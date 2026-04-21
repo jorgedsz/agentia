@@ -64,7 +64,9 @@ export const chatbotsAPI = {
   syncWorkflow: (id) => api.post(`/chatbots/${id}/sync-workflow`),
   clearMemory: (id, body = {}) => api.post(`/chatbots/${id}/clear-memory`, body),
   getFollowUpLogs: (chatbotId) => api.get('/chatbot-follow-ups/logs', { params: { chatbotId } }),
-  testDbConnection: (body) => api.post('/chatbots/test-db-connection', body)
+  testDbConnection: (body) => api.post('/chatbots/test-db-connection', body),
+  listExecutions: (id, limit) => api.get(`/chatbots/${id}/executions`, { params: limit ? { limit } : {} }),
+  getExecutionDetail: (id, executionId) => api.get(`/chatbots/${id}/executions/${executionId}`)
 }
 
 // Users/Clients API (for OWNER and AGENCY)

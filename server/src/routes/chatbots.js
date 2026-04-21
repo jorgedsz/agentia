@@ -40,4 +40,10 @@ router.post('/:id/sync-workflow', chatbotController.syncWorkflow);
 // POST /api/chatbots/:id/clear-memory - Flush the n8n memory buffer for every session
 router.post('/:id/clear-memory', chatbotController.clearMemory);
 
+// GET /api/chatbots/:id/executions - List recent n8n executions for this chatbot
+router.get('/:id/executions', chatbotController.listExecutions);
+
+// GET /api/chatbots/:id/executions/:executionId - Execution detail with ordered node runs
+router.get('/:id/executions/:executionId', chatbotController.getExecutionDetail);
+
 module.exports = router;

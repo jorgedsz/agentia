@@ -66,6 +66,17 @@ class N8nService {
     }
   }
 
+  // List executions for a workflow, most-recent-first. Small payload — no node data.
+  async listExecutions(workflowId, limit = 20) {
+    const params = new URLSearchParams({ workflowId: String(workflowId), limit: String(limit) });
+    return this.makeRequest(`/executions?${params.toString()}`);
+  }
+
+  // Full execution detail including per-node run data and order.
+  async getExecution(executionId) {
+    return this.makeRequest(`/executions/${executionId}?includeData=true`);
+  }
+
   /**
    * Build n8n workflow JSON from chatbot configuration
    * @param {Object} chatbot

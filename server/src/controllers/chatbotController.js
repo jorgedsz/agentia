@@ -927,6 +927,116 @@ const deleteChatbot = async (req, res) => {
   }
 };
 
+// List recent n8n executions for this chatbot's workflow. Returns a compact shape —
+// detail (including per-node runData) is fetched on-demand via getExecutionDetail.
+const listExecutions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+
+    const chatbot = await req.prisma.chatbot.findFirst({
+      where: { id, userId: req.user.id },
+      select: { n8nWorkflowId: true }
+    });
+    if (!chatbot) return res.status(404).json({ error: 'Chatbot not found' });
+    if (!chatbot.n8nWorkflowId) return res.json({ executions: [] });
+
+    const n8nConfig = await getN8nConfig(req.prisma);
+    if (!n8nConfig) return res.status(503).json({ error: 'n8n is not configured' });
+    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+
+    const result = await n8nService.listExecutions(chatbot.n8nWorkflowId, limit);
+    const executions = (result.data || []).map(e => ({
+      id: e.id,
+      status: e.status || (e.finished ? 'success' : (e.stoppedAt ? 'error' : 'running')),
+      mode: e.mode,
+      startedAt: e.startedAt,
+      stoppedAt: e.stoppedAt,
+      finished: e.finished,
+      retryOf: e.retryOf,
+    }));
+    res.json({ executions });
+  } catch (error) {
+    console.error('listExecutions error:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to list executions' });
+  }
+};
+
+// Detail for one execution: returns nodes in execution order with status, timing, and
+// small input/output previews. Large payloads are truncated to keep responses manageable.
+const getExecutionDetail = async (req, res) => {
+  try {
+    const { id, executionId } = req.params;
+
+    const chatbot = await req.prisma.chatbot.findFirst({
+      where: { id, userId: req.user.id },
+      select: { n8nWorkflowId: true }
+    });
+    if (!chatbot) return res.status(404).json({ error: 'Chatbot not found' });
+
+    const n8nConfig = await getN8nConfig(req.prisma);
+    if (!n8nConfig) return res.status(503).json({ error: 'n8n is not configured' });
+    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+
+    const exec = await n8nService.getExecution(executionId);
+
+    // Scope check: only return executions that belong to this chatbot's workflow
+    if (chatbot.n8nWorkflowId && String(exec.workflowId) !== String(chatbot.n8nWorkflowId)) {
+      return res.status(403).json({ error: 'Execution does not belong to this chatbot' });
+    }
+
+    const runData = exec.data?.resultData?.runData || {};
+    const PREVIEW_LIMIT = 2000;
+    const truncate = (obj) => {
+      try {
+        const s = JSON.stringify(obj);
+        if (s.length <= PREVIEW_LIMIT) return obj;
+        return { _truncated: true, preview: s.slice(0, PREVIEW_LIMIT) + '…' };
+      } catch {
+        return { _error: 'unserializable' };
+      }
+    };
+
+    // Flatten runData: each node can have multiple runs. Build one entry per run
+    // and sort by startTime so the UI can display them in execution order.
+    const nodeRuns = [];
+    for (const [nodeName, runs] of Object.entries(runData)) {
+      (runs || []).forEach((run, runIndex) => {
+        const firstOutput = run?.data?.main?.[0]?.[0]?.json || null;
+        const errorInfo = run?.error
+          ? { message: run.error.message, name: run.error.name }
+          : null;
+        nodeRuns.push({
+          nodeName,
+          runIndex,
+          startTime: run.startTime,
+          executionTime: run.executionTime,
+          status: errorInfo ? 'error' : 'success',
+          error: errorInfo,
+          output: firstOutput ? truncate(firstOutput) : null,
+        });
+      });
+    }
+    nodeRuns.sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
+
+    res.json({
+      execution: {
+        id: exec.id,
+        status: exec.status || (exec.finished ? 'success' : (exec.stoppedAt ? 'error' : 'running')),
+        mode: exec.mode,
+        startedAt: exec.startedAt,
+        stoppedAt: exec.stoppedAt,
+        finished: exec.finished,
+        workflowId: exec.workflowId,
+      },
+      nodes: nodeRuns,
+    });
+  } catch (error) {
+    console.error('getExecutionDetail error:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to load execution' });
+  }
+};
+
 // SQL-agent DB connection probe. Accepts a plaintext connection string OR an existing chatbot id
 // (so the user can re-test an already-saved connection without retyping it). For now Postgres only —
 // `pg` is already a server dependency. Queries `SELECT 1` with a short timeout and returns success or
@@ -999,6 +1109,8 @@ module.exports = {
   testDbConnection,
   syncWorkflow,
   clearMemory,
+  listExecutions,
+  getExecutionDetail,
   webhookProxy,
   ghlRespond,
   handleBufferFlush
