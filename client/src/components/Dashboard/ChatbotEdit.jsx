@@ -199,6 +199,8 @@ export default function ChatbotEdit() {
   const [selectedExecutionId, setSelectedExecutionId] = useState(null)
   const [selectedExecutionDetail, setSelectedExecutionDetail] = useState(null)
   const [executionDetailLoading, setExecutionDetailLoading] = useState(false)
+  const [selectedNodeIdx, setSelectedNodeIdx] = useState(0)
+  const [nodeDetailTab, setNodeDetailTab] = useState('output') // input | output | params | error
 
   // GHL CRM settings
   const [ghlCrmConfig, setGhlCrmConfig] = useState({
@@ -323,15 +325,32 @@ export default function ChatbotEdit() {
   const loadExecutionDetail = async (executionId) => {
     setSelectedExecutionId(executionId)
     setSelectedExecutionDetail(null)
+    setSelectedNodeIdx(0)
+    setNodeDetailTab('output')
     setExecutionDetailLoading(true)
     try {
       const { data } = await chatbotsAPI.getExecutionDetail(id, executionId)
       setSelectedExecutionDetail(data)
+      if (data.nodes?.length) {
+        // Default to the last errored node if any, otherwise the last node in the run
+        const errIdx = data.nodes.findIndex(n => n.status === 'error')
+        setSelectedNodeIdx(errIdx >= 0 ? errIdx : data.nodes.length - 1)
+      }
     } catch (err) {
       setExecutionsError(err.response?.data?.error || 'Failed to load execution detail')
     } finally {
       setExecutionDetailLoading(false)
     }
+  }
+
+  const nodeTypeLabel = (fullType) => {
+    if (!fullType) return ''
+    const short = fullType.replace(/^@?[^/]+\//, '').replace(/^n8n-nodes-base\./, '')
+    return short
+  }
+
+  const copyToClipboard = async (text) => {
+    try { await navigator.clipboard.writeText(text) } catch {}
   }
 
   // Calendar functions
@@ -3419,44 +3438,74 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
         </div>
       )}
 
-      {showExecutionsModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowExecutionsModal(false)}>
-          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Execution Logs</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Recent runs of this chatbot's n8n workflow</p>
+      {showExecutionsModal && (() => {
+        const detailNodes = selectedExecutionDetail?.nodes || []
+        const selectedNode = detailNodes[selectedNodeIdx] || null
+        const tabs = [
+          { id: 'input', label: 'Input', count: selectedNode?.input ? 1 : 0 },
+          { id: 'output', label: 'Output', count: Array.isArray(selectedNode?.output) ? selectedNode.output.reduce((acc, branch) => acc + (Array.isArray(branch) ? branch.length : 0), 0) : (selectedNode?.output ? 1 : 0) },
+          { id: 'params', label: 'Parameters' },
+          { id: 'error', label: 'Error', hidden: !selectedNode?.error }
+        ].filter(t => !t.hidden)
+        const currentPayload = selectedNode
+          ? (nodeDetailTab === 'input' ? selectedNode.input
+            : nodeDetailTab === 'output' ? selectedNode.output
+            : nodeDetailTab === 'params' ? selectedNode.parameters
+            : nodeDetailTab === 'error' ? selectedNode.error
+            : null)
+          : null
+        const payloadJson = currentPayload !== null && currentPayload !== undefined
+          ? JSON.stringify(currentPayload, null, 2)
+          : ''
+        return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowExecutionsModal(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-[1200px] h-[88vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-dark-border">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">Executions</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">n8n runs for this chatbot's workflow</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
                   onClick={openExecutionsModal}
                   disabled={executionsLoading}
                   title="Refresh"
-                  className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover disabled:opacity-50"
+                  className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover disabled:opacity-50 transition-colors"
                 >
-                  <svg className={`w-5 h-5 ${executionsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className={`w-4 h-4 ${executionsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </button>
-                <button onClick={() => setShowExecutionsModal(false)} className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button onClick={() => setShowExecutionsModal(false)} className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
             </div>
             {executionsError && (
-              <div className="mx-5 mt-4 bg-red-500/10 border border-red-500/30 text-red-500 px-4 py-3 rounded-lg text-sm">
+              <div className="mx-5 mt-3 bg-red-500/10 border border-red-500/30 text-red-500 px-4 py-2.5 rounded-lg text-xs">
                 {executionsError}
               </div>
             )}
-            <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-[320px_1fr]">
-              <div className="border-r border-gray-100 dark:border-dark-border overflow-y-auto">
+            <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-[260px_300px_1fr] bg-gray-50 dark:bg-dark-bg/50">
+              {/* Column 1: executions list */}
+              <div className="border-r border-gray-100 dark:border-dark-border overflow-y-auto bg-white dark:bg-dark-card">
+                <div className="sticky top-0 bg-white dark:bg-dark-card border-b border-gray-100 dark:border-dark-border px-4 py-2.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Runs</div>
+                </div>
                 {executionsLoading && !executions.length ? (
-                  <div className="p-6 text-center text-sm text-gray-500">Loading executions...</div>
+                  <div className="p-6 text-center text-sm text-gray-500">Loading...</div>
                 ) : executions.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-gray-500">
-                    No executions yet. Send a message through the chatbot to create one.
+                  <div className="p-6 text-center text-xs text-gray-500">
+                    No executions yet. Send a message to the chatbot to create one.
                   </div>
                 ) : (
                   <ul className="divide-y divide-gray-100 dark:divide-dark-border">
@@ -3464,22 +3513,24 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                       const started = exec.startedAt ? new Date(exec.startedAt) : null
                       const stopped = exec.stoppedAt ? new Date(exec.stoppedAt) : null
                       const durationMs = started && stopped ? (stopped - started) : null
+                      const isSel = selectedExecutionId === exec.id
                       return (
                         <li key={exec.id}>
                           <button
                             onClick={() => loadExecutionDetail(exec.id)}
-                            className={`w-full text-left px-4 py-3 transition-colors ${selectedExecutionId === exec.id ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                            className={`w-full text-left px-4 py-3 transition-colors ${isSel ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-2 border-l-indigo-500' : 'hover:bg-gray-50 dark:hover:bg-dark-hover border-l-2 border-l-transparent'}`}
                           >
                             <div className="flex items-center gap-2 mb-1">
-                              <span className={`inline-block w-2 h-2 rounded-full ${exec.status === 'success' ? 'bg-green-500' : exec.status === 'error' ? 'bg-red-500' : exec.status === 'running' ? 'bg-yellow-500' : 'bg-gray-400'}`} />
-                              <span className="text-xs font-medium text-gray-900 dark:text-white">{exec.status || 'unknown'}</span>
-                              <span className="text-[11px] text-gray-500 ml-auto">#{exec.id}</span>
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full ${exec.status === 'success' ? 'bg-green-500' : exec.status === 'error' ? 'bg-red-500' : exec.status === 'running' ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+                              <span className="text-xs font-medium capitalize text-gray-900 dark:text-white">{exec.status || 'unknown'}</span>
+                              <span className="text-[10px] text-gray-400 ml-auto font-mono">#{exec.id}</span>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
                               {started ? started.toLocaleString() : '—'}
-                              {durationMs !== null && <span className="ml-2">({durationMs}ms)</span>}
                             </div>
-                            <div className="text-[11px] text-gray-400 mt-0.5">mode: {exec.mode || '—'}</div>
+                            {durationMs !== null && (
+                              <div className="text-[10px] text-gray-400 mt-0.5">{durationMs}ms · {exec.mode || '—'}</div>
+                            )}
                           </button>
                         </li>
                       )
@@ -3487,72 +3538,139 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                   </ul>
                 )}
               </div>
-              <div className="overflow-y-auto p-5">
+
+              {/* Column 2: nodes stepper */}
+              <div className="border-r border-gray-100 dark:border-dark-border overflow-y-auto bg-white dark:bg-dark-card">
+                <div className="sticky top-0 bg-white dark:bg-dark-card border-b border-gray-100 dark:border-dark-border px-4 py-2.5 flex items-center justify-between">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Nodes</div>
+                  {selectedExecutionDetail && (
+                    <span className="text-[11px] text-gray-400">{detailNodes.length} ran</span>
+                  )}
+                </div>
                 {!selectedExecutionId ? (
-                  <div className="h-full flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                    Select an execution to see the nodes that ran.
-                  </div>
+                  <div className="p-6 text-center text-xs text-gray-500">Pick a run on the left.</div>
                 ) : executionDetailLoading ? (
-                  <div className="text-sm text-gray-500">Loading execution detail...</div>
-                ) : !selectedExecutionDetail ? (
-                  <div className="text-sm text-gray-500">No detail available.</div>
+                  <div className="p-6 text-center text-xs text-gray-500">Loading nodes...</div>
+                ) : detailNodes.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-gray-500">No node run data.</div>
                 ) : (
-                  <div>
-                    <div className="mb-4 flex items-center gap-3">
-                      <h4 className="text-base font-semibold text-gray-900 dark:text-white">Execution #{selectedExecutionDetail.execution.id}</h4>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${selectedExecutionDetail.execution.status === 'success' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : selectedExecutionDetail.execution.status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
-                        {selectedExecutionDetail.execution.status}
-                      </span>
-                    </div>
-                    {selectedExecutionDetail.nodes.length === 0 ? (
-                      <div className="text-sm text-gray-500">No node run data available.</div>
-                    ) : (
-                      <ol className="space-y-2">
-                        {selectedExecutionDetail.nodes.map((n, idx) => (
-                          <li key={`${n.nodeName}-${n.runIndex}-${idx}`} className="border border-gray-200 dark:border-dark-border rounded-lg">
-                            <details>
-                              <summary className="cursor-pointer list-none px-4 py-3 flex items-center gap-3">
-                                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-dark-hover text-xs font-medium text-gray-700 dark:text-gray-300">
-                                  {idx + 1}
-                                </span>
-                                <span className={`inline-block w-2 h-2 rounded-full ${n.status === 'success' ? 'bg-green-500' : 'bg-red-500'}`} />
-                                <span className="text-sm font-medium text-gray-900 dark:text-white truncate flex-1">{n.nodeName}</span>
+                  <ol className="p-3 space-y-0">
+                    {detailNodes.map((n, idx) => {
+                      const isSel = selectedNodeIdx === idx
+                      return (
+                        <li key={`${n.nodeName}-${n.runIndex}-${idx}`} className="relative">
+                          {idx > 0 && (
+                            <div className="absolute left-[22px] -top-2 w-px h-2 bg-gray-200 dark:bg-dark-border" />
+                          )}
+                          <button
+                            onClick={() => { setSelectedNodeIdx(idx); if (n.error) setNodeDetailTab('error'); else setNodeDetailTab('output') }}
+                            className={`w-full text-left flex items-start gap-3 px-2.5 py-2.5 rounded-lg transition-colors ${isSel ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-inset ring-indigo-200 dark:ring-indigo-800' : 'hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+                          >
+                            <div className={`flex-shrink-0 mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-semibold ${n.status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                              {n.status === 'error' ? '!' : idx + 1}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-medium text-gray-900 dark:text-white truncate">{n.nodeName}</div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                {n.nodeType && (
+                                  <span className="text-[10px] font-mono text-gray-500 dark:text-gray-400 truncate">{nodeTypeLabel(n.nodeType)}</span>
+                                )}
                                 {typeof n.executionTime === 'number' && (
-                                  <span className="text-xs text-gray-500">{n.executionTime}ms</span>
-                                )}
-                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </summary>
-                              <div className="border-t border-gray-100 dark:border-dark-border px-4 py-3 space-y-2">
-                                {n.error && (
-                                  <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-500 px-3 py-2 rounded">
-                                    <div className="font-medium">{n.error.name || 'Error'}</div>
-                                    <div className="mt-0.5">{n.error.message}</div>
-                                  </div>
-                                )}
-                                {n.output && (
-                                  <div>
-                                    <div className="text-[11px] font-medium text-gray-500 mb-1">Output preview</div>
-                                    <pre className="text-[11px] bg-gray-50 dark:bg-dark-bg border border-gray-100 dark:border-dark-border rounded p-2 overflow-auto max-h-60 font-mono">{JSON.stringify(n.output, null, 2)}</pre>
-                                  </div>
-                                )}
-                                {!n.output && !n.error && (
-                                  <div className="text-xs text-gray-400">(no output captured)</div>
+                                  <>
+                                    <span className="text-[10px] text-gray-300 dark:text-gray-600">·</span>
+                                    <span className="text-[10px] text-gray-500 dark:text-gray-400">{n.executionTime}ms</span>
+                                  </>
                                 )}
                               </div>
-                            </details>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
+                            </div>
+                          </button>
+                          {idx < detailNodes.length - 1 && (
+                            <div className="absolute left-[22px] top-[46px] w-px h-2 bg-gray-200 dark:bg-dark-border" />
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ol>
+                )}
+              </div>
+
+              {/* Column 3: node detail with tabs */}
+              <div className="overflow-hidden flex flex-col bg-white dark:bg-dark-card">
+                {!selectedNode ? (
+                  <div className="flex-1 flex items-center justify-center text-sm text-gray-400 p-8 text-center">
+                    {selectedExecutionId ? 'Pick a node to see its data.' : 'Pick a run, then a node, to inspect input, output, and parameters.'}
                   </div>
+                ) : (
+                  <>
+                    <div className="border-b border-gray-100 dark:border-dark-border px-5 py-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${selectedNode.status === 'error' ? 'bg-red-500' : 'bg-green-500'}`} />
+                        <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{selectedNode.nodeName}</h4>
+                        {typeof selectedNode.executionTime === 'number' && (
+                          <span className="ml-auto text-[11px] text-gray-500">{selectedNode.executionTime}ms</span>
+                        )}
+                      </div>
+                      {selectedNode.nodeType && (
+                        <div className="text-[11px] font-mono text-gray-500 dark:text-gray-400">{selectedNode.nodeType}</div>
+                      )}
+                    </div>
+                    <div className="border-b border-gray-100 dark:border-dark-border px-4 flex items-center gap-1 overflow-x-auto">
+                      {tabs.map(tab => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setNodeDetailTab(tab.id)}
+                          className={`px-3 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${nodeDetailTab === tab.id ? (tab.id === 'error' ? 'border-red-500 text-red-600 dark:text-red-400' : 'border-indigo-500 text-indigo-600 dark:text-indigo-400') : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                        >
+                          {tab.label}
+                          {typeof tab.count === 'number' && tab.count > 0 && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-gray-100 dark:bg-dark-hover text-gray-600 dark:text-gray-400">{tab.count}</span>
+                          )}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => copyToClipboard(payloadJson)}
+                        disabled={!payloadJson}
+                        title="Copy JSON"
+                        className="ml-auto p-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover disabled:opacity-30 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-auto">
+                      {nodeDetailTab === 'error' && selectedNode.error ? (
+                        <div className="p-5 space-y-3">
+                          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                            <div className="text-sm font-semibold text-red-600 dark:text-red-400">{selectedNode.error.name || 'Error'}</div>
+                            <div className="text-sm text-red-500 dark:text-red-400 mt-1">{selectedNode.error.message}</div>
+                            {selectedNode.error.description && (
+                              <div className="text-xs text-red-400 dark:text-red-500 mt-2">{selectedNode.error.description}</div>
+                            )}
+                          </div>
+                          {selectedNode.error.stack && (
+                            <pre className="text-[11px] font-mono bg-gray-50 dark:bg-dark-bg border border-gray-100 dark:border-dark-border rounded-lg p-3 overflow-auto text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{selectedNode.error.stack}</pre>
+                          )}
+                        </div>
+                      ) : payloadJson ? (
+                        <pre className="text-[11px] font-mono p-5 text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap break-words">{payloadJson}</pre>
+                      ) : (
+                        <div className="p-8 text-center text-xs text-gray-400">
+                          {nodeDetailTab === 'input' ? 'No input captured for this node.'
+                            : nodeDetailTab === 'output' ? 'No output captured for this node.'
+                            : nodeDetailTab === 'params' ? 'No parameters.'
+                            : 'Nothing to show.'}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
     </div>
   )

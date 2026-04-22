@@ -986,12 +986,19 @@ const getExecutionDetail = async (req, res) => {
     }
 
     const runData = exec.data?.resultData?.runData || {};
-    const PREVIEW_LIMIT = 2000;
+    const workflowNodes = exec.workflowData?.nodes || [];
+    // nodeName → { type, parameters } lookup from the workflow snapshot stored on the execution
+    const nodeMetaByName = Object.fromEntries(
+      workflowNodes.map(n => [n.name, { type: n.type, parameters: n.parameters || {} }])
+    );
+
+    const PREVIEW_LIMIT = 4000;
     const truncate = (obj) => {
+      if (obj === null || obj === undefined) return obj;
       try {
         const s = JSON.stringify(obj);
         if (s.length <= PREVIEW_LIMIT) return obj;
-        return { _truncated: true, preview: s.slice(0, PREVIEW_LIMIT) + '…' };
+        return { _truncated: true, _length: s.length, preview: s.slice(0, PREVIEW_LIMIT) + '…' };
       } catch {
         return { _error: 'unserializable' };
       }
@@ -1002,22 +1009,51 @@ const getExecutionDetail = async (req, res) => {
     const nodeRuns = [];
     for (const [nodeName, runs] of Object.entries(runData)) {
       (runs || []).forEach((run, runIndex) => {
-        const firstOutput = run?.data?.main?.[0]?.[0]?.json || null;
+        const outputBranches = Array.isArray(run?.data?.main)
+          ? run.data.main.map(branch =>
+              Array.isArray(branch) ? branch.map(item => item?.json ?? item) : branch
+            )
+          : [];
         const errorInfo = run?.error
-          ? { message: run.error.message, name: run.error.name }
+          ? {
+              message: run.error.message,
+              name: run.error.name,
+              description: run.error.description,
+              stack: run.error.stack ? String(run.error.stack).slice(0, 1500) : undefined,
+            }
           : null;
+        const meta = nodeMetaByName[nodeName] || {};
+        const sourceNode = run?.source?.[0]?.previousNode || null;
         nodeRuns.push({
           nodeName,
+          nodeType: meta.type || null,
+          parameters: meta.parameters ? truncate(meta.parameters) : {},
+          source: sourceNode,
           runIndex,
           startTime: run.startTime,
           executionTime: run.executionTime,
           status: errorInfo ? 'error' : 'success',
           error: errorInfo,
-          output: firstOutput ? truncate(firstOutput) : null,
+          output: outputBranches.length ? truncate(outputBranches) : null,
         });
       });
     }
     nodeRuns.sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
+
+    // Fill in input by mapping each node's source → the previous node's output (same-or-earlier run).
+    // This is a best-effort approximation — n8n itself derives input the same way at render time.
+    const outputByNode = {};
+    nodeRuns.forEach(n => {
+      if (!outputByNode[n.nodeName]) outputByNode[n.nodeName] = [];
+      outputByNode[n.nodeName].push(n.output);
+    });
+    nodeRuns.forEach(n => {
+      if (n.source && outputByNode[n.source]) {
+        n.input = outputByNode[n.source][0] ?? null;
+      } else {
+        n.input = null;
+      }
+    });
 
     res.json({
       execution: {
