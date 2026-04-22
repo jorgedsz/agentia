@@ -17,9 +17,14 @@ function isTerminalGhlError(message) {
   return TERMINAL_GHL_ERROR_RE.test(message || '');
 }
 
-// Both 'completed' (success) and 'failed_permanent' (give-up marker) count
-// as "done" for dedup purposes, so the scheduler stops re-trying them.
-const DONE_STATUSES = ['completed', 'failed_permanent'];
+// All three count as "done" for dedup so the scheduler stops re-checking:
+//   completed       — action ran successfully
+//   failed_permanent — give up, manual fix needed
+//   skipped_filter  — pipeline filter rejected this contact (no opp in
+//                     pipeline, or opp stage in excluded list). Without
+//                     this marker, the scheduler would re-look-up GHL
+//                     for every blocked contact on every tick.
+const DONE_STATUSES = ['completed', 'failed_permanent', 'skipped_filter'];
 
 // ── Scheduler ─────────────────────────────────────────────
 
@@ -281,15 +286,24 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
       }
     }
 
-    // Pipeline filter: skip silently when contact has no opp in the rule's
-    // pipeline, or when the opp's current stage is in the excluded list.
-    // Not a failure — just out of scope for this rule, so no log row.
+    // Pipeline filter: skip when contact has no opp in the rule's pipeline,
+    // or when the opp's current stage is in the excluded list. We MUST write
+    // a log row here (status='skipped_filter') so the next tick's dedup
+    // short-circuits before another GHL lookup — without it, every blocked
+    // contact triggers a fresh /opportunities/search call every 60s forever.
+    // The time-aware dedup handles the "contact resumed conversation" case:
+    // when they message again, this log row becomes stale and the scheduler
+    // re-evaluates with a fresh lookup.
     if (hasPipelineFilter) {
-      if (!opportunityId) {
-        if (oppLookupRan) await sleep(250);
-        continue;
-      }
-      if (excludedStageIds.length && excludedStageIds.includes(opportunityStageId)) {
+      const blocked = !opportunityId
+        ? 'no opp in pipeline'
+        : (excludedStageIds.length && excludedStageIds.includes(opportunityStageId))
+          ? `opp stage ${opportunityStageId} is excluded`
+          : null;
+      if (blocked) {
+        for (const action of pendingActions) {
+          await markActionSkippedFilter(prisma, chatbot.id, ruleIndex, rule.conditionType, contact.contactId, action.type, blocked);
+        }
         if (oppLookupRan) await sleep(250);
         continue;
       }
@@ -317,6 +331,17 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
 }
 
 // ── Action Executors ──────────────────────────────────────
+
+async function markActionSkippedFilter(prisma, chatbotId, ruleIndex, conditionType, targetId, actionType, reason) {
+  const details = JSON.stringify({ reason });
+  await prisma.chatbotFollowUpLog.upsert({
+    where: {
+      chatbotId_ruleIndex_targetId_actionType: { chatbotId, ruleIndex, targetId, actionType },
+    },
+    create: { chatbotId, ruleIndex, conditionType, targetId, actionType, status: 'skipped_filter', details },
+    update: { status: 'skipped_filter', details, createdAt: new Date() },
+  });
+}
 
 async function markActionPermanentFailed(prisma, chatbotId, ruleIndex, conditionType, targetId, actionType, errorMessage) {
   const details = JSON.stringify({ error: errorMessage });
