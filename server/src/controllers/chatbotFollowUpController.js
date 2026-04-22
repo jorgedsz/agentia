@@ -205,6 +205,13 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
   // query, so we can skip contacts whose actions are all done BEFORE
   // making any GHL calls. Without this, a 1-min tick would re-query GHL
   // for every already-processed contact on every tick.
+  //
+  // Dedup is time-aware: a log row is "done" only if it was written AFTER
+  // the contact's last message. If the contact has resumed the conversation
+  // since the last fire, the prior log is treated as stale (different
+  // conversation cycle) so the rule can fire again. Without this, a contact
+  // who got followed up once would never get followed up again, even on a
+  // brand new conversation weeks later.
   const actionTypes = actions.map(a => a.type);
   const doneLogs = await prisma.chatbotFollowUpLog.findMany({
     where: {
@@ -213,10 +220,17 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
       actionType: { in: actionTypes },
       status: { in: DONE_STATUSES },
     },
-    select: { targetId: true, actionType: true },
+    select: { targetId: true, actionType: true, createdAt: true },
   });
-  const doneSet = new Set(doneLogs.map(l => `${l.targetId}::${l.actionType}`));
-  const isDone = (contactId, actionType) => doneSet.has(`${contactId}::${actionType}`);
+  const doneAt = new Map();
+  for (const l of doneLogs) {
+    doneAt.set(`${l.targetId}::${l.actionType}`, l.createdAt);
+  }
+  const isDone = (contactId, actionType, lastMessageAt) => {
+    const at = doneAt.get(`${contactId}::${actionType}`);
+    if (!at) return false;
+    return new Date(at) > new Date(lastMessageAt);
+  };
 
   // Circuit breaker: if GHL keeps returning 429 we bail out of the run
   // instead of grinding through every contact. The next scheduler tick
@@ -230,9 +244,10 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
       break;
     }
 
-    // Short-circuit: if every action for this contact is already completed,
+    // Short-circuit: if every action for this contact is already completed
+    // for the current conversation cycle (log row is newer than last message),
     // don't touch GHL at all.
-    const pendingActions = actions.filter(a => !isDone(contact.contactId, a.type));
+    const pendingActions = actions.filter(a => !isDone(contact.contactId, a.type, contact.lastMessageAt));
     if (pendingActions.length === 0) continue;
 
     // Look up the contact's opportunity when either (a) a pending action is
@@ -310,7 +325,9 @@ async function markActionPermanentFailed(prisma, chatbotId, ruleIndex, condition
       chatbotId_ruleIndex_targetId_actionType: { chatbotId, ruleIndex, targetId, actionType },
     },
     create: { chatbotId, ruleIndex, conditionType, targetId, actionType, status: 'failed_permanent', details },
-    update: { status: 'failed_permanent', details },
+    // createdAt resets on re-fire so time-aware dedup ('done' = log newer
+    // than contact's last message) works across conversation cycles.
+    update: { status: 'failed_permanent', details, createdAt: new Date() },
   });
 }
 
@@ -359,6 +376,7 @@ async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, c
       update: {
         status: 'completed',
         details: null,
+        createdAt: new Date(),
       },
     });
   } catch (err) {
@@ -383,7 +401,7 @@ async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, c
         status,
         details,
       },
-      update: { status, details },
+      update: { status, details, createdAt: new Date() },
     });
   }
 }
