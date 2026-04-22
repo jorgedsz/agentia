@@ -581,11 +581,11 @@ const webhookProxy = async (req, res) => {
 
     if (isAudio && mediaUrl) {
       console.log(`[Webhook proxy] Voice note detected, transcribing: ${mediaUrl}`);
-      const transcription = await transcribeAudio(mediaUrl);
+      const transcription = await transcribeAudio(mediaUrl, req.prisma);
       message = `[Voice note]: ${transcription}`;
     } else if (isImage && mediaUrl) {
       console.log(`[Webhook proxy] Image detected, analyzing: ${mediaUrl}`);
-      const description = await analyzeImage(mediaUrl);
+      const description = await analyzeImage(mediaUrl, req.prisma);
       message = `[Image]: ${description}`;
     } else {
       // Text message (default)

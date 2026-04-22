@@ -1,17 +1,23 @@
 const OpenAI = require('openai');
 const axios = require('axios');
+const { getApiKeys } = require('../utils/getApiKeys');
 
-function getClient() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 60000 });
+async function getClient(prisma) {
+  const { openaiApiKey } = prisma
+    ? await getApiKeys(prisma)
+    : { openaiApiKey: process.env.OPENAI_API_KEY || '' };
+  return new OpenAI({ apiKey: openaiApiKey, timeout: 60000 });
 }
 
 /**
  * Transcribe an audio/voice note URL using OpenAI Whisper.
  * Downloads the audio as a buffer and sends it to the API.
  * @param {string} mediaUrl - Public URL of the audio file
+ * @param {object} [prisma] - Prisma client; resolves the OpenAI key from
+ *   Platform Settings UI when provided (falls back to env var otherwise).
  * @returns {Promise<string>} - Transcription text or fallback message
  */
-async function transcribeAudio(mediaUrl) {
+async function transcribeAudio(mediaUrl, prisma) {
   try {
     console.log('[MediaProcessor] Downloading audio from:', mediaUrl);
     const response = await axios.get(mediaUrl, {
@@ -30,7 +36,7 @@ async function transcribeAudio(mediaUrl) {
     const file = new File([buffer], `voice.${ext}`, { type: contentType });
 
     console.log(`[MediaProcessor] Sending audio to Whisper (${buffer.length} bytes, ${ext})`);
-    const openai = getClient();
+    const openai = await getClient(prisma);
     const transcription = await openai.audio.transcriptions.create({
       file,
       model: 'whisper-1',
@@ -50,10 +56,10 @@ async function transcribeAudio(mediaUrl) {
  * @param {string} mediaUrl - Public URL of the image
  * @returns {Promise<string>} - Image description or fallback message
  */
-async function analyzeImage(mediaUrl) {
+async function analyzeImage(mediaUrl, prisma) {
   try {
     console.log('[MediaProcessor] Analyzing image:', mediaUrl);
-    const openai = getClient();
+    const openai = await getClient(prisma);
 
     let imageContent = { type: 'image_url', image_url: { url: mediaUrl } };
 
