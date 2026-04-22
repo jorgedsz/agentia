@@ -453,11 +453,22 @@ async function executeAiMessage(prisma, chatbot, action, contact, contactName, t
   }
   const systemPromptBase = chatbotConfig.systemPromptBase || '';
 
-  const userInstructions = action.aiInstructions || '';
+  const userInstructions = (action.aiInstructions || '').trim();
   const lastMessageDate = recentMessages[recentMessages.length - 1]?.createdAt;
-  const daysSinceLastMessage = lastMessageDate
-    ? Math.round((Date.now() - new Date(lastMessageDate).getTime()) / (1000 * 60 * 60 * 24))
-    : 'unknown';
+  const minutesSince = lastMessageDate
+    ? Math.round((Date.now() - new Date(lastMessageDate).getTime()) / 60_000)
+    : null;
+  const inactivityLabel = minutesSince == null ? 'a while'
+    : minutesSince < 60 ? `${minutesSince} minute${minutesSince === 1 ? '' : 's'}`
+    : minutesSince < 1440 ? `${Math.round(minutesSince / 60)} hour${Math.round(minutesSince / 60) === 1 ? '' : 's'}`
+    : `${Math.round(minutesSince / 1440)} day${Math.round(minutesSince / 1440) === 1 ? '' : 's'}`;
+
+  // The user's instruction is the primary directive — don't bias the model
+  // toward re-engagement when the user might want a farewell, a check-in,
+  // a status update, or anything else.
+  const directive = userInstructions
+    ? `Your task: ${userInstructions}`
+    : `Your task: Write a natural, concise message to re-engage the contact.`;
 
   const OpenAI = require('openai');
   const openai = new OpenAI({ apiKey: openaiApiKey });
@@ -467,21 +478,22 @@ async function executeAiMessage(prisma, chatbot, action, contact, contactName, t
     messages: [
       {
         role: 'system',
-        content: `You are a follow-up message generator for a chatbot. Your job is to write a natural, concise follow-up message to re-engage a contact whose conversation has been inactive for ${daysSinceLastMessage} days.
+        content: `You generate follow-up messages for a chatbot. The contact has been inactive for ${inactivityLabel}.
 
-${systemPromptBase ? `The chatbot's personality/context:\n${systemPromptBase.substring(0, 500)}\n` : ''}
-${userInstructions ? `Additional instructions from the user:\n${userInstructions}\n` : ''}
-Rules:
+${directive}
+
+${systemPromptBase ? `Chatbot personality/context (match this tone):\n${systemPromptBase.substring(0, 500)}\n\n` : ''}Rules:
 - Write ONLY the message text, nothing else
-- Be natural and conversational, not salesy or pushy
-- Reference the previous conversation context when relevant
+- Follow the task above exactly — do not invent a different intent
+- Match the chatbot's tone/language from the context
+- Reference the previous conversation when it serves the task
 - Keep it short (1-3 sentences)
-- Use the contact's name (${contactName}) naturally
+- Use the contact's name (${contactName}) naturally if appropriate
 - Do NOT use asterisks, bold, bullet points, or special formatting`
       },
       {
         role: 'user',
-        content: `Here is the conversation history with this contact:\n\n${conversationHistory}\n\nGenerate a follow-up message to re-engage this contact.`
+        content: `Conversation history with this contact:\n\n${conversationHistory}\n\nWrite the follow-up message now, following the task in the system instructions.`
       }
     ],
     temperature: 0.7,
