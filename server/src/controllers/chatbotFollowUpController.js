@@ -10,6 +10,17 @@ let lastOppInStageRunAt = 0;
 let schedulerInterval = null;
 let isProcessing = false;
 
+// GHL errors that mean "give up — manual intervention is needed; retrying
+// will only spam the API with the same 4xx every cycle."
+const TERMINAL_GHL_ERROR_RE = /opportunity doesn't exist or is deleted|contact not found/i;
+function isTerminalGhlError(message) {
+  return TERMINAL_GHL_ERROR_RE.test(message || '');
+}
+
+// Both 'completed' (success) and 'failed_permanent' (give-up marker) count
+// as "done" for dedup purposes, so the scheduler stops re-trying them.
+const DONE_STATUSES = ['completed', 'failed_permanent'];
+
 // ── Scheduler ─────────────────────────────────────────────
 
 function startScheduler(prisma) {
@@ -143,7 +154,7 @@ async function processOppInStageRule(prisma, chatbot, rule, ruleIndex, openaiAva
             ruleIndex,
             targetId: opp.id,
             actionType: action.type,
-            status: 'completed',
+            status: { in: DONE_STATUSES },
           },
         });
         if (done) continue;
@@ -194,7 +205,7 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
       chatbotId: chatbot.id,
       ruleIndex,
       actionType: { in: actionTypes },
-      status: 'completed',
+      status: { in: DONE_STATUSES },
     },
     select: { targetId: true, actionType: true },
   });
@@ -242,9 +253,18 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
     }
 
     for (const action of pendingActions) {
-      const ghlTargetId = action.type === 'move_stage' && opportunityId
-        ? opportunityId
-        : contact.contactId;
+      if (action.type === 'move_stage' && !opportunityId) {
+        // No GHL opportunity for this contact (never created, or admin
+        // deleted it). Don't fall back to PUT /opportunities/{contactId} —
+        // that always 400s. Mark permanent so we stop retrying.
+        await markActionPermanentFailed(
+          prisma, chatbot.id, ruleIndex, rule.conditionType,
+          contact.contactId, 'move_stage',
+          'No GHL opportunity for contact — skipping move_stage.'
+        );
+        continue;
+      }
+      const ghlTargetId = action.type === 'move_stage' ? opportunityId : contact.contactId;
       await executeAction(prisma, chatbot, conn, rule, ruleIndex, contact.contactId, { id: contact.contactId }, action, ghlTargetId);
     }
 
@@ -254,6 +274,17 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
 }
 
 // ── Action Executors ──────────────────────────────────────
+
+async function markActionPermanentFailed(prisma, chatbotId, ruleIndex, conditionType, targetId, actionType, errorMessage) {
+  const details = JSON.stringify({ error: errorMessage });
+  await prisma.chatbotFollowUpLog.upsert({
+    where: {
+      chatbotId_ruleIndex_targetId_actionType: { chatbotId, ruleIndex, targetId, actionType },
+    },
+    create: { chatbotId, ruleIndex, conditionType, targetId, actionType, status: 'failed_permanent', details },
+    update: { status: 'failed_permanent', details },
+  });
+}
 
 async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, contact, action, ghlTargetId) {
   const contactName = contact?.name || contact?.firstName || contact?.contactName || 'there';
@@ -303,7 +334,9 @@ async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, c
       },
     });
   } catch (err) {
-    console.error(`[Chatbot Follow-Up] Action ${action.type} failed for ${targetId}:`, err.message);
+    const status = isTerminalGhlError(err.message) ? 'failed_permanent' : 'failed';
+    console.error(`[Chatbot Follow-Up] Action ${action.type} ${status} for ${targetId}:`, err.message);
+    const details = JSON.stringify({ error: err.message });
     await prisma.chatbotFollowUpLog.upsert({
       where: {
         chatbotId_ruleIndex_targetId_actionType: {
@@ -319,13 +352,10 @@ async function executeAction(prisma, chatbot, conn, rule, ruleIndex, targetId, c
         conditionType: rule.conditionType,
         targetId,
         actionType: action.type,
-        status: 'failed',
-        details: JSON.stringify({ error: err.message }),
+        status,
+        details,
       },
-      update: {
-        status: 'failed',
-        details: JSON.stringify({ error: err.message }),
-      },
+      update: { status, details },
     });
   }
 }
