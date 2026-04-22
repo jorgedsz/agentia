@@ -190,6 +190,12 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
   const conn = await findGhlConnection(chatbot.userId, prisma);
   const needsOpp = (rule.actions || []).some(a => a.type === 'move_stage');
 
+  // Optional opportunity scoping: if pipelineId is set, the rule fires only
+  // for contacts that have an opp in that pipeline AND whose stage is not in
+  // excludedStageIds. No pipelineId → today's behavior (fires for all inactive).
+  const hasPipelineFilter = !!rule.pipelineId;
+  const excludedStageIds = Array.isArray(rule.excludedStageIds) ? rule.excludedStageIds : [];
+
   // Filter out ai_message actions when OpenAI isn't configured so we
   // don't spam the log with key-missing errors for every contact.
   const actions = (rule.actions || []).filter(a => openaiAvailable || a.type !== 'ai_message');
@@ -229,11 +235,15 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
     const pendingActions = actions.filter(a => !isDone(contact.contactId, a.type));
     if (pendingActions.length === 0) continue;
 
-    // Look up the contact's opportunity only when at least one pending action
-    // is move_stage (otherwise we don't need the opportunity id).
+    // Look up the contact's opportunity when either (a) a pending action is
+    // move_stage and we need the id, or (b) pipelineId is set and we need to
+    // verify pipeline+stage to apply the filter.
     const pendingNeedsOpp = needsOpp && pendingActions.some(a => a.type === 'move_stage');
+    const needsOppLookup = pendingNeedsOpp || hasPipelineFilter;
     let opportunityId = null;
-    if (pendingNeedsOpp && conn) {
+    let opportunityStageId = null;
+    let oppLookupRan = false;
+    if (needsOppLookup && conn) {
       try {
         const pipelineFilter = rule.pipelineId ? `&pipeline_id=${rule.pipelineId}` : '';
         const data = await ghlRequest(
@@ -241,7 +251,11 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
           conn.token
         );
         const opps = data?.opportunities || [];
-        if (opps.length) opportunityId = opps[0].id;
+        if (opps.length) {
+          opportunityId = opps[0].id;
+          opportunityStageId = opps[0].pipelineStageId || opps[0].stageId || null;
+        }
+        oppLookupRan = true;
         consecutiveRateLimits = 0;
       } catch (err) {
         console.error(`[Chatbot Follow-Up] Opportunity lookup failed for contact ${contact.contactId}:`, err.message);
@@ -249,6 +263,20 @@ async function processInactiveConversationRule(prisma, chatbot, rule, ruleIndex,
           consecutiveRateLimits++;
           continue;
         }
+      }
+    }
+
+    // Pipeline filter: skip silently when contact has no opp in the rule's
+    // pipeline, or when the opp's current stage is in the excluded list.
+    // Not a failure — just out of scope for this rule, so no log row.
+    if (hasPipelineFilter) {
+      if (!opportunityId) {
+        if (oppLookupRan) await sleep(250);
+        continue;
+      }
+      if (excludedStageIds.length && excludedStageIds.includes(opportunityStageId)) {
+        if (oppLookupRan) await sleep(250);
+        continue;
       }
     }
 

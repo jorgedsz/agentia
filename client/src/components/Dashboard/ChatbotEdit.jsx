@@ -2646,7 +2646,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                         {/* Condition Type */}
                         <div>
                           <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Condition</label>
-                          <select value={rule.conditionType || 'inactive_conversation'} onChange={(e) => { const val = e.target.value; setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], conditionType: val }; if (val === 'inactive_conversation') { rules[rIdx].pipelineId = ''; rules[rIdx].pipelineName = ''; rules[rIdx].stageId = ''; rules[rIdx].stageName = ''; } return { ...prev, rules } }) }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                          <select value={rule.conditionType || 'inactive_conversation'} onChange={(e) => { const val = e.target.value; setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], conditionType: val }; if (val === 'inactive_conversation') { rules[rIdx].stageId = ''; rules[rIdx].stageName = ''; if (!Array.isArray(rules[rIdx].excludedStageIds)) rules[rIdx].excludedStageIds = []; } else if (val === 'opp_in_stage') { rules[rIdx].excludedStageIds = []; } return { ...prev, rules } }) }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
                             <option value="inactive_conversation">{t('chatbotEdit.inactiveConversation')}</option>
                             <option value="opp_in_stage">{t('chatbotEdit.oppInStage')}</option>
                           </select>
@@ -2664,6 +2664,46 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                             </select>
                           </div>
                         </div>
+
+                        {/* Pipeline filter & excluded stages (inactive_conversation only) */}
+                        {rule.conditionType === 'inactive_conversation' && (
+                          <div className="rounded-lg border border-gray-100 dark:border-dark-border p-2 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-bold text-gray-500 dark:text-gray-400">{t('chatbotEdit.filterByOpp')}</label>
+                              {rule.pipelineId && (
+                                <button onClick={() => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], pipelineId: '', pipelineName: '', excludedStageIds: [] }; return { ...prev, rules } })} className="text-[10px] text-gray-400 hover:text-red-500">{t('chatbotEdit.clearFilter')}</button>
+                              )}
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.pipelineOptional')}</label>
+                              <select value={rule.pipelineId || ''} onChange={(e) => { const p = ghlPipelines.find(pp => pp.id === e.target.value); setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; rules[rIdx] = { ...rules[rIdx], pipelineId: e.target.value, pipelineName: p?.name || '', excludedStageIds: [] }; return { ...prev, rules } }) }} className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white">
+                                <option value="">{t('chatbotEdit.anyPipeline')}</option>
+                                {ghlPipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select>
+                            </div>
+                            {rule.pipelineId && (() => {
+                              const stages = ghlPipelines.find(p => p.id === rule.pipelineId)?.stages || [];
+                              const excluded = rule.excludedStageIds || [];
+                              return (
+                                <div>
+                                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.skipIfStage')}</label>
+                                  <div className="flex flex-wrap gap-1">
+                                    {stages.length === 0 ? (
+                                      <span className="text-[10px] text-gray-400">{t('chatbotEdit.noStagesInPipeline')}</span>
+                                    ) : stages.map(s => {
+                                      const isOn = excluded.includes(s.id);
+                                      return (
+                                        <button key={s.id} type="button" onClick={() => setFollowUpRulesConfig(prev => { const rules = [...prev.rules]; const cur = rules[rIdx].excludedStageIds || []; rules[rIdx] = { ...rules[rIdx], excludedStageIds: isOn ? cur.filter(x => x !== s.id) : [...cur, s.id] }; return { ...prev, rules } })} className={`px-2 py-0.5 text-[11px] rounded-full border transition-colors ${isOn ? 'bg-red-50 border-red-300 text-red-700 dark:bg-red-900/20 dark:border-red-700 dark:text-red-300' : 'bg-white border-gray-300 text-gray-600 hover:border-gray-400 dark:bg-dark-bg dark:border-dark-border dark:text-gray-300'}`}>
+                                          {isOn ? '✕ ' : ''}{s.name}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
 
                         {/* Pipeline & Stage (opp_in_stage only) */}
                         {rule.conditionType === 'opp_in_stage' && (
