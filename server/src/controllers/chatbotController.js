@@ -556,7 +556,32 @@ const webhookProxy = async (req, res) => {
     const contactId = body.contactId || body.contact_id || body.customData?.sessionId || body.sessionId || '';
     const sessionId = body.sessionId || body.customData?.sessionId || body.contact_id || '';
     const contactName = body.contactName || body.full_name || '';
-    const variables = body.variables || body.customData || null;
+    // Carry phone + email from the inbound webhook so the booking endpoint can
+    // find/create the contact in the calendar's location when the inbound
+    // contactId is from a different GHL location than the booking calendar.
+    const contactPhone = body.contactPhone || body.phone || body.contact?.phone || '';
+    const contactEmail = body.contactEmail || body.email || body.contact?.email || '';
+
+    // Accept variables in two shapes:
+    // 1. Nested: { variables: { foo: "bar" } } or { customData: { foo: "bar" } }  (legacy)
+    // 2. Flat at top level: { foo: "bar", baz: "qux" }  (GHL voice-agent style)
+    // Flat unknown keys are merged with the nested object; nested wins on conflict.
+    const RESERVED_KEYS = new Set([
+      'message', 'sessionId', 'contactId', 'contact_id', 'contactName', 'full_name',
+      'contactPhone', 'phone', 'contact', 'contactEmail', 'email',
+      'attachments', 'mediaUrl', 'customData', 'variables',
+      'type', 'body', 'text', '_testMode', '_buffered'
+    ]);
+    const flatVars = {};
+    for (const [k, v] of Object.entries(body || {})) {
+      if (RESERVED_KEYS.has(k)) continue;
+      if (v === null || v === undefined) continue;
+      if (typeof v === 'object') continue;
+      flatVars[k] = v;
+    }
+    const nestedVars = body.variables || body.customData || null;
+    const mergedVars = { ...flatVars, ...(nestedVars && typeof nestedVars === 'object' ? nestedVars : {}) };
+    const variables = Object.keys(mergedVars).length > 0 ? mergedVars : null;
 
     // Resolve media URL — GHL puts it in customData.attachments, variables.attachments, or body.attachments
     const msgObj = typeof body.message === 'object' ? body.message : null;
@@ -629,8 +654,10 @@ const webhookProxy = async (req, res) => {
 
     const forwardBody = { message, sessionId: sessionId || 'default', contactId };
     if (contactName) forwardBody.contactName = contactName;
+    if (contactPhone) forwardBody.contactPhone = contactPhone;
+    if (contactEmail) forwardBody.contactEmail = contactEmail;
     if (variables && typeof variables === 'object') forwardBody.variables = variables;
-    console.log(`[Webhook proxy] chatbot=${id} resolved: message="${message}", contactId="${contactId}", sessionId="${sessionId || 'default'}", contactName="${contactName}"`);
+    console.log(`[Webhook proxy] chatbot=${id} resolved: message="${message}", contactId="${contactId}", sessionId="${sessionId || 'default'}", contactName="${contactName}", contactPhone="${contactPhone}", contactEmail="${contactEmail}"`);
 
     // Check for buffer/debounce config
     const config = parseConfig(chatbot.config);
