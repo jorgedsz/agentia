@@ -5,6 +5,36 @@ const { createCalendarProvider, getSupportedProviders } = require('../services/c
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 const GHL_AUTH_BASE = 'https://marketplace.gohighlevel.com';
 
+// AI agents tend to drop the timezone offset when echoing back a slot
+// (e.g. "2026-04-24T09:00:00" instead of "2026-04-24T09:00:00-04:00").
+// Without an offset, Node parses the string in server-local time (UTC on Railway),
+// so 9 AM "local" gets sent to GHL as 9 AM UTC = 5 AM EDT — outside business hours,
+// and GHL replies "slot is no longer available". Treat tz-naive ISO strings as
+// wall time in the configured timezone and convert to a true UTC instant.
+const normalizeWallTimeToUTC = (isoString, timezone) => {
+  if (!isoString || !timezone) return isoString;
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/.test(isoString)) return isoString;
+
+  const guessUTC = new Date(isoString + 'Z');
+  if (isNaN(guessUTC.getTime())) return isoString;
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).formatToParts(guessUTC).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+
+  const renderedHour = parts.hour === '24' ? '00' : parts.hour;
+  const renderedWallMs = Date.UTC(
+    parseInt(parts.year), parseInt(parts.month) - 1, parseInt(parts.day),
+    parseInt(renderedHour), parseInt(parts.minute), parseInt(parts.second)
+  );
+
+  const adjustMs = guessUTC.getTime() - renderedWallMs;
+  return new Date(guessUTC.getTime() + adjustMs).toISOString();
+};
+
 // OAuth config per provider
 const OAUTH_CONFIG = {
   google: {
@@ -638,7 +668,10 @@ const checkAvailability = async (req, res) => {
     const provider = req.query.provider;
     const integrationId = req.query.integrationId;
     const calendarId = req.query.calendarId || functionArgs.calendarId;
-    const timezone = req.query.timezone || functionArgs.timezone;
+    const rawTimezone = req.query.timezone || functionArgs.timezone;
+    const timezone = rawTimezone && /%[0-9A-Fa-f]{2}/.test(rawTimezone)
+      ? (() => { try { return decodeURIComponent(rawTimezone); } catch { return rawTimezone; } })()
+      : rawTimezone;
     const userId = req.query.userId || functionArgs.userId;
     let date = functionArgs.date;
 
@@ -722,10 +755,23 @@ const bookAppointment = async (req, res) => {
     const provider = req.query.provider;
     const integrationId = req.query.integrationId;
     const calendarId = req.query.calendarId || functionArgs.calendarId;
-    const timezone = req.query.timezone || functionArgs.timezone;
+    // Defensive decode: Express decodes query strings by default, but some proxies
+    // or double-serialized tool URLs can leave values like "America%2FNew_York"
+    // still percent-encoded — which Intl.DateTimeFormat rejects.
+    const rawTimezone = req.query.timezone || functionArgs.timezone;
+    const timezone = rawTimezone && /%[0-9A-Fa-f]{2}/.test(rawTimezone)
+      ? (() => { try { return decodeURIComponent(rawTimezone); } catch { return rawTimezone; } })()
+      : rawTimezone;
     const userId = req.query.userId || functionArgs.userId;
 
-    const { startTime, endTime, contactEmail, contactPhone, notes } = functionArgs;
+    let { startTime, endTime } = functionArgs;
+    const { contactEmail, contactPhone, notes } = functionArgs;
+
+    // Normalize tz-naive times against the configured timezone (see helper above).
+    if (timezone) {
+      startTime = normalizeWallTimeToUTC(startTime, timezone);
+      if (endTime) endTime = normalizeWallTimeToUTC(endTime, timezone);
+    }
     let contactName = functionArgs.contactName || null;
     if (!contactName && req.query.contactName) {
       try { contactName = decodeURIComponent(req.query.contactName); } catch { contactName = req.query.contactName; }
