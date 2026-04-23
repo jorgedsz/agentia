@@ -189,18 +189,17 @@ class N8nService {
       config.tools.forEach((tool, idx) => {
         const toolNodeName = `Tool: ${tool.name || `tool_${idx + 1}`}`;
 
-        // Parse body schema. We map JSON Schema properties to $fromAI() calls
-        // wrapped in JSON.stringify so n8n auto-escapes values that contain
-        // quotes/newlines (legacy {placeholder} substitution does not escape
-        // and breaks the body when the AI supplies a value with a `"` in it).
+        // Parse body schema - convert JSON Schema to {placeholder} format
         let bodyObj = null;
         if (tool.body) {
           bodyObj = typeof tool.body === 'string' ? (() => { try { return JSON.parse(tool.body); } catch { return null; } })() : tool.body;
         }
 
+        const placeholderBody = {};
         const placeholderDefs = [];
         if (bodyObj && bodyObj.type === 'object' && bodyObj.properties) {
           for (const [propName, propDef] of Object.entries(bodyObj.properties)) {
+            placeholderBody[propName] = `{${propName}}`;
             placeholderDefs.push({
               name: propName,
               description: propDef.description || propName,
@@ -239,17 +238,15 @@ class N8nService {
 
         if (hasBody) {
           toolNode.parameters.specifyBody = 'json';
-          if (placeholderDefs.length > 0) {
-            const fields = placeholderDefs.map(def => {
-              const nameLit = JSON.stringify(def.name);
-              const descLit = JSON.stringify(def.description || def.name);
-              const t = ['string', 'number', 'boolean', 'json'].includes(def.type) ? def.type : 'string';
-              return `${nameLit}: $fromAI(${nameLit}, ${descLit}, '${t}')`;
-            }).join(', ');
-            toolNode.parameters.jsonBody = `={{ JSON.stringify({${fields}}) }}`;
-          } else {
-            toolNode.parameters.jsonBody = typeof tool.body === 'string' ? tool.body : JSON.stringify(tool.body || {});
-          }
+          toolNode.parameters.jsonBody = placeholderDefs.length > 0
+            ? JSON.stringify(placeholderBody)
+            : (typeof tool.body === 'string' ? tool.body : JSON.stringify(tool.body || {}));
+        }
+
+        if (placeholderDefs.length > 0) {
+          toolNode.parameters.placeholderDefinitions = {
+            values: placeholderDefs
+          };
         }
 
         if (tool.headers && typeof tool.headers === 'object') {
