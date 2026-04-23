@@ -252,6 +252,16 @@ class N8nService {
           }
         }
 
+        // Keep placeholderDefinitions so the AI agent has an explicit input
+        // schema for each tool param. Without this, the AI sometimes calls
+        // the tool with no arguments (we saw $fromAI('date') return undefined
+        // and the body collapse to `{}`).
+        if (placeholderDefs.length > 0) {
+          toolNode.parameters.placeholderDefinitions = {
+            values: placeholderDefs
+          };
+        }
+
         if (tool.headers && typeof tool.headers === 'object') {
           toolNode.parameters.sendHeaders = true;
           toolNode.parameters.specifyHeaders = 'json';
