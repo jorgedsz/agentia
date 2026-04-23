@@ -1396,9 +1396,7 @@ export default function ChatbotEdit() {
     "message": {"type": 1, "body": "Hello!"},
     "sessionId": "user-123",
     "attachments": []${variables.length > 0 ? `,
-    "variables": {
-${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}
-    }` : ''}
+${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}` : ''}
   }'`
 
               return (
@@ -1447,7 +1445,7 @@ ${variables.map(v => `      "${v.name}": "${v.defaultValue || ''}"`).join(',\n')
                     <p><strong className="text-gray-500 dark:text-gray-400">sessionId</strong> (optional) — Unique session ID for conversation memory</p>
                     <p><strong className="text-gray-500 dark:text-gray-400">attachments</strong> (optional) — Array of media URLs (images, voice notes). Auto-transcribed/analyzed</p>
                     {variables.length > 0 && (
-                      <p><strong className="text-gray-500 dark:text-gray-400">variables</strong> (optional) — Dynamic variables to inject into the prompt</p>
+                      <p><strong className="text-gray-500 dark:text-gray-400">{variables.map(v => v.name).join(', ')}</strong> (optional) — Dynamic variables to inject into the prompt (flat at top level)</p>
                     )}
                   </div>
                 </div>
