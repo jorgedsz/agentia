@@ -2,6 +2,24 @@ const jwt = require('jsonwebtoken');
 const { encrypt, decrypt } = require('../utils/encryption');
 const { createCalendarProvider, getSupportedProviders } = require('../services/calendar/calendarFactory');
 
+// When the AI tool is invoked from a chatbot, the inbound webhook's GHL
+// locationId is appended to the URL. We use it to pick the matching calendar
+// integration so a contactId from one location is never sent to a different
+// location's calendar (which GHL rejects as "contact id is invalid").
+async function findGhlIntegrationByLocation(prisma, userId, locationId) {
+  if (!userId || !locationId) return null;
+  const candidates = await prisma.calendarIntegration.findMany({
+    where: { userId: parseInt(userId), provider: 'ghl', isConnected: true }
+  });
+  for (const c of candidates) {
+    let meta = null;
+    try { meta = JSON.parse(c.metadata || '{}'); } catch {}
+    if (meta?.locationId === locationId) return c;
+    if (c.externalAccountId === locationId) return c;
+  }
+  return null;
+}
+
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 const GHL_AUTH_BASE = 'https://marketplace.gohighlevel.com';
 
@@ -676,13 +694,21 @@ const checkAvailability = async (req, res) => {
       return res.json({ results: [{ success: false, currentDate: todayStr, error: `DATE_TOO_FAR: Max 90 days from today (${todayStr}). Do NOT read this message to the customer.` }] });
     }
 
-    const integration = await req.prisma.calendarIntegration.findFirst({
-      where: {
-        id: integrationId ? parseInt(integrationId) : undefined,
-        userId: parseInt(userId),
-        ...(provider && !integrationId ? { provider } : {})
-      }
-    });
+    const inboundLocationId = req.query.locationId || functionArgs.locationId;
+    let integration = null;
+    if (provider === 'ghl' && inboundLocationId) {
+      integration = await findGhlIntegrationByLocation(req.prisma, userId, inboundLocationId);
+      if (integration) console.log(`Auto-resolved GHL integration id=${integration.id} for location ${inboundLocationId}`);
+    }
+    if (!integration) {
+      integration = await req.prisma.calendarIntegration.findFirst({
+        where: {
+          id: integrationId ? parseInt(integrationId) : undefined,
+          userId: parseInt(userId),
+          ...(provider && !integrationId ? { provider } : {})
+        }
+      });
+    }
 
     if (!integration || !integration.isConnected) {
       return res.json({ results: [{ error: `Calendar provider is not connected. Please connect in Settings.` }] });
@@ -784,13 +810,21 @@ const bookAppointment = async (req, res) => {
       return res.json({ results: [{ success: false, currentDate: todayStr, error: `PAST_TIME: ${startTime} is in the past. Current date: ${todayStr}. Retry with a future time. Do NOT read this to the customer.` }] });
     }
 
-    const integration = await req.prisma.calendarIntegration.findFirst({
-      where: {
-        id: integrationId ? parseInt(integrationId) : undefined,
-        userId: parseInt(userId),
-        ...(provider && !integrationId ? { provider } : {})
-      }
-    });
+    const inboundLocationId = req.query.locationId || functionArgs.locationId;
+    let integration = null;
+    if (provider === 'ghl' && inboundLocationId) {
+      integration = await findGhlIntegrationByLocation(req.prisma, userId, inboundLocationId);
+      if (integration) console.log(`Auto-resolved GHL integration id=${integration.id} for location ${inboundLocationId}`);
+    }
+    if (!integration) {
+      integration = await req.prisma.calendarIntegration.findFirst({
+        where: {
+          id: integrationId ? parseInt(integrationId) : undefined,
+          userId: parseInt(userId),
+          ...(provider && !integrationId ? { provider } : {})
+        }
+      });
+    }
 
     if (!integration || !integration.isConnected) {
       return res.json({ results: [{ error: 'Calendar provider is not connected. Please connect in Settings.' }] });

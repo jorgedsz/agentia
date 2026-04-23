@@ -133,7 +133,7 @@ class N8nService {
       typeVersion: 2,
       position: [400, 300],
       parameters: {
-        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nconst now = new Date();\nresolved += '\\n\\nCurrent date and time: ' + now.toISOString() + ' (' + now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }) + ')';\nconst contactId = $json.body?.contactId || $json.body?.sessionId || "";\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: contactId, contactName: $json.body?.contactName || "", _testMode: $json.body?._testMode || false } }];`
+        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nconst now = new Date();\nresolved += '\\n\\nCurrent date and time: ' + now.toISOString() + ' (' + now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }) + ')';\nconst contactId = $json.body?.contactId || $json.body?.sessionId || "";\nconst locationId = $json.body?.locationId || $json.body?.location?.id || "";\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: contactId, contactName: $json.body?.contactName || "", locationId: locationId, _testMode: $json.body?._testMode || false } }];`
       }
     };
     nodes.push(resolveVarsNode);
@@ -210,13 +210,25 @@ class N8nService {
 
         const hasBody = placeholderDefs.length > 0 || !!(tool.body);
 
-        // For GHL book-appointment tools and GHL CRM tools, inject contactId and contactName from webhook body via n8n expression
+        // For GHL tools, inject runtime values from the inbound webhook into the URL.
+        //   - locationId: any GHL tool URL gets the inbound location appended so the
+        //     server can auto-pick the matching calendar integration (avoids
+        //     "contact id is invalid" when the configured integrationId is for a
+        //     different GHL location than where the message came from).
+        //   - contactId / contactName: only for booking and CRM tools that need them.
         let toolUrl = tool.url || '';
-        if (
-          (tool.name?.startsWith('book_appointment') && toolUrl.includes('provider=ghl')) ||
-          tool.name?.startsWith('ghl_')
-        ) {
-          toolUrl = `={{ "${toolUrl}" + ($('Resolve Variables').first().json.contactId ? "&contactId=" + encodeURIComponent($('Resolve Variables').first().json.contactId) : "") + ($('Resolve Variables').first().json.contactName ? "&contactName=" + encodeURIComponent($('Resolve Variables').first().json.contactName) : "") }}`;
+        const isGhlBookingOrCrmTool = (tool.name?.startsWith('book_appointment') && toolUrl.includes('provider=ghl'))
+          || tool.name?.startsWith('ghl_');
+        const isAnyGhlTool = toolUrl.includes('provider=ghl');
+        if (isAnyGhlTool) {
+          const locationPart = `($('Resolve Variables').first().json.locationId ? "&locationId=" + encodeURIComponent($('Resolve Variables').first().json.locationId) : "")`;
+          if (isGhlBookingOrCrmTool) {
+            const contactPart = `($('Resolve Variables').first().json.contactId ? "&contactId=" + encodeURIComponent($('Resolve Variables').first().json.contactId) : "")`;
+            const namePart = `($('Resolve Variables').first().json.contactName ? "&contactName=" + encodeURIComponent($('Resolve Variables').first().json.contactName) : "")`;
+            toolUrl = `={{ "${toolUrl}" + ${contactPart} + ${namePart} + ${locationPart} }}`;
+          } else {
+            toolUrl = `={{ "${toolUrl}" + ${locationPart} }}`;
+          }
         }
 
         const toolNode = {

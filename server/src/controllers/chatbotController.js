@@ -557,6 +557,10 @@ const webhookProxy = async (req, res) => {
     const sessionId = body.sessionId || body.customData?.sessionId || body.contact_id || '';
     const contactName = body.contactName || body.full_name || '';
     const variables = body.variables || body.customData || null;
+    // GHL location of the inbound message — used downstream to auto-pick the
+    // matching calendar integration so a contactId from one location isn't
+    // sent to a calendar in a different location ("contact id is invalid").
+    const locationId = body.locationId || body.location?.id || body.location_id || '';
 
     // Resolve media URL — GHL puts it in customData.attachments, variables.attachments, or body.attachments
     const msgObj = typeof body.message === 'object' ? body.message : null;
@@ -629,8 +633,9 @@ const webhookProxy = async (req, res) => {
 
     const forwardBody = { message, sessionId: sessionId || 'default', contactId };
     if (contactName) forwardBody.contactName = contactName;
+    if (locationId) forwardBody.locationId = locationId;
     if (variables && typeof variables === 'object') forwardBody.variables = variables;
-    console.log(`[Webhook proxy] chatbot=${id} resolved: message="${message}", contactId="${contactId}", sessionId="${sessionId || 'default'}", contactName="${contactName}"`);
+    console.log(`[Webhook proxy] chatbot=${id} resolved: message="${message}", contactId="${contactId}", sessionId="${sessionId || 'default'}", contactName="${contactName}", locationId="${locationId}"`);
 
     // Check for buffer/debounce config
     const config = parseConfig(chatbot.config);
