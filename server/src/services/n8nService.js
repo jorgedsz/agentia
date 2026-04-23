@@ -133,7 +133,7 @@ class N8nService {
       typeVersion: 2,
       position: [400, 300],
       parameters: {
-        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nconst now = new Date();\nresolved += '\\n\\nCurrent date and time: ' + now.toISOString() + ' (' + now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }) + ')';\nconst contactId = $json.body?.contactId || $json.body?.sessionId || "";\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: contactId, contactName: $json.body?.contactName || "", _testMode: $json.body?._testMode || false } }];`
+        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nconst now = new Date();\nresolved += '\\n\\nCurrent date and time: ' + now.toISOString() + ' (' + now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }) + ')';\nconst contactId = $json.body?.contactId || $json.body?.sessionId || "";\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: contactId, contactName: $json.body?.contactName || "", contactPhone: $json.body?.contactPhone || "", contactEmail: $json.body?.contactEmail || "", _testMode: $json.body?._testMode || false } }];`
       }
     };
     nodes.push(resolveVarsNode);
@@ -195,10 +195,19 @@ class N8nService {
           bodyObj = typeof tool.body === 'string' ? (() => { try { return JSON.parse(tool.body); } catch { return null; } })() : tool.body;
         }
 
+        // n8n's toolHttpRequest treats every entry in placeholderDefinitions as a
+        // required LLM tool-call arg, so including optional props here produces
+        // "Required → at <prop>" schema mismatches when the AI sensibly omits them.
+        // Only required props become placeholders; the rest are dropped from the
+        // schema and from the body template entirely (contactPhone/contactName for
+        // GHL are still forwarded via the URL-level append in the tool URL).
         const placeholderBody = {};
         const placeholderDefs = [];
         if (bodyObj && bodyObj.type === 'object' && bodyObj.properties) {
+          const requiredList = Array.isArray(bodyObj.required) ? bodyObj.required : Object.keys(bodyObj.properties);
+          const requiredSet = new Set(requiredList);
           for (const [propName, propDef] of Object.entries(bodyObj.properties)) {
+            if (!requiredSet.has(propName)) continue;
             placeholderBody[propName] = `{${propName}}`;
             placeholderDefs.push({
               name: propName,
@@ -210,13 +219,19 @@ class N8nService {
 
         const hasBody = placeholderDefs.length > 0 || !!(tool.body);
 
-        // For GHL book-appointment tools and GHL CRM tools, inject contactId and contactName from webhook body via n8n expression
+        // For GHL book-appointment tools and GHL CRM tools, inject the inbound
+        // contact details from the webhook into the URL. We pass contactPhone
+        // and contactEmail too so the booking endpoint can find/create the
+        // contact in the calendar's location when the inbound contactId is
+        // from a different GHL location ("contact id is invalid" fallback).
         let toolUrl = tool.url || '';
         if (
           (tool.name?.startsWith('book_appointment') && toolUrl.includes('provider=ghl')) ||
           tool.name?.startsWith('ghl_')
         ) {
-          toolUrl = `={{ "${toolUrl}" + ($('Resolve Variables').first().json.contactId ? "&contactId=" + encodeURIComponent($('Resolve Variables').first().json.contactId) : "") + ($('Resolve Variables').first().json.contactName ? "&contactName=" + encodeURIComponent($('Resolve Variables').first().json.contactName) : "") }}`;
+          const rv = "$('Resolve Variables').first().json";
+          const part = (key) => `(${rv}.${key} ? "&${key}=" + encodeURIComponent(${rv}.${key}) : "")`;
+          toolUrl = `={{ "${toolUrl}" + ${part('contactId')} + ${part('contactName')} + ${part('contactPhone')} + ${part('contactEmail')} }}`;
         }
 
         const toolNode = {
