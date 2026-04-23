@@ -3,6 +3,32 @@ const { decrypt, encrypt } = require('../../utils/encryption');
 
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 
+// Format a UTC Date as a wall-time ISO string with the offset of the given IANA
+// timezone — e.g. "2026-04-24T09:00:00-04:00". GHL's /calendars/events/appointments
+// rejects UTC-with-Z ("slot no longer available") even when the instant is correct;
+// it wants the startTime rendered in the calendar's local timezone with offset.
+const formatInTimezone = (date, timezone) => {
+  if (!timezone) return date.toISOString();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).formatToParts(date).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+
+  const hh = parts.hour === '24' ? '00' : parts.hour;
+  const wallMs = Date.UTC(
+    parseInt(parts.year), parseInt(parts.month) - 1, parseInt(parts.day),
+    parseInt(hh), parseInt(parts.minute), parseInt(parts.second)
+  );
+  const offsetMinutes = Math.round((wallMs - date.getTime()) / 60000);
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMinutes);
+  const oh = Math.floor(abs / 60).toString().padStart(2, '0');
+  const om = (abs % 60).toString().padStart(2, '0');
+  return `${parts.year}-${parts.month}-${parts.day}T${hh}:${parts.minute}:${parts.second}${sign}${oh}:${om}`;
+};
+
 class GHLCalendarProvider extends CalendarProvider {
   constructor(integration, prisma) {
     super(integration, prisma);
@@ -213,18 +239,27 @@ class GHLCalendarProvider extends CalendarProvider {
       appointmentEndTime = start.toISOString();
     }
 
+    // GHL's appointment endpoint wants startTime/endTime rendered in the calendar's
+    // timezone with offset (e.g. "2026-04-24T09:00:00-04:00"), not UTC with Z —
+    // otherwise it replies "slot no longer available" even when the slot is free.
+    const startForGhl = timezone ? formatInTimezone(new Date(startTime), timezone) : startTime;
+    const endForGhl = timezone ? formatInTimezone(new Date(appointmentEndTime), timezone) : appointmentEndTime;
+
+    const appointmentBody = {
+      calendarId,
+      locationId: this.locationId,
+      contactId,
+      startTime: startForGhl,
+      endTime: endForGhl,
+      title: title || 'Appointment',
+      appointmentStatus: 'confirmed',
+      notes: notes || ''
+    };
+    if (timezone) appointmentBody.timezone = timezone;
+
     const appointmentResponse = await this._ghlRequest('/calendars/events/appointments', token, {
       method: 'POST',
-      body: JSON.stringify({
-        calendarId,
-        locationId: this.locationId,
-        contactId,
-        startTime,
-        endTime: appointmentEndTime,
-        title: title || 'Appointment',
-        appointmentStatus: 'confirmed',
-        notes: notes || ''
-      })
+      body: JSON.stringify(appointmentBody)
     });
 
     return {
