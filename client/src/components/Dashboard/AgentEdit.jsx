@@ -1457,11 +1457,10 @@ export default function AgentEdit() {
             },
             required: ['callbackTime']
           },
-          timeoutSeconds: 15,
-          messages: [{
-            type: 'request-start',
-            content: cbIsEs ? 'Te agendo esa llamada de retorno...' : 'Let me schedule that callback for you...'
-          }]
+          timeoutSeconds: 15
+          // No request-start audio — the callback is near-instant and a pre-roll
+          // phrase ("Te agendo esa llamada de retorno...") plays right before the
+          // final confirmation, which sounds doubled. Stay silent until success.
         })
       }
 
