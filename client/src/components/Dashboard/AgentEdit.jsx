@@ -1431,9 +1431,9 @@ export default function AgentEdit() {
       if (callbackConfig.enabled) {
         const cbIsEs = effectiveLanguage === 'es'
         // apiRequest tools POST the AI args flat in the body (no call context),
-        // so forward the customer number through the URL via VAPI's built-in
-        // {{customer.number}} variable substitution.
-        const callbackUrl = `${apiBaseUrl}/callbacks/schedule?userId=${user?.id}&agentId=${id}&customerNumber={{customer.number}}`
+        // so forward the customer number through the URL via the {{customerPhone}}
+        // variable that callController.js sets via assistantOverrides.variableValues.
+        const callbackUrl = `${apiBaseUrl}/callbacks/schedule?userId=${user?.id}&agentId=${id}&customerNumber={{customerPhone}}`
         callbackTools.push({
           type: 'apiRequest',
           method: 'POST',
