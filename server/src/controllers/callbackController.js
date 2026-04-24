@@ -17,11 +17,9 @@ async function scheduleCallback(req, res) {
       });
     }
 
-    // Dump the full envelope once so we can see VAPI's actual shape when the
-    // tool is called. A few different paths have been observed in the wild.
-    console.log('[Callback] raw body keys:', Object.keys(req.body || {}), 'msg keys:',
-      Object.keys(req.body?.message || {}));
-
+    // VAPI's apiRequest tool type POSTs the AI's arguments flat at the top
+    // level of the body. Older "function" tools nest them under
+    // message.toolCalls[0].function.arguments. Support both shapes.
     const msg = req.body?.message || {};
     const toolCall =
       msg.toolCalls?.[0] ||
@@ -30,17 +28,17 @@ async function scheduleCallback(req, res) {
       req.body?.toolCall ||
       null;
 
-    // VAPI forwards arguments at multiple potential paths; check each. Arguments
-    // may also arrive as a JSON-encoded string, so parse in that case.
     let argsRaw =
       toolCall?.function?.arguments ??
       toolCall?.arguments ??
       toolCall?.parameters ??
       msg.functionCall?.parameters ??
       msg.functionCall?.arguments ??
-      req.body?.functionCall?.parameters ??
-      req.body?.functionCall?.arguments ??
-      {};
+      null;
+    // Fallback: apiRequest tools send the arguments as the request body itself.
+    if (!argsRaw && req.body && typeof req.body === 'object' && !req.body.message) {
+      argsRaw = req.body;
+    }
     if (typeof argsRaw === 'string') {
       try { argsRaw = JSON.parse(argsRaw); } catch { argsRaw = {}; }
     }
@@ -48,9 +46,6 @@ async function scheduleCallback(req, res) {
     const callbackTime = args.callbackTime || args.time || args.datetime;
     const reason = args.reason || args.note || null;
     console.log('[Callback] scheduleCallback args:', JSON.stringify(args), 'userId:', userId, 'agentId:', agentId);
-    if (!callbackTime) {
-      console.log('[Callback] full envelope:', JSON.stringify(req.body).slice(0, 4000));
-    }
 
     if (!callbackTime) {
       return res.status(200).json({
@@ -75,9 +70,18 @@ async function scheduleCallback(req, res) {
       });
     }
 
-    // Get customer number from VAPI call context
-    const customerNumber = req.body?.message?.call?.customer?.number;
+    // Resolve customer number. apiRequest tools don't carry call context in the
+    // body, so it's forwarded via the URL (customerNumber={{customer.number}}).
+    // Fall back to the legacy function-tool envelope path for older tools.
+    const rawCustomerNumber =
+      req.query.customerNumber ||
+      req.body?.message?.call?.customer?.number ||
+      null;
+    const customerNumber = rawCustomerNumber && !/\{\{.+\}\}/.test(rawCustomerNumber)
+      ? rawCustomerNumber
+      : null;
     if (!customerNumber) {
+      console.warn('[Callback] customerNumber missing — query:', req.query.customerNumber, 'msg path:', req.body?.message?.call?.customer?.number);
       return res.status(200).json({
         results: [{
           toolCallId: toolCall?.id,
