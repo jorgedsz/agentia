@@ -227,20 +227,24 @@ async function processCallbacks(prisma) {
         }
         vapiService.setApiKey(vapiKey);
 
-        // 5. Create the outbound call via VAPI
+        // 5. Create the outbound call via VAPI. Populate variableValues so
+        // {{customerPhone}} resolves in tool URLs (matches dashboard call behavior)
+        // and tools like schedule_callback can reach the customer number.
+        const agentConfig = agent.config ? (typeof agent.config === 'string' ? JSON.parse(agent.config) : agent.config) : {};
+        const variableValues = { customerPhone: callback.customerNumber };
+
         const callConfig = {
           assistantId: agent.vapiId,
           phoneNumberId: phoneNumber.vapiPhoneNumberId,
           customer: {
             number: callback.customerNumber
-          }
+          },
+          assistantOverrides: { variableValues }
         };
 
-        // Outbound-specific first message override
-        const agentConfig = agent.config ? (typeof agent.config === 'string' ? JSON.parse(agent.config) : agent.config) : {};
         const outboundGreeting = agentConfig.firstMessageOutbound;
         if (outboundGreeting && outboundGreeting.trim()) {
-          callConfig.assistantOverrides = { firstMessage: outboundGreeting };
+          callConfig.assistantOverrides.firstMessage = outboundGreeting;
         }
 
         console.log(`Callback #${callback.id}: Initiating call to ${callback.customerNumber} via agent ${agent.name}`);
@@ -271,7 +275,11 @@ async function processCallbacks(prisma) {
 
         console.log(`Callback #${callback.id}: Call initiated successfully (callId: ${call.id})`);
       } catch (err) {
-        console.error(`Callback #${callback.id}: Failed -`, err.message);
+        console.error(`Callback #${callback.id}: Failed -`, err?.message);
+        if (err?.stack) console.error(err.stack);
+        if (err?.response) {
+          try { console.error('Upstream response:', JSON.stringify(err.response).slice(0, 1500)); } catch {}
+        }
         await prisma.scheduledCallback.update({
           where: { id: callback.id },
           data: { status: 'failed' }
