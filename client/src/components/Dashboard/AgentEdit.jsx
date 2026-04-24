@@ -1785,25 +1785,35 @@ ${entry.scenario || entry.description || defaultScenario}
           ? `
 
 ## INSTRUCCIONES PARA AGENDAR LLAMADA DE RETORNO
-Cuando el cliente pida que lo llamen de vuelta (incluso frases como "llámame en 5 minutos", "llámame mañana a las 3pm"):
-1. NO pidas confirmación adicional si ya te dio un intervalo claro — procede directo.
-2. Calcula el callbackTime sumando el intervalo a {{currentDateTime}}:
+Cuando el cliente pida que lo llamen de vuelta (ej: "llámame en 5 minutos", "llámame mañana a las 3pm", "regrésame la llamada a las 2"):
+1. NO pidas nombre, teléfono ni confirmación — ya los tenemos del contexto de la llamada.
+2. Si el intervalo es claro, procede DIRECTO a agendar.
+3. Calcula callbackTime sumando el intervalo a {{currentDateTime}}:
    - "en 5 minutos" → {{currentDateTime}} + 5 minutos
    - "mañana a las 3pm" → fecha del día siguiente a las 15:00
-3. SIEMPRE llama la función "schedule_callback_${safeName}" pasando callbackTime en formato ISO 8601 (ej: 2026-04-24T15:35:00). Es OBLIGATORIO, no puede faltar.
-4. Después de agendar con éxito, confirma al cliente: "Listo, te llamaré [fecha/hora relativa]."
-- NUNCA adivines ni dejes callbackTime vacío. Siempre calcula a partir de {{currentDateTime}}.`
+4. Llama la función "schedule_callback_${safeName}" con callbackTime en formato ISO 8601 (ej: 2026-04-24T15:35:00). Es OBLIGATORIO.
+5. Tras el éxito, confirma con UNA frase corta usando el mismo intervalo que dijo el cliente:
+   - Cliente dijo "en 5 minutos" → "Listo, te llamo en 5 minutos."
+   - Cliente dijo "mañana a las 3pm" → "Listo, te llamo mañana a las 3 de la tarde."
+   - NO leas la fecha completa con año.
+   - NO digas "dos mil veintiséis" ni formato oficial.
+- NUNCA dejes callbackTime vacío. Calcula siempre a partir de {{currentDateTime}}.`
           : `
 
 ## CALLBACK SCHEDULING INSTRUCTIONS
-When the customer asks to be called back (including phrases like "call me in 5 minutes", "call me tomorrow at 3pm"):
-1. Do NOT ask for confirmation if they already gave a clear interval — proceed directly.
-2. Compute callbackTime by adding the interval to {{currentDateTime}}:
+When the customer asks to be called back (e.g. "call me in 5 minutes", "call me tomorrow at 3pm", "ring me back at 2"):
+1. Do NOT ask for name, phone, or confirmation — we already have them from the call context.
+2. If the interval is clear, proceed DIRECTLY to scheduling.
+3. Compute callbackTime by adding the interval to {{currentDateTime}}:
    - "in 5 minutes" → {{currentDateTime}} + 5 minutes
    - "tomorrow at 3pm" → next day at 15:00
-3. ALWAYS call the "schedule_callback_${safeName}" function passing callbackTime in ISO 8601 format (e.g. 2026-04-24T15:35:00). It is REQUIRED, it cannot be empty.
-4. After the call succeeds, confirm to the customer: "Done, I'll call you [relative time]."
-- NEVER guess and NEVER leave callbackTime empty. Always calculate from {{currentDateTime}}.`
+4. Call "schedule_callback_${safeName}" with callbackTime in ISO 8601 (e.g. 2026-04-24T15:35:00). It is REQUIRED.
+5. After success, confirm with ONE short phrase echoing the same interval the customer used:
+   - Customer said "in 5 minutes" → "Got it, I'll call you in 5 minutes."
+   - Customer said "tomorrow at 3pm" → "Got it, I'll call you tomorrow at 3 pm."
+   - Do NOT read the full date with the year.
+   - Do NOT say "two thousand twenty-six" or official long-form dates.
+- NEVER leave callbackTime empty. Always compute from {{currentDateTime}}.`
 
         finalSystemPrompt = finalSystemPrompt + callbackInstructions
       }

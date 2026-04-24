@@ -107,22 +107,17 @@ async function scheduleCallback(req, res) {
       }
     });
 
-    // Format the date nicely for the confirmation message
-    const formattedDate = scheduledAt.toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-    });
-    const formattedTime = scheduledAt.toLocaleTimeString('en-US', {
-      hour: 'numeric', minute: '2-digit', hour12: true
-    });
-
     console.log(`Callback scheduled: #${callback.id} for ${customerNumber} at ${scheduledAt.toISOString()} (agent: ${agentId})`);
 
+    // Return a terse success to the LLM — intentionally no pre-formatted date
+    // string, so the agent says a short natural confirmation in the call's
+    // language (driven by the system prompt) rather than reading a full date.
     return res.status(200).json({
       results: [{
         toolCallId: toolCall?.id,
         result: JSON.stringify({
           success: true,
-          message: `Callback scheduled for ${formattedDate} at ${formattedTime}.`,
+          message: 'Callback scheduled. Confirm with a short, natural phrase in the call language referencing the interval the customer asked for (e.g. "Listo, te llamo en 5 minutos" / "Done, I will call you in 5 minutes"). Do NOT read the full date back to the customer.',
           callbackId: callback.id
         })
       }]
