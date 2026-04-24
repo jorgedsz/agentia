@@ -17,21 +17,49 @@ async function scheduleCallback(req, res) {
       });
     }
 
-    // Extract VAPI function arguments — VAPI sometimes sends them as a JSON
-    // string (particularly when the LLM is Anthropic), so parse if needed.
-    const toolCall = req.body?.message?.toolCalls?.[0] || req.body?.message?.toolCallList?.[0];
-    let args = toolCall?.function?.arguments || {};
-    if (typeof args === 'string') {
-      try { args = JSON.parse(args); } catch { args = {}; }
+    // Dump the full envelope once so we can see VAPI's actual shape when the
+    // tool is called. A few different paths have been observed in the wild.
+    console.log('[Callback] raw body keys:', Object.keys(req.body || {}), 'msg keys:',
+      Object.keys(req.body?.message || {}));
+
+    const msg = req.body?.message || {};
+    const toolCall =
+      msg.toolCalls?.[0] ||
+      msg.toolCallList?.[0] ||
+      msg.toolWithToolCallList?.[0]?.toolCall ||
+      req.body?.toolCall ||
+      null;
+
+    // VAPI forwards arguments at multiple potential paths; check each. Arguments
+    // may also arrive as a JSON-encoded string, so parse in that case.
+    let argsRaw =
+      toolCall?.function?.arguments ??
+      toolCall?.arguments ??
+      toolCall?.parameters ??
+      msg.functionCall?.parameters ??
+      msg.functionCall?.arguments ??
+      req.body?.functionCall?.parameters ??
+      req.body?.functionCall?.arguments ??
+      {};
+    if (typeof argsRaw === 'string') {
+      try { argsRaw = JSON.parse(argsRaw); } catch { argsRaw = {}; }
     }
-    const { callbackTime, reason } = args;
+    const args = argsRaw || {};
+    const callbackTime = args.callbackTime || args.time || args.datetime;
+    const reason = args.reason || args.note || null;
     console.log('[Callback] scheduleCallback args:', JSON.stringify(args), 'userId:', userId, 'agentId:', agentId);
+    if (!callbackTime) {
+      console.log('[Callback] full envelope:', JSON.stringify(req.body).slice(0, 4000));
+    }
 
     if (!callbackTime) {
       return res.status(200).json({
         results: [{
           toolCallId: toolCall?.id,
-          result: JSON.stringify({ success: false, message: 'Missing required parameter: callbackTime. Please ask the customer for a date and time.' })
+          result: JSON.stringify({
+            success: false,
+            message: 'MISSING_CALLBACKTIME: You must pass callbackTime as an ISO 8601 string (e.g. 2026-04-24T15:35:00). Compute it from {{currentDateTime}} plus the interval the customer requested ("in 5 minutes" = currentDateTime + 5m) and call this tool again. Do NOT say this message to the customer.'
+          })
         }]
       });
     }
