@@ -123,7 +123,10 @@ class GHLCalendarProvider extends CalendarProvider {
     if (!response.ok) {
       let error;
       try { error = JSON.parse(responseText); } catch { error = { message: responseText || 'Unknown error' }; }
-      throw new Error(error.message || error.error || `GHL API error: ${response.status}`);
+      const err = new Error(error.message || error.error || `GHL API error: ${response.status}`);
+      err.body = error;
+      err.status = response.status;
+      throw err;
     }
 
     try { return JSON.parse(responseText); } catch { return responseText; }
@@ -207,23 +210,41 @@ class GHLCalendarProvider extends CalendarProvider {
         throw new Error('Failed to find or create contact: need email, phone, or contactId');
       }
 
-      const searchResponse = await this._ghlRequest(
-        `/contacts/search?locationId=${this.locationId}&query=${encodeURIComponent(searchQuery)}`,
-        token
-      );
+      // GHL 2021-07-28 resolves "/contacts/search" as a contactId path param,
+      // so use GET /contacts/ with query params for lookup.
+      let searchResponse = null;
+      try {
+        searchResponse = await this._ghlRequest(
+          `/contacts/?locationId=${this.locationId}&query=${encodeURIComponent(searchQuery)}`,
+          token
+        );
+      } catch (searchErr) {
+        console.warn('GHL contact search failed, will attempt create:', searchErr.message);
+      }
 
-      if (searchResponse.contacts && searchResponse.contacts.length > 0) {
+      if (searchResponse?.contacts && searchResponse.contacts.length > 0) {
         contactId = searchResponse.contacts[0].id;
       } else {
         const body = { locationId: this.locationId };
         if (contactEmail) body.email = contactEmail;
         if (contactName) body.name = contactName;
         if (phoneForLookup) body.phone = phoneForLookup;
-        const createContactResponse = await this._ghlRequest('/contacts', token, {
-          method: 'POST',
-          body: JSON.stringify(body)
-        });
-        contactId = createContactResponse.contact?.id;
+        try {
+          const createContactResponse = await this._ghlRequest('/contacts', token, {
+            method: 'POST',
+            body: JSON.stringify(body)
+          });
+          contactId = createContactResponse.contact?.id;
+        } catch (createErr) {
+          // "Duplicated contacts" error includes the existing contactId in meta.
+          const existingId = createErr.body?.meta?.contactId;
+          if (existingId) {
+            contactId = existingId;
+            console.log('GHL contact already exists, using meta.contactId', existingId);
+          } else {
+            throw createErr;
+          }
+        }
       }
     }
 

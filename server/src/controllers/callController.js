@@ -197,8 +197,11 @@ const createCall = async (req, res) => {
         } else {
           let contactId = null;
           try {
+            // Note: GHL 2021-07-28 now resolves "/contacts/search" as a contactId
+            // path param ("Contact with id search not found"). Use GET /contacts/
+            // with query params instead — the older search path is effectively dead.
             const search = await ghlRequest(
-              `/contacts/search?locationId=${conn.locationId}&query=${encodeURIComponent(customerNumber)}`,
+              `/contacts/?locationId=${conn.locationId}&query=${encodeURIComponent(customerNumber)}`,
               conn.token
             );
             if (search?.contacts?.length) contactId = search.contacts[0].id;
@@ -215,7 +218,15 @@ const createCall = async (req, res) => {
               });
               contactId = created?.contact?.id || null;
             } catch (e) {
-              console.error('[Call] GHL contact create failed:', e.message);
+              // GHL's "duplicated contacts" error includes the existing contactId
+              // in meta — use it so we don't lose the booking flow over a collision.
+              const existingId = e.body?.meta?.contactId;
+              if (existingId) {
+                contactId = existingId;
+                console.log('[Call] GHL contact already exists, using meta.contactId', existingId);
+              } else {
+                console.error('[Call] GHL contact create failed:', e.message);
+              }
             }
           }
           if (contactId) {

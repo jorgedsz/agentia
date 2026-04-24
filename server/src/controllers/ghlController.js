@@ -168,7 +168,12 @@ const ghlRequest = async (endpoint, token, options = {}, apiVersion = '2021-07-2
         error = { message: responseText || 'Unknown error' };
       }
       console.error('GHL API Error:', error);
-      throw new Error(error.message || error.error || `GHL API error: ${response.status}`);
+      const err = new Error(error.message || error.error || `GHL API error: ${response.status}`);
+      // Surface the full response body so callers can recover from errors that
+      // carry useful metadata (e.g. "duplicated contacts" returns meta.contactId).
+      err.body = error;
+      err.status = response.status;
+      throw err;
     }
 
     try {
@@ -633,14 +638,21 @@ const bookAppointment = async (req, res) => {
       let contactId = presetContactId || null;
 
       if (!contactId) {
-        // Search by email if available, otherwise by phone
+        // Search by email if available, otherwise by phone.
+        // GHL 2021-07-28 resolves "/contacts/search" as a contactId path param
+        // ("Contact with id search not found"), so use GET /contacts/ with query.
         const searchQuery = contactEmail || phoneForLookup;
-        const searchResponse = await ghlRequest(
-          `/contacts/search?locationId=${locationId}&query=${encodeURIComponent(searchQuery)}`,
-          token
-        );
+        let searchResponse = null;
+        try {
+          searchResponse = await ghlRequest(
+            `/contacts/?locationId=${locationId}&query=${encodeURIComponent(searchQuery)}`,
+            token
+          );
+        } catch (searchErr) {
+          console.warn('GHL contact search failed, will attempt create:', searchErr.message);
+        }
 
-        if (searchResponse.contacts && searchResponse.contacts.length > 0) {
+        if (searchResponse?.contacts && searchResponse.contacts.length > 0) {
           contactId = searchResponse.contacts[0].id;
         } else {
           // Create new contact (only include fields that are actually present)
@@ -649,12 +661,23 @@ const bookAppointment = async (req, res) => {
           if (contactName) contactData.name = contactName;
           if (phoneForLookup) contactData.phone = phoneForLookup;
 
-          const createContactResponse = await ghlRequest('/contacts', token, {
-            method: 'POST',
-            body: JSON.stringify(contactData)
-          });
-
-          contactId = createContactResponse.contact?.id;
+          try {
+            const createContactResponse = await ghlRequest('/contacts', token, {
+              method: 'POST',
+              body: JSON.stringify(contactData)
+            });
+            contactId = createContactResponse.contact?.id;
+          } catch (createErr) {
+            // "This location does not allow duplicated contacts" includes the
+            // existing contactId in meta — reuse it instead of failing the booking.
+            const existingId = createErr.body?.meta?.contactId;
+            if (existingId) {
+              contactId = existingId;
+              console.log('GHL contact already exists, using meta.contactId', existingId);
+            } else {
+              throw createErr;
+            }
+          }
         }
       }
 
