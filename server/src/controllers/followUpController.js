@@ -1,6 +1,22 @@
 const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
 const { decrypt } = require('../utils/encryption');
+const { isEncrypted } = require('../utils/phiEncryption');
+
+// CallLog.customerNumber is encrypted at rest (PHI), so any value read from a
+// call log, follow-up, or callback row may still be ciphertext. Always route
+// through this helper before using the number in an outbound call or storing
+// it in a follow-up/callback row.
+function decryptIfEncrypted(value) {
+  if (!value || typeof value !== 'string') return value;
+  if (!isEncrypted(value)) return value;
+  try {
+    return decrypt(value);
+  } catch (err) {
+    console.error('[Follow-Up] customerNumber decrypt failed:', err.message);
+    return value;
+  }
+}
 
 /**
  * Build context override for follow-up calls based on trigger outcome.
@@ -90,7 +106,9 @@ async function scheduleFollowUp(prisma, callLog, agent, outcome, plainSummary) {
       data: {
         userId: callLog.userId,
         agentId: agent.id,
-        customerNumber: callLog.customerNumber,
+        // callLog.customerNumber is encrypted at rest — store the plaintext so
+        // the scheduler and dashboard can use it directly.
+        customerNumber: decryptIfEncrypted(callLog.customerNumber),
         scheduledAt,
         attemptNumber,
         maxAttempts,
@@ -197,13 +215,16 @@ async function processFollowUps(prisma) {
         }
         vapiService.setApiKey(vapiKey);
 
-        // 5. Build call config with context override
+        // 5. Build call config with context override. Defensively decrypt in
+        // case the row was written before scheduleFollowUp started decrypting.
+        const callerNumber = decryptIfEncrypted(followUp.customerNumber);
         const callConfig = {
           assistantId: agent.vapiId,
           phoneNumberId: phoneNumber.vapiPhoneNumberId,
           customer: {
-            number: followUp.customerNumber
-          }
+            number: callerNumber
+          },
+          assistantOverrides: { variableValues: { customerPhone: callerNumber } }
         };
 
         // Get existing system prompt from agent config for context injection
@@ -212,22 +233,17 @@ async function processFollowUps(prisma) {
         const overridePrompt = buildContextOverride(followUp.triggerOutcome, followUp.previousSummary, existingPrompt);
 
         if (overridePrompt) {
-          callConfig.assistantOverrides = {
-            model: {
-              provider: agentConfig.modelProvider || 'openai',
-              model: agentConfig.modelName || 'gpt-4',
-              systemPrompt: overridePrompt
-            }
+          callConfig.assistantOverrides.model = {
+            provider: agentConfig.modelProvider || 'openai',
+            model: agentConfig.modelName || 'gpt-4',
+            systemPrompt: overridePrompt
           };
         }
 
         // Outbound-specific first message override
         const outboundGreeting = agentConfig.firstMessageOutbound;
         if (outboundGreeting && outboundGreeting.trim()) {
-          callConfig.assistantOverrides = {
-            ...(callConfig.assistantOverrides || {}),
-            firstMessage: outboundGreeting
-          };
+          callConfig.assistantOverrides.firstMessage = outboundGreeting;
         }
 
         // 6. Create the outbound call via VAPI
@@ -302,7 +318,13 @@ async function listFollowUps(req, res) {
       take: 100
     });
 
-    const enriched = followUps.map(fu => ({ ...fu, agentName: agentNameMap[fu.agentId] || fu.agentId }));
+    const enriched = followUps.map(fu => ({
+      ...fu,
+      // Older rows stored the still-encrypted callLog.customerNumber —
+      // decrypt on read so the dashboard shows a real phone number.
+      customerNumber: decryptIfEncrypted(fu.customerNumber),
+      agentName: agentNameMap[fu.agentId] || fu.agentId
+    }));
 
     res.json({ followUps: enriched });
   } catch (error) {
