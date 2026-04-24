@@ -1426,29 +1426,39 @@ export default function AgentEdit() {
       // Build callback tool when enabled
       const callbackTools = []
       if (callbackConfig.enabled) {
+        const cbIsEs = effectiveLanguage === 'es'
         const callbackUrl = `${apiBaseUrl}/callbacks/schedule?userId=${user?.id}&agentId=${id}`
         callbackTools.push({
           type: 'apiRequest',
           method: 'POST',
           url: callbackUrl,
           name: `schedule_callback_${safeName}`,
-          description: 'Schedule a callback for the customer at a specific date and time. Use this when the customer asks to be called back later.',
+          description: cbIsEs
+            ? 'Agenda una llamada de retorno para el cliente en una fecha y hora específicas. Úsalo cuando el cliente pida que lo llamen de vuelta más tarde.'
+            : 'Schedule a callback for the customer at a specific date and time. Use this when the customer asks to be called back later.',
           body: {
             type: 'object',
             properties: {
               callbackTime: {
                 type: 'string',
-                description: 'The date and time for the callback in ISO 8601 format (e.g., 2026-03-17T14:00:00). Calculate from {{currentDateTime}}.'
+                description: cbIsEs
+                  ? 'La fecha y hora de la llamada de retorno en formato ISO 8601 (por ejemplo, 2026-03-17T14:00:00). Calcúlalo a partir de {{currentDateTime}}.'
+                  : 'The date and time for the callback in ISO 8601 format (e.g., 2026-03-17T14:00:00). Calculate from {{currentDateTime}}.'
               },
               reason: {
                 type: 'string',
-                description: 'Brief reason for the callback (e.g., "Customer wants to discuss pricing after reviewing proposal")'
+                description: cbIsEs
+                  ? 'Motivo breve de la llamada de retorno (por ejemplo, "El cliente quiere revisar el precio tras leer la propuesta").'
+                  : 'Brief reason for the callback (e.g., "Customer wants to discuss pricing after reviewing proposal")'
               }
             },
             required: ['callbackTime']
           },
           timeoutSeconds: 15,
-          messages: [{ type: 'request-start', content: 'Let me schedule that callback for you...' }]
+          messages: [{
+            type: 'request-start',
+            content: cbIsEs ? 'Te agendo esa llamada de retorno...' : 'Let me schedule that callback for you...'
+          }]
         })
       }
 
@@ -1767,7 +1777,18 @@ ${entry.scenario || entry.description || defaultScenario}
 
       // Generate callback scheduling instructions if enabled
       if (callbackConfig.enabled) {
-        const callbackInstructions = `
+        const cbIsEs = effectiveLanguage === 'es'
+        const callbackInstructions = cbIsEs
+          ? `
+
+## INSTRUCCIONES PARA AGENDAR LLAMADA DE RETORNO
+Si el cliente pide que lo llamen de vuelta más tarde:
+1. Confirma la fecha y hora deseadas.
+2. Llama a la función "schedule_callback_${safeName}" con el callbackTime en formato ISO 8601.
+3. Calcula las fechas a partir de {{currentDateTime}}.
+4. Después de agendar, confirma: "He agendado una llamada de retorno para el [fecha] a las [hora]. Te llamaremos en ese momento."
+- NUNCA adivines fechas. Siempre calcula a partir de {{currentDateTime}}.`
+          : `
 
 ## CALLBACK SCHEDULING INSTRUCTIONS
 If the customer asks to be called back at a later time:

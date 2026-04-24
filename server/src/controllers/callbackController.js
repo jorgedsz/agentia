@@ -17,10 +17,15 @@ async function scheduleCallback(req, res) {
       });
     }
 
-    // Extract VAPI function arguments
+    // Extract VAPI function arguments — VAPI sometimes sends them as a JSON
+    // string (particularly when the LLM is Anthropic), so parse if needed.
     const toolCall = req.body?.message?.toolCalls?.[0] || req.body?.message?.toolCallList?.[0];
-    const args = toolCall?.function?.arguments || {};
+    let args = toolCall?.function?.arguments || {};
+    if (typeof args === 'string') {
+      try { args = JSON.parse(args); } catch { args = {}; }
+    }
     const { callbackTime, reason } = args;
+    console.log('[Callback] scheduleCallback args:', JSON.stringify(args), 'userId:', userId, 'agentId:', agentId);
 
     if (!callbackTime) {
       return res.status(200).json({
@@ -95,12 +100,12 @@ async function scheduleCallback(req, res) {
       }]
     });
   } catch (error) {
-    console.error('Schedule callback error:', error);
+    console.error('Schedule callback error:', error?.message, error?.stack);
     const toolCall = req.body?.message?.toolCalls?.[0] || req.body?.message?.toolCallList?.[0];
     return res.status(200).json({
       results: [{
         toolCallId: toolCall?.id,
-        result: JSON.stringify({ success: false, message: 'An error occurred while scheduling the callback. Please try again.' })
+        result: JSON.stringify({ success: false, message: `An error occurred while scheduling the callback: ${error?.message || 'unknown'}` })
       }]
     });
   }
