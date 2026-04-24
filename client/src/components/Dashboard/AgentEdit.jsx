@@ -297,7 +297,6 @@ const TRANSCRIBER_LANGUAGES = {
 const LLM_PROVIDERS = [
   { id: 'openai', label: 'OpenAI', icon: '🟢' },
   { id: 'anthropic', label: 'Anthropic', icon: '🟠' },
-  { id: 'google', label: 'Google', icon: '🔵' },
   { id: 'groq', label: 'Groq', icon: '🟣' },
   { id: 'deepseek', label: 'DeepSeek', icon: '🔷' },
   { id: 'mistral', label: 'Mistral', icon: '🟡' },

@@ -32,10 +32,6 @@ export const MODELS_BY_PROVIDER = {
     { model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', llmLatency: 500 },
     { model: 'claude-3-opus-20240229', label: 'Claude 3 Opus', llmLatency: 3000 },
   ],
-  'google': [
-    { model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro', llmLatency: 800 },
-    { model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', llmLatency: 300 },
-  ],
   'groq': [
     { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', llmLatency: 200 },
     { model: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B Reasoning', llmLatency: 200 },
@@ -65,7 +61,6 @@ export const MODELS_BY_PROVIDER = {
 export const MODEL_PROVIDER_LABELS = {
   'openai': 'OpenAI',
   'anthropic': 'Anthropic',
-  'google': 'Google',
   'groq': 'Groq',
   'deepseek': 'DeepSeek',
   'mistral': 'Mistral',

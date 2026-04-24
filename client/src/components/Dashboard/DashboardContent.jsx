@@ -104,13 +104,6 @@ const LLM_MODELS = [
   { provider: 'anthropic', model: 'claude-3-opus-20240229', label: 'Claude 3 Opus (Anthropic)' },
   { provider: 'anthropic', model: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet (Anthropic)' },
   { provider: 'anthropic', model: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku (Anthropic)' },
-  // Google
-  { provider: 'google', model: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash (Google)' },
-  { provider: 'google', model: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Google)' },
-  { provider: 'google', model: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro Latest (Google)' },
-  { provider: 'google', model: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Google)' },
-  { provider: 'google', model: 'gemini-1.5-flash-latest', label: 'Gemini 1.5 Flash Latest (Google)' },
-  { provider: 'google', model: 'gemini-1.0-pro', label: 'Gemini 1.0 Pro (Google)' },
   // Groq (fast inference)
   { provider: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile (Groq)' },
   { provider: 'groq', model: 'llama-3.1-70b-versatile', label: 'Llama 3.1 70B Versatile (Groq)' },
