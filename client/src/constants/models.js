@@ -2,8 +2,6 @@ export const TRANSCRIBER_PROVIDERS = [
   { id: 'deepgram', label: 'Deepgram' },
   { id: 'assembly-ai', label: 'Assembly AI' },
   { id: 'azure', label: 'Azure' },
-  { id: '11labs', label: 'ElevenLabs' },
-{ id: 'google', label: 'Google' },
   { id: 'openai', label: 'OpenAI' },
   { id: 'speechmatics', label: 'Speechmatics' },
   { id: 'talkscriber', label: 'Talkscriber' },
