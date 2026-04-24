@@ -1193,9 +1193,12 @@ export default function AgentEdit() {
       const finalVoiceId = addVoiceManually ? customVoiceId : voiceId
 
       // Detect the effective language for tool messages.
-      // The config 'language' may not be set for older agents — fall back to checking content.
+      // The config 'language' may not be set for older agents — fall back to the
+      // transcriber language (which the user explicitly picked) and to content.
       const effectiveLanguage = (() => {
         if (language === 'es' || (language && language.startsWith('es'))) return 'es'
+        const tl = (transcriberLanguage || '').toLowerCase()
+        if (tl.startsWith('es') || tl === 'spanish') return 'es'
         const fm = (firstMessage || '').trim().toLowerCase()
         if (/^[¡¿\s]*(hola|buenos|buenas|bienvenido|gracias por|qué tal|muy buenos)/.test(fm)) return 'es'
         const sp = (systemPrompt || '').toLowerCase()
