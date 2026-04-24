@@ -71,12 +71,18 @@ async function scheduleCallback(req, res) {
     }
 
     // Resolve customer number. apiRequest tools don't carry call context in the
-    // body, so it's forwarded via the URL (customerNumber={{customer.number}}).
+    // body, so it's forwarded via the URL (customerNumber={{customerPhone}}).
     // Fall back to the legacy function-tool envelope path for older tools.
-    const rawCustomerNumber =
+    // E.164 numbers start with "+", but the application/x-www-form-urlencoded
+    // decoder turns "+" in query strings into a space, so reverse that.
+    let rawCustomerNumber =
       req.query.customerNumber ||
       req.body?.message?.call?.customer?.number ||
       null;
+    if (typeof rawCustomerNumber === 'string') {
+      rawCustomerNumber = rawCustomerNumber.trim();
+      if (/^\d{7,}$/.test(rawCustomerNumber)) rawCustomerNumber = `+${rawCustomerNumber}`;
+    }
     const customerNumber = rawCustomerNumber && !/\{\{.+\}\}/.test(rawCustomerNumber)
       ? rawCustomerNumber
       : null;
