@@ -4,6 +4,31 @@ const { encrypt, decrypt, mask } = require('../utils/encryption');
 const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 const GHL_AUTH_BASE = 'https://marketplace.gohighlevel.com';
 
+// Render an instant as a wall-time ISO string with the offset of the given IANA
+// timezone (e.g. "2026-04-24T09:00:00-04:00"). GHL's /calendars/events/appointments
+// rejects UTC-with-Z startTime as "slot no longer available"; it wants the time
+// formatted in the calendar's local timezone with explicit offset.
+const formatInTimezone = (date, timezone) => {
+  if (!timezone) return date.toISOString();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).formatToParts(date).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+  const hh = parts.hour === '24' ? '00' : parts.hour;
+  const wallMs = Date.UTC(
+    parseInt(parts.year), parseInt(parts.month) - 1, parseInt(parts.day),
+    parseInt(hh), parseInt(parts.minute), parseInt(parts.second)
+  );
+  const offsetMinutes = Math.round((wallMs - date.getTime()) / 60000);
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMinutes);
+  const oh = Math.floor(abs / 60).toString().padStart(2, '0');
+  const om = (abs % 60).toString().padStart(2, '0');
+  return `${parts.year}-${parts.month}-${parts.day}T${hh}:${parts.minute}:${parts.second}${sign}${oh}:${om}`;
+};
+
 /**
  * Get a valid token for GHL API requests.
  * - If OAuth token exists and is valid, return it
@@ -533,7 +558,12 @@ const bookAppointment = async (req, res) => {
 
     // Get static params from query string (set when tool was configured)
     const calendarId = req.query.calendarId || functionArgs.calendarId;
-    const timezone = req.query.timezone || functionArgs.timezone;
+    // Defensive decode: some proxy layers leave the tz query value percent-encoded
+    // ("America%2FNew_York"), which Intl.DateTimeFormat rejects.
+    const rawTimezone = req.query.timezone || functionArgs.timezone;
+    const timezone = rawTimezone && /%[0-9A-Fa-f]{2}/.test(rawTimezone)
+      ? (() => { try { return decodeURIComponent(rawTimezone); } catch { return rawTimezone; } })()
+      : rawTimezone;
     const userId = req.query.userId || functionArgs.userId;
 
     // Get dynamic params from function arguments (provided by LLM)
@@ -654,17 +684,23 @@ const bookAppointment = async (req, res) => {
         resolvedTitle = resolvedTitle.replace(/\{\{([\w.]+)\}\}/g, (_, key) => vars[key] || '');
       }
 
+      // GHL's appointment endpoint rejects UTC-with-Z startTime as "slot no longer
+      // available"; re-render both times in the calendar's timezone with offset.
+      const startForGhl = timezone ? formatInTimezone(new Date(startTime), timezone) : startTime;
+      const endForGhl = timezone ? formatInTimezone(new Date(appointmentEndTime), timezone) : appointmentEndTime;
+
       // Book the appointment
       const appointmentData = {
         calendarId,
         locationId,
         contactId,
-        startTime,
-        endTime: appointmentEndTime,
+        startTime: startForGhl,
+        endTime: endForGhl,
         title: resolvedTitle || 'Appointment',
         appointmentStatus: 'confirmed',
         notes: notes || ''
       };
+      if (timezone) appointmentData.timezone = timezone;
 
       const appointmentResponse = await ghlRequest('/calendars/events/appointments', token, {
         method: 'POST',
