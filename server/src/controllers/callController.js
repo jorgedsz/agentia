@@ -195,43 +195,53 @@ const createCall = async (req, res) => {
         if (!conn?.token || !conn?.locationId) {
           console.error('[Call] GHL connection not resolvable for agent', agent.id, '- integrationId:', ghlCal.integrationId);
         } else {
+          // Dashboard-initiated call: find-or-create GHL contact by phone so
+          // {{contactId}} resolves for the booking tool. Every failure is
+          // swallowed — the call must proceed regardless of GHL state.
           let contactId = null;
           try {
-            // Note: GHL 2021-07-28 now resolves "/contacts/search" as a contactId
-            // path param ("Contact with id search not found"). Use GET /contacts/
-            // with query params instead — the older search path is effectively dead.
+            // GHL 2021-07-28 resolves "/contacts/search" as a contactId path
+            // param ("Contact with id search not found"). Use GET /contacts/
+            // with query params.
             const search = await ghlRequest(
               `/contacts/?locationId=${conn.locationId}&query=${encodeURIComponent(customerNumber)}`,
               conn.token
             );
             if (search?.contacts?.length) contactId = search.contacts[0].id;
           } catch (e) {
-            console.error('[Call] GHL contact search failed:', e.message);
+            console.warn('[Call] GHL contact search failed (will try create):', e.message);
           }
           if (!contactId) {
             try {
-              const body = { locationId: conn.locationId, phone: customerNumber };
-              if (customerName) body.name = customerName;
+              // GHL requires a name on create. Fall back to the phone number so
+              // the create succeeds even when the dashboard caller doesn't
+              // supply one — the rep can rename the contact later.
+              const placeholderName = customerName || `Caller ${customerNumber}`;
               const created = await ghlRequest('/contacts', conn.token, {
                 method: 'POST',
-                body: JSON.stringify(body)
+                body: JSON.stringify({
+                  locationId: conn.locationId,
+                  phone: customerNumber,
+                  name: placeholderName
+                })
               });
               contactId = created?.contact?.id || null;
             } catch (e) {
-              // GHL's "duplicated contacts" error includes the existing contactId
-              // in meta — use it so we don't lose the booking flow over a collision.
+              // "Duplicated contacts" returns the existing contactId in meta.
               const existingId = e.body?.meta?.contactId;
               if (existingId) {
                 contactId = existingId;
                 console.log('[Call] GHL contact already exists, using meta.contactId', existingId);
               } else {
-                console.error('[Call] GHL contact create failed:', e.message);
+                console.warn('[Call] GHL contact create failed (call will proceed without contactId):', e.message);
               }
             }
           }
           if (contactId) {
             variableValues.contactId = contactId;
             console.log('[Call] Resolved GHL contactId', contactId, 'for', customerNumber);
+          } else {
+            console.warn('[Call] Proceeding without contactId for', customerNumber);
           }
         }
       } catch (e) {
