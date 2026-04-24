@@ -26,9 +26,9 @@ export const MODELS_BY_PROVIDER = {
     { model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo', llmLatency: 300 },
   ],
   'anthropic': [
-    { model: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', llmLatency: 1200 },
-    { model: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', llmLatency: 500 },
-    { model: 'claude-3-opus-20240229', label: 'Claude 3 Opus', llmLatency: 3000 },
+    { model: 'claude-opus-4-7', label: 'Claude Opus 4.7', llmLatency: 2000 },
+    { model: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', llmLatency: 1100 },
+    { model: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5', llmLatency: 500 },
   ],
   'groq': [
     { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', llmLatency: 200 },

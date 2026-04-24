@@ -103,12 +103,9 @@ async function seedDefaultRates(prisma) {
     { provider: 'openai', model: 'o3-mini', rate: 0.10 },
     { provider: 'openai', model: 'gpt-3.5-turbo', rate: 0.04 },
     // Anthropic
-    { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', rate: 0.12 },
-    { provider: 'anthropic', model: 'claude-3-5-haiku-20241022', rate: 0.06 },
-    { provider: 'anthropic', model: 'claude-3-opus-20240229', rate: 0.25 },
-    // Google
-    { provider: 'google', model: 'gemini-1.5-pro', rate: 0.10 },
-    { provider: 'google', model: 'gemini-1.5-flash', rate: 0.04 },
+    { provider: 'anthropic', model: 'claude-opus-4-7', rate: 0.25 },
+    { provider: 'anthropic', model: 'claude-sonnet-4-6', rate: 0.12 },
+    { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', rate: 0.06 },
     // Groq
     { provider: 'groq', model: 'llama-3.3-70b-versatile', rate: 0.04 },
     { provider: 'groq', model: 'llama-3.1-405b-reasoning', rate: 0.06 },

@@ -7,6 +7,27 @@
  * VAPI Documentation: https://docs.vapi.ai/
  */
 
+// Anthropic retired the Claude 3.x IDs we used to expose in the UI; VAPI now
+// returns "providerfault-anthropic-llm-failed" for those model strings. Map
+// legacy saved model names to the current Claude 4.x family so existing agents
+// keep booting without a manual re-save.
+const LEGACY_CLAUDE_MODEL_MAP = {
+  'claude-3-5-sonnet-20241022': 'claude-sonnet-4-6',
+  'claude-3-5-haiku-20241022': 'claude-haiku-4-5-20251001',
+  'claude-3-opus-20240229': 'claude-opus-4-7',
+  'claude-3-sonnet-20240229': 'claude-sonnet-4-6',
+  'claude-3-haiku-20240307': 'claude-haiku-4-5-20251001',
+};
+
+const resolveModelName = (provider, modelName) => {
+  if (provider === 'anthropic' && modelName && LEGACY_CLAUDE_MODEL_MAP[modelName]) {
+    const mapped = LEGACY_CLAUDE_MODEL_MAP[modelName];
+    console.log(`[VAPI] Remapped retired Claude model ${modelName} -> ${mapped}`);
+    return mapped;
+  }
+  return modelName;
+};
+
 class VapiService {
   constructor() {
     this.baseUrl = 'https://api.vapi.ai';
@@ -236,7 +257,7 @@ class VapiService {
 
     const modelConfig = {
       provider: config.modelProvider || 'openai',
-      model: config.modelName || 'gpt-4',
+      model: resolveModelName(config.modelProvider, config.modelName) || 'gpt-4',
       systemPrompt: config.systemPrompt || 'You are a helpful AI assistant.'
     };
 
@@ -483,7 +504,7 @@ class VapiService {
       firstMessage: config.firstMessage || undefined,
       model: {
         provider: config.modelProvider || 'openai',
-        model: config.modelName || 'gpt-4',
+        model: resolveModelName(config.modelProvider, config.modelName) || 'gpt-4',
         systemPrompt: config.systemPrompt || '',
         toolIds: newToolIds
       },
