@@ -17,12 +17,40 @@ if (!fs.existsSync(recordingsDir)) {
   fs.mkdirSync(recordingsDir, { recursive: true });
 }
 
+// Returns true when the call has no evidence of a human on the line:
+// no transcript, transcript with only assistant turns, or VAPI's voicemail
+// detector flagged it. Used to override "answered"-looking endedReasons.
+const hasNoHumanInteraction = (call) => {
+  // VAPI sets these when its voicemail detector kicks in.
+  if (call?.analysis?.detectedVoicemail === true) return true;
+  if (call?.detectedVoicemail === true) return true;
+
+  const transcript = call?.transcript || call?.artifact?.transcript || '';
+  const messages = call?.messages || call?.artifact?.messages || [];
+
+  const messageHasUser = Array.isArray(messages) && messages.some(m => {
+    const role = (m?.role || '').toLowerCase();
+    return role === 'user' || role === 'customer';
+  });
+  if (messageHasUser) return false;
+
+  if (typeof transcript === 'string' && transcript.trim()) {
+    // The textual transcript labels customer turns as "User:" or "Customer:".
+    if (/(^|\n)\s*(user|customer)\s*:/i.test(transcript)) return false;
+  }
+
+  // No user turn anywhere → the customer never spoke.
+  return true;
+};
+
 // Categorize outcome (same logic as callController)
 const categorizeOutcome = (call, overrideReason) => {
   const reason = overrideReason || call.endedReason;
 
   const noAnswerReasons = [
-    'customer-did-not-answer', 'voicemail', 'customer-busy'
+    'customer-did-not-answer', 'voicemail', 'customer-busy',
+    // silence-timed-out only fires when no one talks — treat as no-answer.
+    'silence-timed-out'
   ];
   if (noAnswerReasons.includes(reason)) return 'no_answer';
 
@@ -70,9 +98,18 @@ const categorizeOutcome = (call, overrideReason) => {
 
   const answeredReasons = [
     'customer-ended-call', 'assistant-ended-call', 'assistant-said-end-call-phrase',
-    'silence-timed-out', 'exceeded-max-duration'
+    'exceeded-max-duration'
   ];
-  if (answeredReasons.includes(reason)) return 'answered';
+  if (answeredReasons.includes(reason)) {
+    // Even with an answered-shaped endedReason, if there's no user turn in the
+    // transcript the customer never actually picked up (rang out, voicemail
+    // disconnected silently, AMD missed it). Reclassify as no_answer.
+    if (hasNoHumanInteraction(call)) {
+      console.log(`[Outcome] endedReason="${reason}" but no human interaction — reclassifying as no_answer`);
+      return 'no_answer';
+    }
+    return 'answered';
+  }
 
   console.log(`[Outcome] Unrecognized endedReason: "${reason}" — returning unknown`);
   return 'unknown';

@@ -27,13 +27,28 @@ const resolveGhlContextForAgent = async (userId, calCfg, prisma) => {
   return findGhlConnection(userId, prisma);
 };
 
+// Returns true when there's no evidence a human spoke during the call.
+const _hasNoHumanInteraction = (call) => {
+  if (call?.analysis?.detectedVoicemail === true) return true;
+  if (call?.detectedVoicemail === true) return true;
+  const messages = call?.messages || call?.artifact?.messages || [];
+  if (Array.isArray(messages) && messages.some(m => {
+    const role = (m?.role || '').toLowerCase();
+    return role === 'user' || role === 'customer';
+  })) return false;
+  const transcript = call?.transcript || call?.artifact?.transcript || '';
+  if (typeof transcript === 'string' && /(^|\n)\s*(user|customer)\s*:/i.test(transcript)) return false;
+  return true;
+};
+
 // Categorize a VAPI call into an outcome
 const categorizeOutcome = (call) => {
   const reason = call.endedReason;
 
-  // No answer (customer didn't pick up, voicemail, busy)
+  // No answer (customer didn't pick up, voicemail, busy, rang out into silence)
   const noAnswerReasons = [
-    'customer-did-not-answer', 'voicemail', 'customer-busy'
+    'customer-did-not-answer', 'voicemail', 'customer-busy',
+    'silence-timed-out'
   ];
   if (noAnswerReasons.includes(reason)) return 'no_answer';
 
@@ -82,12 +97,15 @@ const categorizeOutcome = (call) => {
     return 'not_interested';
   }
 
-  // Normal endings → answered
+  // Normal endings → answered (only if there was actually a human turn)
   const answeredReasons = [
     'customer-ended-call', 'assistant-ended-call', 'assistant-said-end-call-phrase',
-    'silence-timed-out', 'exceeded-max-duration'
+    'exceeded-max-duration'
   ];
-  if (answeredReasons.includes(reason)) return 'answered';
+  if (answeredReasons.includes(reason)) {
+    if (_hasNoHumanInteraction(call)) return 'no_answer';
+    return 'answered';
+  }
 
   return 'unknown';
 };
