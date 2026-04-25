@@ -92,12 +92,10 @@ const VOICE_OPTIONS = [
 
 const LLM_MODELS = [
   // OpenAI
-  { provider: 'openai', model: 'gpt-4o', label: 'GPT-4o (OpenAI)' },
   { provider: 'openai', model: 'gpt-4o-mini', label: 'GPT-4o Mini (OpenAI)' },
   { provider: 'openai', model: 'gpt-4o-realtime-preview', label: 'GPT-4o Realtime (OpenAI)' },
   { provider: 'openai', model: 'gpt-4-turbo', label: 'GPT-4 Turbo (OpenAI)' },
   { provider: 'openai', model: 'gpt-4', label: 'GPT-4 (OpenAI)' },
-  { provider: 'openai', model: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo (OpenAI)' },
   // Anthropic
   { provider: 'anthropic', model: 'claude-opus-4-7', label: 'Claude Opus 4.7 (Anthropic)' },
   { provider: 'anthropic', model: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (Anthropic)' },
@@ -105,9 +103,6 @@ const LLM_MODELS = [
   // Groq (fast inference)
   { provider: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile (Groq)' },
   { provider: 'groq', model: 'llama-3.1-70b-versatile', label: 'Llama 3.1 70B Versatile (Groq)' },
-  { provider: 'groq', model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant (Groq)' },
-  { provider: 'groq', model: 'llama3-70b-8192', label: 'Llama 3 70B (Groq)' },
-  { provider: 'groq', model: 'llama3-8b-8192', label: 'Llama 3 8B (Groq)' },
   { provider: 'groq', model: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B (Groq)' },
   { provider: 'groq', model: 'gemma2-9b-it', label: 'Gemma 2 9B (Groq)' },
   // Together AI

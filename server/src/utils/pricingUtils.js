@@ -89,19 +89,13 @@ async function seedDefaultRates(prisma) {
   const defaultModels = [
     // OpenAI
     { provider: 'openai', model: 'gpt-5.2', rate: 0.15 },
-    { provider: 'openai', model: 'gpt-5.1', rate: 0.15 },
-    { provider: 'openai', model: 'gpt-5', rate: 0.15 },
     { provider: 'openai', model: 'gpt-5-mini', rate: 0.08 },
     { provider: 'openai', model: 'gpt-5-nano', rate: 0.05 },
     { provider: 'openai', model: 'gpt-4.1', rate: 0.10 },
     { provider: 'openai', model: 'gpt-4.1-mini', rate: 0.06 },
     { provider: 'openai', model: 'gpt-4.1-nano', rate: 0.04 },
-    { provider: 'openai', model: 'gpt-4o', rate: 0.10 },
     { provider: 'openai', model: 'gpt-4o-mini', rate: 0.06 },
     { provider: 'openai', model: 'o4-mini', rate: 0.10 },
-    { provider: 'openai', model: 'o3', rate: 0.20 },
-    { provider: 'openai', model: 'o3-mini', rate: 0.10 },
-    { provider: 'openai', model: 'gpt-3.5-turbo', rate: 0.04 },
     // Anthropic
     { provider: 'anthropic', model: 'claude-opus-4-7', rate: 0.25 },
     { provider: 'anthropic', model: 'claude-sonnet-4-6', rate: 0.12 },
@@ -109,9 +103,6 @@ async function seedDefaultRates(prisma) {
     // Groq
     { provider: 'groq', model: 'llama-3.3-70b-versatile', rate: 0.04 },
     { provider: 'groq', model: 'llama-3.1-405b-reasoning', rate: 0.06 },
-    { provider: 'groq', model: 'llama-3.1-8b-instant', rate: 0.02 },
-    { provider: 'groq', model: 'llama3-70b-8192', rate: 0.04 },
-    { provider: 'groq', model: 'llama3-8b-8192', rate: 0.02 },
     { provider: 'groq', model: 'meta-llama/llama-4-maverick-17b-128e-instruct', rate: 0.03 },
     { provider: 'groq', model: 'meta-llama/llama-4-scout-17b-16e-instruct', rate: 0.03 },
     { provider: 'groq', model: 'deepseek-r1-distill-llama-70b', rate: 0.04 },
@@ -119,7 +110,6 @@ async function seedDefaultRates(prisma) {
     { provider: 'groq', model: 'mistral-saba-24b', rate: 0.03 },
     { provider: 'groq', model: 'moonshotai/kimi-k2-instruct-0905', rate: 0.03 },
     { provider: 'groq', model: 'compound-beta', rate: 0.04 },
-    { provider: 'groq', model: 'compound-beta-mini', rate: 0.03 },
     // DeepSeek
     { provider: 'deepseek', model: 'deepseek-chat', rate: 0.06 },
     { provider: 'deepseek', model: 'deepseek-coder', rate: 0.06 },
