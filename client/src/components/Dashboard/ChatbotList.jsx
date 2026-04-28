@@ -16,6 +16,10 @@ export default function ChatbotList() {
   const [clearingMemoryId, setClearingMemoryId] = useState(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importId, setImportId] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
 
   useEffect(() => {
     fetchChatbots()
@@ -83,6 +87,27 @@ export default function ChatbotList() {
     }
   }
 
+  const handleImport = async () => {
+    const id = importId.trim()
+    if (!id) {
+      setImportError('Chatbot ID is required')
+      return
+    }
+    setImportError('')
+    setImporting(true)
+    try {
+      const { data } = await chatbotsAPI.import(id)
+      setChatbots(prev => [data.chatbot, ...prev])
+      if (data.n8nWarning) window.alert(data.n8nWarning)
+      setShowImportModal(false)
+      setImportId('')
+    } catch (err) {
+      setImportError(err.response?.data?.error || 'Failed to import chatbot')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Are you sure you want to archive "${name}"? The chatbot will be deactivated and its n8n workflow preserved.`)) return
     try {
@@ -117,15 +142,26 @@ export default function ChatbotList() {
             Manage your chatbots
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          New Chatbot
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowImportModal(true); setImportId(''); setImportError('') }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-200 dark:bg-dark-card text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-dark-border transition-colors text-sm font-medium border border-gray-300 dark:border-dark-border"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M16 12l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Import Chatbot
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Chatbot
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -230,6 +266,49 @@ export default function ChatbotList() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !importing && setShowImportModal(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-xl max-w-md w-full p-6 border border-gray-200 dark:border-dark-border" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">Import Chatbot</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Paste the Chatbot ID from another account. A copy with all settings and tools will be created in your account.
+            </p>
+            <form onSubmit={(e) => { e.preventDefault(); handleImport() }}>
+              {importError && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-3 py-2 rounded-lg text-sm mb-3">{importError}</div>
+              )}
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Chatbot ID *</label>
+              <input
+                type="text"
+                value={importId}
+                onChange={(e) => setImportId(e.target.value)}
+                disabled={importing}
+                required
+                className="w-full px-3 py-2 mb-4 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+                placeholder="e.g. 7c3f9a82-..."
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={importing}
+                  onClick={() => setShowImportModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={importing}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  {importing ? 'Importing…' : 'Import'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

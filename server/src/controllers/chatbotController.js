@@ -905,6 +905,97 @@ const clearMemory = async (req, res) => {
   }
 };
 
+const importChatbot = async (req, res) => {
+  try {
+    const { chatbotId } = req.body || {};
+    if (!chatbotId || typeof chatbotId !== 'string') {
+      return res.status(400).json({ error: 'chatbotId is required' });
+    }
+
+    const source = await req.prisma.chatbot.findUnique({ where: { id: chatbotId } });
+    if (!source || source.isArchived) {
+      return res.status(404).json({ error: 'Chatbot not found' });
+    }
+
+    // Clone the persisted JSON config and outputUrl ciphertext as-is. They were
+    // encrypted/encoded with the same app key, so they stay valid for the importer.
+    const importedName = `${source.name} (Imported)`;
+    const chatbot = await req.prisma.chatbot.create({
+      data: {
+        name: importedName,
+        description: source.description,
+        chatbotType: source.chatbotType,
+        outputType: source.outputType,
+        outputUrl: source.outputUrl,
+        config: source.config,
+        userId: req.user.id
+      }
+    });
+
+    let n8nWorkflowId = null;
+    let n8nWebhookUrl = null;
+    let n8nWarning = null;
+    try {
+      const n8nConfig = await getN8nConfig(req.prisma);
+      if (n8nConfig) {
+        n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+        const decryptedOutputUrl = source.outputUrl ? (() => {
+          try { return decrypt(source.outputUrl); } catch { return null; }
+        })() : null;
+        const chatbotForWorkflow = {
+          ...chatbot,
+          outputUrl: decryptedOutputUrl,
+          config: parseConfig(chatbot.config) || {},
+          serverBaseUrl: getServerBaseUrl()
+        };
+        const workflow = await n8nService.createWorkflow(chatbotForWorkflow);
+        n8nWorkflowId = workflow.id;
+        n8nWebhookUrl = `${n8nConfig.url.replace(/\/+$/, '')}/webhook/chatbot-${chatbot.id}`;
+        await req.prisma.chatbot.update({
+          where: { id: chatbot.id },
+          data: { n8nWorkflowId: String(workflow.id), n8nWebhookUrl }
+        });
+        await n8nService.activateWorkflow(workflow.id);
+      } else {
+        n8nWarning = 'n8n is not configured. Chatbot imported without workflow.';
+      }
+    } catch (n8nError) {
+      console.error('n8n workflow creation failed during chatbot import:', n8nError.message);
+      n8nWarning = `Chatbot imported but n8n workflow creation failed: ${n8nError.message}`;
+    }
+
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
+      actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
+      actorType: req.isTeamMember ? 'team_member' : 'user',
+      action: 'chatbot.import',
+      resourceType: 'chatbot',
+      resourceId: chatbot.id,
+      details: { name: chatbot.name, sourceChatbotId: source.id, sourceUserId: source.userId },
+      req
+    });
+
+    const response = {
+      message: n8nWarning || 'Chatbot imported successfully',
+      chatbot: {
+        ...chatbot,
+        n8nWorkflowId,
+        n8nWebhookUrl,
+        config: maskDbCredentials(parseConfig(chatbot.config)),
+        outputUrl: source.outputUrl ? (() => {
+          try { return decrypt(source.outputUrl); } catch { return null; }
+        })() : null
+      }
+    };
+    if (n8nWarning) response.n8nWarning = n8nWarning;
+    res.status(201).json(response);
+  } catch (error) {
+    console.error('Import chatbot error:', error);
+    res.status(500).json({ error: 'Failed to import chatbot' });
+  }
+};
+
 const deleteChatbot = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1167,6 +1258,7 @@ module.exports = {
   createChatbot,
   updateChatbot,
   toggleChatbot,
+  importChatbot,
   deleteChatbot,
   testChatbot,
   testDbConnection,

@@ -22,6 +22,9 @@ router.post('/test-db-connection', chatbotController.testDbConnection);
 // POST /api/chatbots - Create new chatbot
 router.post('/', chatbotController.createChatbot);
 
+// POST /api/chatbots/import - Import chatbot from another account by id
+router.post('/import', chatbotController.importChatbot);
+
 // PUT /api/chatbots/:id - Update chatbot
 router.put('/:id', chatbotController.updateChatbot);
 

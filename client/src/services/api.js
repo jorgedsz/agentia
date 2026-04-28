@@ -60,6 +60,7 @@ export const chatbotsAPI = {
   create: (data) => api.post('/chatbots', data),
   update: (id, data) => api.put(`/chatbots/${id}`, data),
   toggle: (id) => api.post(`/chatbots/${id}/toggle`),
+  import: (chatbotId) => api.post('/chatbots/import', { chatbotId }),
   delete: (id) => api.delete(`/chatbots/${id}`),
   test: (id, message, sessionId, contactId) => api.post(`/chatbots/${id}/test`, { message, sessionId, contactId }),
   syncWorkflow: (id) => api.post(`/chatbots/${id}/sync-workflow`),
