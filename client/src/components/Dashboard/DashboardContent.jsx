@@ -298,6 +298,27 @@ export default function DashboardContent({ tab }) {
     }
   }
 
+  const handleImport = async () => {
+    const agentId = (formData.agentId || '').trim()
+    if (!agentId) {
+      setError('Agent ID is required')
+      return
+    }
+    setError('')
+    setCreating(true)
+    try {
+      const { data } = await agentsAPI.import(agentId)
+      setAgents(prev => [data.agent, ...prev])
+      if (data.vapiWarning) alert(data.vapiWarning)
+      setShowModal(null)
+      setFormData({})
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to import agent')
+    } finally {
+      setCreating(false)
+    }
+  }
+
   const handleDelete = async (type, id) => {
     if (!confirm(`Are you sure you want to delete this ${type}?`)) return
     try {
@@ -347,20 +368,31 @@ export default function DashboardContent({ tab }) {
           </div>
           <div className="flex items-center gap-3">
             {(tab === 'agents' || tab === 'overview') && (
-              <button
-                onClick={() => quickCreateAgent()}
-                disabled={creating}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                {creating ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                ) : (
+              <>
+                <button
+                  onClick={() => { setShowModal('importAgent'); setFormData({}); setError(''); }}
+                  className="px-4 py-2 bg-gray-200 dark:bg-dark-card text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-dark-border transition-colors flex items-center gap-2 border border-gray-300 dark:border-dark-border"
+                >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M16 12l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                )}
-                {t('dashboardContent.newAgent')}
-              </button>
+                  Import Agent
+                </button>
+                <button
+                  onClick={() => quickCreateAgent()}
+                  disabled={creating}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {creating ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  )}
+                  {t('dashboardContent.newAgent')}
+                </button>
+              </>
             )}
             {tab === 'clients' && (
               <button
@@ -536,6 +568,24 @@ export default function DashboardContent({ tab }) {
             <Input label={`${t('common.email')} *`} type="email" value={formData.email || ''} onChange={(v) => setFormData({...formData, email: v})} required />
             <Input label={`${t('common.password')} *`} type="password" value={formData.password || ''} onChange={(v) => setFormData({...formData, password: v})} required />
             <ModalActions onCancel={() => setShowModal(null)} loading={creating} submitText={t('dashboardContent.addAgency')} />
+          </form>
+        </Modal>
+      )}
+
+      {showModal === 'importAgent' && (
+        <Modal title="Import Agent" onClose={() => setShowModal(null)}>
+          <form onSubmit={(e) => { e.preventDefault(); handleImport(); }}>
+            {error && <ErrorAlert message={error} />}
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+              Paste the Agent ID from another account. A copy with all tools and settings will be created in your account.
+            </p>
+            <Input
+              label="Agent ID *"
+              value={formData.agentId || ''}
+              onChange={(v) => setFormData({ ...formData, agentId: v })}
+              required
+            />
+            <ModalActions onCancel={() => setShowModal(null)} loading={creating} submitText="Import" />
           </form>
         </Modal>
       )}

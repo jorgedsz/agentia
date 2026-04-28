@@ -380,6 +380,76 @@ const duplicateAgent = async (req, res) => {
   }
 };
 
+const importAgent = async (req, res) => {
+  try {
+    const { agentId } = req.body || {};
+    if (!agentId || typeof agentId !== 'string') {
+      return res.status(400).json({ error: 'agentId is required' });
+    }
+
+    const source = await req.prisma.agent.findUnique({ where: { id: agentId } });
+    if (!source) {
+      return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const sourceConfig = parseConfig(source.config);
+
+    let vapiId = null;
+    let vapiWarning = null;
+    const vapiApiKey = await getVapiKeyForUser(req.prisma, req.user.id);
+    if (vapiApiKey && sourceConfig) {
+      try {
+        vapiService.setApiKey(vapiApiKey);
+        const fixedConfig = rewriteToolUrls(sourceConfig) || sourceConfig;
+        const vapiAgent = await vapiService.createAgent({
+          name: `${source.name} (Imported)`,
+          ...fixedConfig
+        });
+        vapiId = vapiAgent.id;
+      } catch (vapiError) {
+        console.error('VAPI agent creation failed during import:', vapiError.message);
+        vapiWarning = `Agent imported locally but VAPI creation failed: ${vapiError.message}`;
+      }
+    } else if (!vapiApiKey) {
+      vapiWarning = 'VAPI API key not configured. Agent imported locally only.';
+    }
+
+    const savedConfig = sourceConfig ? JSON.stringify(rewriteToolUrls(sourceConfig) || sourceConfig) : null;
+    const agent = await req.prisma.agent.create({
+      data: {
+        name: `${source.name} (Imported)`,
+        description: source.description,
+        agentType: source.agentType,
+        vapiId,
+        config: savedConfig,
+        userId: req.user.id
+      }
+    });
+
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
+      actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
+      actorType: req.isTeamMember ? 'team_member' : 'user',
+      action: 'agent.import',
+      resourceType: 'agent',
+      resourceId: agent.id,
+      details: { name: agent.name, sourceAgentId: source.id, sourceUserId: source.userId },
+      req
+    });
+
+    const isOwner = req.user.role === 'OWNER';
+    res.status(201).json({
+      message: vapiWarning ? (isOwner ? vapiWarning : 'Agent imported') : 'Agent imported successfully',
+      vapiWarning: isOwner ? vapiWarning : (vapiWarning ? 'Agent imported' : null),
+      agent: { ...agent, config: parseConfig(agent.config) }
+    });
+  } catch (error) {
+    console.error('Import agent error:', error);
+    res.status(500).json({ error: 'Failed to import agent' });
+  }
+};
+
 const deleteAgent = async (req, res) => {
   try {
     const { id } = req.params;
@@ -483,6 +553,7 @@ module.exports = {
   createAgent,
   updateAgent,
   duplicateAgent,
+  importAgent,
   deleteAgent,
   checkVapiSync
 };

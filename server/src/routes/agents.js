@@ -21,6 +21,9 @@ router.put('/:id', agentController.updateAgent);
 // POST /api/agents/:id/duplicate - Duplicate agent
 router.post('/:id/duplicate', agentController.duplicateAgent);
 
+// POST /api/agents/import - Import agent from another account by id
+router.post('/import', agentController.importAgent);
+
 // DELETE /api/agents/:id - Delete agent
 router.delete('/:id', agentController.deleteAgent);
 
