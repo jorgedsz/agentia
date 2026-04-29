@@ -798,9 +798,15 @@ export default function ChatbotEdit() {
       })
     }
 
-    // Slugify a field name into a safe AI body key. Falls back to a stable id-based slug.
+    // Slugify a field name into a safe AI body key. Strips the GHL "contact." /
+    // "opportunity." prefix from fieldKey so we don't end up with names like
+    // "contact_contact_conversation_resume". Falls back to a stable id-based slug.
     const slugifyKey = (raw, idx) => {
-      const base = (raw || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+      const base = (raw || '')
+        .toLowerCase()
+        .replace(/^(contact|opportunity)\./, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
       return base || `cf_${idx}`
     }
 
@@ -822,6 +828,7 @@ export default function ChatbotEdit() {
 
       // Build custom-field spec sent in the URL (server reads this and decides which
       // get static literals vs which read from the AI-filled body keys).
+      const aiInstrLines = []
       const buildCfSpec = (entries, kind) => {
         const usedKeys = new Set()
         const spec = []
@@ -830,18 +837,22 @@ export default function ChatbotEdit() {
           if (entry.mode === 'static') {
             spec.push({ id: entry.fieldId, mode: 'static', value: entry.value ?? '' })
           } else {
-            // AI mode → expose a unique body property; instruction goes into description
-            let key = `${kind}_${slugifyKey(entry.fieldKey || entry.fieldName, idx)}`
+            let key = slugifyKey(entry.fieldKey || entry.fieldName, idx)
             let n = 2
-            while (usedKeys.has(key)) { key = `${kind}_${slugifyKey(entry.fieldKey || entry.fieldName, idx)}_${n++}` }
+            while (usedKeys.has(key)) { key = `${slugifyKey(entry.fieldKey || entry.fieldName, idx)}_${n++}` }
             usedKeys.add(key)
             spec.push({ id: entry.fieldId, mode: 'ai', bodyKey: key })
             const fieldLabel = entry.fieldName || entry.fieldKey || entry.fieldId
             const instr = entry.instruction ? ` ${entry.instruction}` : ''
             props[key] = {
               type: 'string',
-              description: `Value for the GHL ${kind} custom field "${fieldLabel}".${instr}`
+              description: `Value for the GHL ${kind === 'opp' ? 'opportunity' : 'contact'} custom field "${fieldLabel}".${instr}`
             }
+            // Hoist into the top-level tool description so the AI is reminded
+            // to actually fill this parameter (mirrors how noteInstruction works).
+            aiInstrLines.push(
+              `ALSO fill the parameter "${key}" with the value for the ${kind === 'opp' ? 'opportunity' : 'contact'} custom field "${fieldLabel}"${entry.instruction ? `: ${entry.instruction}` : '.'}`
+            )
           }
         })
         return spec
@@ -850,10 +861,7 @@ export default function ChatbotEdit() {
       const contactCfSpec = buildCfSpec(opp.contactCustomFields, 'contact')
       const oppCfSpec = buildCfSpec(opp.opportunityCustomFields, 'opp')
 
-      const cfDescParts = []
-      if (contactCfSpec.length) cfDescParts.push(`writes ${contactCfSpec.length} contact custom field(s)`)
-      if (oppCfSpec.length) cfDescParts.push(`writes ${oppCfSpec.length} opportunity custom field(s)`)
-      const cfDesc = cfDescParts.length ? ` After upsert, ${cfDescParts.join(' and ')}.` : ''
+      const cfDesc = aiInstrLines.length ? ' ' + aiInstrLines.join(' ') : ''
 
       let url = `${base}/upsert-opportunity?${qp}`
       if (contactCfSpec.length) url += `&contactCf=${encodeURIComponent(JSON.stringify(contactCfSpec))}`

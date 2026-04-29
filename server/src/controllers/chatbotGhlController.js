@@ -189,6 +189,14 @@ async function upsertOpportunity(req, res) {
     const contactFields = resolveCustomFields(req.query.contactCf, aiBody);
     const oppFields = resolveCustomFields(req.query.oppCf, aiBody);
 
+    console.log('[Chatbot GHL] upsertOpportunity custom fields:', {
+      contactCfSpec: req.query.contactCf || '(none)',
+      oppCfSpec: req.query.oppCf || '(none)',
+      aiBodyKeys: Object.keys(aiBody || {}),
+      resolvedContactFields: contactFields,
+      resolvedOppFields: oppFields,
+    });
+
     // Search for existing opportunities for this contact
     let existing = null;
     try {
@@ -246,12 +254,16 @@ async function upsertOpportunity(req, res) {
     // Write contact custom fields if any.
     if (contactFields.length) {
       try {
-        await ghlRequest(`/contacts/${contactId}`, conn.token, {
+        const payload = { customFields: contactFields };
+        console.log('[Chatbot GHL] PUT /contacts/' + contactId + ' payload:', JSON.stringify(payload));
+        const result = await ghlRequest(`/contacts/${contactId}`, conn.token, {
           method: 'PUT',
-          body: JSON.stringify({ customFields: contactFields })
+          body: JSON.stringify(payload)
         });
+        console.log('[Chatbot GHL] PUT /contacts response keys:', result ? Object.keys(result) : '(empty)');
         messages.push(`Updated ${contactFields.length} contact custom field${contactFields.length > 1 ? 's' : ''}.`);
       } catch (cfErr) {
+        console.error('[Chatbot GHL] Contact custom field update failed:', cfErr.message);
         messages.push(`Contact custom field update failed: ${cfErr.message}`);
       }
     }
