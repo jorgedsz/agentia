@@ -1041,14 +1041,26 @@ const getCustomFields = async (req, res) => {
     const { token, locationId } = conn;
 
     try {
-      const data = await ghlRequest(`/locations/${locationId}/customFields`, token);
+      // Optional model filter — GHL returns both contact and opportunity fields.
+      // We pass through the model query param so the API can filter natively, then
+      // also defensively re-filter the response in case GHL ignores the param.
+      const modelFilter = (req.query.model || '').toString().toLowerCase();
+      const url = modelFilter
+        ? `/locations/${locationId}/customFields?model=${encodeURIComponent(modelFilter)}`
+        : `/locations/${locationId}/customFields`;
+      const data = await ghlRequest(url, token);
 
-      const customFields = (data.customFields || []).map(f => ({
+      const all = (data.customFields || []).map(f => ({
         id: f.id,
         name: f.name,
         fieldKey: f.fieldKey,
-        dataType: f.dataType
+        dataType: f.dataType,
+        model: f.model || (f.parentId ? 'opportunity' : 'contact')
       }));
+
+      const customFields = modelFilter
+        ? all.filter(f => (f.model || '').toLowerCase() === modelFilter)
+        : all;
 
       res.json({ customFields });
     } catch (ghlError) {

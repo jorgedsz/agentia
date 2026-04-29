@@ -180,7 +180,7 @@ export const ghlAPI = {
   getAuthUrl: () => api.get('/ghl/oauth/authorize'),
   getPipelines: () => api.get('/ghl/pipelines'),
   getTags: () => api.get('/ghl/tags'),
-  getCustomFields: () => api.get('/ghl/custom-fields'),
+  getCustomFields: (model) => api.get('/ghl/custom-fields', { params: model ? { model } : {} }),
   getUsers: () => api.get('/ghl/users'),
   getWorkflows: () => api.get('/ghl/workflows')
 }

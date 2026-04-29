@@ -126,16 +126,53 @@ async function updateOpportunity(req, res) {
 }
 
 /**
+ * Resolve a list of {id, value} custom field writes from a config spec + AI body.
+ *
+ * `spec` shape (passed through query param as URL-encoded JSON):
+ *   [{ id, mode: 'static'|'ai', value?, bodyKey? }, ...]
+ *
+ * Static entries take their value directly from the spec. AI entries take their
+ * value from `body[bodyKey]` (which the AI is told to fill via the tool schema).
+ * Empty / undefined values are dropped.
+ */
+function resolveCustomFields(specRaw, aiBody) {
+  if (!specRaw) return [];
+  let spec;
+  try {
+    spec = typeof specRaw === 'string' ? JSON.parse(specRaw) : specRaw;
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(spec)) return [];
+  return spec.flatMap((entry) => {
+    if (!entry?.id) return [];
+    let value;
+    if (entry.mode === 'ai') {
+      if (!entry.bodyKey) return [];
+      value = aiBody?.[entry.bodyKey];
+    } else {
+      value = entry.value;
+    }
+    if (value === undefined || value === null || value === '') return [];
+    return [{ id: entry.id, value }];
+  });
+}
+
+/**
  * POST /api/chatbot-ghl/upsert-opportunity?userId=X
- * Body: { contactId, pipelineId, stageId, name, status? }
+ *   Optional query: contactCf=<json>, oppCf=<json>  (custom field specs)
+ * Body: { contactId, pipelineId, stageId, name, status?, note?,
+ *         <ai bodyKey>: <value>, ... }
  * Searches for an existing opportunity for this contact in the pipeline.
  * If found → updates its stage/status. If not → creates a new one.
+ * After upsert, optionally writes contact + opportunity custom fields and a note.
  */
 async function upsertOpportunity(req, res) {
   try {
     const { userId } = req.query;
-    const { pipelineId, stageId, name, status, note } = req.body || {};
-    const contactId = req.query.contactId || req.body?.contactId;
+    const aiBody = req.body || {};
+    const { pipelineId, stageId, name, status, note } = aiBody;
+    const contactId = req.query.contactId || aiBody.contactId;
 
     if (!userId) {
       return res.json({ success: false, message: 'Missing required query param: userId' });
@@ -148,6 +185,9 @@ async function upsertOpportunity(req, res) {
     if (!conn) {
       return res.json({ success: false, message: 'GoHighLevel is not connected for this user.' });
     }
+
+    const contactFields = resolveCustomFields(req.query.contactCf, aiBody);
+    const oppFields = resolveCustomFields(req.query.oppCf, aiBody);
 
     // Search for existing opportunities for this contact
     let existing = null;
@@ -165,51 +205,75 @@ async function upsertOpportunity(req, res) {
     }
 
     let oppMessage;
+    let oppId;
     if (existing) {
-      // Update the existing opportunity
+      // Update the existing opportunity (custom fields included in same request)
       const updates = { pipelineStageId: stageId };
       if (status) updates.status = status;
       if (name) updates.name = name;
+      if (oppFields.length) updates.customFields = oppFields;
 
       await ghlRequest(`/opportunities/${existing.id}`, conn.token, {
         method: 'PUT',
         body: JSON.stringify(updates)
       });
 
+      oppId = existing.id;
       oppMessage = `Opportunity "${existing.name || name}" updated (moved to new stage). ID: ${existing.id}`;
     } else {
-      // Create a new opportunity
+      // Create a new opportunity (custom fields included in create payload when supported)
+      const createBody = {
+        locationId: conn.locationId,
+        pipelineId,
+        pipelineStageId: stageId,
+        contactId,
+        name,
+        status: status || 'open'
+      };
+      if (oppFields.length) createBody.customFields = oppFields;
+
       const result = await ghlRequest('/opportunities/', conn.token, {
         method: 'POST',
-        body: JSON.stringify({
-          locationId: conn.locationId,
-          pipelineId,
-          pipelineStageId: stageId,
-          contactId,
-          name,
-          status: status || 'open'
-        })
+        body: JSON.stringify(createBody)
       });
 
-      const oppId = result.opportunity?.id || result.id || '';
+      oppId = result.opportunity?.id || result.id || '';
       oppMessage = `Opportunity "${name}" created successfully.${oppId ? ` ID: ${oppId}` : ''}`;
     }
 
+    const messages = [oppMessage];
+
+    // Write contact custom fields if any.
+    if (contactFields.length) {
+      try {
+        await ghlRequest(`/contacts/${contactId}`, conn.token, {
+          method: 'PUT',
+          body: JSON.stringify({ customFields: contactFields })
+        });
+        messages.push(`Updated ${contactFields.length} contact custom field${contactFields.length > 1 ? 's' : ''}.`);
+      } catch (cfErr) {
+        messages.push(`Contact custom field update failed: ${cfErr.message}`);
+      }
+    }
+
+    if (oppFields.length) {
+      messages.push(`Sent ${oppFields.length} opportunity custom field${oppFields.length > 1 ? 's' : ''}.`);
+    }
+
     // Create a note on the contact if provided
-    let noteMessage = '';
     if (note) {
       try {
         await ghlRequest(`/contacts/${contactId}/notes`, conn.token, {
           method: 'POST',
           body: JSON.stringify({ body: note })
         });
-        noteMessage = ' Note added to contact.';
+        messages.push('Note added to contact.');
       } catch (noteErr) {
-        noteMessage = ` Note failed: ${noteErr.message}`;
+        messages.push(`Note failed: ${noteErr.message}`);
       }
     }
 
-    return res.json({ success: true, message: oppMessage + noteMessage });
+    return res.json({ success: true, message: messages.join(' ') });
   } catch (error) {
     console.error('[Chatbot GHL] upsertOpportunity error:', error);
     return res.json({ success: false, message: `Error managing opportunity: ${error.message}` });

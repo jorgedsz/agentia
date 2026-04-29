@@ -213,6 +213,23 @@ export default function ChatbotEdit() {
   const [ghlPipelines, setGhlPipelines] = useState([])
   const [ghlTags, setGhlTags] = useState([])
   const [ghlWorkflows, setGhlWorkflows] = useState([])
+  const [ghlContactCfs, setGhlContactCfs] = useState([])
+  const [ghlOppCfs, setGhlOppCfs] = useState([])
+
+  const ensureGhlContactCfsLoaded = async () => {
+    if (ghlContactCfs.length) return
+    try {
+      const { data } = await ghlAPI.getCustomFields('contact')
+      setGhlContactCfs(data.customFields || [])
+    } catch { /* silent */ }
+  }
+  const ensureGhlOppCfsLoaded = async () => {
+    if (ghlOppCfs.length) return
+    try {
+      const { data } = await ghlAPI.getCustomFields('opportunity')
+      setGhlOppCfs(data.customFields || [])
+    } catch { /* silent */ }
+  }
 
   // Unified tools modal
   const [showUnifiedToolsModal, setShowUnifiedToolsModal] = useState(false)
@@ -777,6 +794,12 @@ export default function ChatbotEdit() {
       })
     }
 
+    // Slugify a field name into a safe AI body key. Falls back to a stable id-based slug.
+    const slugifyKey = (raw, idx) => {
+      const base = (raw || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+      return base || `cf_${idx}`
+    }
+
     ;(ghlCrmConfig.opportunities || []).forEach((opp, i) => {
       const suffix = (ghlCrmConfig.opportunities.length > 1) ? `_${i + 1}` : ''
       const pNote = opp.pipelineId ? ` Pipeline: "${opp.pipelineName}" (${opp.pipelineId}).` : ''
@@ -792,10 +815,50 @@ export default function ChatbotEdit() {
       if (opp.noteInstruction) {
         props.note = { type: 'string', description: `A note to add to the contact. ${opp.noteInstruction}` }
       }
+
+      // Build custom-field spec sent in the URL (server reads this and decides which
+      // get static literals vs which read from the AI-filled body keys).
+      const buildCfSpec = (entries, kind) => {
+        const usedKeys = new Set()
+        const spec = []
+        ;(entries || []).forEach((entry, idx) => {
+          if (!entry?.fieldId) return
+          if (entry.mode === 'static') {
+            spec.push({ id: entry.fieldId, mode: 'static', value: entry.value ?? '' })
+          } else {
+            // AI mode → expose a unique body property; instruction goes into description
+            let key = `${kind}_${slugifyKey(entry.fieldKey || entry.fieldName, idx)}`
+            let n = 2
+            while (usedKeys.has(key)) { key = `${kind}_${slugifyKey(entry.fieldKey || entry.fieldName, idx)}_${n++}` }
+            usedKeys.add(key)
+            spec.push({ id: entry.fieldId, mode: 'ai', bodyKey: key })
+            const fieldLabel = entry.fieldName || entry.fieldKey || entry.fieldId
+            const instr = entry.instruction ? ` ${entry.instruction}` : ''
+            props[key] = {
+              type: 'string',
+              description: `Value for the GHL ${kind} custom field "${fieldLabel}".${instr}`
+            }
+          }
+        })
+        return spec
+      }
+
+      const contactCfSpec = buildCfSpec(opp.contactCustomFields, 'contact')
+      const oppCfSpec = buildCfSpec(opp.opportunityCustomFields, 'opp')
+
+      const cfDescParts = []
+      if (contactCfSpec.length) cfDescParts.push(`writes ${contactCfSpec.length} contact custom field(s)`)
+      if (oppCfSpec.length) cfDescParts.push(`writes ${oppCfSpec.length} opportunity custom field(s)`)
+      const cfDesc = cfDescParts.length ? ` After upsert, ${cfDescParts.join(' and ')}.` : ''
+
+      let url = `${base}/upsert-opportunity?${qp}`
+      if (contactCfSpec.length) url += `&contactCf=${encodeURIComponent(JSON.stringify(contactCfSpec))}`
+      if (oppCfSpec.length) url += `&oppCf=${encodeURIComponent(JSON.stringify(oppCfSpec))}`
+
       ghlTools.push({
-        type: 'apiRequest', method: 'POST', url: `${base}/upsert-opportunity?${qp}`,
+        type: 'apiRequest', method: 'POST', url,
         name: `ghl_manage_opportunity${suffix}`,
-        description: `Manage a GHL opportunity — creates it if it doesn't exist, or updates it if it does.${pNote}${sNote}${scenario}${noteInstr}`,
+        description: `Manage a GHL opportunity — creates it if it doesn't exist, or updates it if it does.${pNote}${sNote}${scenario}${noteInstr}${cfDesc}`,
         body: { type: 'object', properties: props, required: ['pipelineId', 'stageId', 'name'] },
         timeoutSeconds: 30
       })
@@ -2478,6 +2541,28 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
                                 <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.noteInstruction')} <span className="text-gray-400">{t('chatbotEdit.noteInstructionOptional')}</span></label>
                                 <input type="text" value={opp.noteInstruction || ''} onChange={(e) => setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], noteInstruction: e.target.value }; return { ...prev, opportunities: arr } })} placeholder={t('chatbotEdit.noteInstructionPlaceholder')} className="w-full px-3 py-2 text-sm rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400/40 transition" />
                               </div>
+
+                              <CustomFieldsBlock
+                                title={t('chatbotEdit.contactCustomFields')}
+                                emptyText={t('chatbotEdit.noCustomFields')}
+                                addLabel={t('chatbotEdit.addCustomField')}
+                                fields={opp.contactCustomFields || []}
+                                fieldOptions={ghlContactCfs}
+                                onLoadFields={ensureGhlContactCfsLoaded}
+                                onChange={(next) => setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], contactCustomFields: next }; return { ...prev, opportunities: arr } })}
+                                t={t}
+                              />
+
+                              <CustomFieldsBlock
+                                title={t('chatbotEdit.opportunityCustomFields')}
+                                emptyText={t('chatbotEdit.noCustomFields')}
+                                addLabel={t('chatbotEdit.addCustomField')}
+                                fields={opp.opportunityCustomFields || []}
+                                fieldOptions={ghlOppCfs}
+                                onLoadFields={ensureGhlOppCfsLoaded}
+                                onChange={(next) => setGhlCrmConfig(prev => { const arr = [...prev.opportunities]; arr[i] = { ...arr[i], opportunityCustomFields: next }; return { ...prev, opportunities: arr } })}
+                                t={t}
+                              />
                             </div>
                           )}
                         </div>
@@ -3710,6 +3795,90 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
         )
       })()}
 
+    </div>
+  )
+}
+
+// Reusable picker for GHL contact / opportunity custom field writes attached to
+// an opportunity-upsert action. Each row binds one custom field to either a
+// static value or an AI-defined value driven by an instruction.
+function CustomFieldsBlock({ title, emptyText, addLabel, fields, fieldOptions, onLoadFields, onChange, t }) {
+  const update = (idx, patch) => {
+    const next = fields.map((f, i) => i === idx ? { ...f, ...patch } : f)
+    onChange(next)
+  }
+  const add = async () => {
+    await onLoadFields?.()
+    onChange([...(fields || []), { fieldId: '', fieldName: '', fieldKey: '', mode: 'ai', value: '', instruction: '' }])
+  }
+  const remove = (idx) => onChange(fields.filter((_, i) => i !== idx))
+
+  return (
+    <div className="rounded-xl bg-white/60 dark:bg-white/[0.02] border border-gray-200 dark:border-dark-border p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{title}</span>
+        <button type="button" onClick={add} className="inline-flex items-center gap-1 text-[11px] text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium px-2 py-1 rounded-md hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" /></svg>
+          {addLabel}
+        </button>
+      </div>
+      {(!fields || fields.length === 0) && (
+        <p className="text-[11px] text-gray-400 text-center py-2">{emptyText}</p>
+      )}
+      {fields?.map((f, i) => (
+        <div key={i} className="rounded-lg bg-gray-50 dark:bg-white/[0.03] p-2.5 mb-2 last:mb-0 space-y-2">
+          <div className="flex gap-2 items-center">
+            <select
+              value={f.fieldId}
+              onFocus={onLoadFields}
+              onChange={(e) => {
+                const sel = fieldOptions.find((opt) => opt.id === e.target.value)
+                update(i, {
+                  fieldId: e.target.value,
+                  fieldName: sel?.name || '',
+                  fieldKey: sel?.fieldKey || ''
+                })
+              }}
+              className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+            >
+              <option value="">{t('chatbotEdit.selectCustomField')}</option>
+              {fieldOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.name}{opt.dataType ? ` (${opt.dataType})` : ''}</option>
+              ))}
+            </select>
+            <button type="button" onClick={() => remove(i)} className="text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="flex items-center gap-2 text-[11px]">
+            <label className={`inline-flex items-center gap-1 cursor-pointer px-2 py-1 rounded-md ${f.mode !== 'static' ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300' : 'text-gray-500 dark:text-gray-400'}`}>
+              <input type="radio" className="sr-only" name={`cf-mode-${title}-${i}`} checked={f.mode !== 'static'} onChange={() => update(i, { mode: 'ai' })} />
+              {t('chatbotEdit.cfModeAi')}
+            </label>
+            <label className={`inline-flex items-center gap-1 cursor-pointer px-2 py-1 rounded-md ${f.mode === 'static' ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300' : 'text-gray-500 dark:text-gray-400'}`}>
+              <input type="radio" className="sr-only" name={`cf-mode-${title}-${i}`} checked={f.mode === 'static'} onChange={() => update(i, { mode: 'static' })} />
+              {t('chatbotEdit.cfModeStatic')}
+            </label>
+          </div>
+          {f.mode === 'static' ? (
+            <input
+              type="text"
+              value={f.value || ''}
+              onChange={(e) => update(i, { value: e.target.value })}
+              placeholder={t('chatbotEdit.cfStaticPlaceholder')}
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+            />
+          ) : (
+            <input
+              type="text"
+              value={f.instruction || ''}
+              onChange={(e) => update(i, { instruction: e.target.value })}
+              placeholder={t('chatbotEdit.cfInstructionPlaceholder')}
+              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-transparent bg-white dark:bg-dark-bg/70 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+            />
+          )}
+        </div>
+      ))}
     </div>
   )
 }
