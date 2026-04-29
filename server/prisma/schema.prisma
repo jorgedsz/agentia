@@ -160,10 +160,26 @@ model Chatbot {
   config          String?  // JSON string (prompt, model, voice, tools, etc.)
   isActive        Boolean  @default(true)
   isArchived      Boolean  @default(false)
+  publicShareToken    String?  @unique  // Token in shareable URL; null when sharing disabled
+  publicShareEnabled  Boolean  @default(false)
+  publicShareDailyLimit   Int  @default(200)  // Total messages per chatbot per day via the share link
+  publicShareIpDailyLimit Int  @default(30)   // Per-IP messages per day via the share link
   userId          Int
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model ChatbotShareUsage {
+  id        Int      @id @default(autoincrement())
+  chatbotId String
+  date      DateTime @db.Date     // UTC day bucket
+  scope     String                 // "all" for daily total, otherwise hashed IP
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([chatbotId, date, scope])
+  @@index([chatbotId, date])
 }
 
 model TelephonyCredential {

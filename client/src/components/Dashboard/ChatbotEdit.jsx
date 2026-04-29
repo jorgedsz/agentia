@@ -119,6 +119,14 @@ export default function ChatbotEdit() {
 
   // Test chatbot modal
   const [showTestModal, setShowTestModal] = useState(false)
+  // Share-link modal state
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareEnabled, setShareEnabled] = useState(false)
+  const [shareToken, setShareToken] = useState('')
+  const [shareDailyLimit, setShareDailyLimit] = useState(200)
+  const [shareIpDailyLimit, setShareIpDailyLimit] = useState(30)
+  const [shareSaving, setShareSaving] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [clearingMemory, setClearingMemory] = useState(false)
   const [showClearMemoryModal, setShowClearMemoryModal] = useState(false)
@@ -279,6 +287,10 @@ export default function ChatbotEdit() {
       setName(cb.name || '')
       setChatbotType(cb.chatbotType || 'standard')
       setOutputUrl(cb.outputUrl || '')
+      setShareEnabled(!!cb.publicShareEnabled)
+      setShareToken(cb.publicShareToken || '')
+      setShareDailyLimit(cb.publicShareDailyLimit || 200)
+      setShareIpDailyLimit(cb.publicShareIpDailyLimit || 30)
       setIsActive(cb.isActive !== false)
 
       const config = cb.config || {}
@@ -1300,6 +1312,15 @@ export default function ChatbotEdit() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
               {t('chatbotEdit.test')}
+            </button>
+            <button
+              onClick={() => setShowShareModal(true)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-xl transition-colors whitespace-nowrap ${shareEnabled ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/30' : 'text-gray-700 dark:text-gray-200 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              {t('chatbotEdit.share')}
             </button>
             <button
               onClick={handleToggle}
@@ -3046,6 +3067,169 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
           onClose={() => setShowTestModal(false)}
         />
       )}
+
+      {/* Share for Testing Modal */}
+      {showShareModal && (() => {
+        const shareUrl = shareEnabled && shareToken
+          ? `${window.location.origin}/chat/${id}/${shareToken}`
+          : ''
+        const handleEnable = async () => {
+          setShareSaving(true)
+          try {
+            const { data } = await chatbotsAPI.enableShare(id)
+            setShareEnabled(data.enabled)
+            setShareToken(data.token)
+          } catch (err) {
+            alert(err.response?.data?.error || 'Failed to enable sharing')
+          } finally {
+            setShareSaving(false)
+          }
+        }
+        const handleRegenerate = async () => {
+          if (!confirm(t('chatbotEdit.shareRegenerateConfirm'))) return
+          setShareSaving(true)
+          try {
+            const { data } = await chatbotsAPI.regenerateShareToken(id)
+            setShareEnabled(data.enabled)
+            setShareToken(data.token)
+            setShareCopied(false)
+          } catch (err) {
+            alert(err.response?.data?.error || 'Failed to regenerate token')
+          } finally {
+            setShareSaving(false)
+          }
+        }
+        const handleDisable = async () => {
+          if (!confirm(t('chatbotEdit.shareDisableConfirm'))) return
+          setShareSaving(true)
+          try {
+            await chatbotsAPI.disableShare(id)
+            setShareEnabled(false)
+          } catch (err) {
+            alert(err.response?.data?.error || 'Failed to disable sharing')
+          } finally {
+            setShareSaving(false)
+          }
+        }
+        const handleCopy = async () => {
+          if (!shareUrl) return
+          try {
+            await navigator.clipboard.writeText(shareUrl)
+            setShareCopied(true)
+            setTimeout(() => setShareCopied(false), 1500)
+          } catch {
+            window.prompt('Copy link:', shareUrl)
+          }
+        }
+        const handleSaveLimits = async () => {
+          setShareSaving(true)
+          try {
+            const { data } = await chatbotsAPI.updateShareLimits(id, {
+              dailyLimit: Number(shareDailyLimit),
+              ipDailyLimit: Number(shareIpDailyLimit)
+            })
+            setShareDailyLimit(data.dailyLimit)
+            setShareIpDailyLimit(data.ipDailyLimit)
+          } catch (err) {
+            alert(err.response?.data?.error || 'Failed to update limits')
+          } finally {
+            setShareSaving(false)
+          }
+        }
+
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => !shareSaving && setShowShareModal(false)}>
+            <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.shareTitle')}</h3>
+                <button onClick={() => setShowShareModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div className="p-5 space-y-5">
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t('chatbotEdit.shareDesc')}</p>
+
+                {!shareEnabled ? (
+                  <button
+                    onClick={handleEnable}
+                    disabled={shareSaving}
+                    className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium disabled:opacity-50"
+                  >
+                    {shareSaving ? t('chatbotEdit.shareWorking') : t('chatbotEdit.shareEnable')}
+                  </button>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.shareLink')}</label>
+                      <div className="flex gap-2">
+                        <input
+                          readOnly
+                          value={shareUrl}
+                          onFocus={(e) => e.target.select()}
+                          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white font-mono text-xs"
+                        />
+                        <button
+                          onClick={handleCopy}
+                          className="px-3 py-2 bg-gray-200 dark:bg-dark-bg text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-dark-hover text-xs font-medium border border-gray-300 dark:border-dark-border"
+                        >
+                          {shareCopied ? t('chatbotEdit.shareCopied') : t('chatbotEdit.shareCopy')}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.shareDailyLimit')}</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={shareDailyLimit}
+                          onChange={(e) => setShareDailyLimit(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t('chatbotEdit.shareIpDailyLimit')}</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={shareIpDailyLimit}
+                          onChange={(e) => setShareIpDailyLimit(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSaveLimits}
+                      disabled={shareSaving}
+                      className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                    >
+                      {t('chatbotEdit.shareSaveLimits')}
+                    </button>
+
+                    <div className="pt-3 border-t border-gray-100 dark:border-dark-border flex gap-2">
+                      <button
+                        onClick={handleRegenerate}
+                        disabled={shareSaving}
+                        className="flex-1 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-50"
+                      >
+                        {t('chatbotEdit.shareRegenerate')}
+                      </button>
+                      <button
+                        onClick={handleDisable}
+                        disabled={shareSaving}
+                        className="flex-1 px-3 py-2 text-xs font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50"
+                      >
+                        {t('chatbotEdit.shareDisable')}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Clear Memory Modal */}
       {showClearMemoryModal && (

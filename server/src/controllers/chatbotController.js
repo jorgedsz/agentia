@@ -905,6 +905,255 @@ const clearMemory = async (req, res) => {
   }
 };
 
+// ── Public share management ───────────────────────────────
+const crypto = require('crypto');
+
+const generateShareToken = () => crypto.randomBytes(24).toString('base64url');
+
+// Hash an IP for storage so we don't keep raw addresses around.
+const hashIp = (ip) => {
+  if (!ip) return 'unknown';
+  return crypto.createHash('sha256').update(`shareIp:${ip}`).digest('hex').slice(0, 32);
+};
+
+const enableChatbotShare = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const chatbot = await req.prisma.chatbot.findFirst({ where: { id, userId: req.user.id } });
+    if (!chatbot) return res.status(404).json({ error: 'Chatbot not found' });
+
+    const token = chatbot.publicShareToken || generateShareToken();
+    const updated = await req.prisma.chatbot.update({
+      where: { id: chatbot.id },
+      data: { publicShareToken: token, publicShareEnabled: true }
+    });
+
+    res.json({
+      enabled: updated.publicShareEnabled,
+      token: updated.publicShareToken,
+      dailyLimit: updated.publicShareDailyLimit,
+      ipDailyLimit: updated.publicShareIpDailyLimit
+    });
+  } catch (error) {
+    console.error('Enable chatbot share error:', error);
+    res.status(500).json({ error: 'Failed to enable sharing' });
+  }
+};
+
+const regenerateChatbotShareToken = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const chatbot = await req.prisma.chatbot.findFirst({ where: { id, userId: req.user.id } });
+    if (!chatbot) return res.status(404).json({ error: 'Chatbot not found' });
+
+    const updated = await req.prisma.chatbot.update({
+      where: { id: chatbot.id },
+      data: { publicShareToken: generateShareToken(), publicShareEnabled: true }
+    });
+    res.json({ enabled: true, token: updated.publicShareToken });
+  } catch (error) {
+    console.error('Regenerate chatbot share token error:', error);
+    res.status(500).json({ error: 'Failed to regenerate token' });
+  }
+};
+
+const disableChatbotShare = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const chatbot = await req.prisma.chatbot.findFirst({ where: { id, userId: req.user.id } });
+    if (!chatbot) return res.status(404).json({ error: 'Chatbot not found' });
+
+    await req.prisma.chatbot.update({
+      where: { id: chatbot.id },
+      data: { publicShareEnabled: false }
+    });
+    res.json({ enabled: false });
+  } catch (error) {
+    console.error('Disable chatbot share error:', error);
+    res.status(500).json({ error: 'Failed to disable sharing' });
+  }
+};
+
+const updateChatbotShareLimits = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { dailyLimit, ipDailyLimit } = req.body || {};
+    const data = {};
+    if (Number.isInteger(dailyLimit) && dailyLimit > 0) data.publicShareDailyLimit = dailyLimit;
+    if (Number.isInteger(ipDailyLimit) && ipDailyLimit > 0) data.publicShareIpDailyLimit = ipDailyLimit;
+    if (!Object.keys(data).length) return res.status(400).json({ error: 'No valid limit fields provided' });
+
+    const chatbot = await req.prisma.chatbot.findFirst({ where: { id, userId: req.user.id } });
+    if (!chatbot) return res.status(404).json({ error: 'Chatbot not found' });
+
+    const updated = await req.prisma.chatbot.update({
+      where: { id: chatbot.id },
+      data
+    });
+    res.json({
+      dailyLimit: updated.publicShareDailyLimit,
+      ipDailyLimit: updated.publicShareIpDailyLimit
+    });
+  } catch (error) {
+    console.error('Update chatbot share limits error:', error);
+    res.status(500).json({ error: 'Failed to update limits' });
+  }
+};
+
+// ── Public (unauthenticated) endpoints ─────────────────────
+const findSharedChatbot = async (prisma, id, token) => {
+  if (!id || !token) return null;
+  const chatbot = await prisma.chatbot.findUnique({ where: { id } });
+  if (!chatbot) return null;
+  if (chatbot.isArchived) return null;
+  if (!chatbot.publicShareEnabled) return null;
+  if (!chatbot.publicShareToken || chatbot.publicShareToken !== token) return null;
+  return chatbot;
+};
+
+const getPublicChatbotInfo = async (req, res) => {
+  try {
+    const { id, token } = req.params;
+    const chatbot = await findSharedChatbot(req.prisma, id, token);
+    if (!chatbot) return res.status(404).json({ error: 'Not found' });
+    res.json({
+      id: chatbot.id,
+      name: chatbot.name,
+      description: chatbot.description || ''
+    });
+  } catch (error) {
+    console.error('Public chat info error:', error);
+    res.status(500).json({ error: 'Failed to load' });
+  }
+};
+
+const todayDate = () => {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+};
+
+const incrementShareUsage = async (prisma, chatbotId, scope) => {
+  const date = todayDate();
+  const usage = await prisma.chatbotShareUsage.upsert({
+    where: { chatbotId_date_scope: { chatbotId, date, scope } },
+    create: { chatbotId, date, scope, count: 1 },
+    update: { count: { increment: 1 } }
+  });
+  return usage.count;
+};
+
+const getShareUsage = async (prisma, chatbotId, scope) => {
+  const usage = await prisma.chatbotShareUsage.findUnique({
+    where: { chatbotId_date_scope: { chatbotId, date: todayDate(), scope } }
+  });
+  return usage?.count || 0;
+};
+
+const postPublicChatbotMessage = async (req, res) => {
+  try {
+    const { id, token } = req.params;
+    const { message, sessionId } = req.body || {};
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'message is required' });
+    }
+
+    const chatbot = await findSharedChatbot(req.prisma, id, token);
+    if (!chatbot) return res.status(404).json({ error: 'Not found' });
+    if (!chatbot.n8nWebhookUrl) {
+      return res.status(422).json({ error: 'Chatbot is not deployed yet.' });
+    }
+
+    // Quota: per-day total + per-IP per-day
+    const ip = (req.headers['x-forwarded-for']?.toString().split(',')[0].trim()) || req.ip || req.socket.remoteAddress || '';
+    const ipScope = hashIp(ip);
+    const [totalUsed, ipUsed] = await Promise.all([
+      getShareUsage(req.prisma, chatbot.id, 'all'),
+      getShareUsage(req.prisma, chatbot.id, ipScope)
+    ]);
+    if (totalUsed >= chatbot.publicShareDailyLimit) {
+      return res.status(429).json({ error: 'Daily message limit reached for this share link.' });
+    }
+    if (ipUsed >= chatbot.publicShareIpDailyLimit) {
+      return res.status(429).json({ error: 'You have reached the message limit for today.' });
+    }
+
+    // Owner credit check (same as authed test path).
+    const owner = await req.prisma.user.findUnique({
+      where: { id: chatbot.userId },
+      select: { vapiCredits: true }
+    });
+    if ((owner?.vapiCredits || 0) < TEST_MESSAGE_COST) {
+      return res.status(402).json({ error: 'This shared chatbot is temporarily unavailable.' });
+    }
+
+    // Hit the n8n test webhook (same as the authed test path) so public traffic
+    // doesn't run the production workflow.
+    const testWebhookUrl = chatbot.n8nWebhookUrl.replace(/\/chatbot-([^/]+)$/, '/chatbot-$1-test');
+    const config = chatbot.config ? JSON.parse(chatbot.config) : {};
+    const calendarConfig = config.calendarConfig || {};
+    const ghlCrmConfig = config.ghlCrmConfig || {};
+    const ghlTestContactId = calendarConfig.ghlTestContactId || ghlCrmConfig.ghlTestContactId || '';
+    const ghlTestContactName = calendarConfig.ghlTestContactName || ghlCrmConfig.ghlTestContactName || '';
+
+    const sid = (sessionId && typeof sessionId === 'string') ? sessionId : `share-${ipScope.slice(0, 8)}`;
+    const testBody = { message, sessionId: sid, _testMode: true, _publicShare: true };
+    if (ghlTestContactId) testBody.contactId = ghlTestContactId;
+    if (ghlTestContactName) testBody.contactName = ghlTestContactName;
+
+    const n8nResponse = await fetch(testWebhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testBody),
+      signal: AbortSignal.timeout(60000)
+    });
+
+    if (!n8nResponse.ok) {
+      const errorText = await n8nResponse.text().catch(() => '');
+      console.error('public share n8n webhook error:', n8nResponse.status, errorText);
+      return res.status(422).json({ error: 'Chatbot is currently unavailable.' });
+    }
+
+    const data = await n8nResponse.json().catch(async () => {
+      const text = await n8nResponse.text().catch(() => '');
+      return { response: text };
+    });
+    const aiResponse = data.response || data.output || data.text || JSON.stringify(data);
+
+    // Bump quotas (best-effort; don't fail the response on counter race conditions).
+    await Promise.all([
+      incrementShareUsage(req.prisma, chatbot.id, 'all'),
+      incrementShareUsage(req.prisma, chatbot.id, ipScope)
+    ]).catch(err => console.error('Share usage increment failed:', err.message));
+
+    // Deduct credit + log against the chatbot owner (mirrors authed test path).
+    req.prisma.user.update({
+      where: { id: chatbot.userId },
+      data: { vapiCredits: { decrement: TEST_MESSAGE_COST } }
+    }).catch(err => console.error('Failed to deduct share test credit:', err.message));
+
+    req.prisma.chatbotMessage.create({
+      data: {
+        chatbotId: chatbot.id,
+        chatbotName: chatbot.name,
+        userId: chatbot.userId,
+        sessionId: sid,
+        contactId: testBody.contactId || null,
+        contactName: testBody.contactName || null,
+        inputMessage: message,
+        outputMessage: aiResponse,
+        costCharged: TEST_MESSAGE_COST,
+        isTest: true,
+        status: 'success',
+      }
+    }).catch(err => console.error('Failed to log shared chatbot message:', err.message));
+
+    res.json({ response: aiResponse });
+  } catch (error) {
+    console.error('Public chatbot message error:', error);
+    res.status(500).json({ error: 'Failed to process message' });
+  }
+};
+
 const importChatbot = async (req, res) => {
   try {
     const { chatbotId } = req.body || {};
@@ -1259,6 +1508,12 @@ module.exports = {
   updateChatbot,
   toggleChatbot,
   importChatbot,
+  enableChatbotShare,
+  regenerateChatbotShareToken,
+  disableChatbotShare,
+  updateChatbotShareLimits,
+  getPublicChatbotInfo,
+  postPublicChatbotMessage,
   deleteChatbot,
   testChatbot,
   testDbConnection,

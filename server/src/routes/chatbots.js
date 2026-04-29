@@ -6,6 +6,9 @@ const authMiddleware = require('../middleware/authMiddleware');
 // Public endpoints — no auth required
 router.post('/:id/webhook', chatbotController.webhookProxy);
 router.post('/:id/ghl-respond', chatbotController.ghlRespond);
+// Public share-link endpoints (token-gated, quota-limited)
+router.get('/:id/public-share/:token/info', chatbotController.getPublicChatbotInfo);
+router.post('/:id/public-share/:token/message', chatbotController.postPublicChatbotMessage);
 
 // All other chatbot routes are protected
 router.use(authMiddleware);
@@ -24,6 +27,12 @@ router.post('/', chatbotController.createChatbot);
 
 // POST /api/chatbots/import - Import chatbot from another account by id
 router.post('/import', chatbotController.importChatbot);
+
+// Share-link management (auth'd, owner only)
+router.post('/:id/share/enable', chatbotController.enableChatbotShare);
+router.post('/:id/share/regenerate', chatbotController.regenerateChatbotShareToken);
+router.post('/:id/share/disable', chatbotController.disableChatbotShare);
+router.put('/:id/share/limits', chatbotController.updateChatbotShareLimits);
 
 // PUT /api/chatbots/:id - Update chatbot
 router.put('/:id', chatbotController.updateChatbot);
