@@ -1,18 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useLanguage } from '../../context/LanguageContext'
 import { reportsAPI, agentsAPI, chatbotsAPI } from '../../services/api'
-
-const MODELS = [
-  { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (recommended)' },
-  { value: 'claude-opus-4-7', label: 'Claude Opus 4.7 (best quality)' },
-  { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (fastest, cheapest)' }
-]
-
-const DATASETS = [
-  { value: 'calls', label: 'Call logs' },
-  { value: 'chatbots', label: 'Chatbot messages' },
-  { value: 'both', label: 'Calls + chatbot messages' }
-]
 
 const OUTCOMES = ['answered', 'booked', 'not_interested', 'failed', 'transferred', 'voicemail', 'unknown']
 
@@ -21,6 +10,19 @@ const daysAgoInput = (days) => new Date(Date.now() - days * 86400000).toISOStrin
 
 export default function ReportNew() {
   const navigate = useNavigate()
+  const { t } = useLanguage()
+
+  const DATASETS = [
+    { value: 'calls', label: t('reports.datasetCallsLabel') },
+    { value: 'chatbots', label: t('reports.datasetChatbotsLabel') },
+    { value: 'both', label: t('reports.datasetBothLabel') }
+  ]
+  const MODELS = [
+    { value: 'claude-sonnet-4-6', label: t('reports.modelSonnet') },
+    { value: 'claude-opus-4-7', label: t('reports.modelOpus') },
+    { value: 'claude-haiku-4-5-20251001', label: t('reports.modelHaiku') }
+  ]
+
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
   const [dataset, setDataset] = useState('calls')
@@ -50,17 +52,13 @@ export default function ReportNew() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!name.trim() || !prompt.trim()) {
-      setError('Name and prompt are required')
+      setError(t('reports.nameAndPromptRequired'))
       return
     }
     setError('')
     setSubmitting(true)
     try {
-      const filters = {
-        dateFrom,
-        dateTo,
-        limit: Number(limit) || 200
-      }
+      const filters = { dateFrom, dateTo, limit: Number(limit) || 200 }
       if (dataset !== 'chatbots' && agentIds.length) filters.agentIds = agentIds
       if (dataset !== 'calls' && chatbotIds.length) filters.chatbotIds = chatbotIds
       if (dataset !== 'chatbots' && outcomes.length) filters.outcomes = outcomes
@@ -73,7 +71,7 @@ export default function ReportNew() {
         navigate(`/dashboard/reports/${failedReport.id}`)
         return
       }
-      setError(err.response?.data?.error || 'Failed to create report')
+      setError(err.response?.data?.error || t('reports.submitFailed'))
     } finally {
       setSubmitting(false)
     }
@@ -85,13 +83,11 @@ export default function ReportNew() {
         onClick={() => navigate('/dashboard/reports')}
         className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
       >
-        ← Back to reports
+        {t('reports.back')}
       </button>
 
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">New Report</h1>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Pick a dataset, set filters, write your prompt, and Claude will generate the report.
-      </p>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">{t('reports.newTitle')}</h1>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{t('reports.newSubtitle')}</p>
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm mb-4">
@@ -101,19 +97,19 @@ export default function ReportNew() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Report name *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reports.reportName')} *</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            placeholder="e.g. Weekly outbound call summary"
+            placeholder={t('reports.reportNamePlaceholder')}
             className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dataset</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reports.dataset')}</label>
             <select
               value={dataset}
               onChange={(e) => setDataset(e.target.value)}
@@ -123,7 +119,7 @@ export default function ReportNew() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reports.model')}</label>
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
@@ -136,44 +132,28 @@ export default function ReportNew() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date from</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reports.dateFrom')}</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date to</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reports.dateTo')}</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max rows</label>
-            <input
-              type="number"
-              min={1}
-              max={500}
-              value={limit}
-              onChange={(e) => setLimit(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reports.maxRows')}</label>
+            <input type="number" min={1} max={500} value={limit} onChange={(e) => setLimit(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500" />
           </div>
         </div>
 
         {dataset !== 'chatbots' && agents.length > 0 && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Agents (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('reports.agentsOptional')}</label>
             <div className="flex flex-wrap gap-2">
               {agents.map((a) => (
-                <button
-                  type="button"
-                  key={a.id}
+                <button type="button" key={a.id}
                   onClick={() => toggleArray(agentIds, a.id, setAgentIds)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                     agentIds.includes(a.id)
@@ -190,12 +170,10 @@ export default function ReportNew() {
 
         {dataset !== 'calls' && chatbots.length > 0 && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chatbots (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('reports.chatbotsOptional')}</label>
             <div className="flex flex-wrap gap-2">
               {chatbots.map((c) => (
-                <button
-                  type="button"
-                  key={c.id}
+                <button type="button" key={c.id}
                   onClick={() => toggleArray(chatbotIds, c.id, setChatbotIds)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                     chatbotIds.includes(c.id)
@@ -212,12 +190,10 @@ export default function ReportNew() {
 
         {dataset !== 'chatbots' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Call outcomes (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('reports.outcomesOptional')}</label>
             <div className="flex flex-wrap gap-2">
               {OUTCOMES.map((o) => (
-                <button
-                  type="button"
-                  key={o}
+                <button type="button" key={o}
                   onClick={() => toggleArray(outcomes, o, setOutcomes)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                     outcomes.includes(o)
@@ -233,33 +209,26 @@ export default function ReportNew() {
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Prompt *</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reports.prompt')} *</label>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             required
             rows={6}
-            placeholder="Describe what you want from the report. e.g. 'Summarize the most common reasons customers declined the offer, with quoted examples and a count for each reason.'"
+            placeholder={t('reports.promptPlaceholder')}
             className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none font-mono text-sm"
           />
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={() => navigate('/dashboard/reports')}
-            disabled={submitting}
-            className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-          >
-            Cancel
+          <button type="button" onClick={() => navigate('/dashboard/reports')} disabled={submitting}
+            className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+            {t('reports.cancel')}
           </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2"
-          >
+          <button type="submit" disabled={submitting}
+            className="px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium disabled:opacity-50 flex items-center gap-2">
             {submitting && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />}
-            {submitting ? 'Generating…' : 'Run Report'}
+            {submitting ? t('reports.generating') : t('reports.run')}
           </button>
         </div>
       </form>

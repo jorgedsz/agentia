@@ -12,11 +12,14 @@
     "@vapi-ai/web": "^2.5.2",
     "@whop/checkout": "^0.0.52",
     "axios": "^1.6.7",
+    "html2pdf.js": "^0.14.0",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^6.22.3",
     "recharts": "^3.7.0",
+    "remark-gfm": "^4.0.1",
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {

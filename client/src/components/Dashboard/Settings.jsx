@@ -2367,8 +2367,8 @@ function APIKeysTab() {
                 placeholder={hasElevenLabs ? t('settings.enterNewKey') : t('settings.enterElevenLabsKey')}
               />
               <KeyRow
-                title="Anthropic API Key"
-                description="Used by the Reports feature to generate analyses with Claude. Create a key at console.anthropic.com."
+                title={t('settings.anthropicApiKey')}
+                description={t('settings.anthropicApiKeyDesc')}
                 hasKey={hasAnthropic}
                 masked={maskedAnthropic}
                 inputValue={anthropicApiKey}
@@ -2376,7 +2376,7 @@ function APIKeysTab() {
                 onSave={() => handlePlatSave('anthropic')}
                 onRemove={() => handlePlatRemove('anthropic')}
                 saving={platSaving}
-                placeholder={hasAnthropic ? t('settings.enterNewKey') : 'sk-ant-...'}
+                placeholder={hasAnthropic ? t('settings.enterNewKey') : t('settings.anthropicKeyPlaceholder')}
               />
             </>
           )}
