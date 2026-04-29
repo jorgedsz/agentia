@@ -547,6 +547,223 @@ const checkVapiSync = async (req, res) => {
   }
 };
 
+// ── Public share (voice) ───────────────────────────────────
+const crypto = require('crypto');
+const { decrypt } = require('../utils/encryption');
+
+const generateShareToken = () => crypto.randomBytes(24).toString('base64url');
+const hashIp = (ip) => crypto.createHash('sha256').update(`agentShareIp:${ip || 'unknown'}`).digest('hex').slice(0, 32);
+
+const todayDate = () => {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+};
+
+const getAgentShareUsage = async (prisma, agentId, scope) => {
+  const usage = await prisma.agentShareUsage.findUnique({
+    where: { agentId_date_scope: { agentId, date: todayDate(), scope } }
+  });
+  return usage?.count || 0;
+};
+
+const incrementAgentShareUsage = async (prisma, agentId, scope) => {
+  const date = todayDate();
+  const usage = await prisma.agentShareUsage.upsert({
+    where: { agentId_date_scope: { agentId, date, scope } },
+    create: { agentId, date, scope, count: 1 },
+    update: { count: { increment: 1 } }
+  });
+  return usage.count;
+};
+
+// Resolve the Vapi public key for a chatbot/agent owner. Mirrors the logic in
+// platformSettingsController.getVapiPublicKey but without `req.user` (the
+// caller is the public visitor; we look up the agent owner instead).
+const resolveVapiPublicKeyForUser = async (prisma, userId) => {
+  if (userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { vapiPublicKey: true }
+    });
+    if (user?.vapiPublicKey) {
+      try {
+        const dec = decrypt(user.vapiPublicKey);
+        if (dec) return dec;
+      } catch { /* fall through */ }
+    }
+  }
+  const settings = await prisma.platformSettings.findFirst();
+  if (settings?.vapiPublicKey) {
+    try {
+      const dec = decrypt(settings.vapiPublicKey);
+      if (dec) return dec;
+    } catch { /* fall through */ }
+  }
+  return null;
+};
+
+const enableAgentShare = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const agent = await req.prisma.agent.findFirst({ where: { id, userId: req.user.id } });
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const token = agent.publicShareToken || generateShareToken();
+    const updated = await req.prisma.agent.update({
+      where: { id: agent.id },
+      data: { publicShareToken: token, publicShareEnabled: true }
+    });
+    res.json({
+      enabled: updated.publicShareEnabled,
+      token: updated.publicShareToken,
+      dailyLimit: updated.publicShareDailyLimit,
+      ipDailyLimit: updated.publicShareIpDailyLimit,
+      maxDurationSeconds: updated.publicShareMaxDurationSeconds
+    });
+  } catch (error) {
+    console.error('Enable agent share error:', error);
+    res.status(500).json({ error: 'Failed to enable sharing' });
+  }
+};
+
+const regenerateAgentShareToken = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const agent = await req.prisma.agent.findFirst({ where: { id, userId: req.user.id } });
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    const updated = await req.prisma.agent.update({
+      where: { id: agent.id },
+      data: { publicShareToken: generateShareToken(), publicShareEnabled: true }
+    });
+    res.json({ enabled: true, token: updated.publicShareToken });
+  } catch (error) {
+    console.error('Regenerate agent share token error:', error);
+    res.status(500).json({ error: 'Failed to regenerate token' });
+  }
+};
+
+const disableAgentShare = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const agent = await req.prisma.agent.findFirst({ where: { id, userId: req.user.id } });
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    await req.prisma.agent.update({
+      where: { id: agent.id },
+      data: { publicShareEnabled: false }
+    });
+    res.json({ enabled: false });
+  } catch (error) {
+    console.error('Disable agent share error:', error);
+    res.status(500).json({ error: 'Failed to disable sharing' });
+  }
+};
+
+const updateAgentShareLimits = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { dailyLimit, ipDailyLimit, maxDurationSeconds } = req.body || {};
+    const data = {};
+    if (Number.isInteger(dailyLimit) && dailyLimit > 0) data.publicShareDailyLimit = dailyLimit;
+    if (Number.isInteger(ipDailyLimit) && ipDailyLimit > 0) data.publicShareIpDailyLimit = ipDailyLimit;
+    if (Number.isInteger(maxDurationSeconds) && maxDurationSeconds >= 30 && maxDurationSeconds <= 1800) {
+      data.publicShareMaxDurationSeconds = maxDurationSeconds;
+    }
+    if (!Object.keys(data).length) return res.status(400).json({ error: 'No valid limit fields provided' });
+
+    const agent = await req.prisma.agent.findFirst({ where: { id, userId: req.user.id } });
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const updated = await req.prisma.agent.update({ where: { id: agent.id }, data });
+    res.json({
+      dailyLimit: updated.publicShareDailyLimit,
+      ipDailyLimit: updated.publicShareIpDailyLimit,
+      maxDurationSeconds: updated.publicShareMaxDurationSeconds
+    });
+  } catch (error) {
+    console.error('Update agent share limits error:', error);
+    res.status(500).json({ error: 'Failed to update limits' });
+  }
+};
+
+const findSharedAgent = async (prisma, id, token) => {
+  if (!id || !token) return null;
+  const agent = await prisma.agent.findUnique({ where: { id } });
+  if (!agent) return null;
+  if (!agent.publicShareEnabled) return null;
+  if (!agent.publicShareToken || agent.publicShareToken !== token) return null;
+  return agent;
+};
+
+const getPublicAgentInfo = async (req, res) => {
+  try {
+    const { id, token } = req.params;
+    const agent = await findSharedAgent(req.prisma, id, token);
+    if (!agent) return res.status(404).json({ error: 'Not found' });
+    if (!agent.vapiId) return res.status(422).json({ error: 'Agent is not deployed yet.' });
+
+    const vapiPublicKey = await resolveVapiPublicKeyForUser(req.prisma, agent.userId);
+    if (!vapiPublicKey) return res.status(422).json({ error: 'Voice service is not configured.' });
+
+    res.json({
+      id: agent.id,
+      name: agent.name,
+      description: agent.description || '',
+      vapiAssistantId: agent.vapiId,
+      vapiPublicKey,
+      maxDurationSeconds: agent.publicShareMaxDurationSeconds
+    });
+  } catch (error) {
+    console.error('Public agent info error:', error);
+    res.status(500).json({ error: 'Failed to load' });
+  }
+};
+
+const postPublicAgentCallStart = async (req, res) => {
+  try {
+    const { id, token } = req.params;
+    const agent = await findSharedAgent(req.prisma, id, token);
+    if (!agent) return res.status(404).json({ error: 'Not found' });
+
+    // Owner credit check — voice is metered per minute. Require a small buffer.
+    const owner = await req.prisma.user.findUnique({
+      where: { id: agent.userId },
+      select: { vapiCredits: true }
+    });
+    if ((owner?.vapiCredits || 0) < 0.10) {
+      return res.status(402).json({ error: 'This shared agent is temporarily unavailable.' });
+    }
+
+    const ip = (req.headers['x-forwarded-for']?.toString().split(',')[0].trim()) || req.ip || req.socket.remoteAddress || '';
+    const ipScope = hashIp(ip);
+    const [totalUsed, ipUsed] = await Promise.all([
+      getAgentShareUsage(req.prisma, agent.id, 'all'),
+      getAgentShareUsage(req.prisma, agent.id, ipScope)
+    ]);
+    if (totalUsed >= agent.publicShareDailyLimit) {
+      return res.status(429).json({ error: 'Daily call limit reached for this share link.' });
+    }
+    if (ipUsed >= agent.publicShareIpDailyLimit) {
+      return res.status(429).json({ error: 'You have reached the call limit for today.' });
+    }
+
+    await Promise.all([
+      incrementAgentShareUsage(req.prisma, agent.id, 'all'),
+      incrementAgentShareUsage(req.prisma, agent.id, ipScope)
+    ]);
+
+    res.json({
+      allowed: true,
+      maxDurationSeconds: agent.publicShareMaxDurationSeconds,
+      // Echo the metadata the client should attach to the Vapi call so the
+      // webhook can tag the resulting CallLog as a shared call.
+      metadata: { source: 'public_share', agentId: agent.id }
+    });
+  } catch (error) {
+    console.error('Public agent call-start error:', error);
+    res.status(500).json({ error: 'Failed to start call' });
+  }
+};
+
 module.exports = {
   getAgents,
   getAgent,
@@ -555,5 +772,11 @@ module.exports = {
   duplicateAgent,
   importAgent,
   deleteAgent,
-  checkVapiSync
+  checkVapiSync,
+  enableAgentShare,
+  regenerateAgentShareToken,
+  disableAgentShare,
+  updateAgentShareLimits,
+  getPublicAgentInfo,
+  postPublicAgentCallStart
 };

@@ -50,6 +50,10 @@ export const agentsAPI = {
   update: (id, data) => api.put(`/agents/${id}`, data),
   duplicate: (id) => api.post(`/agents/${id}/duplicate`),
   import: (agentId) => api.post('/agents/import', { agentId }),
+  enableShare: (id) => api.post(`/agents/${id}/share/enable`),
+  regenerateShareToken: (id) => api.post(`/agents/${id}/share/regenerate`),
+  disableShare: (id) => api.post(`/agents/${id}/share/disable`),
+  updateShareLimits: (id, data) => api.put(`/agents/${id}/share/limits`, data),
   delete: (id) => api.delete(`/agents/${id}`)
 }
 

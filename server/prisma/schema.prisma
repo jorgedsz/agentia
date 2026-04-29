@@ -125,12 +125,29 @@ model Agent {
   agentType    String        @default("outbound")
   vapiId       String?
   config       String?
+  publicShareToken              String?  @unique  // Token used in /voice/<id>/<token>; null when disabled
+  publicShareEnabled            Boolean  @default(false)
+  publicShareDailyLimit         Int      @default(20)   // Total shared calls per day
+  publicShareIpDailyLimit       Int      @default(3)    // Per-IP shared calls per day
+  publicShareMaxDurationSeconds Int      @default(180)  // Hard cap per shared call (3 min default)
   userId       Int
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   phoneNumbers     PhoneNumber[]
   trainingSessions TrainingSession[]
+}
+
+model AgentShareUsage {
+  id        Int      @id @default(autoincrement())
+  agentId   String
+  date      DateTime @db.Date
+  scope     String                 // "all" or hashed IP
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([agentId, date, scope])
+  @@index([agentId, date])
 }
 
 model TrainingSession {
@@ -270,6 +287,7 @@ model CallLog {
   structuredData  String?  // JSON string of extracted data
   endedReason     String?  // Why the call ended
   customerNumber  String?  // The customer's phone number
+  source          String?  // null = standard, "public_share" = call from a public share link
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }

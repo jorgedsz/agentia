@@ -614,6 +614,15 @@ export default function AgentEdit() {
 
   // Test Call state
   const [showTestCallModal, setShowTestCallModal] = useState(false)
+  // Share-link state
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareEnabled, setShareEnabled] = useState(false)
+  const [shareToken, setShareToken] = useState('')
+  const [shareDailyLimit, setShareDailyLimit] = useState(20)
+  const [shareIpDailyLimit, setShareIpDailyLimit] = useState(3)
+  const [shareMaxDuration, setShareMaxDuration] = useState(180)
+  const [shareSaving, setShareSaving] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
   const [showTrainingModal, setShowTrainingModal] = useState(false)
 
   useEffect(() => {
@@ -966,6 +975,11 @@ export default function AgentEdit() {
       setAgent(agentData)
       setName(agentData.name || '')
       setDescription(agentData.description || '')
+      setShareEnabled(!!agentData.publicShareEnabled)
+      setShareToken(agentData.publicShareToken || '')
+      setShareDailyLimit(agentData.publicShareDailyLimit || 20)
+      setShareIpDailyLimit(agentData.publicShareIpDailyLimit || 3)
+      setShareMaxDuration(agentData.publicShareMaxDurationSeconds || 180)
       setAgentType(agentData.agentType || agentData.config?.agentType || 'outbound')
       // Use base prompt if available (without auto-generated calendar instructions)
       setSystemPrompt(agentData.config?.systemPromptBase || agentData.config?.systemPrompt || '')
@@ -3106,6 +3120,16 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
               {ta('testAgent')}
             </button>
             <button
+              onClick={() => setShowShareModal(true)}
+              disabled={!agent.vapiId}
+              className={`flex items-center gap-2 px-4 py-2 text-sm rounded-lg disabled:opacity-50 ${shareEnabled ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/30' : 'text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12s-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              {ta('share') || 'Share'}
+            </button>
+            <button
               onClick={() => setShowTrainingModal(true)}
               disabled={!agent.vapiId}
               className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
@@ -3221,6 +3245,170 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
       )}
 
       {/* Test Call Modal */}
+      {showShareModal && (() => {
+        const shareUrl = shareEnabled && shareToken
+          ? `${window.location.origin}/voice/${id}/${shareToken}`
+          : ''
+        const handleEnable = async () => {
+          setShareSaving(true)
+          try {
+            const { data } = await agentsAPI.enableShare(id)
+            setShareEnabled(data.enabled)
+            setShareToken(data.token)
+          } catch (err) {
+            alert(err.response?.data?.error || 'Failed to enable sharing')
+          } finally {
+            setShareSaving(false)
+          }
+        }
+        const handleRegenerate = async () => {
+          if (!confirm(ta('shareRegenerateConfirm') || 'Regenerate the link? The old URL will stop working immediately.')) return
+          setShareSaving(true)
+          try {
+            const { data } = await agentsAPI.regenerateShareToken(id)
+            setShareEnabled(data.enabled)
+            setShareToken(data.token)
+            setShareCopied(false)
+          } catch (err) {
+            alert(err.response?.data?.error || 'Failed to regenerate token')
+          } finally {
+            setShareSaving(false)
+          }
+        }
+        const handleDisable = async () => {
+          if (!confirm(ta('shareDisableConfirm') || 'Disable the public share link?')) return
+          setShareSaving(true)
+          try {
+            await agentsAPI.disableShare(id)
+            setShareEnabled(false)
+          } catch (err) {
+            alert(err.response?.data?.error || 'Failed to disable sharing')
+          } finally {
+            setShareSaving(false)
+          }
+        }
+        const handleCopy = async () => {
+          if (!shareUrl) return
+          try {
+            await navigator.clipboard.writeText(shareUrl)
+            setShareCopied(true)
+            setTimeout(() => setShareCopied(false), 1500)
+          } catch {
+            window.prompt('Copy link:', shareUrl)
+          }
+        }
+        const handleSaveLimits = async () => {
+          setShareSaving(true)
+          try {
+            const { data } = await agentsAPI.updateShareLimits(id, {
+              dailyLimit: Number(shareDailyLimit),
+              ipDailyLimit: Number(shareIpDailyLimit),
+              maxDurationSeconds: Number(shareMaxDuration)
+            })
+            setShareDailyLimit(data.dailyLimit)
+            setShareIpDailyLimit(data.ipDailyLimit)
+            setShareMaxDuration(data.maxDurationSeconds)
+          } catch (err) {
+            alert(err.response?.data?.error || 'Failed to update limits')
+          } finally {
+            setShareSaving(false)
+          }
+        }
+
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => !shareSaving && setShowShareModal(false)}>
+            <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{ta('shareTitle') || 'Share for testing'}</h3>
+                <button onClick={() => setShowShareModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div className="p-5 space-y-5">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {ta('shareVoiceDesc') || 'Generate a public link your client can open to talk to the agent in their browser, no login required. Voice is metered, so the per-call duration cap and per-IP daily limit are enforced strictly.'}
+                </p>
+
+                {!shareEnabled ? (
+                  <button
+                    onClick={handleEnable}
+                    disabled={shareSaving}
+                    className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium disabled:opacity-50"
+                  >
+                    {shareSaving ? (ta('shareWorking') || 'Working…') : (ta('shareEnable') || 'Enable shareable link')}
+                  </button>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{ta('shareLink') || 'Public link'}</label>
+                      <div className="flex gap-2">
+                        <input
+                          readOnly
+                          value={shareUrl}
+                          onFocus={(e) => e.target.select()}
+                          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-white font-mono text-xs"
+                        />
+                        <button
+                          onClick={handleCopy}
+                          className="px-3 py-2 bg-gray-200 dark:bg-dark-bg text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-dark-hover text-xs font-medium border border-gray-300 dark:border-dark-border"
+                        >
+                          {shareCopied ? (ta('shareCopied') || 'Copied!') : (ta('shareCopy') || 'Copy')}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{ta('shareDailyLimitCalls') || 'Calls / day'}</label>
+                        <input type="number" min={1} value={shareDailyLimit}
+                          onChange={(e) => setShareDailyLimit(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{ta('shareIpDailyLimitCalls') || 'Per visitor'}</label>
+                        <input type="number" min={1} value={shareIpDailyLimit}
+                          onChange={(e) => setShareIpDailyLimit(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{ta('shareMaxDuration') || 'Max sec / call'}</label>
+                        <input type="number" min={30} max={1800} value={shareMaxDuration}
+                          onChange={(e) => setShareMaxDuration(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSaveLimits}
+                      disabled={shareSaving}
+                      className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                    >
+                      {ta('shareSaveLimits') || 'Save limits'}
+                    </button>
+
+                    <div className="pt-3 border-t border-gray-100 dark:border-dark-border flex gap-2">
+                      <button
+                        onClick={handleRegenerate}
+                        disabled={shareSaving}
+                        className="flex-1 px-3 py-2 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/30 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-50"
+                      >
+                        {ta('shareRegenerate') || 'Regenerate token'}
+                      </button>
+                      <button
+                        onClick={handleDisable}
+                        disabled={shareSaving}
+                        className="flex-1 px-3 py-2 text-xs font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50"
+                      >
+                        {ta('shareDisable') || 'Disable sharing'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {showTestCallModal && (
         <TestCallModal agent={agent} onClose={() => setShowTestCallModal(false)} />
       )}

@@ -613,6 +613,10 @@ const handleEvent = async (req, res) => {
 
     // 4. Update or create CallLog (encrypt PHI fields before DB write)
     const existingLog = await prisma.callLog.findUnique({ where: { vapiCallId } });
+    // The Vapi metadata field carries our own tags (e.g. source: "public_share")
+    // which were attached when the call started. Persist it on the row.
+    const callMetadata = call.metadata || {};
+    const sourceTag = typeof callMetadata.source === 'string' ? callMetadata.source : null;
     const callLogData = encryptPHI({
       durationSeconds,
       costCharged: cost,
@@ -624,6 +628,7 @@ const handleEvent = async (req, res) => {
       structuredData: structuredData ? (typeof structuredData === 'string' ? structuredData : JSON.stringify(structuredData)) : null,
       endedReason,
       customerNumber,
+      ...(sourceTag ? { source: sourceTag } : {}),
       ...(agent ? { agentId: agent.id } : {})
     });
 

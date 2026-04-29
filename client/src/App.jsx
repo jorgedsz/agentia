@@ -34,6 +34,7 @@ import ClientPortalPage from './components/Portal/ClientPortalPage'
 import SessionPortalPage from './components/Portal/SessionPortalPage'
 import MessagePortalPage from './components/Portal/MessagePortalPage'
 import PublicChatPage from './components/PublicChat/PublicChatPage'
+import PublicVoicePage from './components/PublicChat/PublicVoicePage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -111,6 +112,7 @@ function App() {
         <Route path="/portal/:token/sessions/:sessionId" element={<SessionPortalPage />} />
         <Route path="/portal/:token/messages/:sessionId" element={<MessagePortalPage />} />
         <Route path="/chat/:id/:token" element={<PublicChatPage />} />
+        <Route path="/voice/:id/:token" element={<PublicVoicePage />} />
         <Route
           path="/"
           element={
