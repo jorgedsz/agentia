@@ -9,11 +9,12 @@ const getSettings = async (req, res) => {
     const settings = await req.prisma.platformSettings.findFirst();
 
     if (!settings) {
-      return res.json({ vapiApiKey: '', openaiApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', recurringPaymentWebhookUrl: '', n8nUrl: '', n8nApiKey: '', hasVapi: false, hasOpenai: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false, hasRecurringPaymentWebhook: false, hasN8nUrl: false, hasN8nApiKey: false });
+      return res.json({ vapiApiKey: '', openaiApiKey: '', anthropicApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', recurringPaymentWebhookUrl: '', n8nUrl: '', n8nApiKey: '', hasVapi: false, hasOpenai: false, hasAnthropic: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false, hasRecurringPaymentWebhook: false, hasN8nUrl: false, hasN8nApiKey: false });
     }
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
     const decryptedOpenai = settings.openaiApiKey ? decrypt(settings.openaiApiKey) : '';
+    const decryptedAnthropic = settings.anthropicApiKey ? decrypt(settings.anthropicApiKey) : '';
     const decryptedVapiPublic = settings.vapiPublicKey ? decrypt(settings.vapiPublicKey) : '';
     const decryptedElevenLabs = settings.elevenLabsApiKey ? decrypt(settings.elevenLabsApiKey) : '';
     const decryptedSlackWebhook = settings.slackWebhookUrl ? decrypt(settings.slackWebhookUrl) : '';
@@ -25,6 +26,7 @@ const getSettings = async (req, res) => {
     res.json({
       vapiApiKey: decryptedVapi ? mask(decryptedVapi, 4) : '',
       openaiApiKey: decryptedOpenai ? mask(decryptedOpenai, 4) : '',
+      anthropicApiKey: decryptedAnthropic ? mask(decryptedAnthropic, 4) : '',
       vapiPublicKey: decryptedVapiPublic ? mask(decryptedVapiPublic, 4) : '',
       elevenLabsApiKey: decryptedElevenLabs ? mask(decryptedElevenLabs, 4) : '',
       slackWebhookUrl: decryptedSlackWebhook ? mask(decryptedSlackWebhook, 4) : '',
@@ -34,6 +36,7 @@ const getSettings = async (req, res) => {
       n8nApiKey: decryptedN8nApiKey ? mask(decryptedN8nApiKey, 4) : '',
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
+      hasAnthropic: !!decryptedAnthropic,
       hasVapiPublicKey: !!decryptedVapiPublic,
       hasElevenLabs: !!decryptedElevenLabs,
       hasSlackWebhook: !!decryptedSlackWebhook,
@@ -54,7 +57,7 @@ const updateSettings = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can update platform settings' });
     }
 
-    const { vapiApiKey, openaiApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl, recurringPaymentWebhookUrl, n8nUrl, n8nApiKey } = req.body;
+    const { vapiApiKey, openaiApiKey, anthropicApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl, recurringPaymentWebhookUrl, n8nUrl, n8nApiKey } = req.body;
 
     const existing = await req.prisma.platformSettings.findFirst();
 
@@ -64,6 +67,9 @@ const updateSettings = async (req, res) => {
     }
     if (openaiApiKey !== undefined) {
       data.openaiApiKey = openaiApiKey ? encrypt(openaiApiKey) : null;
+    }
+    if (anthropicApiKey !== undefined) {
+      data.anthropicApiKey = anthropicApiKey ? encrypt(anthropicApiKey) : null;
     }
     if (vapiPublicKey !== undefined) {
       data.vapiPublicKey = vapiPublicKey ? encrypt(vapiPublicKey) : null;
@@ -99,6 +105,7 @@ const updateSettings = async (req, res) => {
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
     const decryptedOpenai = settings.openaiApiKey ? decrypt(settings.openaiApiKey) : '';
+    const decryptedAnthropic = settings.anthropicApiKey ? decrypt(settings.anthropicApiKey) : '';
     const decryptedVapiPublic = settings.vapiPublicKey ? decrypt(settings.vapiPublicKey) : '';
     const decryptedElevenLabs = settings.elevenLabsApiKey ? decrypt(settings.elevenLabsApiKey) : '';
     const decryptedSlackWebhook = settings.slackWebhookUrl ? decrypt(settings.slackWebhookUrl) : '';
@@ -111,6 +118,7 @@ const updateSettings = async (req, res) => {
       message: 'Platform settings updated',
       vapiApiKey: decryptedVapi ? mask(decryptedVapi, 4) : '',
       openaiApiKey: decryptedOpenai ? mask(decryptedOpenai, 4) : '',
+      anthropicApiKey: decryptedAnthropic ? mask(decryptedAnthropic, 4) : '',
       vapiPublicKey: decryptedVapiPublic ? mask(decryptedVapiPublic, 4) : '',
       elevenLabsApiKey: decryptedElevenLabs ? mask(decryptedElevenLabs, 4) : '',
       slackWebhookUrl: decryptedSlackWebhook ? mask(decryptedSlackWebhook, 4) : '',
@@ -120,6 +128,7 @@ const updateSettings = async (req, res) => {
       n8nApiKey: decryptedN8nApiKey ? mask(decryptedN8nApiKey, 4) : '',
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
+      hasAnthropic: !!decryptedAnthropic,
       hasVapiPublicKey: !!decryptedVapiPublic,
       hasElevenLabs: !!decryptedElevenLabs,
       hasSlackWebhook: !!decryptedSlackWebhook,

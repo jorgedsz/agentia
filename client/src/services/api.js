@@ -53,6 +53,14 @@ export const agentsAPI = {
   delete: (id) => api.delete(`/agents/${id}`)
 }
 
+// Reports API
+export const reportsAPI = {
+  list: () => api.get('/reports'),
+  get: (id) => api.get(`/reports/${id}`),
+  create: (data) => api.post('/reports', data),
+  delete: (id) => api.delete(`/reports/${id}`)
+}
+
 // Chatbots API
 export const chatbotsAPI = {
   list: () => api.get('/chatbots'),

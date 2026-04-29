@@ -199,6 +199,7 @@ model PlatformSettings {
   vapiApiKey         String?  // Encrypted
   vapiPublicKey      String?  // Encrypted - VAPI Public Key for web SDK
   openaiApiKey       String?  // Encrypted
+  anthropicApiKey    String?  // Encrypted - Claude API key used for Reports feature
   elevenLabsApiKey   String?  // Encrypted - ElevenLabs API Key for voice library
   slackWebhookUrl    String?  // Encrypted - Slack incoming webhook URL
   n8nUrl             String?  // Encrypted - Self-hosted n8n instance URL
@@ -207,6 +208,26 @@ model PlatformSettings {
   recurringPaymentWebhookUrl String? // Encrypted - Webhook URL for recurring payment notifications
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  userId    Int
+  name      String
+  prompt    String   @db.Text
+  dataset   String   // 'calls' | 'chatbots' | 'both'
+  filters   String?  @db.Text  // JSON: dateFrom, dateTo, agentIds, chatbotIds, outcomes, limit
+  model     String   // claude-sonnet-4-6 | claude-opus-4-7 | claude-haiku-4-5-20251001
+  status    String   @default("pending") // pending | running | done | failed
+  result    String?  @db.Text
+  tokensIn  Int?
+  tokensOut Int?
+  rowsUsed  Int?
+  error     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
 }
 
 model CallRate {

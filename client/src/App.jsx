@@ -22,6 +22,9 @@ import Training from './components/Dashboard/Training'
 import Payments from './components/Dashboard/Payments'
 import ChatbotList from './components/Dashboard/ChatbotList'
 import ChatbotEdit from './components/Dashboard/ChatbotEdit'
+import ReportsList from './components/Dashboard/ReportsList'
+import ReportNew from './components/Dashboard/ReportNew'
+import ReportDetail from './components/Dashboard/ReportDetail'
 import ScheduledCalls from './components/Dashboard/ScheduledCalls'
 import WhatsAppPage from './components/Dashboard/WhatsAppPage'
 import PrivacyPolicy from './components/Legal/PrivacyPolicy'
@@ -144,6 +147,9 @@ function App() {
           <Route path="voice-library" element={<VoiceLibrary />} />
           <Route path="chatbots" element={<ChatbotList />} />
           <Route path="chatbot/:id" element={<ChatbotEdit />} />
+          <Route path="reports" element={<ReportsList />} />
+          <Route path="reports/new" element={<ReportNew />} />
+          <Route path="reports/:id" element={<ReportDetail />} />
           <Route path="payments" element={<Payments />} />
           <Route path="tutorials/:lang" element={<Training />} />
           <Route path="training" element={<Navigate to="/dashboard/tutorials/en" replace />} />

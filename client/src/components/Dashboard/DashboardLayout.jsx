@@ -80,6 +80,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   ),
+  Reports: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6h13M9 11V5a2 2 0 012-2h7a2 2 0 012 2v14a2 2 0 01-2 2h-7a2 2 0 01-2-2v-2M5 13l4 4-4 4" />
+    </svg>
+  ),
   Wallet: () => (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -210,6 +215,7 @@ export default function DashboardLayout() {
     if (path === '/dashboard') return 'overview'
     if (path.startsWith('/dashboard/agent/')) return 'agents'
     if (path.startsWith('/dashboard/chatbot/')) return 'chatbots'
+    if (path.startsWith('/dashboard/reports')) return 'reports'
     const tab = path.replace('/dashboard/', '')
     return tab || 'overview'
   }
@@ -239,6 +245,12 @@ export default function DashboardLayout() {
       items: [
         { id: 'chatbots', path: '/dashboard/chatbots', label: t('sidebar.myChatbots') || 'My Chatbots', icon: Icons.Chatbot, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'create-chatbot', label: t('sidebar.createChatbot') || 'Create Chatbot', icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT], isAction: true, actionType: 'chatbot' },
+      ]
+    },
+    {
+      title: t('sidebar.sectionReports') || 'Reports',
+      items: [
+        { id: 'reports', path: '/dashboard/reports', label: t('sidebar.reports') || 'Reports', icon: Icons.Reports, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     },
     {

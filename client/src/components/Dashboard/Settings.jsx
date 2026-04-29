@@ -1919,10 +1919,13 @@ function APIKeysTab() {
   const [platSuccess, setPlatSuccess] = useState('')
   const [openaiApiKey, setOpenaiApiKey] = useState('')
   const [elevenLabsApiKey, setElevenLabsApiKey] = useState('')
+  const [anthropicApiKey, setAnthropicApiKey] = useState('')
   const [hasOpenai, setHasOpenai] = useState(false)
   const [hasElevenLabs, setHasElevenLabs] = useState(false)
+  const [hasAnthropic, setHasAnthropic] = useState(false)
   const [maskedOpenai, setMaskedOpenai] = useState('')
   const [maskedElevenLabs, setMaskedElevenLabs] = useState('')
+  const [maskedAnthropic, setMaskedAnthropic] = useState('')
   const [n8nUrl, setN8nUrl] = useState('')
   const [n8nApiKey, setN8nApiKey] = useState('')
   const [hasN8nUrl, setHasN8nUrl] = useState(false)
@@ -1994,8 +1997,10 @@ function APIKeysTab() {
       const { data } = await platformSettingsAPI.get()
       setHasOpenai(data.hasOpenai)
       setHasElevenLabs(data.hasElevenLabs)
+      setHasAnthropic(data.hasAnthropic)
       setMaskedOpenai(data.openaiApiKey || '')
       setMaskedElevenLabs(data.elevenLabsApiKey || '')
+      setMaskedAnthropic(data.anthropicApiKey || '')
       setHasN8nUrl(data.hasN8nUrl)
       setHasN8nApiKey(data.hasN8nApiKey)
       setMaskedN8nUrl(data.n8nUrl || '')
@@ -2064,22 +2069,26 @@ function APIKeysTab() {
       const payload = {}
       if (field === 'openai') payload.openaiApiKey = openaiApiKey
       if (field === 'elevenLabs') payload.elevenLabsApiKey = elevenLabsApiKey
+      if (field === 'anthropic') payload.anthropicApiKey = anthropicApiKey
       if (field === 'n8nUrl') payload.n8nUrl = n8nUrl
       if (field === 'n8nApiKey') payload.n8nApiKey = n8nApiKey
       const { data } = await platformSettingsAPI.update(payload)
       setHasOpenai(data.hasOpenai)
       setHasElevenLabs(data.hasElevenLabs)
+      setHasAnthropic(data.hasAnthropic)
       setMaskedOpenai(data.openaiApiKey || '')
       setMaskedElevenLabs(data.elevenLabsApiKey || '')
+      setMaskedAnthropic(data.anthropicApiKey || '')
       setHasN8nUrl(data.hasN8nUrl)
       setHasN8nApiKey(data.hasN8nApiKey)
       setMaskedN8nUrl(data.n8nUrl || '')
       setMaskedN8nApiKey(data.n8nApiKey || '')
       setOpenaiApiKey('')
       setElevenLabsApiKey('')
+      setAnthropicApiKey('')
       setN8nUrl('')
       setN8nApiKey('')
-      const fieldLabel = { elevenLabs: 'ElevenLabs', openai: 'OpenAI', n8nUrl: 'n8n URL', n8nApiKey: 'n8n API Key' }[field] || field
+      const fieldLabel = { elevenLabs: 'ElevenLabs', openai: 'OpenAI', anthropic: 'Anthropic', n8nUrl: 'n8n URL', n8nApiKey: 'n8n API Key' }[field] || field
       setPlatSuccess(`${fieldLabel} key updated successfully`)
       setTimeout(() => setPlatSuccess(''), 3000)
     } catch (err) {
@@ -2090,7 +2099,7 @@ function APIKeysTab() {
   }
 
   const handlePlatRemove = async (field) => {
-    const fieldLabel = { elevenLabs: 'ElevenLabs', openai: 'OpenAI', n8nUrl: 'n8n URL', n8nApiKey: 'n8n API Key' }[field] || field
+    const fieldLabel = { elevenLabs: 'ElevenLabs', openai: 'OpenAI', anthropic: 'Anthropic', n8nUrl: 'n8n URL', n8nApiKey: 'n8n API Key' }[field] || field
     if (!confirm(`Are you sure you want to remove the ${fieldLabel}?`)) return
     setPlatError('')
     setPlatSuccess('')
@@ -2099,13 +2108,16 @@ function APIKeysTab() {
       const payload = {}
       if (field === 'openai') payload.openaiApiKey = ''
       if (field === 'elevenLabs') payload.elevenLabsApiKey = ''
+      if (field === 'anthropic') payload.anthropicApiKey = ''
       if (field === 'n8nUrl') payload.n8nUrl = ''
       if (field === 'n8nApiKey') payload.n8nApiKey = ''
       const { data } = await platformSettingsAPI.update(payload)
       setHasOpenai(data.hasOpenai)
       setHasElevenLabs(data.hasElevenLabs)
+      setHasAnthropic(data.hasAnthropic)
       setMaskedOpenai(data.openaiApiKey || '')
       setMaskedElevenLabs(data.elevenLabsApiKey || '')
+      setMaskedAnthropic(data.anthropicApiKey || '')
       setHasN8nUrl(data.hasN8nUrl)
       setHasN8nApiKey(data.hasN8nApiKey)
       setMaskedN8nUrl(data.n8nUrl || '')
@@ -2353,6 +2365,18 @@ function APIKeysTab() {
                 onRemove={() => handlePlatRemove('elevenLabs')}
                 saving={platSaving}
                 placeholder={hasElevenLabs ? t('settings.enterNewKey') : t('settings.enterElevenLabsKey')}
+              />
+              <KeyRow
+                title="Anthropic API Key"
+                description="Used by the Reports feature to generate analyses with Claude. Create a key at console.anthropic.com."
+                hasKey={hasAnthropic}
+                masked={maskedAnthropic}
+                inputValue={anthropicApiKey}
+                onInputChange={(e) => setAnthropicApiKey(e.target.value)}
+                onSave={() => handlePlatSave('anthropic')}
+                onRemove={() => handlePlatRemove('anthropic')}
+                saving={platSaving}
+                placeholder={hasAnthropic ? t('settings.enterNewKey') : 'sk-ant-...'}
               />
             </>
           )}

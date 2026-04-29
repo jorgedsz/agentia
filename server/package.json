@@ -17,6 +17,7 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
     "@prisma/client": "^5.10.0",
     "@vapi-ai/server-sdk": "^0.1.0",
     "axios": "^1.13.6",
