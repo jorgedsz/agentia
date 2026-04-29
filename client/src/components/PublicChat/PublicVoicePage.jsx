@@ -72,11 +72,15 @@ export default function PublicVoicePage() {
     setVolume(0)
 
     try {
-      // 1. Hit the backend to validate quotas and get the metadata to attach.
+      // 1. Hit the backend to validate quotas. We ignore metadata for now — the
+      //    Vapi Web SDK rejects unknown fields on assistantOverrides, so we can't
+      //    pass metadata through `vapi.start`. Quota is still enforced server-side
+      //    (counter is incremented here regardless), and we cap duration in the
+      //    browser via a hard-stop timer below.
       const startResp = await axios.post(
         `${API_URL}/agents/${id}/public-share/${token}/call-start`
       )
-      const { metadata, maxDurationSeconds } = startResp.data
+      const { maxDurationSeconds } = startResp.data
       const cap = Math.max(30, Math.min(maxDurationSeconds || 180, 1800))
 
       // 2. Spin up the Vapi Web SDK and wire events.
@@ -87,9 +91,6 @@ export default function PublicVoicePage() {
       vapi.on('call-start', () => {
         setStatus('active')
         timerRef.current = setInterval(() => setElapsed((p) => p + 1), 1000)
-        // Belt-and-suspenders: stop the call client-side if the cap is hit. Vapi
-        // also enforces maxDurationSeconds server-side, but if for some reason
-        // it doesn't, we don't want a runaway browser tab burning credits.
         hardStopRef.current = setTimeout(() => {
           try { vapi.stop() } catch { /* ignore */ }
         }, (cap + 2) * 1000)
@@ -102,20 +103,21 @@ export default function PublicVoicePage() {
       vapi.on('volume-level', (level) => setVolume(level))
       vapi.on('error', (err) => {
         console.error('Vapi error:', err)
+        const detail = err?.error?.message || err?.message || err?.errorMsg ||
+          (typeof err === 'string' ? err : null)
         setStatus('ended')
-        setStatusMessage(err?.message || 'Call failed.')
+        setStatusMessage(detail || 'Call failed (see browser console for details).')
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
         if (hardStopRef.current) { clearTimeout(hardStopRef.current); hardStopRef.current = null }
       })
 
-      // 3. Start the call. Override the assistant's max duration to enforce the cap,
-      // and tag the metadata so the call shows up on the owner's dashboard as a
-      // shared call.
-      await vapi.start(info.vapiAssistantId, {
-        metadata,
-        maxDurationSeconds: cap
-      })
+      // 3. Start the call — assistantId only, no overrides. Vapi's Web SDK
+      //    `assistantOverrides` parameter only accepts a narrow set of fields
+      //    (not metadata or maxDurationSeconds); passing extras causes Vapi to
+      //    reject the call.
+      await vapi.start(info.vapiAssistantId)
     } catch (err) {
+      console.error('Public voice start failed:', err)
       const code = err.response?.status
       const msg = err.response?.data?.error || err?.message || 'Could not start call.'
       setStatus('ended')
