@@ -221,14 +221,18 @@ export default function ChatbotEdit() {
     try {
       const { data } = await ghlAPI.getCustomFields('contact')
       setGhlContactCfs(data.customFields || [])
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error('Failed to load GHL contact custom fields:', err.response?.data?.error || err.message)
+    }
   }
   const ensureGhlOppCfsLoaded = async () => {
     if (ghlOppCfs.length) return
     try {
       const { data } = await ghlAPI.getCustomFields('opportunity')
       setGhlOppCfs(data.customFields || [])
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error('Failed to load GHL opportunity custom fields:', err.response?.data?.error || err.message)
+    }
   }
 
   // Unified tools modal

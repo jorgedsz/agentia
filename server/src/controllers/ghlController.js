@@ -1041,9 +1041,10 @@ const getCustomFields = async (req, res) => {
     const { token, locationId } = conn;
 
     try {
-      // Optional model filter — GHL returns both contact and opportunity fields.
-      // We pass through the model query param so the API can filter natively, then
-      // also defensively re-filter the response in case GHL ignores the param.
+      // Optional model filter — GHL accepts ?model=contact|opportunity. We pass
+      // it through and trust GHL to filter. We only re-filter client-side when
+      // the response actually carries a `model` field per item; otherwise we
+      // return whatever GHL gave us (better than dropping everything silently).
       const modelFilter = (req.query.model || '').toString().toLowerCase();
       const url = modelFilter
         ? `/locations/${locationId}/customFields?model=${encodeURIComponent(modelFilter)}`
@@ -1055,10 +1056,11 @@ const getCustomFields = async (req, res) => {
         name: f.name,
         fieldKey: f.fieldKey,
         dataType: f.dataType,
-        model: f.model || (f.parentId ? 'opportunity' : 'contact')
+        model: f.model
       }));
 
-      const customFields = modelFilter
+      const itemsCarryModel = all.some(f => !!f.model);
+      const customFields = (modelFilter && itemsCarryModel)
         ? all.filter(f => (f.model || '').toLowerCase() === modelFilter)
         : all;
 
