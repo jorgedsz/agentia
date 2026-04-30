@@ -126,7 +126,7 @@ async function updateOpportunity(req, res) {
 }
 
 /**
- * Resolve a list of {id, value} custom field writes from a config spec + AI body.
+ * Resolve a list of {id, field_value} custom field writes from a config spec + AI body.
  *
  * `spec` shape (passed through query param as URL-encoded JSON):
  *   [{ id, mode: 'static'|'ai', value?, bodyKey? }, ...]
@@ -134,6 +134,9 @@ async function updateOpportunity(req, res) {
  * Static entries take their value directly from the spec. AI entries take their
  * value from `body[bodyKey]` (which the AI is told to fill via the tool schema).
  * Empty / undefined values are dropped.
+ *
+ * The GHL v2 contact/opportunity APIs require the `field_value` key (NOT `value`)
+ * when writing custom fields — using `value` is silently ignored.
  */
 function resolveCustomFields(specRaw, aiBody) {
   if (!specRaw) return [];
@@ -154,7 +157,7 @@ function resolveCustomFields(specRaw, aiBody) {
       value = entry.value;
     }
     if (value === undefined || value === null || value === '') return [];
-    return [{ id: entry.id, value }];
+    return [{ id: entry.id, field_value: value }];
   });
 }
 
