@@ -822,6 +822,27 @@ export default function ChatbotEdit() {
       return base || `cf_${idx}`
     }
 
+    // Collect unique AI-mode contact custom fields across all opps. Each one
+    // becomes its own dedicated `ghl_set_contact_<slug>` tool below. We need
+    // the slug/toolName ahead of the opp loop so the opp's tool description
+    // can nudge the model to call the right field tool after the move.
+    const aiContactFields = new Map()
+    ;(ghlCrmConfig.opportunities || []).forEach(opp => {
+      ;(opp.contactCustomFields || []).forEach((entry, idx) => {
+        if (!entry?.fieldId || entry.mode !== 'ai') return
+        if (aiContactFields.has(entry.fieldId)) return
+        const slug = slugifyKey(entry.fieldKey || entry.fieldName, idx)
+        aiContactFields.set(entry.fieldId, {
+          fieldId: entry.fieldId,
+          fieldName: entry.fieldName,
+          fieldKey: entry.fieldKey,
+          instruction: entry.instruction || '',
+          slug,
+          toolName: `ghl_set_contact_${slug}`
+        })
+      })
+    })
+
     ;(ghlCrmConfig.opportunities || []).forEach((opp, i) => {
       const suffix = (ghlCrmConfig.opportunities.length > 1) ? `_${i + 1}` : ''
       const pNote = opp.pipelineId ? ` Pipeline: "${opp.pipelineName}" (${opp.pipelineId}).` : ''
@@ -838,42 +859,32 @@ export default function ChatbotEdit() {
         props.note = { type: 'string', description: `A note to add to the contact. ${opp.noteInstruction}` }
       }
 
-      // Build custom-field spec sent in the URL (server reads this and decides which
-      // get static literals vs which read from the AI-filled body keys).
-      const aiInstrLines = []
-      const buildCfSpec = (entries, kind) => {
-        const usedKeys = new Set()
-        const spec = []
-        ;(entries || []).forEach((entry, idx) => {
-          if (!entry?.fieldId) return
-          if (entry.mode === 'static') {
-            spec.push({ id: entry.fieldId, mode: 'static', value: entry.value ?? '' })
-          } else {
-            let key = slugifyKey(entry.fieldKey || entry.fieldName, idx)
-            let n = 2
-            while (usedKeys.has(key)) { key = `${slugifyKey(entry.fieldKey || entry.fieldName, idx)}_${n++}` }
-            usedKeys.add(key)
-            spec.push({ id: entry.fieldId, mode: 'ai', bodyKey: key })
-            const fieldLabel = entry.fieldName || entry.fieldKey || entry.fieldId
-            const instr = entry.instruction ? ` ${entry.instruction}` : ''
-            props[key] = {
-              type: 'string',
-              description: `Value for the GHL ${kind === 'opp' ? 'opportunity' : 'contact'} custom field "${fieldLabel}".${instr}`
-            }
-            // Hoist into the top-level tool description so the AI is reminded
-            // to actually fill this parameter (mirrors how noteInstruction works).
-            aiInstrLines.push(
-              `ALSO fill the parameter "${key}" with the value for the ${kind === 'opp' ? 'opportunity' : 'contact'} custom field "${fieldLabel}"${entry.instruction ? `: ${entry.instruction}` : '.'}`
-            )
-          }
-        })
-        return spec
-      }
+      // Static-only spec for the opp URL. AI-mode contact fields are handled
+      // by dedicated `ghl_set_contact_<slug>` tools instead — n8n's
+      // toolHttpRequest treats every entry in placeholderDefinitions as a
+      // required tool-call arg, so embedding optional AI props on the opp
+      // tool produces "Required → at <prop>" mismatches when the model omits
+      // them (and stripping them entirely hides the field from the AI).
+      const buildStaticCfSpec = (entries) => (entries || [])
+        .filter(e => e?.fieldId && e.mode === 'static')
+        .map(e => ({ id: e.fieldId, mode: 'static', value: e.value ?? '' }))
 
-      const contactCfSpec = buildCfSpec(opp.contactCustomFields, 'contact')
-      const oppCfSpec = buildCfSpec(opp.opportunityCustomFields, 'opp')
+      const contactCfSpec = buildStaticCfSpec(opp.contactCustomFields)
+      const oppCfSpec = buildStaticCfSpec(opp.opportunityCustomFields)
 
-      const cfDesc = aiInstrLines.length ? ' ' + aiInstrLines.join(' ') : ''
+      // Hint pointing the model at the dedicated field tool(s) it should call
+      // after this opportunity move, for AI-mode contact fields configured on
+      // this opp.
+      const aiCfsOnThisOpp = (opp.contactCustomFields || [])
+        .filter(e => e?.fieldId && e.mode === 'ai')
+        .map(e => aiContactFields.get(e.fieldId))
+        .filter(Boolean)
+      const cfHint = aiCfsOnThisOpp.length
+        ? ' AFTER this call, ALSO call ' + aiCfsOnThisOpp.map(t => {
+            const label = t.fieldName || t.fieldKey || t.fieldId
+            return `\`${t.toolName}\`${t.instruction ? ` (${t.instruction})` : ` to set the contact's "${label}" field`}`
+          }).join(' AND ') + '.'
+        : ''
 
       let url = `${base}/upsert-opportunity?${qp}`
       if (contactCfSpec.length) url += `&contactCf=${encodeURIComponent(JSON.stringify(contactCfSpec))}`
@@ -882,8 +893,29 @@ export default function ChatbotEdit() {
       ghlTools.push({
         type: 'apiRequest', method: 'POST', url,
         name: `ghl_manage_opportunity${suffix}`,
-        description: `Manage a GHL opportunity — creates it if it doesn't exist, or updates it if it does.${pNote}${sNote}${scenario}${noteInstr}${cfDesc}`,
+        description: `Manage a GHL opportunity — creates it if it doesn't exist, or updates it if it does.${pNote}${sNote}${scenario}${noteInstr}${cfHint}`,
         body: { type: 'object', properties: props, required: ['pipelineId', 'stageId', 'name'] },
+        timeoutSeconds: 30
+      })
+    })
+
+    // One dedicated tool per unique AI-mode contact custom field. Schema is
+    // a single required `value` so n8n never raises a placeholder mismatch.
+    aiContactFields.forEach((t) => {
+      const label = t.fieldName || t.fieldKey || t.fieldId
+      const instrSuffix = t.instruction ? ` ${t.instruction}` : ''
+      ghlTools.push({
+        type: 'apiRequest', method: 'POST',
+        url: `${base}/set-contact-field?${qp}&fieldId=${encodeURIComponent(t.fieldId)}`,
+        name: t.toolName,
+        description: `Set the GHL contact custom field "${label}" on the inbound contact.${instrSuffix} Call this after moving an opportunity (or whenever you have new information worth recording on the contact).`,
+        body: {
+          type: 'object',
+          properties: {
+            value: { type: 'string', description: t.instruction || `Value to write to the "${label}" field.` }
+          },
+          required: ['value']
+        },
         timeoutSeconds: 30
       })
     })

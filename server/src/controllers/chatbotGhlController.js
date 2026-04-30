@@ -298,6 +298,54 @@ async function upsertOpportunity(req, res) {
 }
 
 /**
+ * POST /api/chatbot-ghl/set-contact-field?userId=X&fieldId=Y
+ * Body: { value }
+ * Writes a single GHL contact custom field. Used by per-field dedicated
+ * tools (one tool per AI-mode contact custom field) — gives the model a
+ * minimal, single-required-arg schema so n8n's toolHttpRequest doesn't
+ * raise "Required → at <prop>" mismatches when other props are absent.
+ *
+ * Sends `{ id, field_value }` (NOT `value`) per GHL v2 contracts.
+ */
+async function setContactField(req, res) {
+  try {
+    const { userId, fieldId } = req.query;
+    const value = req.body?.value;
+    const contactId = req.query.contactId || req.body?.contactId;
+
+    if (!userId) {
+      return res.json({ success: false, message: 'Missing required query param: userId' });
+    }
+    if (!fieldId) {
+      return res.json({ success: false, message: 'Missing required query param: fieldId' });
+    }
+    if (!contactId) {
+      return res.json({ success: false, message: 'Missing required parameter: contactId' });
+    }
+    if (value === undefined || value === null || value === '') {
+      return res.json({ success: false, message: 'Missing required body parameter: value' });
+    }
+
+    const conn = await findGhlConnection(parseInt(userId), req.prisma);
+    if (!conn) {
+      return res.json({ success: false, message: 'GoHighLevel is not connected for this user.' });
+    }
+
+    const payload = { customFields: [{ id: fieldId, field_value: value }] };
+    console.log('[Chatbot GHL] setContactField PUT /contacts/' + contactId + ' payload:', JSON.stringify(payload));
+    await ghlRequest(`/contacts/${contactId}`, conn.token, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+
+    return res.json({ success: true, message: `Updated custom field on contact ${contactId}.` });
+  } catch (error) {
+    console.error('[Chatbot GHL] setContactField error:', error);
+    return res.json({ success: false, message: `Error setting custom field: ${error.message}` });
+  }
+}
+
+/**
  * POST /api/chatbot-ghl/add-tags?userId=X
  * Body: { contactId, tags }  (tags = array of strings)
  * Adds tags to a GHL contact (merges with existing).
@@ -385,6 +433,7 @@ module.exports = {
   createOpportunity,
   updateOpportunity,
   upsertOpportunity,
+  setContactField,
   addTags,
   addToWorkflow
 };
