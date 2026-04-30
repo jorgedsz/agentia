@@ -424,6 +424,7 @@
     "creditsBalance": "Saldo de créditos",
     "loadCredits": "Cargar Créditos",
     "loadCreditsDesc": "Contacta a tu administrador para agregar créditos.",
+    "contactAdminCredits": "La compra de créditos aún no está disponible. Contacta a tu administrador.",
     "creditAmount": "Monto",
     "customAmount": "Monto personalizado",
     "customAmountPlaceholder": "Ingresa el monto...",

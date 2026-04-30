@@ -424,6 +424,7 @@
     "creditsBalance": "Credits Balance",
     "loadCredits": "Load Credits",
     "loadCreditsDesc": "Contact your administrator to add credits.",
+    "contactAdminCredits": "Credit purchasing is not available yet. Contact your administrator.",
     "creditAmount": "Amount",
     "customAmount": "Custom Amount",
     "customAmountPlaceholder": "Enter amount...",
