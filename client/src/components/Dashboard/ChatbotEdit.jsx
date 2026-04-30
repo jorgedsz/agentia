@@ -840,11 +840,7 @@ export default function ChatbotEdit() {
 
       // Build custom-field spec sent in the URL (server reads this and decides which
       // get static literals vs which read from the AI-filled body keys).
-      // Body keys for AI-filled fields must be added to `required` because n8n's
-      // toolHttpRequest template builder drops any non-required schema property,
-      // so without this the AI would never see (let alone fill) these parameters.
       const aiInstrLines = []
-      const aiBodyKeys = []
       const buildCfSpec = (entries, kind) => {
         const usedKeys = new Set()
         const spec = []
@@ -864,7 +860,6 @@ export default function ChatbotEdit() {
               type: 'string',
               description: `Value for the GHL ${kind === 'opp' ? 'opportunity' : 'contact'} custom field "${fieldLabel}".${instr}`
             }
-            aiBodyKeys.push(key)
             // Hoist into the top-level tool description so the AI is reminded
             // to actually fill this parameter (mirrors how noteInstruction works).
             aiInstrLines.push(
@@ -884,15 +879,11 @@ export default function ChatbotEdit() {
       if (contactCfSpec.length) url += `&contactCf=${encodeURIComponent(JSON.stringify(contactCfSpec))}`
       if (oppCfSpec.length) url += `&oppCf=${encodeURIComponent(JSON.stringify(oppCfSpec))}`
 
-      const required = ['pipelineId', 'stageId', 'name']
-      if (opp.noteInstruction) required.push('note')
-      required.push(...aiBodyKeys)
-
       ghlTools.push({
         type: 'apiRequest', method: 'POST', url,
         name: `ghl_manage_opportunity${suffix}`,
         description: `Manage a GHL opportunity — creates it if it doesn't exist, or updates it if it does.${pNote}${sNote}${scenario}${noteInstr}${cfDesc}`,
-        body: { type: 'object', properties: props, required },
+        body: { type: 'object', properties: props, required: ['pipelineId', 'stageId', 'name'] },
         timeoutSeconds: 30
       })
     })
