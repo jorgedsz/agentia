@@ -19,10 +19,11 @@ export default function Credits() {
   const canManageCredits = user?.role === 'OWNER' || user?.role === 'AGENCY'
 
   // Buy credits state
-  const [creditTiers, setCreditTiers] = useState([])
+  const [creditConfig, setCreditConfig] = useState({ enabled: false, min: 1, max: 10000, presets: [] })
+  const [buyAmount, setBuyAmount] = useState('')
   const [buyModalOpen, setBuyModalOpen] = useState(false)
   const [checkoutModal, setCheckoutModal] = useState(null) // { planId }
-  const [buyLoading, setBuyLoading] = useState(null) // tier amount being purchased
+  const [buyLoading, setBuyLoading] = useState(false)
   const [success, setSuccess] = useState('')
   const [searchParams] = useSearchParams()
 
@@ -84,17 +85,28 @@ export default function Credits() {
   const fetchTiers = async () => {
     try {
       const { data } = await whopAPI.getCreditTiers()
-      setCreditTiers(data.tiers || [])
+      const next = {
+        enabled: !!data.enabled,
+        min: data.min || 1,
+        max: data.max || 10000,
+        presets: Array.isArray(data.presets) ? data.presets : [],
+      }
+      setCreditConfig(next)
+      if (next.presets.length) setBuyAmount(String(next.presets[0]))
     } catch {
-      // Tiers not available (Whop not configured) — hide buy button
-      setCreditTiers([])
+      setCreditConfig(c => ({ ...c, enabled: false }))
     }
   }
 
-  const handleBuyCredits = async (tier) => {
-    setBuyLoading(tier)
+  const handleBuyCredits = async () => {
+    const num = parseFloat(buyAmount)
+    if (!Number.isFinite(num) || num < creditConfig.min || num > creditConfig.max) {
+      setError(`Ingresa un monto entre $${creditConfig.min} y $${creditConfig.max}.`)
+      return
+    }
+    setBuyLoading(true)
     try {
-      const { data } = await creditsAPI.purchase(tier)
+      const { data } = await creditsAPI.purchase(num)
       if (data.planId) {
         setBuyModalOpen(false)
         setCheckoutModal({ planId: data.planId })
@@ -102,7 +114,7 @@ export default function Credits() {
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create checkout')
     } finally {
-      setBuyLoading(null)
+      setBuyLoading(false)
     }
   }
 
@@ -142,7 +154,7 @@ export default function Credits() {
             {t('credits.subtitle')}
           </p>
         </div>
-        {creditTiers.some(t => t.available) && (
+        {creditConfig.enabled && (
           <button
             onClick={() => setBuyModalOpen(true)}
             className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors"
@@ -165,7 +177,7 @@ export default function Credits() {
         </div>
       )}
 
-      {/* Buy Credits Modal — Predefined Tiers */}
+      {/* Buy Credits Modal — Variable Amount */}
       {buyModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-dark-card rounded-xl p-6 max-w-md w-full mx-4 border border-gray-200 dark:border-dark-border">
@@ -180,40 +192,56 @@ export default function Credits() {
                 &times;
               </button>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-              {t('credits.buyCreditsDesc') || 'Select a credit package. $1 = 1 credit.'}
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {t('credits.buyCreditsDesc') || 'Enter the amount you want to add. $1 = 1 credit.'}
             </p>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              {creditTiers.filter(tier => tier.available).map((tier) => (
-                <button
-                  key={tier.amount}
-                  onClick={() => handleBuyCredits(tier.amount)}
-                  disabled={buyLoading !== null}
-                  className={`relative p-4 rounded-xl border-2 transition-colors text-center disabled:opacity-50 ${
-                    tier.testOnly
-                      ? 'border-yellow-300 dark:border-yellow-600 hover:border-yellow-500'
-                      : 'border-gray-200 dark:border-dark-border hover:border-primary-500 dark:hover:border-primary-500'
-                  }`}
-                >
-                  {tier.testOnly && (
-                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400 rounded">
-                      TEST
-                    </span>
-                  )}
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    ${tier.amount}
-                  </div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {tier.credits} {t('credits.creditsLabel') || 'credits'}
-                  </div>
-                  {buyLoading === tier.amount && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-dark-card/80 rounded-xl">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-                    </div>
-                  )}
-                </button>
-              ))}
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {t('credits.creditAmount') || 'Amount (USD)'}
+            </label>
+            <div className="relative mb-3">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-500">$</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={creditConfig.min}
+                max={creditConfig.max}
+                step="1"
+                value={buyAmount}
+                onChange={(e) => { setBuyAmount(e.target.value); setError(null) }}
+                placeholder={String(creditConfig.min)}
+                disabled={buyLoading}
+                className="w-full pl-7 pr-3 py-2.5 rounded-lg bg-white dark:bg-dark-bg border border-gray-300 dark:border-dark-border text-gray-900 dark:text-white focus:outline-none focus:border-primary-500 disabled:opacity-50"
+              />
             </div>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+              {t('credits.minCreditAmount') || `Min $${creditConfig.min}, max $${creditConfig.max}`}
+            </p>
+            {creditConfig.presets.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-5">
+                {creditConfig.presets.map(preset => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => { setBuyAmount(String(preset)); setError(null) }}
+                    disabled={buyLoading}
+                    className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-50"
+                  >
+                    ${preset}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={handleBuyCredits}
+              disabled={buyLoading || !buyAmount}
+              className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {buyLoading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+              ) : (
+                <>{t('credits.buyCredits') || 'Buy Credits'}</>
+              )}
+            </button>
           </div>
         </div>
       )}

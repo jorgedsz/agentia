@@ -169,7 +169,7 @@ export const creditsAPI = {
   list: () => api.get('/credits'),
   get: (userId) => api.get(`/credits/${userId}`),
   update: (userId, data) => api.post(`/credits/${userId}`, data),
-  purchase: (tier) => api.post('/credits/purchase', { tier }),
+  purchase: (amount) => api.post('/credits/purchase', { amount }),
 }
 
 // Rates API

@@ -207,65 +207,78 @@ const listCredits = async (req, res) => {
 };
 
 /**
- * Purchase credits via Whop checkout (predefined tiers)
+ * Purchase credits via Whop checkout (variable amount).
  * POST /api/credits/purchase
- * Body: { tier: number } — e.g. 10, 25, 50, 100
+ * Body: { amount: number } — any value within [MIN, MAX]; $1 = 1 credit.
+ *
+ * Creates a one-time Whop plan inline for the requested amount, then a
+ * checkout configuration for that plan. Auto-bootstraps the credits
+ * Product + Whop product on first purchase so no manual sync is required.
  */
+const CREDITS_MIN_AMOUNT = 1;
+const CREDITS_MAX_AMOUNT = 10000;
+
 const purchaseCredits = async (req, res) => {
   try {
-    const { tier } = req.body;
-    const CREDIT_TIERS = [1, 10, 25, 50, 100];
-    const OWNER_ONLY_TIERS = [1];
-
-    if (!tier || !CREDIT_TIERS.includes(tier)) {
-      return res.status(400).json({ error: `Invalid tier. Available: ${CREDIT_TIERS.join(', ')}` });
+    const raw = req.body?.amount ?? req.body?.tier; // accept legacy `tier` key
+    const amount = Math.round(parseFloat(raw) * 100) / 100;
+    if (!Number.isFinite(amount) || amount < CREDITS_MIN_AMOUNT || amount > CREDITS_MAX_AMOUNT) {
+      return res.status(400).json({ error: `Amount must be between $${CREDITS_MIN_AMOUNT} and $${CREDITS_MAX_AMOUNT}.` });
     }
 
-    // $1 tier is OWNER-only (testing)
-    if (OWNER_ONLY_TIERS.includes(tier) && req.user.role !== 'OWNER') {
-      return res.status(403).json({ error: 'This tier is only available for testing' });
-    }
-
-    const whopEnabled = !!process.env.WHOP_API_KEY;
-    if (!whopEnabled) {
+    if (!process.env.WHOP_API_KEY) {
       return res.status(400).json({ error: 'Payment processing is not configured' });
     }
 
-    // Look up credits product and plan ID for this tier
-    const creditsProduct = await req.prisma.product.findUnique({ where: { slug: 'credits' } });
-    if (!creditsProduct || !creditsProduct.whopPlanIds) {
-      return res.status(400).json({ error: 'Credit plans not synced. Ask admin to sync products.' });
-    }
-
-    let planMap;
-    try { planMap = JSON.parse(creditsProduct.whopPlanIds); } catch { planMap = {}; }
-
-    const planId = planMap[String(tier)];
-    if (!planId) {
-      return res.status(400).json({ error: `No plan for $${tier} tier. Sync products first.` });
-    }
-
     const whopService = require('../services/whopService');
-    const userId = req.user.id;
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
+    // Ensure the credits Product row + linked Whop product exist.
+    let creditsProduct = await req.prisma.product.findUnique({ where: { slug: 'credits' } });
+    if (!creditsProduct) {
+      creditsProduct = await req.prisma.product.create({
+        data: {
+          name: 'Credits',
+          slug: 'credits',
+          description: 'VAPI call credits',
+          isActive: true,
+          sortOrder: 999,
+        },
+      });
+    }
+    if (!creditsProduct.whopProductId) {
+      const whopProduct = await whopService.createProduct('Credits', 'VAPI call credits');
+      creditsProduct = await req.prisma.product.update({
+        where: { id: creditsProduct.id },
+        data: { whopProductId: whopProduct.id },
+      });
+    }
+
+    // Create a one-time Whop plan for this exact amount, then the checkout.
+    const plan = await whopService.createPlan(creditsProduct.whopProductId, {
+      price: amount,
+      billingCycle: 'lifetime',
+      name: `Credits ($${amount})`,
+    });
+
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const session = await whopService.createCheckoutSession({
-      planId,
+      planId: plan.id,
       metadata: {
-        userId: String(userId),
+        userId: String(req.user.id),
         type: 'credits',
-        credits: String(tier),
+        credits: String(amount),
       },
       redirectUrl: `${clientUrl}/credits?checkout=success`,
     });
 
     res.json({
       checkoutId: session.id,
-      planId,
+      planId: plan.id,
       purchaseUrl: session.purchase_url,
+      amount,
     });
   } catch (error) {
-    console.error('Error purchasing credits:', error);
+    console.error('Error purchasing credits:', error.response?.data || error.message);
     res.status(500).json({ error: 'Failed to create checkout session' });
   }
 };

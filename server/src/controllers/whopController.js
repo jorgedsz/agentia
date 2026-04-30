@@ -583,28 +583,22 @@ const getMembershipStatus = async (req, res) => {
 };
 
 // ── GET /api/whop/credit-tiers ──
+// Returns availability + bounds for the variable-amount credit purchase
+// flow. Tiers are no longer pre-created — `/api/credits/purchase` now
+// builds an inline Whop plan for the user-entered amount on each call.
+// `presets` is just a UI nicety so the modal can offer common amounts.
 
-const getCreditTiers = async (req, res) => {
-  try {
-    const creditsProduct = await req.prisma.product.findUnique({ where: { slug: 'credits' } });
-    const planMap = creditsProduct?.whopPlanIds ? JSON.parse(creditsProduct.whopPlanIds) : {};
-    const isOwner = req.user.role === 'OWNER';
+const CREDITS_MIN_AMOUNT = 1;
+const CREDITS_MAX_AMOUNT = 10000;
+const CREDIT_PRESETS = [10, 25, 50, 100];
 
-    const tiers = CREDIT_TIERS
-      .filter((amount) => isOwner || !OWNER_ONLY_TIERS.includes(amount))
-      .map((amount) => ({
-        amount,
-        credits: amount,
-        planId: planMap[String(amount)] || null,
-        available: !!planMap[String(amount)],
-        testOnly: OWNER_ONLY_TIERS.includes(amount),
-      }));
-
-    res.json({ tiers });
-  } catch (err) {
-    console.error('getCreditTiers error:', err);
-    res.status(500).json({ error: 'Failed to get credit tiers' });
-  }
+const getCreditTiers = async (_req, res) => {
+  res.json({
+    enabled: !!process.env.WHOP_API_KEY,
+    min: CREDITS_MIN_AMOUNT,
+    max: CREDITS_MAX_AMOUNT,
+    presets: CREDIT_PRESETS,
+  });
 };
 
 module.exports = {

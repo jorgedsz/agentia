@@ -582,31 +582,47 @@ export default function DashboardLayout() {
 }
 
 function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) {
-  const [tiers, setTiers] = useState([])
+  const [config, setConfig] = useState({ enabled: false, min: 1, max: 10000, presets: [] })
+  const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(true)
-  const [buyLoading, setBuyLoading] = useState(null)
+  const [buyLoading, setBuyLoading] = useState(false)
   const [checkoutPlanId, setCheckoutPlanId] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     whopAPI.getCreditTiers()
-      .then(({ data }) => setTiers(data.tiers || []))
-      .catch(() => setTiers([]))
+      .then(({ data }) => {
+        setConfig({
+          enabled: !!data.enabled,
+          min: data.min || 1,
+          max: data.max || 10000,
+          presets: Array.isArray(data.presets) ? data.presets : [],
+        })
+        if (Array.isArray(data.presets) && data.presets.length) {
+          setAmount(String(data.presets[0]))
+        }
+      })
+      .catch(() => setConfig(c => ({ ...c, enabled: false })))
       .finally(() => setLoading(false))
   }, [])
 
-  const handleBuy = async (tier) => {
-    setBuyLoading(tier)
+  const handleBuy = async () => {
+    const num = parseFloat(amount)
+    if (!Number.isFinite(num) || num < config.min || num > config.max) {
+      setError(`Ingresa un monto entre $${config.min} y $${config.max}.`)
+      return
+    }
+    setBuyLoading(true)
     setError('')
     try {
-      const { data } = await creditsAPI.purchase(tier)
+      const { data } = await creditsAPI.purchase(num)
       if (data.planId) {
         setCheckoutPlanId(data.planId)
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create checkout')
     } finally {
-      setBuyLoading(null)
+      setBuyLoading(false)
     }
   }
 
@@ -628,8 +644,6 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
       />
     )
   }
-
-  const availableTiers = tiers.filter(tier => tier.available)
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) closeModal() }}>
@@ -656,47 +670,65 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
             </div>
-          ) : availableTiers.length === 0 ? (
+          ) : !config.enabled ? (
             <div className="text-center py-6">
               <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t('settings.contactAdminCredits') || 'Credit purchasing is not available yet. Contact your administrator.'}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('settings.contactAdminCredits')}</p>
             </div>
           ) : (
             <>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                {t('credits.buyCreditsDesc') || 'Select a credit package. $1 = 1 credit.'}
+                {t('credits.buyCreditsDesc') || 'Enter the amount you want to add. $1 = 1 credit.'}
               </p>
-              <div className="grid grid-cols-2 gap-3">
-                {availableTiers.map((tier) => (
-                  <button
-                    key={tier.amount}
-                    onClick={() => handleBuy(tier.amount)}
-                    disabled={buyLoading !== null}
-                    className={`relative p-4 rounded-xl border-2 transition-colors text-center disabled:opacity-50 ${
-                      tier.testOnly
-                        ? 'border-yellow-300 dark:border-yellow-600 hover:border-yellow-500'
-                        : 'border-gray-200 dark:border-dark-border hover:border-primary-500 dark:hover:border-primary-500'
-                    }`}
-                  >
-                    {tier.testOnly && (
-                      <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400 rounded">
-                        TEST
-                      </span>
-                    )}
-                    <div className="text-2xl font-bold text-gray-900 dark:text-white">${tier.amount}</div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      {tier.credits} {t('credits.creditsLabel') || 'credits'}
-                    </div>
-                    {buyLoading === tier.amount && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-dark-card/80 rounded-xl">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-                      </div>
-                    )}
-                  </button>
-                ))}
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                {t('credits.creditAmount') || 'Amount (USD)'}
+              </label>
+              <div className="relative mb-3">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 dark:text-gray-500">$</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={config.min}
+                  max={config.max}
+                  step="1"
+                  value={amount}
+                  onChange={(e) => { setAmount(e.target.value); setError('') }}
+                  placeholder={String(config.min)}
+                  disabled={buyLoading}
+                  className="w-full pl-7 pr-3 py-2.5 rounded-lg bg-white dark:bg-dark-bg border border-gray-300 dark:border-dark-border text-gray-900 dark:text-white focus:outline-none focus:border-primary-500 disabled:opacity-50"
+                />
               </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
+                {t('credits.minCreditAmount') || `Min $${config.min}, max $${config.max}`}
+              </p>
+              {config.presets.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-5">
+                  {config.presets.map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => { setAmount(String(preset)); setError('') }}
+                      disabled={buyLoading}
+                      className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-50"
+                    >
+                      ${preset}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button
+                onClick={handleBuy}
+                disabled={buyLoading || !amount}
+                className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {buyLoading ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                ) : (
+                  <>{t('credits.buyCredits') || 'Buy Credits'}</>
+                )}
+              </button>
             </>
           )}
         </div>
