@@ -193,9 +193,11 @@ async function upsertOpportunity(req, res) {
     const oppFields = resolveCustomFields(req.query.oppCf, aiBody);
 
     console.log('[Chatbot GHL] upsertOpportunity custom fields:', {
+      requestUrl: req.originalUrl,
       contactCfSpec: req.query.contactCf || '(none)',
       oppCfSpec: req.query.oppCf || '(none)',
       aiBodyKeys: Object.keys(aiBody || {}),
+      aiBodyValues: Object.fromEntries(Object.entries(aiBody || {}).map(([k, v]) => [k, typeof v === 'string' && v.length > 80 ? v.slice(0, 80) + '…' : v])),
       resolvedContactFields: contactFields,
       resolvedOppFields: oppFields,
     });
