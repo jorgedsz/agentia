@@ -1,9 +1,16 @@
 const anthropicService = require('../services/anthropicService');
 const { logAudit } = require('../utils/auditLog');
 
-const MAX_ROWS = 500;
-const TRANSCRIPT_TRIM = 2000;
-const MESSAGE_TRIM = 1500;
+const MAX_ROWS = 5000;
+// Total budget (chars) we want to spend on per-row transcripts/messages across
+// the whole prompt. Sonnet 4.6 has a 200K-token input window; reserving ~20K
+// for system + user + response leaves ~180K → ~720K chars. We give half of
+// that to the variable-length text fields and let the structured metadata
+// take the rest. Each row's transcript/message trim is computed dynamically
+// from this budget so users can ask for 5000 rows without blowing the window.
+const TRANSCRIPT_BUDGET_CHARS = 500_000;
+const MAX_PER_ROW_TRIM = 2000;
+const MIN_PER_ROW_TRIM = 100;
 
 const parseFilters = (raw) => {
   if (!raw) return {};
@@ -52,7 +59,7 @@ const fetchCallRows = async (prisma, userId, filters) => {
     agentId: r.agentId,
     createdAt: r.createdAt,
     summary: r.summary || null,
-    transcript: r.transcript ? r.transcript.slice(0, TRANSCRIPT_TRIM) : null
+    transcript: r.transcript || null
   }));
 };
 
@@ -76,26 +83,44 @@ const fetchChatbotRows = async (prisma, userId, filters) => {
     contactName: r.contactName,
     status: r.status,
     createdAt: r.createdAt,
-    input: r.inputMessage ? r.inputMessage.slice(0, MESSAGE_TRIM) : '',
-    output: r.outputMessage ? r.outputMessage.slice(0, MESSAGE_TRIM) : null
+    input: r.inputMessage || '',
+    output: r.outputMessage || null
   }));
+};
+
+// Compute a per-row character budget for the variable-length transcript /
+// message text so the total prompt stays within Sonnet's input window even
+// when the user asks for thousands of rows. Returns MAX_PER_ROW_TRIM (2000)
+// for small batches and shrinks down to MIN_PER_ROW_TRIM (100) at 5000 rows.
+const perRowTrim = (rowCount) => {
+  if (rowCount <= 0) return MAX_PER_ROW_TRIM;
+  const computed = Math.floor(TRANSCRIPT_BUDGET_CHARS / rowCount);
+  return Math.max(MIN_PER_ROW_TRIM, Math.min(MAX_PER_ROW_TRIM, computed));
+};
+
+const trimText = (text, limit) => {
+  if (!text) return text;
+  if (text.length <= limit) return text;
+  return text.slice(0, limit) + '…';
 };
 
 const formatCallsForPrompt = (rows) => {
   if (!rows.length) return 'No call records matched the filters.';
+  const trim = perRowTrim(rows.length);
   return rows.map((r) => (
     `Call ${r.id} | ${r.type} | ${r.outcome} | ${Math.round(r.durationSeconds || 0)}s | ${r.createdAt.toISOString()} | agent=${r.agentId || '-'} | customer=${r.customerNumber || '-'}\n` +
-    (r.summary ? `  Summary: ${r.summary}\n` : '') +
-    (r.transcript ? `  Transcript: ${r.transcript}\n` : '')
+    (r.summary ? `  Summary: ${trimText(r.summary, trim)}\n` : '') +
+    (r.transcript ? `  Transcript: ${trimText(r.transcript, trim)}\n` : '')
   )).join('\n');
 };
 
 const formatChatbotsForPrompt = (rows) => {
   if (!rows.length) return 'No chatbot messages matched the filters.';
+  const trim = perRowTrim(rows.length);
   return rows.map((r) => (
     `Msg ${r.id} | bot=${r.chatbotName} | session=${r.sessionId} | ${r.createdAt.toISOString()} | status=${r.status}\n` +
-    `  USER: ${r.input}\n` +
-    (r.output ? `  BOT: ${r.output}\n` : '')
+    `  USER: ${trimText(r.input, trim)}\n` +
+    (r.output ? `  BOT: ${trimText(r.output, trim)}\n` : '')
   )).join('\n');
 };
 
