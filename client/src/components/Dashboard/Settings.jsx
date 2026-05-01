@@ -276,7 +276,10 @@ function AccountTab() {
   const { user, isTeamMember, teamMember } = useAuth()
   const { t } = useLanguage()
   const isOwner = user?.role === ROLES.OWNER
-  const isClientOrAgency = user?.role === ROLES.CLIENT || user?.role === ROLES.AGENCY
+  // Roles that get their own trigger API key for /api/call/trigger and other
+  // platform webhooks. OWNER manages keys via the API Keys tab; everyone else
+  // (WHITELABEL / AGENCY / CLIENT) generates a per-account key here.
+  const canHaveTriggerKey = user?.role === ROLES.WHITELABEL || user?.role === ROLES.AGENCY || user?.role === ROLES.CLIENT
 
   // Trigger API key state (for CLIENT/AGENCY inline display)
   const [triggerLoading, setTriggerLoading] = useState(true)
@@ -303,7 +306,7 @@ function AccountTab() {
   const canEditKeys = !isTeamMember || teamMember?.teamRole === 'admin'
 
   useEffect(() => {
-    if (isClientOrAgency && canEditKeys) {
+    if (canHaveTriggerKey && canEditKeys) {
       fetchTriggerKey()
     } else {
       setTriggerLoading(false)
@@ -736,8 +739,8 @@ function AccountTab() {
         </div>
       )}
 
-      {/* Trigger API Key (CLIENT/AGENCY) */}
-      {isClientOrAgency && canEditKeys && (
+      {/* Trigger API Key (WHITELABEL / AGENCY / CLIENT) */}
+      {canHaveTriggerKey && canEditKeys && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{t('settings.triggerApiKey')}</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-4">{t('settings.triggerApiKeyDesc')}</p>
