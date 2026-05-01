@@ -1,6 +1,7 @@
 const OpenAI = require('openai');
 const { decrypt } = require('../utils/encryption');
 const { getApiKeys } = require('../utils/getApiKeys');
+const { decryptCredentialData } = require('./credentialsController');
 
 const ENCRYPTED_RE = /^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/i;
 const isEncrypted = (val) => typeof val === 'string' && ENCRYPTED_RE.test(val);
@@ -8,6 +9,51 @@ const isEncrypted = (val) => typeof val === 'string' && ENCRYPTED_RE.test(val);
 function parseConfig(raw) {
   if (!raw) return null;
   try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return null; }
+}
+
+// Resolve the effective vector-store config for a chatbot. If the chatbot
+// references a saved credential of type 'supabase_vector', that credential's
+// data takes precedence. Otherwise, fall back to inline values stored on the
+// chatbot's databaseConfig.vectorStore (legacy path, kept for backwards
+// compat).
+async function resolveVectorStoreConfig(prisma, chatbot) {
+  const cfg = parseConfig(chatbot.config) || {};
+  const inline = cfg.database?.vectorStore || {};
+  const credentialId = cfg.database?.vectorStoreCredentialId;
+
+  if (credentialId) {
+    const credential = await prisma.credential.findFirst({
+      where: { id: credentialId, userId: chatbot.userId, type: 'supabase_vector' },
+    });
+    if (!credential) {
+      return { enabled: !!inline.enabled, error: 'Vector store credential not found or unauthorized.' };
+    }
+    const data = decryptCredentialData(credential);
+    return {
+      enabled: !!inline.enabled,
+      url: data.url || '',
+      serviceRoleKey: data.serviceRoleKey || '',
+      matchFunction: data.matchFunction || inline.matchFunction || 'match_documents',
+      matchTable: data.matchTable || inline.matchTable || 'documents',
+      matchCount: Number.isFinite(data.matchCount) ? data.matchCount : inline.matchCount,
+      matchThreshold: Number.isFinite(data.matchThreshold) ? data.matchThreshold : inline.matchThreshold,
+    };
+  }
+
+  // Legacy inline path
+  let serviceRoleKey = inline.serviceRoleKey || '';
+  if (serviceRoleKey && isEncrypted(serviceRoleKey)) {
+    try { serviceRoleKey = decrypt(serviceRoleKey); } catch { serviceRoleKey = ''; }
+  }
+  return {
+    enabled: !!inline.enabled,
+    url: inline.url || '',
+    serviceRoleKey,
+    matchFunction: inline.matchFunction || 'match_documents',
+    matchTable: inline.matchTable || 'documents',
+    matchCount: inline.matchCount,
+    matchThreshold: inline.matchThreshold,
+  };
 }
 
 /**
@@ -40,9 +86,11 @@ async function searchKnowledgeBase(req, res) {
       return res.json({ success: false, message: 'Chatbot not found.' });
     }
 
-    const cfg = parseConfig(chatbot.config) || {};
-    const vs = cfg.database?.vectorStore;
-    if (!vs?.enabled) {
+    const vs = await resolveVectorStoreConfig(req.prisma, chatbot);
+    if (vs.error) {
+      return res.json({ success: false, message: vs.error });
+    }
+    if (!vs.enabled) {
       return res.json({ success: false, message: 'Vector store is not enabled for this chatbot.' });
     }
 
@@ -50,17 +98,10 @@ async function searchKnowledgeBase(req, res) {
     if (!url) {
       return res.json({ success: false, message: 'Vector store URL is not configured.' });
     }
-
-    let serviceRoleKey = vs.serviceRoleKey || '';
-    if (!serviceRoleKey) {
+    if (!vs.serviceRoleKey) {
       return res.json({ success: false, message: 'Vector store service-role key is not configured.' });
     }
-    try {
-      if (isEncrypted(serviceRoleKey)) serviceRoleKey = decrypt(serviceRoleKey);
-    } catch {
-      return res.json({ success: false, message: 'Stored service-role key is corrupted — re-enter it.' });
-    }
-
+    const serviceRoleKey = vs.serviceRoleKey;
     const matchFunction = vs.matchFunction || 'match_documents';
     const matchCount = Number.isFinite(vs.matchCount) && vs.matchCount > 0 ? Math.min(vs.matchCount, 50) : 5;
     const matchThreshold = Number.isFinite(vs.matchThreshold) ? Math.max(0, Math.min(1, vs.matchThreshold)) : 0.7;

@@ -10,6 +10,7 @@ import PhoneNumbers from './components/Dashboard/PhoneNumbers'
 import SubAccounts from './components/Dashboard/SubAccounts'
 import Settings from './components/Dashboard/Settings'
 import Credits from './components/Dashboard/Credits'
+import Credentials from './components/Dashboard/Credentials'
 import CallLogs from './components/Dashboard/CallLogs'
 import ChatbotMessageLogs from './components/Dashboard/ChatbotMessageLogs'
 import RatesSettings from './components/Dashboard/RatesSettings'
@@ -143,6 +144,7 @@ function App() {
           <Route path="twilio-setup" element={<TelephonySetup />} />
           <Route path="phone-numbers" element={<PhoneNumbers />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="credentials" element={<Credentials />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="call-logs" element={<CallLogs />} />
           <Route path="message-logs" element={<ChatbotMessageLogs />} />

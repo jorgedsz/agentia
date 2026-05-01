@@ -115,6 +115,7 @@
     "training": "Capacitaci\u00f3n",
     "support": "Soporte",
     "settings": "Configuración",
+    "credentials": "Credenciales",
     "sectionTutorials": "Tutoriales",
     "tutorialsEnglish": "English",
     "tutorialsSpanish": "Español",
@@ -361,6 +362,16 @@
     "noMessagesDesc": "Los mensajes aparecerán aquí cuando se usen tus chatbots",
     "showing": "Mostrando",
     "messages": "mensajes"
+  },
+  "credentials": {
+    "title": "Credenciales",
+    "subtitle": "Guarda las credenciales que usan tus herramientas de chatbot. Las claves se almacenan cifradas.",
+    "create": "Nueva credencial",
+    "edit": "Editar credencial",
+    "name": "Nombre",
+    "type": "Tipo",
+    "updatedAt": "Actualizada",
+    "empty": "Aún no tienes credenciales guardadas."
   },
   "settings": {
     "title": "Configuración",
@@ -1725,6 +1736,9 @@
     "checkoutSuccess": "¡Pago completado exitosamente!"
   },
   "chatbotEdit": {
+    "savedCredential": "Credencial guardada",
+    "useInlineValues": "— Usar valores manuales abajo —",
+    "credentialPickerHint": "Selecciona una credencial guardada o deja en manual. Adminístralas en",
     "vectorStore": "Base de Conocimiento (Supabase)",
     "vectorStoreDesc": "Permite al agente recuperar documentos por similitud semántica usando tu función pgvector de Supabase.",
     "supabaseUrl": "URL de Supabase",

@@ -115,6 +115,7 @@
     "training": "Training",
     "support": "Support",
     "settings": "Settings",
+    "credentials": "Credentials",
     "sectionTutorials": "Tutorials",
     "tutorialsEnglish": "English",
     "tutorialsSpanish": "Español",
@@ -361,6 +362,16 @@
     "noMessagesDesc": "Messages will appear here when your chatbots are used",
     "showing": "Showing",
     "messages": "messages"
+  },
+  "credentials": {
+    "title": "Credentials",
+    "subtitle": "Stores credentials your chatbot tools use. Secrets are encrypted at rest.",
+    "create": "New credential",
+    "edit": "Edit credential",
+    "name": "Name",
+    "type": "Type",
+    "updatedAt": "Updated",
+    "empty": "You don't have any saved credentials yet."
   },
   "settings": {
     "title": "Settings",
@@ -1725,6 +1736,9 @@
     "checkoutSuccess": "Payment completed successfully!"
   },
   "chatbotEdit": {
+    "savedCredential": "Saved credential",
+    "useInlineValues": "— Use inline values below —",
+    "credentialPickerHint": "Pick a saved credential or leave inline. Manage in",
     "vectorStore": "Knowledge Base (Supabase)",
     "vectorStoreDesc": "Lets the agent semantically retrieve documents via your Supabase pgvector match function.",
     "supabaseUrl": "Supabase URL",

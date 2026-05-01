@@ -58,6 +58,25 @@ model User {
   creditPurchases      CreditPurchase[]
   waProjects           WaProject[]        @relation("UserWaProjects")
   recurringPayments    RecurringPayment[] @relation("ClientRecurringPayments")
+  credentials          Credential[]
+}
+
+// Per-user credential vault for chatbot tool secrets (Postgres connections,
+// Supabase vector stores, future HTTP tools). Platform-wide OWNER keys live
+// in PlatformSettings — this is only for resources owned by the user that
+// chatbot tools reference. `data` is an encrypted JSON blob whose shape
+// depends on `type`.
+model Credential {
+  id        String   @id @default(cuid())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  type      String   // 'postgres_connection' | 'supabase_vector'
+  data      String   // Encrypted JSON
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model VapiKeyPool {

@@ -1470,13 +1470,31 @@ const getExecutionDetail = async (req, res) => {
 // a normalized error message.
 const testDbConnection = async (req, res) => {
   try {
-    const { type = 'postgres', connectionString: rawCs, chatbotId } = req.body || {};
+    const { type = 'postgres', connectionString: rawCs, chatbotId, credentialId } = req.body || {};
 
     if (type !== 'postgres') {
       return res.status(400).json({ error: `Unsupported database type: ${type}` });
     }
 
     let connectionString = rawCs;
+
+    // 1) Saved-credential reference takes precedence — the user picked one from the dropdown.
+    if (!connectionString && credentialId) {
+      const cred = await req.prisma.credential.findFirst({
+        where: { id: credentialId, userId: req.user.id, type: 'postgres_connection' },
+      });
+      if (!cred) return res.status(404).json({ error: 'Credential not found' });
+      try {
+        const data = JSON.parse(cred.data);
+        const stored = data.connectionString;
+        if (!stored) return res.status(400).json({ error: 'Credential has no connectionString' });
+        connectionString = isEncrypted(stored) ? decrypt(stored) : stored;
+      } catch {
+        return res.status(400).json({ error: 'Stored credential is corrupted — re-enter it' });
+      }
+    }
+
+    // 2) Fall back to whatever's stored on the chatbot itself (legacy inline path).
     if (!connectionString && chatbotId) {
       const cb = await req.prisma.chatbot.findFirst({
         where: { id: chatbotId, userId: req.user.id },
@@ -1484,12 +1502,27 @@ const testDbConnection = async (req, res) => {
       });
       if (!cb) return res.status(404).json({ error: 'Chatbot not found' });
       const cfg = parseConfig(cb.config);
-      const stored = cfg?.database?.connectionString;
-      if (!stored) return res.status(400).json({ error: 'No stored connection string for this chatbot' });
-      try {
-        connectionString = isEncrypted(stored) ? decrypt(stored) : stored;
-      } catch {
-        return res.status(400).json({ error: 'Stored connection string is corrupted — re-enter it' });
+      const refCredentialId = cfg?.database?.connectionCredentialId;
+      if (refCredentialId) {
+        const cred = await req.prisma.credential.findFirst({
+          where: { id: refCredentialId, userId: req.user.id, type: 'postgres_connection' },
+        });
+        if (cred) {
+          try {
+            const data = JSON.parse(cred.data);
+            const stored = data.connectionString;
+            if (stored) connectionString = isEncrypted(stored) ? decrypt(stored) : stored;
+          } catch {}
+        }
+      }
+      if (!connectionString) {
+        const stored = cfg?.database?.connectionString;
+        if (!stored) return res.status(400).json({ error: 'No stored connection string for this chatbot' });
+        try {
+          connectionString = isEncrypted(stored) ? decrypt(stored) : stored;
+        } catch {
+          return res.status(400).json({ error: 'Stored connection string is corrupted — re-enter it' });
+        }
       }
     }
 

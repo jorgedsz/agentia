@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { chatbotsAPI, promptGeneratorAPI, calendarAPI, agentsAPI, phoneNumbersAPI, googleWorkspaceAPI, ghlAPI } from '../../services/api'
+import { chatbotsAPI, promptGeneratorAPI, calendarAPI, agentsAPI, phoneNumbersAPI, googleWorkspaceAPI, ghlAPI, credentialsAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { MODELS_BY_PROVIDER } from '../../constants/models'
@@ -195,6 +195,8 @@ export default function ChatbotEdit() {
     connectionString: '',
     connectionStringPreview: '',
     hasConnectionString: false,
+    connectionCredentialId: '',
+    vectorStoreCredentialId: '',
     vectorStore: {
       enabled: false,
       url: '',
@@ -207,6 +209,7 @@ export default function ChatbotEdit() {
       matchThreshold: 0.7,
     },
   })
+  const [credentialList, setCredentialList] = useState([])
   const [dbTestStatus, setDbTestStatus] = useState(null) // { ok: boolean, message: string, latencyMs?: number }
   const [dbTesting, setDbTesting] = useState(false)
 
@@ -268,7 +271,17 @@ export default function ChatbotEdit() {
     fetchCalendarIntegrations()
     fetchAgents()
     fetchPhoneNumbers()
+    fetchCredentials()
   }, [id])
+
+  const fetchCredentials = async () => {
+    try {
+      const { data } = await credentialsAPI.list()
+      setCredentialList(data.credentials || [])
+    } catch (err) {
+      console.error('Failed to fetch credentials:', err)
+    }
+  }
 
   const fetchAgents = async () => {
     try {
@@ -342,6 +355,8 @@ export default function ChatbotEdit() {
           connectionString: '',
           connectionStringPreview: config.database.connectionStringPreview || '',
           hasConnectionString: !!config.database.hasConnectionString,
+          connectionCredentialId: config.database.connectionCredentialId || '',
+          vectorStoreCredentialId: config.database.vectorStoreCredentialId || '',
           vectorStore: {
             enabled: !!vs.enabled,
             url: vs.url || '',
@@ -1084,6 +1099,8 @@ export default function ChatbotEdit() {
         configPayload.database = {
           type: databaseConfig.type || 'postgres',
           connectionString: databaseConfig.connectionString || '',
+          connectionCredentialId: databaseConfig.connectionCredentialId || '',
+          vectorStoreCredentialId: databaseConfig.vectorStoreCredentialId || '',
           vectorStore: {
             enabled: !!vs.enabled,
             url: (vs.url || '').trim(),
@@ -1766,7 +1783,23 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               The agent will run read-only SQL against this database to answer questions.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.savedCredential') || 'Saved credential'}</label>
+              <select
+                value={databaseConfig.connectionCredentialId || ''}
+                onChange={(e) => setDatabaseConfig(prev => ({ ...prev, connectionCredentialId: e.target.value }))}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">{t('chatbotEdit.useInlineValues') || '— Use inline value below —'}</option>
+                {credentialList.filter(c => c.type === 'postgres_connection').map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                {t('chatbotEdit.credentialPickerHint') || 'Select a saved credential or leave as inline. Manage in'} <a href="/dashboard/credentials" target="_blank" rel="noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline">{t('sidebar.credentials') || 'Credenciales'}</a>.
+              </p>
+            </div>
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-3 ${databaseConfig.connectionCredentialId ? 'opacity-50 pointer-events-none' : ''}`}>
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Database type</label>
                 <select
@@ -1795,13 +1828,15 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
             <div className="mt-3 flex items-center gap-3">
               <button
                 type="button"
-                disabled={dbTesting || (!databaseConfig.connectionString && !databaseConfig.hasConnectionString)}
+                disabled={dbTesting || (!databaseConfig.connectionString && !databaseConfig.hasConnectionString && !databaseConfig.connectionCredentialId)}
                 onClick={async () => {
                   setDbTesting(true)
                   setDbTestStatus(null)
                   try {
                     const payload = { type: databaseConfig.type }
-                    if (databaseConfig.connectionString) {
+                    if (databaseConfig.connectionCredentialId) {
+                      payload.credentialId = databaseConfig.connectionCredentialId
+                    } else if (databaseConfig.connectionString) {
                       payload.connectionString = databaseConfig.connectionString
                     } else {
                       payload.chatbotId = id
@@ -1855,7 +1890,23 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
 
             {databaseConfig.vectorStore?.enabled && (
               <div className="mt-4 space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.savedCredential') || 'Saved credential'}</label>
+                  <select
+                    value={databaseConfig.vectorStoreCredentialId || ''}
+                    onChange={(e) => setDatabaseConfig(prev => ({ ...prev, vectorStoreCredentialId: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">{t('chatbotEdit.useInlineValues') || '— Use inline values below —'}</option>
+                    {credentialList.filter(c => c.type === 'supabase_vector').map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                    {t('chatbotEdit.credentialPickerHint') || 'Select a saved credential or leave as inline. Manage in'} <a href="/dashboard/credentials" target="_blank" rel="noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline">{t('sidebar.credentials') || 'Credenciales'}</a>.
+                  </p>
+                </div>
+                <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${databaseConfig.vectorStoreCredentialId ? 'opacity-50 pointer-events-none' : ''}`}>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.supabaseUrl') || 'Supabase URL'}</label>
                     <input
@@ -1879,7 +1930,7 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className={`grid grid-cols-1 md:grid-cols-4 gap-3 ${databaseConfig.vectorStoreCredentialId ? 'opacity-50 pointer-events-none' : ''}`}>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.matchFunction') || 'RPC function'}</label>
                     <input

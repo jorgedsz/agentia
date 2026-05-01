@@ -164,6 +164,15 @@ export const callsAPI = {
   updateOutcome: (id, outcome) => api.patch(`/calls/${id}/outcome`, { outcome })
 }
 
+// Credentials API (per-user vault for chatbot tool secrets)
+export const credentialsAPI = {
+  list: () => api.get('/credentials'),
+  get: (id) => api.get(`/credentials/${id}`),
+  create: (data) => api.post('/credentials', data),
+  update: (id, data) => api.put(`/credentials/${id}`, data),
+  delete: (id) => api.delete(`/credentials/${id}`),
+}
+
 // Credits API
 export const creditsAPI = {
   list: () => api.get('/credits'),
