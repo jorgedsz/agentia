@@ -9,6 +9,7 @@ import WhopCheckoutModal from './WhopCheckoutModal'
 
 const ROLES = {
   OWNER: 'OWNER',
+  WHITELABEL: 'WHITELABEL',
   AGENCY: 'AGENCY',
   CLIENT: 'CLIENT'
 }
@@ -226,53 +227,53 @@ export default function DashboardLayout() {
     {
       title: t('sidebar.sectionDashboard'),
       items: [
-        { id: 'overview', path: '/dashboard', label: t('sidebar.overview'), icon: Icons.Overview, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'analytics', path: '/dashboard/analytics', label: t('sidebar.analytics'), icon: Icons.Analytics, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'overview', path: '/dashboard', label: t('sidebar.overview'), icon: Icons.Overview, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'analytics', path: '/dashboard/analytics', label: t('sidebar.analytics'), icon: Icons.Analytics, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     },
     {
       title: t('sidebar.sectionAgents'),
       featureKey: 'voiceAgents',
       items: [
-        { id: 'agents', path: '/dashboard/agents', label: t('sidebar.myAgents'), icon: Icons.Agents, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'voice-library', path: '/dashboard/voice-library', label: t('sidebar.voiceLibrary'), icon: Icons.Voice, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'create-agent', label: t('sidebar.createAgent'), icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT], isAction: true },
+        { id: 'agents', path: '/dashboard/agents', label: t('sidebar.myAgents'), icon: Icons.Agents, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'voice-library', path: '/dashboard/voice-library', label: t('sidebar.voiceLibrary'), icon: Icons.Voice, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'create-agent', label: t('sidebar.createAgent'), icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT], isAction: true },
       ]
     },
     {
       title: t('sidebar.sectionChatbots') || 'Chatbots',
       featureKey: 'chatbots',
       items: [
-        { id: 'chatbots', path: '/dashboard/chatbots', label: t('sidebar.myChatbots') || 'My Chatbots', icon: Icons.Chatbot, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'create-chatbot', label: t('sidebar.createChatbot') || 'Create Chatbot', icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT], isAction: true, actionType: 'chatbot' },
+        { id: 'chatbots', path: '/dashboard/chatbots', label: t('sidebar.myChatbots') || 'My Chatbots', icon: Icons.Chatbot, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'create-chatbot', label: t('sidebar.createChatbot') || 'Create Chatbot', icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT], isAction: true, actionType: 'chatbot' },
       ]
     },
     {
       title: t('sidebar.sectionReports') || 'Reports',
       items: [
-        { id: 'reports', path: '/dashboard/reports', label: t('sidebar.reports') || 'Reports', icon: Icons.Reports, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'reports', path: '/dashboard/reports', label: t('sidebar.reports') || 'Reports', icon: Icons.Reports, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     },
     {
       title: t('sidebar.sectionManagement'),
       items: [
-        { id: 'accounts', path: '/dashboard/accounts', label: t('sidebar.accounts'), icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.AGENCY] },
-        { id: 'payments', path: '/dashboard/payments', label: t('sidebar.payments'), icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.AGENCY] },
+        { id: 'accounts', path: '/dashboard/accounts', label: t('sidebar.accounts'), icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
+        { id: 'payments', path: '/dashboard/payments', label: t('sidebar.payments'), icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
       ]
     },
     {
       title: t('sidebar.sectionPhone'),
       featureKey: 'voiceAgents',
       items: [
-        { id: 'twilio-setup', path: '/dashboard/twilio-setup', label: t('sidebar.twilioSetup'), icon: Icons.Twilio, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'phone-numbers', path: '/dashboard/phone-numbers', label: t('sidebar.phoneNumbers'), icon: Icons.Phone, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'twilio-setup', path: '/dashboard/twilio-setup', label: t('sidebar.twilioSetup'), icon: Icons.Twilio, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'phone-numbers', path: '/dashboard/phone-numbers', label: t('sidebar.phoneNumbers'), icon: Icons.Phone, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     },
     {
       title: t('sidebar.sectionTutorials'),
       items: [
-        { id: 'tutorials/en', path: '/dashboard/tutorials/en', label: t('sidebar.tutorialsEnglish'), icon: Icons.Training, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'tutorials/es', path: '/dashboard/tutorials/es', label: t('sidebar.tutorialsSpanish'), icon: Icons.Training, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'tutorials/en', path: '/dashboard/tutorials/en', label: t('sidebar.tutorialsEnglish'), icon: Icons.Training, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'tutorials/es', path: '/dashboard/tutorials/es', label: t('sidebar.tutorialsSpanish'), icon: Icons.Training, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     },
     {
@@ -280,10 +281,10 @@ export default function DashboardLayout() {
       items: [
         { id: 'call-logs', path: '/dashboard/call-logs', label: t('sidebar.callLogs'), icon: Icons.Logs, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'message-logs', path: '/dashboard/message-logs', label: t('sidebar.messageLogs'), icon: Icons.Chatbot, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'scheduled-calls', path: '/dashboard/scheduled-calls', label: t('sidebar.scheduledCalls'), icon: Icons.ScheduledCalls, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'settings', path: '/dashboard/settings', label: t('sidebar.settings'), icon: Icons.Settings, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'credentials', path: '/dashboard/credentials', label: t('sidebar.credentials') || 'Credenciales', icon: Icons.Settings, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
-        { id: 'support', path: '/dashboard/support', label: t('sidebar.support'), icon: Icons.Support, roles: [ROLES.OWNER, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'scheduled-calls', path: '/dashboard/scheduled-calls', label: t('sidebar.scheduledCalls'), icon: Icons.ScheduledCalls, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'settings', path: '/dashboard/settings', label: t('sidebar.settings'), icon: Icons.Settings, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'credentials', path: '/dashboard/credentials', label: t('sidebar.credentials') || 'Credenciales', icon: Icons.Settings, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'support', path: '/dashboard/support', label: t('sidebar.support'), icon: Icons.Support, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
       ]
     }
   ]
