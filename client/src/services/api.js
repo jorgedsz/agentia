@@ -223,6 +223,7 @@ export const googleWorkspaceAPI = {
 export const vapiKeyPoolAPI = {
   list: () => api.get('/vapi-key-pool'),
   add: (data) => api.post('/vapi-key-pool', data),
+  update: (id, data) => api.put(`/vapi-key-pool/${id}`, data),
   remove: (id) => api.delete(`/vapi-key-pool/${id}`)
 }
 

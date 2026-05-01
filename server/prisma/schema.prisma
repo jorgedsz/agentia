@@ -82,6 +82,7 @@ model Credential {
 model VapiKeyPool {
   id              Int      @id @default(autoincrement())
   label           String?  // Optional friendly name (e.g. "VAPI Org #1")
+  orgEmail        String?  // Email of the VAPI org account that owns these keys, for OWNER cross-reference
   vapiApiKey      String   // Encrypted private key
   vapiPublicKey   String   // Encrypted public key
   assignedUserId  Int?     @unique // null = available, set = assigned

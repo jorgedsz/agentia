@@ -28,6 +28,7 @@ const listKeys = async (req, res) => {
       return {
         id: entry.id,
         label: entry.label,
+        orgEmail: entry.orgEmail,
         maskedApiKey: maskedPrivate,
         maskedPublicKey: maskedPublic,
         assignedUserId: entry.assignedUserId,
@@ -46,7 +47,7 @@ const listKeys = async (req, res) => {
 // POST /api/vapi-key-pool - Add a new key pair (OWNER only)
 const addKey = async (req, res) => {
   try {
-    const { label, vapiApiKey, vapiPublicKey } = req.body;
+    const { label, orgEmail, vapiApiKey, vapiPublicKey } = req.body;
 
     if (!vapiApiKey || !vapiPublicKey) {
       return res.status(400).json({ error: 'Both VAPI API Key and Public Key are required' });
@@ -55,6 +56,7 @@ const addKey = async (req, res) => {
     const entry = await req.prisma.vapiKeyPool.create({
       data: {
         label: label || null,
+        orgEmail: orgEmail ? orgEmail.trim() : null,
         vapiApiKey: encrypt(vapiApiKey),
         vapiPublicKey: encrypt(vapiPublicKey)
       }
@@ -65,6 +67,7 @@ const addKey = async (req, res) => {
       key: {
         id: entry.id,
         label: entry.label,
+        orgEmail: entry.orgEmail,
         maskedApiKey: mask(vapiApiKey),
         maskedPublicKey: mask(vapiPublicKey),
         assignedUserId: null,
@@ -75,6 +78,51 @@ const addKey = async (req, res) => {
   } catch (error) {
     console.error('Add VAPI key pool error:', error);
     res.status(500).json({ error: 'Failed to add key pair' });
+  }
+};
+
+// PUT /api/vapi-key-pool/:id - Update label/orgEmail on an existing entry
+// (OWNER only). Only the human-readable metadata is editable; rotating
+// the actual keys requires removing + re-adding the pool entry to make
+// the encryption explicit.
+const updateKey = async (req, res) => {
+  try {
+    const entryId = parseInt(req.params.id);
+    const { label, orgEmail } = req.body || {};
+
+    const entry = await req.prisma.vapiKeyPool.findUnique({ where: { id: entryId } });
+    if (!entry) return res.status(404).json({ error: 'Key pair not found' });
+
+    const updated = await req.prisma.vapiKeyPool.update({
+      where: { id: entryId },
+      data: {
+        label: label !== undefined ? (label || null) : entry.label,
+        orgEmail: orgEmail !== undefined ? (orgEmail ? orgEmail.trim() : null) : entry.orgEmail,
+      },
+      include: { assignedUser: { select: { id: true, email: true, name: true, role: true } } },
+    });
+
+    let maskedPrivate = '****';
+    let maskedPublic = '****';
+    try { maskedPrivate = mask(decrypt(updated.vapiApiKey)); } catch {}
+    try { maskedPublic = mask(decrypt(updated.vapiPublicKey)); } catch {}
+
+    res.json({
+      message: 'Key pair updated',
+      key: {
+        id: updated.id,
+        label: updated.label,
+        orgEmail: updated.orgEmail,
+        maskedApiKey: maskedPrivate,
+        maskedPublicKey: maskedPublic,
+        assignedUserId: updated.assignedUserId,
+        assignedUser: updated.assignedUser,
+        createdAt: updated.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error('Update VAPI key pool error:', error);
+    res.status(500).json({ error: 'Failed to update key pair' });
   }
 };
 
@@ -110,5 +158,6 @@ const removeKey = async (req, res) => {
 module.exports = {
   listKeys,
   addKey,
+  updateKey,
   removeKey
 };
