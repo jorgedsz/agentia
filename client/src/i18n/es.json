@@ -1725,6 +1725,15 @@
     "checkoutSuccess": "¡Pago completado exitosamente!"
   },
   "chatbotEdit": {
+    "vectorStore": "Base de Conocimiento (Supabase)",
+    "vectorStoreDesc": "Permite al agente recuperar documentos por similitud semántica usando tu función pgvector de Supabase.",
+    "supabaseUrl": "URL de Supabase",
+    "supabaseServiceRoleKey": "Service-role key",
+    "matchFunction": "Función RPC",
+    "matchTable": "Tabla",
+    "matchCount": "Cantidad de matches",
+    "matchThreshold": "Umbral",
+    "vectorStoreFooter": "Espera una función RPC en Supabase con firma `match_documents(query_embedding vector, match_threshold float, match_count int)` que devuelva filas con `id`, `content` y `similarity`. Los embeddings se generan en el servidor con text-embedding-3-small.",
     "active": "Activo",
     "inactive": "Inactivo",
     "respondToWebhook": "Responder a Webhook",

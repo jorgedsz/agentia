@@ -1725,6 +1725,15 @@
     "checkoutSuccess": "Payment completed successfully!"
   },
   "chatbotEdit": {
+    "vectorStore": "Knowledge Base (Supabase)",
+    "vectorStoreDesc": "Lets the agent semantically retrieve documents via your Supabase pgvector match function.",
+    "supabaseUrl": "Supabase URL",
+    "supabaseServiceRoleKey": "Service-role key",
+    "matchFunction": "RPC function",
+    "matchTable": "Table",
+    "matchCount": "Match count",
+    "matchThreshold": "Threshold",
+    "vectorStoreFooter": "Expects a Supabase RPC with signature `match_documents(query_embedding vector, match_threshold float, match_count int)` returning rows with `id`, `content`, and `similarity`. Embeddings are generated server-side with text-embedding-3-small.",
     "active": "Active",
     "inactive": "Inactive",
     "respondToWebhook": "Respond to Webhook",

@@ -29,12 +29,19 @@ const ENCRYPTED_RE = /^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/i;
 const isEncrypted = (val) => typeof val === 'string' && ENCRYPTED_RE.test(val);
 
 // Encrypt SQL-agent DB credentials before they hit the `config` JSON column.
-// Idempotent: if the string is already ciphertext (user saved without editing), leave it alone.
+// Idempotent: if a value is already ciphertext (user saved without editing), leave it alone.
 const encryptDbCredentials = (config) => {
   if (!config || !config.database) return config;
   const db = { ...config.database };
   if (db.connectionString && !isEncrypted(db.connectionString)) {
     db.connectionString = encrypt(db.connectionString);
+  }
+  if (db.vectorStore) {
+    const vs = { ...db.vectorStore };
+    if (vs.serviceRoleKey && !isEncrypted(vs.serviceRoleKey)) {
+      vs.serviceRoleKey = encrypt(vs.serviceRoleKey);
+    }
+    db.vectorStore = vs;
   }
   return { ...config, database: db };
 };
@@ -48,25 +55,38 @@ const maskConnectionString = (raw) => {
 };
 
 const maskDbCredentials = (config) => {
-  if (!config || !config.database || !config.database.connectionString) return config;
-  let preview = '';
-  try {
-    const plaintext = isEncrypted(config.database.connectionString)
-      ? decrypt(config.database.connectionString)
-      : config.database.connectionString;
-    preview = maskConnectionString(plaintext);
-  } catch {
-    preview = '••••••••';
+  if (!config || !config.database) return config;
+  const db = { ...config.database };
+
+  if (db.connectionString) {
+    let preview = '';
+    try {
+      const plaintext = isEncrypted(db.connectionString) ? decrypt(db.connectionString) : db.connectionString;
+      preview = maskConnectionString(plaintext);
+    } catch {
+      preview = '••••••••';
+    }
+    db.connectionString = '';
+    db.connectionStringPreview = preview;
+    db.hasConnectionString = true;
   }
-  return {
-    ...config,
-    database: {
-      ...config.database,
-      connectionString: '',
-      connectionStringPreview: preview,
-      hasConnectionString: true,
-    },
-  };
+
+  if (db.vectorStore?.serviceRoleKey) {
+    const vs = { ...db.vectorStore };
+    let preview = '';
+    try {
+      const plaintext = isEncrypted(vs.serviceRoleKey) ? decrypt(vs.serviceRoleKey) : vs.serviceRoleKey;
+      preview = maskConnectionString(plaintext);
+    } catch {
+      preview = '••••••••';
+    }
+    vs.serviceRoleKey = '';
+    vs.serviceRoleKeyPreview = preview;
+    vs.hasServiceRoleKey = true;
+    db.vectorStore = vs;
+  }
+
+  return { ...config, database: db };
 };
 
 const getChatbots = async (req, res) => {
@@ -212,17 +232,21 @@ const updateChatbot = async (req, res) => {
 
     let persistedConfig = config || null;
     if (persistedConfig && persistedConfig.database) {
-      const incoming = persistedConfig.database;
-      // Client-side sends an empty connectionString when the user didn't retype the masked value —
-      // in that case keep the previously saved ciphertext instead of wiping it.
+      const incoming = { ...persistedConfig.database };
+      const prev = parseConfig(existingChatbot.config);
+      // Client-side sends empty values for masked secrets when the user didn't retype them —
+      // in those cases keep the previously saved ciphertext instead of wiping it.
       if (!incoming.connectionString) {
-        const prev = parseConfig(existingChatbot.config);
-        const prevCs = prev?.database?.connectionString || '';
-        persistedConfig = {
-          ...persistedConfig,
-          database: { ...incoming, connectionString: prevCs },
-        };
+        incoming.connectionString = prev?.database?.connectionString || '';
       }
+      if (incoming.vectorStore) {
+        const incomingVs = { ...incoming.vectorStore };
+        if (!incomingVs.serviceRoleKey) {
+          incomingVs.serviceRoleKey = prev?.database?.vectorStore?.serviceRoleKey || '';
+        }
+        incoming.vectorStore = incomingVs;
+      }
+      persistedConfig = { ...persistedConfig, database: incoming };
       persistedConfig = encryptDbCredentials(persistedConfig);
     }
 

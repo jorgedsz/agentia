@@ -195,6 +195,17 @@ export default function ChatbotEdit() {
     connectionString: '',
     connectionStringPreview: '',
     hasConnectionString: false,
+    vectorStore: {
+      enabled: false,
+      url: '',
+      serviceRoleKey: '',
+      serviceRoleKeyPreview: '',
+      hasServiceRoleKey: false,
+      matchFunction: 'match_documents',
+      matchTable: 'documents',
+      matchCount: 5,
+      matchThreshold: 0.7,
+    },
   })
   const [dbTestStatus, setDbTestStatus] = useState(null) // { ok: boolean, message: string, latencyMs?: number }
   const [dbTesting, setDbTesting] = useState(false)
@@ -325,11 +336,23 @@ export default function ChatbotEdit() {
         setAgentKind(config.agentKind)
       }
       if (config.database) {
+        const vs = config.database.vectorStore || {}
         setDatabaseConfig({
           type: config.database.type || 'postgres',
           connectionString: '',
           connectionStringPreview: config.database.connectionStringPreview || '',
           hasConnectionString: !!config.database.hasConnectionString,
+          vectorStore: {
+            enabled: !!vs.enabled,
+            url: vs.url || '',
+            serviceRoleKey: '',
+            serviceRoleKeyPreview: vs.serviceRoleKeyPreview || '',
+            hasServiceRoleKey: !!vs.hasServiceRoleKey,
+            matchFunction: vs.matchFunction || 'match_documents',
+            matchTable: vs.matchTable || 'documents',
+            matchCount: Number.isFinite(vs.matchCount) ? vs.matchCount : 5,
+            matchThreshold: Number.isFinite(vs.matchThreshold) ? vs.matchThreshold : 0.7,
+          },
         })
       }
     } catch (err) {
@@ -953,6 +976,31 @@ export default function ChatbotEdit() {
     return ghlTools
   }
 
+  // Build the SQL-agent's Supabase vector-store retrieval tool. Returns a single
+  // `search_knowledge_base` tool definition (or empty array when not enabled).
+  // The schema is intentionally minimal (single required `query` param) so the
+  // model can fire it freely without n8n schema-mismatch errors.
+  const buildVectorStoreTools = () => {
+    const vs = databaseConfig.vectorStore
+    if (agentKind !== 'sql_agent' || !vs?.enabled || !vs?.url) return []
+    const apiBaseUrl = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+    const qp = new URLSearchParams({ chatbotId: id || '' }).toString()
+    return [{
+      type: 'apiRequest', method: 'POST',
+      url: `${apiBaseUrl}/chatbot-sql/search-knowledge-base?${qp}`,
+      name: 'search_knowledge_base',
+      description: 'Search the knowledge base for documents semantically similar to a query. Returns the top matches with their content and similarity score. Use this whenever the user asks about information likely stored in the knowledge base.',
+      body: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'A natural-language query describing what to look up.' }
+        },
+        required: ['query']
+      },
+      timeoutSeconds: 30
+    }]
+  }
+
   // Fetch spreadsheets for file picker
   const fetchSpreadsheets = async (integrationId, query) => {
     if (!integrationId) return
@@ -988,18 +1036,20 @@ export default function ChatbotEdit() {
     setSuccess('')
 
     try {
-      // Merge manual tools with auto-generated calendar + call + sheets + docs + GHL CRM tools
+      // Merge manual tools with auto-generated calendar + call + sheets + docs + GHL CRM + vector-store tools
       const calendarTools = buildCalendarTools()
       const callTools = buildCallTools()
       const sheetsTools = buildSheetsTools()
       const docsTools = buildDocsTools()
       const ghlCrmTools = buildGhlCrmTools()
+      const vectorStoreTools = buildVectorStoreTools()
       // Filter out old auto-generated tools from manual tools list
       const autoNames = new Set([
         'make_call_now', 'schedule_call_later',
         'list_spreadsheets', 'get_spreadsheet_info', 'read_sheet_data',
         'write_sheet_data', 'append_sheet_rows', 'create_spreadsheet',
         'list_google_docs', 'read_google_doc', 'create_google_doc', 'append_to_google_doc',
+        'search_knowledge_base',
       ])
       // Also add all generated GHL tool names
       ghlCrmTools.forEach(t => autoNames.add(t.name))
@@ -1009,7 +1059,7 @@ export default function ChatbotEdit() {
         !t.name?.startsWith('ghl_') &&
         !autoNames.has(t.name)
       )
-      const allTools = [...manualTools, ...calendarTools, ...callTools, ...sheetsTools, ...docsTools, ...ghlCrmTools]
+      const allTools = [...manualTools, ...calendarTools, ...callTools, ...sheetsTools, ...docsTools, ...ghlCrmTools, ...vectorStoreTools]
 
       const configPayload = {
         systemPrompt,
@@ -1030,9 +1080,20 @@ export default function ChatbotEdit() {
         agentKind,
       }
       if (agentKind === 'sql_agent') {
+        const vs = databaseConfig.vectorStore || {}
         configPayload.database = {
           type: databaseConfig.type || 'postgres',
           connectionString: databaseConfig.connectionString || '',
+          vectorStore: {
+            enabled: !!vs.enabled,
+            url: (vs.url || '').trim(),
+            // empty serviceRoleKey is preserved server-side when previously stored
+            serviceRoleKey: vs.serviceRoleKey || '',
+            matchFunction: vs.matchFunction || 'match_documents',
+            matchTable: vs.matchTable || 'documents',
+            matchCount: Number.isFinite(parseInt(vs.matchCount)) ? parseInt(vs.matchCount) : 5,
+            matchThreshold: Number.isFinite(parseFloat(vs.matchThreshold)) ? parseFloat(vs.matchThreshold) : 0.7,
+          },
         }
       }
 
@@ -1766,6 +1827,110 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
             <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
               Credentials are encrypted at rest. We recommend a read-only database user scoped to the tables the agent should access.
             </p>
+          </div>
+        )}
+
+        {/* SQL Agent — Supabase Vector Store (RAG) */}
+        {agentKind === 'sql_agent' && (
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">{t('chatbotEdit.vectorStore') || 'Supabase Vector Store'}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {t('chatbotEdit.vectorStoreDesc') || 'Lets the agent semantically retrieve documents via your Supabase pgvector match function.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDatabaseConfig(prev => ({
+                  ...prev,
+                  vectorStore: { ...(prev.vectorStore || {}), enabled: !prev.vectorStore?.enabled }
+                }))}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors ${databaseConfig.vectorStore?.enabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                aria-label="Toggle vector store"
+              >
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform ${databaseConfig.vectorStore?.enabled ? 'translate-x-5' : 'translate-x-0.5'} mt-0.5`} />
+              </button>
+            </div>
+
+            {databaseConfig.vectorStore?.enabled && (
+              <div className="mt-4 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.supabaseUrl') || 'Supabase URL'}</label>
+                    <input
+                      type="text"
+                      value={databaseConfig.vectorStore?.url || ''}
+                      onChange={(e) => setDatabaseConfig(prev => ({ ...prev, vectorStore: { ...prev.vectorStore, url: e.target.value } }))}
+                      placeholder="https://xxxx.supabase.co"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.supabaseServiceRoleKey') || 'Service-role key'}</label>
+                    <input
+                      type="password"
+                      autoComplete="off"
+                      value={databaseConfig.vectorStore?.serviceRoleKey || ''}
+                      onChange={(e) => setDatabaseConfig(prev => ({ ...prev, vectorStore: { ...prev.vectorStore, serviceRoleKey: e.target.value } }))}
+                      placeholder={databaseConfig.vectorStore?.hasServiceRoleKey ? `Saved: ${databaseConfig.vectorStore?.serviceRoleKeyPreview || '••••••••'} (leave blank to keep)` : 'eyJhbGciOiJIUzI1NiIsInR…'}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.matchFunction') || 'RPC function'}</label>
+                    <input
+                      type="text"
+                      value={databaseConfig.vectorStore?.matchFunction || ''}
+                      onChange={(e) => setDatabaseConfig(prev => ({ ...prev, vectorStore: { ...prev.vectorStore, matchFunction: e.target.value } }))}
+                      placeholder="match_documents"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.matchTable') || 'Table'}</label>
+                    <input
+                      type="text"
+                      value={databaseConfig.vectorStore?.matchTable || ''}
+                      onChange={(e) => setDatabaseConfig(prev => ({ ...prev, vectorStore: { ...prev.vectorStore, matchTable: e.target.value } }))}
+                      placeholder="documents"
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.matchCount') || 'Match count'}</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      step={1}
+                      value={databaseConfig.vectorStore?.matchCount ?? 5}
+                      onChange={(e) => setDatabaseConfig(prev => ({ ...prev, vectorStore: { ...prev.vectorStore, matchCount: parseInt(e.target.value || '0') || 0 } }))}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t('chatbotEdit.matchThreshold') || 'Threshold'}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={databaseConfig.vectorStore?.matchThreshold ?? 0.7}
+                      onChange={(e) => setDatabaseConfig(prev => ({ ...prev, vectorStore: { ...prev.vectorStore, matchThreshold: parseFloat(e.target.value) } }))}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  {t('chatbotEdit.vectorStoreFooter') || 'Expects a Supabase RPC with signature `match_documents(query_embedding vector, match_threshold float, match_count int)` returning rows with `id`, `content`, and `similarity`. Embeddings are generated server-side with text-embedding-3-small.'}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
