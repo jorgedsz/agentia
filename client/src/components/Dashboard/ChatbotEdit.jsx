@@ -494,7 +494,8 @@ export default function ChatbotEdit() {
       calendarId: calendarConfig.calendarId,
       timezone: calendarConfig.timezone,
       appointmentDuration: calendarConfig.appointmentDuration,
-      appointmentTitle: calendarConfig.appointmentTitle
+      appointmentTitle: calendarConfig.appointmentTitle,
+      meta: calendarConfig.meta
     }]
   }
 

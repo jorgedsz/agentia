@@ -745,7 +745,8 @@ export default function AgentEdit() {
       appointmentDuration: calendarConfig.appointmentDuration,
       contactId: calendarConfig.contactId,
       appointmentTitle: calendarConfig.appointmentTitle,
-      requiredFields: calendarConfig.requiredFields
+      requiredFields: calendarConfig.requiredFields,
+      meta: calendarConfig.meta
     }]
   }
 
