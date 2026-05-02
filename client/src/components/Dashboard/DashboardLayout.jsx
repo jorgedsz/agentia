@@ -238,6 +238,7 @@ export default function DashboardLayout() {
         { id: 'agents', path: '/dashboard/agents', label: t('sidebar.myAgents'), icon: Icons.Agents, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'voice-library', path: '/dashboard/voice-library', label: t('sidebar.voiceLibrary'), icon: Icons.Voice, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'create-agent', label: t('sidebar.createAgent'), icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT], isAction: true },
+        { id: 'agent-builder-voice', path: '/dashboard/agent-builder/voice/new', label: t('sidebar.agentBuilderVoice'), icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT], featureKey: 'agentGenerator' },
       ]
     },
     {
@@ -246,6 +247,7 @@ export default function DashboardLayout() {
       items: [
         { id: 'chatbots', path: '/dashboard/chatbots', label: t('sidebar.myChatbots') || 'My Chatbots', icon: Icons.Chatbot, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'create-chatbot', label: t('sidebar.createChatbot') || 'Create Chatbot', icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT], isAction: true, actionType: 'chatbot' },
+        { id: 'agent-builder-chat', path: '/dashboard/agent-builder/chat/new', label: t('sidebar.agentBuilderChat'), icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT], featureKey: 'agentGenerator' },
       ]
     },
     {
@@ -289,14 +291,23 @@ export default function DashboardLayout() {
     }
   ]
 
-  // Filter out disabled feature sections
-  const menuSections = allMenuSections.filter(section => {
-    if (section.featureKey === 'voiceAgents') return user?.voiceAgentsEnabled !== false
-    if (section.featureKey === 'chatbots') return user?.chatbotsEnabled !== false
-    if (section.featureKey === 'crm') return user?.crmEnabled === true
-    if (section.featureKey === 'agentGenerator') return user?.agentGeneratorEnabled === true
+  // Filter out disabled feature sections and items
+  const passesFeatureKey = (key) => {
+    if (!key) return true
+    if (key === 'voiceAgents') return user?.voiceAgentsEnabled !== false
+    if (key === 'chatbots') return user?.chatbotsEnabled !== false
+    if (key === 'crm') return user?.crmEnabled === true
+    if (key === 'agentGenerator') return user?.agentGeneratorEnabled === true
     return true
-  })
+  }
+
+  const menuSections = allMenuSections
+    .filter(section => passesFeatureKey(section.featureKey))
+    .map(section => ({
+      ...section,
+      items: section.items.filter(item => passesFeatureKey(item.featureKey))
+    }))
+    .filter(section => section.items.length > 0)
 
   return (
     <div className={`flex h-screen ${darkMode ? 'dark' : ''}`}>
