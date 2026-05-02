@@ -7,6 +7,7 @@ import { TRANSCRIBER_PROVIDERS, MODELS_BY_PROVIDER } from '../../constants/model
 import TestCallModal from './TestCallModal'
 import TrainingCallModal from './TrainingCallModal'
 import VoicePicker from './VoicePicker'
+import CalendarMetaPanel from './CalendarMetaPanel'
 
 const LANGUAGES = [
   { id: 'en', label: 'English' },
@@ -1230,11 +1231,17 @@ export default function AgentEdit() {
           // Determine the base URL: use legacy GHL path for legacy GHL agents, unified path for everything else
           const useLegacyGhl = cal.provider === 'ghl' && !cal.integrationId
 
+          // Prefer GHL meta when available
+          const isGhlOk = cal.provider === 'ghl' && cal.meta?.status === 'ok'
+          const effDuration = isGhlOk ? (cal.meta.slotDuration ?? cal.appointmentDuration ?? 30) : (cal.appointmentDuration ?? 30)
+          const effTimezone = isGhlOk ? (cal.meta.timezone ?? cal.timezone ?? 'America/New_York') : (cal.timezone || 'America/New_York')
+          const effTitle    = isGhlOk ? (cal.meta.eventTitle ?? cal.appointmentTitle ?? '') : (cal.appointmentTitle || '')
+
           const queryParamsObj = {
             calendarId: cal.calendarId,
-            timezone: cal.timezone || 'America/New_York',
+            timezone: effTimezone,
             userId: user?.id?.toString() || '',
-            duration: (cal.appointmentDuration || 30).toString()
+            duration: effDuration.toString()
           }
 
           // Add provider/integrationId for unified calendar API
@@ -1251,8 +1258,8 @@ export default function AgentEdit() {
           }
 
           // Optional appointment title template (resolved server-side with contact vars)
-          if (cal.appointmentTitle) {
-            queryParamsObj.title = cal.appointmentTitle
+          if (effTitle) {
+            queryParamsObj.title = effTitle
           }
 
           const queryParams = new URLSearchParams(queryParamsObj).toString()
@@ -4077,42 +4084,60 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                         calendarConfig.integrationId,
                         calendarConfig.calendarId,
                         calendarConfig.timezone,
-                        (calendarId, timezone) => setCalendarConfig({ ...calendarConfig, calendarId, timezone }),
+                        async (calendarId, timezone) => {
+                          const next = { ...calendarConfig, calendarId, timezone }
+                          setCalendarConfig(next)
+                          if (next.provider === 'ghl' && next.integrationId && calendarId) {
+                            try {
+                              const { data } = await calendarAPI.getDetails('ghl', next.integrationId, calendarId)
+                              if (data?.meta) setCalendarConfig({ ...next, meta: data.meta })
+                            } catch (err) {
+                              console.error('Failed to fetch GHL calendar meta:', err)
+                            }
+                          }
+                        },
                         'single'
                       )}
 
                       {calendarConfig.provider && (
                         <>
-                          {/* Timezone & Duration side by side */}
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('timezone')}</label>
-                              <select
-                                value={calendarConfig.timezone}
-                                onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
-                              >
-                                {TIMEZONES.map(tz => (
-                                  <option key={tz} value={tz}>{tz}</option>
-                                ))}
-                              </select>
+                          {/* GHL: read-only meta panel. Non-GHL: editable timezone/duration */}
+                          {calendarConfig.provider === 'ghl' ? (
+                            <CalendarMetaPanel
+                              entry={calendarConfig}
+                              onMetaChange={(meta) => setCalendarConfig({ ...calendarConfig, meta })}
+                            />
+                          ) : (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('timezone')}</label>
+                                <select
+                                  value={calendarConfig.timezone}
+                                  onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
+                                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                                >
+                                  {TIMEZONES.map(tz => (
+                                    <option key={tz} value={tz}>{tz}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('duration')}</label>
+                                <select
+                                  value={calendarConfig.appointmentDuration || 30}
+                                  onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
+                                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                                >
+                                  <option value={10}>{ta('dur10')}</option>
+                                  <option value={15}>{ta('dur15')}</option>
+                                  <option value={30}>{ta('dur30')}</option>
+                                  <option value={45}>{ta('dur45')}</option>
+                                  <option value={60}>{ta('dur60')}</option>
+                                  <option value={90}>{ta('dur90')}</option>
+                                </select>
+                              </div>
                             </div>
-                            <div>
-                              <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('duration')}</label>
-                              <select
-                                value={calendarConfig.appointmentDuration || 30}
-                                onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
-                              >
-                                <option value={10}>{ta('dur10')}</option>
-                                <option value={15}>{ta('dur15')}</option>
-                                <option value={30}>{ta('dur30')}</option>
-                                <option value={45}>{ta('dur45')}</option>
-                                <option value={60}>{ta('dur60')}</option>
-                                <option value={90}>{ta('dur90')}</option>
-                              </select>
-                            </div>
-                          </div>
+                          )}
 
                           {/* Required Contact Fields - for non-GHL providers */}
                           {calendarConfig.provider !== 'ghl' && (() => {
@@ -4144,8 +4169,8 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                             </div>
                           )}
 
-                          {/* Appointment / Meeting invite title */}
-                          {calendarConfig.provider && (
+                          {/* Appointment title — only for non-GHL */}
+                          {calendarConfig.provider !== 'ghl' && (
                             <div>
                               <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentTitle')}</label>
                               <input
@@ -4274,44 +4299,62 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                                 entry.integrationId,
                                 entry.calendarId,
                                 entry.timezone,
-                                (calendarId, timezone) => updateCalendarEntry(entry.id, { calendarId, timezone }),
+                                async (calendarId, timezone) => {
+                                  updateCalendarEntry(entry.id, { calendarId, timezone })
+                                  if (entry.provider === 'ghl' && entry.integrationId && calendarId) {
+                                    try {
+                                      const { data } = await calendarAPI.getDetails('ghl', entry.integrationId, calendarId)
+                                      if (data?.meta) updateCalendarEntry(entry.id, { meta: data.meta })
+                                    } catch (err) {
+                                      console.error('Failed to fetch GHL calendar meta:', err)
+                                    }
+                                  }
+                                },
                                 entry.id
                               )}
 
                               {/* Timezone & Duration */}
                               {entry.provider && (
                                 <>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('timezone')}</label>
-                                      <select
-                                        value={entry.timezone}
-                                        onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
-                                      >
-                                        {TIMEZONES.map(tz => (
-                                          <option key={tz} value={tz}>{tz}</option>
-                                        ))}
-                                      </select>
+                                  {/* GHL: read-only meta. Non-GHL: editable */}
+                                  {entry.provider === 'ghl' ? (
+                                    <CalendarMetaPanel
+                                      entry={entry}
+                                      onMetaChange={(meta) => updateCalendarEntry(entry.id, { meta })}
+                                    />
+                                  ) : (
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('timezone')}</label>
+                                        <select
+                                          value={entry.timezone}
+                                          onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
+                                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                                        >
+                                          {TIMEZONES.map(tz => (
+                                            <option key={tz} value={tz}>{tz}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('duration')}</label>
+                                        <select
+                                          value={entry.appointmentDuration || 30}
+                                          onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
+                                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                                        >
+                                          <option value={10}>10 min</option>
+                                          <option value={15}>15 min</option>
+                                          <option value={30}>30 min</option>
+                                          <option value={45}>45 min</option>
+                                          <option value={60}>60 min</option>
+                                          <option value={90}>90 min</option>
+                                        </select>
+                                      </div>
                                     </div>
-                                    <div>
-                                      <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{ta('duration')}</label>
-                                      <select
-                                        value={entry.appointmentDuration || 30}
-                                        onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
-                                      >
-                                        <option value={10}>10 min</option>
-                                        <option value={15}>15 min</option>
-                                        <option value={30}>30 min</option>
-                                        <option value={45}>45 min</option>
-                                        <option value={60}>60 min</option>
-                                        <option value={90}>90 min</option>
-                                      </select>
-                                    </div>
-                                  </div>
+                                  )}
 
-                                  {/* Required Contact Fields - non-GHL */}
+                                  {/* Required Contact Fields - non-GHL — UNCHANGED */}
                                   {entry.provider !== 'ghl' && (() => {
                                     const rf = entry.requiredFields || { contactName: true, contactEmail: true, contactPhone: false }
                                     return renderRequiredFields(rf, (key) => updateCalendarEntry(entry.id, {
@@ -4319,7 +4362,7 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                                     }))
                                   })()}
 
-                                  {/* GHL Contact ID (Test) */}
+                                  {/* GHL Contact ID (Test) — UNCHANGED */}
                                   {entry.provider === 'ghl' && (
                                     <div className="bg-gray-50 dark:bg-dark-hover rounded-xl p-4">
                                       <div className="flex items-center gap-2 mb-2">
@@ -4340,17 +4383,19 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                                     </div>
                                   )}
 
-                                  {/* Appointment / Meeting invite title */}
-                                  <div>
-                                    <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t('chatbotEdit.appointmentTitle')}</label>
-                                    <input
-                                      type="text"
-                                      value={entry.appointmentTitle || ''}
-                                      onChange={(e) => updateCalendarEntry(entry.id, { appointmentTitle: e.target.value })}
-                                      placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
-                                      className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
-                                    />
-                                  </div>
+                                  {/* Appointment title — only for non-GHL */}
+                                  {entry.provider !== 'ghl' && (
+                                    <div>
+                                      <label className="block text-xs font-medium mb-1.5 text-gray-500 dark:text-gray-400 uppercase tracking-wide">{t('chatbotEdit.appointmentTitle')}</label>
+                                      <input
+                                        type="text"
+                                        value={entry.appointmentTitle || ''}
+                                        onChange={(e) => updateCalendarEntry(entry.id, { appointmentTitle: e.target.value })}
+                                        placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                                      />
+                                    </div>
+                                  )}
                                 </>
                               )}
                             </div>
