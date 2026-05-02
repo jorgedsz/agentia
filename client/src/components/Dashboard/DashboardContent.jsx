@@ -454,7 +454,7 @@ export default function DashboardContent({ tab }) {
                       </span>
                     </div>
                     {agents.map((agent) => (
-                      <AgentCard key={agent.id} agent={agent} modelRates={modelRates} transcriberRates={transcriberRates} onDelete={() => handleDelete('agent', agent.id)} onDuplicate={() => handleDuplicate(agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} />
+                      <AgentCard key={agent.id} agent={agent} modelRates={modelRates} transcriberRates={transcriberRates} onDelete={() => handleDelete('agent', agent.id)} onDuplicate={() => handleDuplicate(agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} onOpenBuilder={() => navigate(`/dashboard/agent-builder/voice/${agent.id}`)} />
                     ))}
                   </div>
                 )}
@@ -943,7 +943,7 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
   )
 }
 
-function AgentCard({ agent, modelRates, transcriberRates, onDelete, onDuplicate, onEdit, onTest, onPhoneCall }) {
+function AgentCard({ agent, modelRates, transcriberRates, onDelete, onDuplicate, onEdit, onTest, onPhoneCall, onOpenBuilder }) {
   const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
   const type = agent.agentType || agent.config?.agentType || 'outbound'
@@ -1071,6 +1071,18 @@ function AgentCard({ agent, modelRates, transcriberRates, onDelete, onDuplicate,
               </svg>
               Phone Call
             </button>
+            {agent.config?.wizardAnswers && (
+              <button
+                onClick={onOpenBuilder}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium rounded-lg border border-primary-300 dark:border-primary-600/40 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors"
+                title={t('agentBuilder.openBuilder')}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                {t('agentBuilder.openBuilder')}
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <button
