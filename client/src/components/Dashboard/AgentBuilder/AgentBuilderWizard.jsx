@@ -109,6 +109,7 @@ export default function AgentBuilderWizard({ type }) {
     if (stepName === 'business') return !!values.companyName.trim()
     if (stepName === 'goalTone') return !!values.goals.trim()
     if (stepName === 'voice') return !!values.voiceId
+    if (stepName === 'review') return !!values.generatedPrompt
     return true
   }
 
