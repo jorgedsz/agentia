@@ -206,6 +206,8 @@ export const ghlAPI = {
 export const calendarAPI = {
   listIntegrations: () => api.get('/calendar/integrations'),
   getCalendars: (integrationId) => api.get(`/calendar/integrations/${integrationId}/calendars`),
+  getDetails: (provider, integrationId, calendarId) =>
+    api.get('/calendar/details', { params: { provider, integrationId, calendarId } }),
   connectProvider: (provider, data) => api.post(`/calendar/integrations/${provider}/connect`, data),
   disconnectIntegration: (id) => api.delete(`/calendar/integrations/${id}/disconnect`),
   getOAuthUrl: (provider) => api.get(`/calendar/oauth/${provider}/authorize`)

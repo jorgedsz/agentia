@@ -1527,7 +1527,22 @@
     "tools": "tools",
     "prompt": "prompt",
     "chars": "chars",
-    "webhookNotSet": "Webhook: NOT SET (billing disabled!)"
+    "webhookNotSet": "Webhook: NOT SET (billing disabled!)",
+    "calendarMeta": {
+      "fromGhl": "From GoHighLevel",
+      "syncedAgo": "Synced {{when}}",
+      "refreshing": "Refreshing…",
+      "refreshNow": "Refresh now",
+      "tzLabel": "Timezone",
+      "durationLabel": "Duration",
+      "titleLabel": "Title",
+      "minutes": "min",
+      "notFound": "This calendar no longer exists in GoHighLevel.",
+      "errorBanner": "Couldn't refresh from GoHighLevel — using last known values.",
+      "retry": "Retry",
+      "pickAnother": "Pick another calendar",
+      "neverSynced": "Not synced yet"
+    }
   },
   "agentBuilder": {
     "voiceTitle": "Voice Agent Builder",

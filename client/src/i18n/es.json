@@ -1527,7 +1527,22 @@
     "tools": "herramientas",
     "prompt": "prompt",
     "chars": "caracteres",
-    "webhookNotSet": "Webhook: NO CONFIGURADO (¡facturación deshabilitada!)"
+    "webhookNotSet": "Webhook: NO CONFIGURADO (¡facturación deshabilitada!)",
+    "calendarMeta": {
+      "fromGhl": "Desde GoHighLevel",
+      "syncedAgo": "Sincronizado {{when}}",
+      "refreshing": "Actualizando…",
+      "refreshNow": "Actualizar ahora",
+      "tzLabel": "Zona horaria",
+      "durationLabel": "Duración",
+      "titleLabel": "Título",
+      "minutes": "min",
+      "notFound": "Este calendario ya no existe en GoHighLevel.",
+      "errorBanner": "No se pudo sincronizar desde GoHighLevel — usando los últimos valores conocidos.",
+      "retry": "Reintentar",
+      "pickAnother": "Elegir otro calendario",
+      "neverSynced": "Aún no sincronizado"
+    }
   },
   "agentBuilder": {
     "voiceTitle": "Constructor de Agente de Voz",
