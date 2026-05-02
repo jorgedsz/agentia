@@ -56,6 +56,7 @@ const trainingRoutes = require('./routes/training');
 const whopRoutes = require('./routes/whop');
 const recurringPaymentRoutes = require('./routes/recurringPayments');
 const recurringPaymentController = require('./controllers/recurringPaymentController');
+const { startCalendarMetaRefresher } = require('./services/calendarMetaRefresher');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
@@ -442,4 +443,5 @@ server.listen(PORT, () => {
   followUpController.startScheduler(prisma);
   chatbotFollowUpController.startScheduler(prisma);
   recurringPaymentController.startScheduler(prisma);
+  startCalendarMetaRefresher(prisma);
 });
