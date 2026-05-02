@@ -10,8 +10,11 @@ let running = false;
 function collectGhlEntries(cfg) {
   const out = [];
   if (!cfg) return out;
-  if (cfg.provider === 'ghl' && cfg.calendarId) out.push(cfg);
-  for (const c of (cfg.calendars || [])) {
+  // Calendar config is nested under cfg.calendarConfig in both agents and chatbots.
+  const cal = cfg.calendarConfig;
+  if (!cal) return out;
+  if (cal.provider === 'ghl' && cal.calendarId) out.push(cal);
+  for (const c of (cal.calendars || [])) {
     if (c && c.provider === 'ghl' && c.calendarId) out.push(c);
   }
   return out;
