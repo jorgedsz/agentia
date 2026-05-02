@@ -37,6 +37,7 @@ import MessagePortalPage from './components/Portal/MessagePortalPage'
 import PublicChatPage from './components/PublicChat/PublicChatPage'
 import PublicVoicePage from './components/PublicChat/PublicVoicePage'
 import AgentBuilderWizard from './components/Dashboard/AgentBuilder/AgentBuilderWizard'
+import AgentBuilderHome from './components/Dashboard/AgentBuilder/AgentBuilderHome'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -137,9 +138,9 @@ function App() {
           <Route path="agents" element={<DashboardContent tab="agents" />} />
           <Route path="agent/:id" element={<AgentEdit />} />
           <Route path="agent-builder/voice/new" element={<AgentBuilderWizard type="voice" />} />
-          <Route path="agent-builder/voice/:id" element={<ComingSoon title="Agent Builder (Voice)" />} />
+          <Route path="agent-builder/voice/:id" element={<AgentBuilderHome type="voice" />} />
           <Route path="agent-builder/chat/new" element={<AgentBuilderWizard type="chat" />} />
-          <Route path="agent-builder/chat/:id" element={<ComingSoon title="Agent Builder (Chat)" />} />
+          <Route path="agent-builder/chat/:id" element={<AgentBuilderHome type="chat" />} />
           <Route path="accounts" element={<AccountManagement />} />
           <Route path="clients" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="agencies" element={<Navigate to="/dashboard/accounts" replace />} />
