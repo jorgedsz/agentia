@@ -791,6 +791,7 @@
   },
   "testCall": {
     "title": "Test Agent",
+    "variables": "Variables",
     "readyToCall": "Ready to call",
     "connecting": "Connecting...",
     "callActive": "Call Active",

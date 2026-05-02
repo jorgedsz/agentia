@@ -23,6 +23,7 @@ export default function PublicVoicePage() {
   const [muted, setMuted] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [volume, setVolume] = useState(0)
+  const [variableValues, setVariableValues] = useState({})
 
   const vapiRef = useRef(null)
   const timerRef = useRef(null)
@@ -35,6 +36,11 @@ export default function PublicVoicePage() {
         const { data } = await axios.get(`${API_URL}/agents/${id}/public-share/${token}/info`)
         if (cancelled) return
         setInfo(data)
+        if (Array.isArray(data?.variables)) {
+          const seed = {}
+          data.variables.forEach(v => { if (v?.name) seed[v.name] = v.defaultValue || '' })
+          setVariableValues(seed)
+        }
       } catch (err) {
         if (cancelled) return
         if (err.response?.status === 404) {
@@ -111,11 +117,16 @@ export default function PublicVoicePage() {
         if (hardStopRef.current) { clearTimeout(hardStopRef.current); hardStopRef.current = null }
       })
 
-      // 3. Start the call — assistantId only, no overrides. Vapi's Web SDK
-      //    `assistantOverrides` parameter only accepts a narrow set of fields
-      //    (not metadata or maxDurationSeconds); passing extras causes Vapi to
-      //    reject the call.
-      await vapi.start(info.vapiAssistantId)
+      // 3. Start the call. Vapi's Web SDK only accepts a narrow set of fields
+      //    on `assistantOverrides`, but `variableValues` is one of them — we
+      //    pass it through so the agent's prompt + first message can be
+      //    parameterised by the form below. Empty strings are filtered so the
+      //    agent's stored defaults still apply when a field is left blank.
+      const filledValues = Object.fromEntries(
+        Object.entries(variableValues).filter(([, v]) => typeof v === 'string' && v.trim() !== '')
+      )
+      const overrides = Object.keys(filledValues).length ? { variableValues: filledValues } : undefined
+      await vapi.start(info.vapiAssistantId, overrides)
     } catch (err) {
       console.error('Public voice start failed:', err)
       const code = err.response?.status
@@ -196,6 +207,25 @@ export default function PublicVoicePage() {
                 Tap to start a {Math.round(cap / 60)}-minute test call with this agent in your browser.
                 You'll be asked to allow microphone access.
               </p>
+              {Array.isArray(info.variables) && info.variables.length > 0 && (
+                <div className="mb-5 text-left">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Variables</p>
+                  <div className="space-y-2">
+                    {info.variables.map((v) => (
+                      <div key={v.name}>
+                        <label className="block text-[11px] font-mono text-gray-500 mb-0.5">{`{{${v.name}}}`}</label>
+                        <input
+                          type="text"
+                          value={variableValues[v.name] ?? ''}
+                          onChange={(e) => setVariableValues(prev => ({ ...prev, [v.name]: e.target.value }))}
+                          placeholder={v.defaultValue || ''}
+                          className="w-full px-3 py-2 rounded-lg bg-white border border-gray-300 text-gray-900 text-sm focus:outline-none focus:border-primary-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <button
                 onClick={startCall}
                 className="w-full px-5 py-3 rounded-full bg-primary-600 text-white font-semibold hover:bg-primary-700 transition-colors"

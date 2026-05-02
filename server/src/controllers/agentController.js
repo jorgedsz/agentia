@@ -704,13 +704,27 @@ const getPublicAgentInfo = async (req, res) => {
     const vapiPublicKey = await resolveVapiPublicKeyForUser(req.prisma, agent.userId);
     if (!vapiPublicKey) return res.status(422).json({ error: 'Voice service is not configured.' });
 
+    // Surface the agent's trigger variables so the caller can fill them in
+    // and we forward the values via assistantOverrides.variableValues. Only
+    // the name + default are sent — actual stored values live elsewhere.
+    let variables = [];
+    try {
+      const cfg = agent.config ? (typeof agent.config === 'string' ? JSON.parse(agent.config) : agent.config) : null;
+      if (Array.isArray(cfg?.variables)) {
+        variables = cfg.variables
+          .filter(v => v && typeof v.name === 'string' && v.name.trim())
+          .map(v => ({ name: v.name.trim(), defaultValue: typeof v.defaultValue === 'string' ? v.defaultValue : '' }));
+      }
+    } catch { /* config not parseable — no variables */ }
+
     res.json({
       id: agent.id,
       name: agent.name,
       description: agent.description || '',
       vapiAssistantId: agent.vapiId,
       vapiPublicKey,
-      maxDurationSeconds: agent.publicShareMaxDurationSeconds
+      maxDurationSeconds: agent.publicShareMaxDurationSeconds,
+      variables
     });
   } catch (error) {
     console.error('Public agent info error:', error);

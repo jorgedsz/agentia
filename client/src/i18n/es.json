@@ -791,6 +791,7 @@
   },
   "testCall": {
     "title": "Probar agente",
+    "variables": "Variables",
     "readyToCall": "Listo para llamar",
     "connecting": "Conectando...",
     "callActive": "Llamada activa",

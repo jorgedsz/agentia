@@ -13,6 +13,16 @@ export default function TestCallModal({ agent, onClose }) {
   const timerRef = useRef(null)
   const transcriptEndRef = useRef(null)
 
+  // Trigger variables — let the caller plug in values that get substituted
+  // as {{name}} in the agent's prompt + first message via Vapi's
+  // assistantOverrides.variableValues.
+  const agentVariables = Array.isArray(agent?.config?.variables) ? agent.config.variables : []
+  const [variableValues, setVariableValues] = useState(() => {
+    const seed = {}
+    agentVariables.forEach(v => { if (v?.name) seed[v.name] = v.defaultValue || '' })
+    return seed
+  })
+
   const startCall = async () => {
     try {
       setStatus('connecting')
@@ -92,7 +102,14 @@ export default function TestCallModal({ agent, onClose }) {
         }
       })
 
-      await vapi.start(agent.vapiId)
+      // Build assistantOverrides only if there's something to send. Empty
+      // strings are dropped so the agent's prompt-level {{var}} fallbacks
+      // (or stored defaults) keep working.
+      const filledValues = Object.fromEntries(
+        Object.entries(variableValues).filter(([, v]) => typeof v === 'string' && v.trim() !== '')
+      )
+      const overrides = Object.keys(filledValues).length ? { variableValues: filledValues } : undefined
+      await vapi.start(agent.vapiId, overrides)
     } catch (err) {
       console.error('Failed to start test call:', err)
       setStatus('ended')
@@ -238,6 +255,33 @@ export default function TestCallModal({ agent, onClose }) {
               </span>
             )}
           </div>
+
+          {/* Variable values — only shown when the agent declares variables */}
+          {agentVariables.length > 0 && (status === 'idle' || status === 'ended') && (
+            <div className="rounded-xl border border-gray-700/50 bg-[#16181d] overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-gray-700/40 bg-[#13151a]">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  {t('testCall.variables') || 'Variables'}
+                </span>
+              </div>
+              <div className="p-4 space-y-2.5 max-h-48 overflow-y-auto">
+                {agentVariables.map((v) => (
+                  <div key={v.name} className="flex items-center gap-3">
+                    <label className="text-xs font-mono text-cyan-400 w-32 flex-shrink-0 truncate" title={`{{${v.name}}}`}>
+                      {`{{${v.name}}}`}
+                    </label>
+                    <input
+                      type="text"
+                      value={variableValues[v.name] ?? ''}
+                      onChange={(e) => setVariableValues(prev => ({ ...prev, [v.name]: e.target.value }))}
+                      placeholder={v.defaultValue || ''}
+                      className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#1a1d22] border border-gray-700/50 text-gray-200 text-xs focus:outline-none focus:border-cyan-500/50"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Call Controls */}
           <div className="flex items-center justify-center gap-4">
