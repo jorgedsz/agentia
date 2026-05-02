@@ -237,19 +237,24 @@ class GHLCalendarProvider extends CalendarProvider {
         console.warn('GHL contact search failed, will attempt create:', searchErr.message);
       }
 
+      console.log('[GHL bookAppointment] lookup query:', searchQuery, '| phoneForLookup:', phoneForLookup);
       if (searchResponse?.contacts && searchResponse.contacts.length > 0) {
         contactId = searchResponse.contacts[0].id;
+        const matched = searchResponse.contacts[0];
+        console.log('[GHL bookAppointment] matched existing contact:', { id: matched.id, name: matched.contactName || matched.firstName, phone: matched.phone, email: matched.email });
       } else {
         const body = { locationId: this.locationId };
         if (contactEmail) body.email = contactEmail;
         if (contactName) body.name = contactName;
         if (phoneForLookup) body.phone = phoneForLookup;
+        console.log('[GHL bookAppointment] creating new contact:', JSON.stringify(body));
         try {
           const createContactResponse = await this._ghlRequest('/contacts', token, {
             method: 'POST',
             body: JSON.stringify(body)
           });
           contactId = createContactResponse.contact?.id;
+          console.log('[GHL bookAppointment] created contactId:', contactId);
         } catch (createErr) {
           // "Duplicated contacts" error includes the existing contactId in meta.
           const existingId = createErr.body?.meta?.contactId;

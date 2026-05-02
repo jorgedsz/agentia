@@ -806,6 +806,9 @@ const bookAppointment = async (req, res) => {
     console.log('=== BOOK APPOINTMENT ===');
     console.log('Provider:', provider, '| IntegrationId:', integrationId, '| CalendarId:', calendarId);
     console.log('ContactId:', contactId, '| ContactEmail:', contactEmail, '| ContactName:', contactName);
+    console.log('CallerPhone (from VAPI envelope):', callerPhone, '| ContactPhone (from agent fn args):', contactPhone);
+    console.log('Vapi call.customer:', JSON.stringify(req.body.message?.call?.customer || null));
+    console.log('Vapi call.phoneNumber:', JSON.stringify(req.body.message?.call?.phoneNumber || null));
     console.log('StartTime:', startTime, '| EndTime:', endTime);
     console.log('Query params:', JSON.stringify(req.query));
     console.log('Function args:', JSON.stringify(functionArgs));
