@@ -94,6 +94,16 @@ class CalendarProvider {
   async bookAppointment(calendarId, params) {
     throw new Error('bookAppointment() not implemented');
   }
+
+  /**
+   * Get full calendar details, including provider-specific config like
+   * timezone, slot duration, and default event title.
+   * @param {string} calendarId
+   * @returns {Object} - { source, name, timezone, slotDuration, eventTitle, status, updatedAt, [error] }
+   */
+  async getCalendarDetails(calendarId) {
+    throw new Error('getCalendarDetails() not implemented');
+  }
 }
 
 module.exports = CalendarProvider;

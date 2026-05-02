@@ -855,9 +855,53 @@ const bookAppointment = async (req, res) => {
   }
 };
 
+/**
+ * Get GHL-style metadata for a specific calendar.
+ * GET /api/calendar/details?provider=ghl&integrationId=123&calendarId=...
+ * Always returns 200 with a meta object; status field encodes any failure.
+ */
+const getCalendarDetails = async (req, res) => {
+  try {
+    const { provider, integrationId, calendarId } = req.query;
+    if (!provider || !integrationId || !calendarId) {
+      return res.status(400).json({ error: 'provider, integrationId, calendarId required' });
+    }
+
+    const integration = await req.prisma.calendarIntegration.findFirst({
+      where: { id: parseInt(integrationId), userId: req.user.id, provider }
+    });
+    if (!integration) {
+      return res.json({ meta: { source: provider, status: 'not_found', error: 'Integration not found', updatedAt: new Date().toISOString() } });
+    }
+    if (!integration.isConnected) {
+      return res.json({ meta: { source: provider, status: 'error', error: 'Integration disconnected', updatedAt: new Date().toISOString() } });
+    }
+
+    const providerInstance = createCalendarProvider(integration, req.prisma);
+    let meta;
+    try {
+      meta = await providerInstance.getCalendarDetails(calendarId);
+    } catch (err) {
+      const msg = (err && err.message) || 'unknown';
+      if (/not implemented/i.test(msg)) {
+        meta = { source: provider, status: 'unsupported', error: msg, updatedAt: new Date().toISOString() };
+      } else if (/404|not.?found/i.test(msg)) {
+        meta = { source: provider, status: 'not_found', error: msg, updatedAt: new Date().toISOString() };
+      } else {
+        meta = { source: provider, status: 'error', error: msg, updatedAt: new Date().toISOString() };
+      }
+    }
+    res.json({ meta });
+  } catch (error) {
+    console.error('Error fetching calendar details:', error);
+    res.json({ meta: { source: req.query.provider || 'unknown', status: 'error', error: error.message || 'Failed', updatedAt: new Date().toISOString() } });
+  }
+};
+
 module.exports = {
   listIntegrations,
   getCalendars,
+  getCalendarDetails,
   connectProvider,
   disconnectIntegration,
   oauthAuthorize,

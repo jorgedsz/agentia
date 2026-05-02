@@ -22,6 +22,9 @@ router.get('/integrations', calendarController.listIntegrations);
 // List calendars for a specific integration
 router.get('/integrations/:id/calendars', calendarController.getCalendars);
 
+// Get GHL-style metadata for a specific calendar
+router.get('/details', calendarController.getCalendarDetails);
+
 // Connect a provider (API key for Cal.com)
 router.post('/integrations/:provider/connect', calendarController.connectProvider);
 

@@ -144,6 +144,21 @@ class GHLCalendarProvider extends CalendarProvider {
     }));
   }
 
+  async getCalendarDetails(calendarId) {
+    const token = await this.getValidToken();
+    const data = await this._ghlRequest(`/calendars/${calendarId}`, token);
+    const cal = data.calendar || data;
+    return {
+      source: 'ghl',
+      name: cal.name || '',
+      timezone: cal.calendarTimezone || cal.timezone || null,
+      slotDuration: typeof cal.slotDuration === 'number' ? cal.slotDuration : null,
+      eventTitle: cal.eventTitle || cal.name || '',
+      status: 'ok',
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   async checkAvailability(calendarId, date, timezone, duration) {
     const token = await this.getValidToken();
 
