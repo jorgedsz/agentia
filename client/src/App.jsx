@@ -135,6 +135,10 @@ function App() {
           <Route index element={<DashboardContent tab="overview" />} />
           <Route path="agents" element={<DashboardContent tab="agents" />} />
           <Route path="agent/:id" element={<AgentEdit />} />
+          <Route path="agent-builder/voice/new" element={<ComingSoon title="Agent Builder (Voice)" />} />
+          <Route path="agent-builder/voice/:id" element={<ComingSoon title="Agent Builder (Voice)" />} />
+          <Route path="agent-builder/chat/new" element={<ComingSoon title="Agent Builder (Chat)" />} />
+          <Route path="agent-builder/chat/:id" element={<ComingSoon title="Agent Builder (Chat)" />} />
           <Route path="accounts" element={<AccountManagement />} />
           <Route path="clients" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="agencies" element={<Navigate to="/dashboard/accounts" replace />} />
