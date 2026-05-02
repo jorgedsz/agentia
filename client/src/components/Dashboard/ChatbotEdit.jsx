@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { MODELS_BY_PROVIDER } from '../../constants/models'
 import TestChatbotModal from './TestChatbotModal'
+import CalendarMetaPanel from './CalendarMetaPanel'
 
 const CHATBOT_MODELS = MODELS_BY_PROVIDER['openai'].filter(m => m.model.startsWith('gpt-'))
 
@@ -573,18 +574,24 @@ export default function ChatbotEdit() {
       const isMultiCalendar = activeCalendars.length >= 2
 
       activeCalendars.forEach((cal, idx) => {
+        // Prefer GHL meta when available
+        const isGhlOk = cal.provider === 'ghl' && cal.meta?.status === 'ok'
+        const effDuration = isGhlOk ? (cal.meta.slotDuration ?? cal.appointmentDuration ?? 30) : (cal.appointmentDuration ?? 30)
+        const effTimezone = isGhlOk ? (cal.meta.timezone ?? cal.timezone ?? 'America/New_York') : (cal.timezone || 'America/New_York')
+        const effTitle    = isGhlOk ? (cal.meta.eventTitle ?? cal.appointmentTitle ?? '') : (cal.appointmentTitle || '')
+
         const queryParamsObj = {
           calendarId: cal.calendarId,
-          timezone: cal.timezone || 'America/New_York',
+          timezone: effTimezone,
           userId: user?.id?.toString() || '',
-          duration: (cal.appointmentDuration || 30).toString(),
+          duration: effDuration.toString(),
           provider: cal.provider
         }
         if (cal.integrationId) {
           queryParamsObj.integrationId = cal.integrationId
         }
-        if (cal.appointmentTitle) {
-          queryParamsObj.title = cal.appointmentTitle
+        if (effTitle) {
+          queryParamsObj.title = effTitle
         }
 
         const queryParams = new URLSearchParams(queryParamsObj).toString()
@@ -2286,50 +2293,70 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
                           calendarConfig.integrationId,
                           calendarConfig.calendarId,
                           calendarConfig.timezone,
-                          (calendarId, timezone) => setCalendarConfig({ ...calendarConfig, calendarId, timezone }),
+                          async (calendarId, timezone) => {
+                            const next = { ...calendarConfig, calendarId, timezone }
+                            setCalendarConfig(next)
+                            if (next.provider === 'ghl' && next.integrationId && calendarId) {
+                              try {
+                                const { data } = await calendarAPI.getDetails('ghl', next.integrationId, calendarId)
+                                if (data?.meta) setCalendarConfig({ ...next, meta: data.meta })
+                              } catch (err) {
+                                console.error('Failed to fetch GHL calendar meta:', err)
+                              }
+                            }
+                          },
                           'single'
                         )}
 
                         {calendarConfig.provider && (
                           <>
-                            <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.timezone')}</label>
-                              <select
-                                value={calendarConfig.timezone}
-                                onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
-                              >
-                                {TIMEZONES.map(tz => (
-                                  <option key={tz} value={tz}>{tz}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentDuration')}</label>
-                              <select
-                                value={calendarConfig.appointmentDuration || 30}
-                                onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
-                              >
-                                <option value={10}>{t('chatbotEdit.min10')}</option>
-                                <option value={15}>{t('chatbotEdit.min15')}</option>
-                                <option value={30}>{t('chatbotEdit.min30')}</option>
-                                <option value={45}>{t('chatbotEdit.min45')}</option>
-                                <option value={60}>{t('chatbotEdit.min60')}</option>
-                                <option value={90}>{t('chatbotEdit.min90')}</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentTitle')}</label>
-                              <input
-                                type="text"
-                                value={calendarConfig.appointmentTitle || ''}
-                                onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentTitle: e.target.value })}
-                                placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                            {calendarConfig.provider === 'ghl' ? (
+                              <CalendarMetaPanel
+                                entry={calendarConfig}
+                                onMetaChange={(meta) => setCalendarConfig({ ...calendarConfig, meta })}
                               />
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('chatbotEdit.variablesColon')} {'{{contactName}}'}, {'{{contactEmail}}'}, {'{{contactPhone}}'}</p>
-                            </div>
+                            ) : (
+                              <>
+                                <div>
+                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.timezone')}</label>
+                                  <select
+                                    value={calendarConfig.timezone}
+                                    onChange={(e) => setCalendarConfig({ ...calendarConfig, timezone: e.target.value })}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                                  >
+                                    {TIMEZONES.map(tz => (
+                                      <option key={tz} value={tz}>{tz}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentDuration')}</label>
+                                  <select
+                                    value={calendarConfig.appointmentDuration || 30}
+                                    onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentDuration: parseInt(e.target.value) })}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                                  >
+                                    <option value={10}>{t('chatbotEdit.min10')}</option>
+                                    <option value={15}>{t('chatbotEdit.min15')}</option>
+                                    <option value={30}>{t('chatbotEdit.min30')}</option>
+                                    <option value={45}>{t('chatbotEdit.min45')}</option>
+                                    <option value={60}>{t('chatbotEdit.min60')}</option>
+                                    <option value={90}>{t('chatbotEdit.min90')}</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentTitle')}</label>
+                                  <input
+                                    type="text"
+                                    value={calendarConfig.appointmentTitle || ''}
+                                    onChange={(e) => setCalendarConfig({ ...calendarConfig, appointmentTitle: e.target.value })}
+                                    placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                                  />
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('chatbotEdit.variablesColon')} {'{{contactName}}'}, {'{{contactEmail}}'}, {'{{contactPhone}}'}</p>
+                                </div>
+                              </>
+                            )}
                           </>
                         )}
 
@@ -2450,50 +2477,69 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
                                     entry.integrationId,
                                     entry.calendarId,
                                     entry.timezone,
-                                    (calendarId, timezone) => updateCalendarEntry(entry.id, { calendarId, timezone }),
+                                    async (calendarId, timezone) => {
+                                      updateCalendarEntry(entry.id, { calendarId, timezone })
+                                      if (entry.provider === 'ghl' && entry.integrationId && calendarId) {
+                                        try {
+                                          const { data } = await calendarAPI.getDetails('ghl', entry.integrationId, calendarId)
+                                          if (data?.meta) updateCalendarEntry(entry.id, { meta: data.meta })
+                                        } catch (err) {
+                                          console.error('Failed to fetch GHL calendar meta:', err)
+                                        }
+                                      }
+                                    },
                                     entry.id
                                   )}
 
                                   {entry.provider && (
                                     <>
-                                      <div>
-                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.timezone')}</label>
-                                        <select
-                                          value={entry.timezone}
-                                          onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
-                                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                                        >
-                                          {TIMEZONES.map(tz => (
-                                            <option key={tz} value={tz}>{tz}</option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.duration')}</label>
-                                        <select
-                                          value={entry.appointmentDuration || 30}
-                                          onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
-                                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
-                                        >
-                                          <option value={10}>{t('chatbotEdit.min10')}</option>
-                                          <option value={15}>{t('chatbotEdit.min15')}</option>
-                                          <option value={30}>{t('chatbotEdit.min30')}</option>
-                                          <option value={45}>{t('chatbotEdit.min45')}</option>
-                                          <option value={60}>{t('chatbotEdit.min60')}</option>
-                                          <option value={90}>{t('chatbotEdit.min90')}</option>
-                                        </select>
-                                      </div>
-                                      <div>
-                                        <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentTitle')}</label>
-                                        <input
-                                          type="text"
-                                          value={entry.appointmentTitle || ''}
-                                          onChange={(e) => updateCalendarEntry(entry.id, { appointmentTitle: e.target.value })}
-                                          placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
-                                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                      {entry.provider === 'ghl' ? (
+                                        <CalendarMetaPanel
+                                          entry={entry}
+                                          onMetaChange={(meta) => updateCalendarEntry(entry.id, { meta })}
                                         />
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('chatbotEdit.variablesColon')} {'{{contactName}}'}, {'{{contactEmail}}'}, {'{{contactPhone}}'}</p>
-                                      </div>
+                                      ) : (
+                                        <>
+                                          <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.timezone')}</label>
+                                            <select
+                                              value={entry.timezone}
+                                              onChange={(e) => updateCalendarEntry(entry.id, { timezone: e.target.value })}
+                                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                            >
+                                              {TIMEZONES.map(tz => (
+                                                <option key={tz} value={tz}>{tz}</option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.duration')}</label>
+                                            <select
+                                              value={entry.appointmentDuration || 30}
+                                              onChange={(e) => updateCalendarEntry(entry.id, { appointmentDuration: parseInt(e.target.value) })}
+                                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                            >
+                                              <option value={10}>{t('chatbotEdit.min10')}</option>
+                                              <option value={15}>{t('chatbotEdit.min15')}</option>
+                                              <option value={30}>{t('chatbotEdit.min30')}</option>
+                                              <option value={45}>{t('chatbotEdit.min45')}</option>
+                                              <option value={60}>{t('chatbotEdit.min60')}</option>
+                                              <option value={90}>{t('chatbotEdit.min90')}</option>
+                                            </select>
+                                          </div>
+                                          <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{t('chatbotEdit.appointmentTitle')}</label>
+                                            <input
+                                              type="text"
+                                              value={entry.appointmentTitle || ''}
+                                              onChange={(e) => updateCalendarEntry(entry.id, { appointmentTitle: e.target.value })}
+                                              placeholder={t('chatbotEdit.appointmentTitlePlaceholder')}
+                                              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm"
+                                            />
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('chatbotEdit.variablesColon')} {'{{contactName}}'}, {'{{contactEmail}}'}, {'{{contactPhone}}'}</p>
+                                          </div>
+                                        </>
+                                      )}
                                     </>
                                   )}
                                 </div>
