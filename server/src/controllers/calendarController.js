@@ -791,19 +791,31 @@ const bookAppointment = async (req, res) => {
       || null;
 
     // Resolve {{variable}} placeholders in the title template.
-    // Supports flat keys (contactName) and dotted keys (contact.name) for parity with ChatbotEdit UI.
+    // Flat keys (contactName) come from our UI; dotted keys (contact.name) are
+    // GHL's native syntax. For GHL bookings with a contactId, leave dotted keys
+    // unresolved so GHL substitutes them itself — otherwise a missing contactName
+    // here would erase "{{contact.name}}" before GHL ever sees it.
     let title = functionArgs.title || req.query.title || null;
     if (title) {
       // Decode URL-encoded braces (URLSearchParams encodes {{ to %7B%7B)
       try { title = decodeURIComponent(title); } catch {}
+      const isGhlWithContact = provider === 'ghl' && contactId;
       const vars = {
         contactName, contactEmail, contactPhone, contactId,
-        'contact.name': contactName,
-        'contact.email': contactEmail,
-        'contact.phone': contactPhone,
-        'contact.id': contactId
+        ...(isGhlWithContact ? {} : {
+          'contact.name': contactName,
+          'contact.email': contactEmail,
+          'contact.phone': contactPhone,
+          'contact.id': contactId
+        })
       };
-      title = title.replace(/\{\{([\w.]+)\}\}/g, (_, key) => vars[key] || '');
+      title = title.replace(/\{\{([\w.]+)\}\}/g, (match, key) => {
+        if (key in vars) return vars[key] || '';
+        // For GHL bookings, pass through unknown vars (likely GHL templates like
+        // contact.name, location.name) so GHL can substitute them downstream.
+        if (isGhlWithContact) return match;
+        return '';
+      });
     }
 
     console.log('=== BOOK APPOINTMENT ===');
