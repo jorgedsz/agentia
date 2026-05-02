@@ -23,6 +23,22 @@ export default function TestCallModal({ agent, onClose }) {
     return seed
   })
 
+  // Test Contact ID for GHL — only used in this web test call.
+  // The booking tool URL was built with `contactId={{contactId}}`; Vapi resolves
+  // this from variableValues at call time. Real (phone) calls leave it unset
+  // so the backend falls back to phone-based contact lookup-or-create.
+  const calCfg = agent?.config?.calendarConfig
+  const ghlEntries = []
+  if (calCfg?.provider === 'ghl' && calCfg?.calendarId) ghlEntries.push(calCfg)
+  for (const c of (calCfg?.calendars || [])) {
+    if (c?.provider === 'ghl' && c?.calendarId) ghlEntries.push(c)
+  }
+  const hasGhl = ghlEntries.length > 0
+  const [testContactId, setTestContactId] = useState(() => {
+    // Backward-compat: pick up any contactId previously stored on the calendar config
+    return ghlEntries[0]?.contactId || calCfg?.contactId || ''
+  })
+
   const startCall = async () => {
     try {
       setStatus('connecting')
@@ -108,6 +124,11 @@ export default function TestCallModal({ agent, onClose }) {
       const filledValues = Object.fromEntries(
         Object.entries(variableValues).filter(([, v]) => typeof v === 'string' && v.trim() !== '')
       )
+      // Inject the test contactId (GHL) — only for this test call. Backend
+      // resolves it via Vapi templating in the booking tool URL.
+      if (hasGhl && testContactId.trim()) {
+        filledValues.contactId = testContactId.trim()
+      }
       const overrides = Object.keys(filledValues).length ? { variableValues: filledValues } : undefined
       await vapi.start(agent.vapiId, overrides)
     } catch (err) {
@@ -255,6 +276,32 @@ export default function TestCallModal({ agent, onClose }) {
               </span>
             )}
           </div>
+
+          {/* GHL test Contact ID — only shown for GHL-backed agents */}
+          {hasGhl && (status === 'idle' || status === 'ended') && (
+            <div className="rounded-xl border border-gray-700/50 bg-[#16181d] overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-gray-700/40 bg-[#13151a] flex items-center gap-2">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  {t('testCall.ghlContactIdLabel') || 'GHL Test Contact ID'}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded font-medium">
+                  {t('testCall.testBadge') || 'Test'}
+                </span>
+              </div>
+              <div className="p-4 space-y-1.5">
+                <input
+                  type="text"
+                  value={testContactId}
+                  onChange={(e) => setTestContactId(e.target.value)}
+                  placeholder={t('testCall.ghlContactIdPlaceholder') || 'e.g. xj1Y2BORggXdbFO6iewm'}
+                  className="w-full px-2.5 py-1.5 rounded-lg bg-[#1a1d22] border border-gray-700/50 text-gray-200 text-xs focus:outline-none focus:border-cyan-500/50"
+                />
+                <p className="text-[11px] text-gray-500">
+                  {t('testCall.ghlContactIdHelp') || 'Used only for this test call. Real phone calls look up or create the GHL contact by phone number automatically.'}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Variable values — only shown when the agent declares variables */}
           {agentVariables.length > 0 && (status === 'idle' || status === 'ended') && (

@@ -805,7 +805,11 @@
     "mute": "Mute",
     "unmute": "Unmute",
     "startCall": "Start Call",
-    "endCall": "End Call"
+    "endCall": "End Call",
+    "ghlContactIdLabel": "GHL Test Contact ID",
+    "ghlContactIdPlaceholder": "e.g. xj1Y2BORggXdbFO6iewm",
+    "ghlContactIdHelp": "Used only for this test call. Real phone calls look up or create the GHL contact by phone number automatically.",
+    "testBadge": "Test"
   },
   "trainingMode": {
     "title": "Training Mode",
