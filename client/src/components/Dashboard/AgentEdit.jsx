@@ -1315,10 +1315,10 @@ export default function AgentEdit() {
             // GHL calendars: prefer contactId from webhook, fall back to name/email for test/inbound calls
             bookProperties.contactId = {
               type: 'string',
-              description: 'The GHL contact ID for this customer. The value is provided in the system instructions.'
+              description: 'The GHL contact ID. May be empty for inbound or test calls — when empty, the backend looks up the contact by their phone number and creates a new one if missing.'
             }
-            bookProperties.contactName = { type: 'string', description: 'The customer\'s full name. Only needed when contactId is not available.' }
-            bookProperties.contactEmail = { type: 'string', description: 'The customer\'s email address. Only needed when contactId is not available.' }
+            bookProperties.contactName = { type: 'string', description: 'The customer\'s full name. Required when contactId is not available so the auto-created contact has a real name.' }
+            bookProperties.contactEmail = { type: 'string', description: 'The customer\'s email address. Optional — phone-based lookup is used when contactId is missing.' }
             // No extra required fields — system prompt tells AI which to use
           } else {
             // Non-GHL calendars: collect contact info from the customer
@@ -1540,8 +1540,8 @@ export default function AgentEdit() {
 
           const mIsEs = effectiveLanguage === 'es'
           const ghlContactIdNote = someGhl ? (mIsEs
-            ? `\n\n### DATOS DEL CLIENTE (YA IDENTIFICADO)\nEl cliente ya está identificado en el sistema. Su contactId es: "{{contactId}}"\nPROHIBIDO pedir nombre, email, teléfono o cualquier dato personal al agendar en calendarios GHL. Usa este contactId directamente.`
-            : `\n\n### CUSTOMER DATA (ALREADY IDENTIFIED)\nThe customer is already identified in the system. Their contactId is: "{{contactId}}"\nFORBIDDEN to ask for name, email, phone, or any personal data when booking GHL calendars. Use this contactId directly.`) : ''
+            ? `\n\n### DATOS DEL CLIENTE\nSu contactId es: "{{contactId}}"\n- Si arriba ves un valor real (no la cadena literal "{{contactId}}" ni vacío), el cliente ya está identificado: PROHIBIDO pedirle nombre, email o teléfono — usa ese contactId al agendar.\n- Si arriba ves "{{contactId}}" literal o vacío, el cliente NO está pre-identificado (llamada entrante o de prueba). Pídele SOLO su nombre antes de agendar y pásalo en contactName. El sistema buscará el contacto por su número de teléfono y creará uno nuevo si no existe — no necesitas pedirle email ni teléfono.`
+            : `\n\n### CUSTOMER DATA\nTheir contactId is: "{{contactId}}"\n- If you see a real value above (not the literal string "{{contactId}}" and not empty), the customer is already identified: FORBIDDEN to ask for name, email, or phone — use that contactId when booking.\n- If you see literal "{{contactId}}" or it is empty above, the customer is NOT pre-identified (inbound or test call). Ask them ONLY for their name before booking and pass it as contactName. The system will look up the contact by their phone number and create a new one if missing — you do NOT need to ask for email or phone.`) : ''
 
           const calendarInstructions = `
 
@@ -1586,24 +1586,30 @@ Example: "I have 9 AM, 1 PM, and 4 PM available. Which works for you?"
 ${allGhl
   ? (mIsEs
     ? `Cuando el cliente elija un horario, INMEDIATAMENTE llama la función "book_appointment_..." correcta.
-PROHIBIDO pedir nombre, email o cualquier dato. El cliente ya está identificado.
+- Si en "DATOS DEL CLIENTE" hay un contactId real, úsalo y NO le pidas nombre, email ni teléfono.
+- Si en "DATOS DEL CLIENTE" ves "{{contactId}}" literal o está vacío (llamada entrante / de prueba), pídele SOLO su nombre antes de llamar la función y pásalo en contactName. El sistema lo buscará por teléfono y lo creará si hace falta — no pidas email ni teléfono.
 - startTime: la fecha + hora seleccionada en formato ISO 8601 (ej: 2026-04-08T10:00:00)
-- contactId: el valor que aparece en la sección "DATOS DEL CLIENTE" de arriba
+- contactId: el valor que aparece en la sección "DATOS DEL CLIENTE" de arriba (déjalo vacío si está sin resolver)
+- contactName: el nombre del cliente (sólo si el contactId está vacío)
 - notes: opcional`
     : `Once the user selects a time slot, IMMEDIATELY call the correct "book_appointment_..." function.
-FORBIDDEN to ask for name, email, or any data. The customer is already identified.
+- If "CUSTOMER DATA" shows a real contactId, use it and DO NOT ask for name, email, or phone.
+- If "CUSTOMER DATA" shows literal "{{contactId}}" or is empty (inbound / test call), ask ONLY for their name before calling the function and pass it as contactName. The system will look them up by phone and create a contact if needed — do not ask for email or phone.
 - startTime: the selected date + time in ISO 8601 format (e.g., 2026-04-08T10:00:00)
-- contactId: the value from the "CUSTOMER DATA" section above
+- contactId: the value from the "CUSTOMER DATA" section above (leave empty if unresolved)
+- contactName: the customer's name (only when contactId is empty)
 - notes: optional`)
   : someGhl
   ? (mIsEs
     ? `Cuando el cliente elija un horario:
-- Para calendarios GHL: INMEDIATAMENTE llama la función con el contactId. PROHIBIDO pedir nombre o email — el cliente ya está identificado.
+- Para calendarios GHL con contactId real: INMEDIATAMENTE llama la función con el contactId. PROHIBIDO pedir nombre o email.
+- Para calendarios GHL con contactId vacío o "{{contactId}}" literal (llamada entrante / de prueba): pide SOLO el nombre y llama la función con contactName. El sistema buscará por teléfono y creará el contacto si hace falta.
 - Para otros calendarios: recopila nombre y email primero.
 - startTime: ISO 8601 (ej: 2026-04-08T10:00:00)
 - notes: opcional`
     : `Once the user selects a time slot:
-- For GHL calendars: IMMEDIATELY call the function with the contactId. FORBIDDEN to ask for name or email — the customer is already identified.
+- For GHL calendars with a real contactId: IMMEDIATELY call the function with the contactId. FORBIDDEN to ask for name or email.
+- For GHL calendars with empty or literal "{{contactId}}" (inbound / test call): ask ONLY for the name and call the function with contactName. The system will look up by phone and create the contact if needed.
 - For other calendars: collect name and email first, then call the book function.
 - startTime: ISO 8601 (e.g., 2026-04-08T10:00:00)
 - notes: optional`)
@@ -1642,8 +1648,8 @@ ${mIsEs
           const isSingleGhl = singleCal.provider === 'ghl'
           const isEs = effectiveLanguage === 'es'
           const ghlNote = isSingleGhl ? (isEs
-            ? `\n\n### DATOS DEL CLIENTE (YA IDENTIFICADO)\nEl cliente ya está identificado en el sistema. Su contactId es: "{{contactId}}"\nPROHIBIDO pedir nombre, email, teléfono o cualquier dato personal. Usa este contactId directamente al agendar.`
-            : `\n\n### CUSTOMER DATA (ALREADY IDENTIFIED)\nThe customer is already identified in the system. Their contactId is: "{{contactId}}"\nFORBIDDEN to ask for name, email, phone, or any personal data. Use this contactId directly when booking.`) : ''
+            ? `\n\n### DATOS DEL CLIENTE\nSu contactId es: "{{contactId}}"\n- Si arriba ves un valor real (no la cadena literal "{{contactId}}" ni vacío), el cliente ya está identificado: PROHIBIDO pedirle nombre, email o teléfono — usa ese contactId al agendar.\n- Si arriba ves "{{contactId}}" literal o vacío, el cliente NO está pre-identificado (llamada entrante o de prueba). Pídele SOLO su nombre antes de agendar y pásalo en contactName. El sistema buscará el contacto por su número de teléfono y creará uno nuevo si no existe — no necesitas pedirle email ni teléfono.`
+            : `\n\n### CUSTOMER DATA\nTheir contactId is: "{{contactId}}"\n- If you see a real value above (not the literal string "{{contactId}}" and not empty), the customer is already identified: FORBIDDEN to ask for name, email, or phone — use that contactId when booking.\n- If you see literal "{{contactId}}" or it is empty above, the customer is NOT pre-identified (inbound or test call). Ask them ONLY for their name before booking and pass it as contactName. The system will look up the contact by their phone number and create a new one if missing — you do NOT need to ask for email or phone.`) : ''
 
           const calendarInstructions = `
 
@@ -1681,14 +1687,18 @@ Example: "I have 9 AM, 1 PM, and 4 PM available. Which works for you?"
 ${isSingleGhl ? `**${isEs ? 'Paso 4 — El cliente elige un horario → Agendar INMEDIATAMENTE' : 'Step 4 — User picks a time → Book IMMEDIATELY'}**
 ${isEs
   ? `Cuando el cliente elija un horario, INMEDIATAMENTE llama "book_appointment_${safeName}".
-PROHIBIDO pedir nombre, email o cualquier dato. El cliente ya está identificado.
+- Si en "DATOS DEL CLIENTE" hay un contactId real, úsalo y NO le pidas nombre, email ni teléfono.
+- Si en "DATOS DEL CLIENTE" ves "{{contactId}}" literal o está vacío (llamada entrante / de prueba), pídele SOLO su nombre antes de llamar la función y pásalo en contactName. El sistema lo buscará por teléfono y lo creará si hace falta — no pidas email ni teléfono.
 - startTime: la fecha + hora seleccionada en formato ISO 8601 (ej: 2026-04-08T10:00:00)
-- contactId: el valor que aparece en la sección "DATOS DEL CLIENTE" de arriba
+- contactId: el valor que aparece en la sección "DATOS DEL CLIENTE" de arriba (déjalo vacío si está sin resolver)
+- contactName: el nombre del cliente (sólo si el contactId está vacío)
 - notes: opcional`
   : `Once the user selects a time slot, IMMEDIATELY call "book_appointment_${safeName}".
-FORBIDDEN to ask for name, email, or any data. The customer is already identified.
+- If "CUSTOMER DATA" shows a real contactId, use it and DO NOT ask for name, email, or phone.
+- If "CUSTOMER DATA" shows literal "{{contactId}}" or is empty (inbound / test call), ask ONLY for their name before calling the function and pass it as contactName. The system will look them up by phone and create a contact if needed — do not ask for email or phone.
 - startTime: the selected date + time in ISO 8601 format (e.g., 2026-04-08T10:00:00)
-- contactId: the value from the "CUSTOMER DATA" section above
+- contactId: the value from the "CUSTOMER DATA" section above (leave empty if unresolved)
+- contactName: the customer's name (only when contactId is empty)
 - notes: optional`}
 
 **${isEs ? 'Paso 5 — Confirmar la cita' : 'Step 5 — Confirm the booking'}**
