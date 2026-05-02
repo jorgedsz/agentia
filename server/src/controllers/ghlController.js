@@ -587,11 +587,13 @@ const bookAppointment = async (req, res) => {
       try { title = decodeURIComponent(title); } catch {}
     }
 
-    // Accept contactId from query (preset) or LLM args, and treat unresolved
-    // template variables (e.g. "{{contactId}}") as missing
-    const rawContactId = req.query.contactId || functionArgs.contactId || null;
+    // Prefer query.contactId (URL preset) but fall through to functionArgs.contactId
+    // when the query value is an unresolved Vapi template (e.g. "{{contactId}}").
+    // Without the fall-through, a real LLM-supplied contactId would be discarded
+    // whenever Vapi failed to substitute the URL placeholder.
     const isUnresolved = (v) => typeof v === 'string' && /^\s*\{\{[^}]+\}\}\s*$/.test(v);
-    const presetContactId = rawContactId && !isUnresolved(rawContactId) ? rawContactId : null;
+    const cleanId = (v) => (v && !isUnresolved(v) ? v : null);
+    const presetContactId = cleanId(req.query.contactId) || cleanId(functionArgs.contactId) || null;
 
     // Caller's phone from Vapi tool-call envelope, used as fallback lookup key
     const callerPhone = req.body.message?.call?.customer?.number

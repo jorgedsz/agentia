@@ -776,10 +776,13 @@ const bookAppointment = async (req, res) => {
     if (!contactName && req.query.contactName) {
       try { contactName = decodeURIComponent(req.query.contactName); } catch { contactName = req.query.contactName; }
     }
-    // Treat unresolved template vars (e.g. "{{contactId}}") as missing
-    const rawContactId = req.query.contactId || functionArgs.contactId || null;
+    // Prefer query.contactId (URL preset) but fall through to functionArgs.contactId
+    // when the query value is an unresolved Vapi template (e.g. "{{contactId}}").
+    // Without the fall-through, a real LLM-supplied contactId would be discarded
+    // whenever Vapi failed to substitute the URL placeholder.
     const isUnresolved = (v) => typeof v === 'string' && /^\s*\{\{[^}]+\}\}\s*$/.test(v);
-    const contactId = rawContactId && !isUnresolved(rawContactId) ? rawContactId : null;
+    const cleanId = (v) => (v && !isUnresolved(v) ? v : null);
+    const contactId = cleanId(req.query.contactId) || cleanId(functionArgs.contactId) || null;
 
     // Fallback: pick up the caller's phone from the Vapi tool-call envelope so we
     // can look up (or create) the GHL contact by phone when no id/email is given

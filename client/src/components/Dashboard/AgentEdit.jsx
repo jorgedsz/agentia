@@ -1253,22 +1253,19 @@ export default function AgentEdit() {
             }
           }
 
-          // For GHL: send contactId as a Vapi template — resolved at call time from
-          // assistantOverrides.variableValues. Test web calls inject the test contactId
-          // via TestCallModal; real calls leave it empty so the backend falls back to
-          // phone-based contact lookup-or-create.
-          if (cal.provider === 'ghl') {
-            queryParamsObj.contactId = '{{contactId}}'
-          }
-
           // Optional appointment title template (resolved server-side with contact vars)
           if (effTitle) {
             queryParamsObj.title = effTitle
           }
 
           const queryParams = new URLSearchParams(queryParamsObj).toString()
-          const checkUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}`
-          const bookUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}`
+          // For GHL: append contactId={{contactId}} OUTSIDE URLSearchParams so the
+          // braces stay unencoded — Vapi only substitutes literal {{var}} patterns,
+          // not %7B%7Bvar%7D%7D. Resolved at call time from variableValues; real
+          // phone calls leave it unresolved → server falls back to phone lookup.
+          const ghlContactSuffix = cal.provider === 'ghl' ? '&contactId={{contactId}}' : ''
+          const checkUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/check-availability?${queryParams}${ghlContactSuffix}` : `${apiBaseUrl}/calendar/check-availability?${queryParams}${ghlContactSuffix}`
+          const bookUrl = useLegacyGhl ? `${apiBaseUrl}/ghl/book-appointment?${queryParams}${ghlContactSuffix}` : `${apiBaseUrl}/calendar/book-appointment?${queryParams}${ghlContactSuffix}`
 
           // Tool name suffix: plain for single, indexed for multi
           const toolSuffix = isMultiCalendar ? `${safeName}_${idx + 1}` : safeName
