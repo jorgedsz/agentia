@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import AgentBuilderWizard from './AgentBuilderWizard'
 import { agentsAPI, chatbotsAPI, voicesAPI, trainingAPI } from '../../../services/api'
 import { useAuth } from '../../../context/AuthContext'
 import { useLanguage } from '../../../context/LanguageContext'
@@ -20,6 +21,11 @@ export default function AgentBuilderHome({ type }) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { t } = useLanguage()
+
+  const [searchParams] = useSearchParams()
+  if (searchParams.get('mode') === 'regenerate') {
+    return <AgentBuilderWizard type={type} />
+  }
 
   const [agent, setAgent] = useState(null)
   const [config, setConfig] = useState({})
