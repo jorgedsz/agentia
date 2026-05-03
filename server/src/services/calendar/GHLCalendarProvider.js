@@ -153,6 +153,7 @@ class GHLCalendarProvider extends CalendarProvider {
     // inherit the location's tz. Fetch it from /locations/{locationId} when
     // the calendar response lacks an explicit timezone.
     let timezone = cal.calendarTimezone || cal.timezone || null;
+    let locationDebug = null;
     if (!timezone) {
       const locationId = cal.locationId || this.locationId;
       if (locationId) {
@@ -160,11 +161,29 @@ class GHLCalendarProvider extends CalendarProvider {
           const locData = await this._ghlRequest(`/locations/${locationId}`, token);
           const loc = locData.location || locData;
           timezone = loc.timezone || loc.timeZone || null;
+          locationDebug = {
+            locationId,
+            keys: Object.keys(loc),
+            timezone: loc.timezone,
+            timeZone: loc.timeZone
+          };
         } catch (err) {
           console.warn('[GHL getCalendarDetails] location fetch failed:', err.message);
+          locationDebug = { locationId, error: err.message };
         }
       }
     }
+
+    console.log('[GHL getCalendarDetails]', calendarId, JSON.stringify({
+      name: cal.name,
+      calendarTimezone: cal.calendarTimezone,
+      timezone: cal.timezone,
+      slotDuration: cal.slotDuration,
+      eventTitle: cal.eventTitle,
+      locationId: cal.locationId,
+      resolvedTimezone: timezone,
+      locationDebug
+    }));
 
     return {
       source: 'ghl',
