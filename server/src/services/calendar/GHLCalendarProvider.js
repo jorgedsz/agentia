@@ -148,21 +148,28 @@ class GHLCalendarProvider extends CalendarProvider {
     const token = await this.getValidToken();
     const data = await this._ghlRequest(`/calendars/${calendarId}`, token);
     const cal = data.calendar || data;
-    // Temporary debug: surface every tz-relevant field GHL returns so we can
-    // diagnose when the cached meta.timezone diverges from the GHL UI setting.
-    console.log('[GHL getCalendarDetails]', calendarId, JSON.stringify({
-      name: cal.name,
-      calendarTimezone: cal.calendarTimezone,
-      timezone: cal.timezone,
-      slotDuration: cal.slotDuration,
-      eventTitle: cal.eventTitle,
-      locationId: cal.locationId,
-      allKeys: Object.keys(cal)
-    }));
+
+    // GHL's /calendars/{id} does NOT return a timezone field — calendars
+    // inherit the location's tz. Fetch it from /locations/{locationId} when
+    // the calendar response lacks an explicit timezone.
+    let timezone = cal.calendarTimezone || cal.timezone || null;
+    if (!timezone) {
+      const locationId = cal.locationId || this.locationId;
+      if (locationId) {
+        try {
+          const locData = await this._ghlRequest(`/locations/${locationId}`, token);
+          const loc = locData.location || locData;
+          timezone = loc.timezone || loc.timeZone || null;
+        } catch (err) {
+          console.warn('[GHL getCalendarDetails] location fetch failed:', err.message);
+        }
+      }
+    }
+
     return {
       source: 'ghl',
       name: cal.name || '',
-      timezone: cal.calendarTimezone || cal.timezone || null,
+      timezone,
       slotDuration: typeof cal.slotDuration === 'number' ? cal.slotDuration : null,
       eventTitle: cal.eventTitle || cal.name || '',
       status: 'ok',
@@ -297,13 +304,18 @@ class GHLCalendarProvider extends CalendarProvider {
     const startForGhl = timezone ? formatInTimezone(new Date(startTime), timezone) : startTime;
     const endForGhl = timezone ? formatInTimezone(new Date(appointmentEndTime), timezone) : appointmentEndTime;
 
+    // If the title still contains unresolved {{contact.*}} placeholders, omit
+    // it from the body so GHL applies the calendar's eventTitle template
+    // (which it substitutes against the contactId we pass). Keeping the literal
+    // string would have GHL store "{{contact.name}} - sesion" verbatim.
+    const hasUnresolvedGhlVar = typeof title === 'string' && /\{\{\s*contact\.[\w]+\s*\}\}/.test(title);
     const appointmentBody = {
       calendarId,
       locationId: this.locationId,
       contactId,
       startTime: startForGhl,
       endTime: endForGhl,
-      title: title || 'Appointment',
+      ...(hasUnresolvedGhlVar ? {} : { title: title || 'Appointment' }),
       appointmentStatus: 'confirmed',
       notes: notes || ''
     };
