@@ -44,7 +44,11 @@ async function scheduleCallback(req, res) {
     }
     const args = argsRaw || {};
     const callbackTime = args.callbackTime || args.time || args.datetime;
-    const reason = args.reason || args.note || null;
+    // Default reason ensures the dashboard never shows "-" for callbacks the
+    // LLM scheduled without populating the field (legacy agent configs that
+    // pre-date `reason` being a required arg).
+    const rawReason = args.reason || args.note || null;
+    const reason = (typeof rawReason === 'string' && rawReason.trim()) ? rawReason.trim() : 'Callback solicitado por el cliente';
     console.log('[Callback] scheduleCallback args:', JSON.stringify(args), 'userId:', userId, 'agentId:', agentId);
 
     if (!callbackTime) {

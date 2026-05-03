@@ -1469,11 +1469,11 @@ export default function AgentEdit() {
               reason: {
                 type: 'string',
                 description: cbIsEs
-                  ? 'Motivo breve de la llamada de retorno (por ejemplo, "El cliente quiere revisar el precio tras leer la propuesta").'
-                  : 'Brief reason for the callback (e.g., "Customer wants to discuss pricing after reviewing proposal")'
+                  ? 'Motivo breve de la llamada de retorno en una sola frase, resumiendo lo que el cliente dijo (por ejemplo, "El cliente quiere revisar el precio tras leer la propuesta"). REQUERIDO.'
+                  : 'Brief one-sentence reason for the callback summarizing what the customer said (e.g., "Customer wants to discuss pricing after reviewing proposal"). REQUIRED.'
               }
             },
-            required: ['callbackTime']
+            required: ['callbackTime', 'reason']
           },
           timeoutSeconds: 15
           // No request-start audio — the callback is near-instant and a pre-roll
@@ -1818,13 +1818,15 @@ Cuando el cliente pida que lo llamen de vuelta (ej: "llámame en 5 minutos", "ll
 3. Calcula callbackTime sumando el intervalo a {{currentDateTime}}:
    - "en 5 minutos" → {{currentDateTime}} + 5 minutos
    - "mañana a las 3pm" → fecha del día siguiente a las 15:00
-4. Llama la función "schedule_callback_${safeName}" con callbackTime en formato ISO 8601 (ej: 2026-04-24T15:35:00). Es OBLIGATORIO.
+4. Llama la función "schedule_callback_${safeName}" con DOS argumentos OBLIGATORIOS:
+   - callbackTime en formato ISO 8601 (ej: 2026-04-24T15:35:00).
+   - reason: una frase corta que resuma POR QUÉ pidió la llamada de retorno (ej: "Quiere revisar el precio tras leer la propuesta", "Está manejando y prefiere hablar luego", "Quiere comparar planes antes de decidir"). NUNCA dejes reason vacío — si el cliente no dio motivo explícito, infierelo del contexto de la llamada.
 5. Tras el éxito, confirma con UNA frase corta usando el mismo intervalo que dijo el cliente:
    - Cliente dijo "en 5 minutos" → "Listo, te llamo en 5 minutos."
    - Cliente dijo "mañana a las 3pm" → "Listo, te llamo mañana a las 3 de la tarde."
    - NO leas la fecha completa con año.
    - NO digas "dos mil veintiséis" ni formato oficial.
-- NUNCA dejes callbackTime vacío. Calcula siempre a partir de {{currentDateTime}}.`
+- NUNCA dejes callbackTime ni reason vacíos.`
           : `
 
 ## CALLBACK SCHEDULING INSTRUCTIONS
@@ -1834,13 +1836,15 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
 3. Compute callbackTime by adding the interval to {{currentDateTime}}:
    - "in 5 minutes" → {{currentDateTime}} + 5 minutes
    - "tomorrow at 3pm" → next day at 15:00
-4. Call "schedule_callback_${safeName}" with callbackTime in ISO 8601 (e.g. 2026-04-24T15:35:00). It is REQUIRED.
+4. Call "schedule_callback_${safeName}" with TWO REQUIRED arguments:
+   - callbackTime in ISO 8601 (e.g. 2026-04-24T15:35:00).
+   - reason: one short sentence summarizing WHY they want the callback (e.g. "Wants to review pricing after reading the proposal", "Is driving and prefers to talk later", "Wants to compare plans before deciding"). NEVER leave reason empty — if the customer didn't say a motive explicitly, infer it from the conversation context.
 5. After success, confirm with ONE short phrase echoing the same interval the customer used:
    - Customer said "in 5 minutes" → "Got it, I'll call you in 5 minutes."
    - Customer said "tomorrow at 3pm" → "Got it, I'll call you tomorrow at 3 pm."
    - Do NOT read the full date with the year.
    - Do NOT say "two thousand twenty-six" or official long-form dates.
-- NEVER leave callbackTime empty. Always compute from {{currentDateTime}}.`
+- NEVER leave callbackTime or reason empty.`
 
         finalSystemPrompt = finalSystemPrompt + callbackInstructions
       }
