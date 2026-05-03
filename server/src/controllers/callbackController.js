@@ -96,13 +96,37 @@ async function scheduleCallback(req, res) {
       });
     }
 
-    // Find the agent's assigned phone number to use as fromNumber
-    const agent = await req.prisma.agent.findUnique({
-      where: { id: agentId },
-      include: { phoneNumbers: true }
-    });
+    // Resolve the from-number: prefer the actual phone the live VAPI call is
+    // running on (so the callback dials from the same line), then the agent's
+    // assigned phone, then any user-owned VAPI-imported phone.
+    const callVapiPhoneId =
+      req.body?.message?.call?.phoneNumberId ||
+      req.body?.message?.phoneNumber?.id ||
+      null;
 
-    const fromNumber = agent?.phoneNumbers?.[0]?.phoneNumber || null;
+    let fromNumber = null;
+    if (callVapiPhoneId) {
+      const livePhone = await req.prisma.phoneNumber.findFirst({
+        where: { vapiPhoneNumberId: callVapiPhoneId }
+      });
+      if (livePhone?.phoneNumber) fromNumber = livePhone.phoneNumber;
+    }
+    if (!fromNumber) {
+      const agent = await req.prisma.agent.findUnique({
+        where: { id: agentId },
+        include: { phoneNumbers: true }
+      });
+      fromNumber = agent?.phoneNumbers?.[0]?.phoneNumber || null;
+    }
+    if (!fromNumber) {
+      const userPhone = await req.prisma.phoneNumber.findFirst({
+        where: {
+          telephonyCredential: { userId: parseInt(userId) },
+          vapiPhoneNumberId: { not: null }
+        }
+      });
+      fromNumber = userPhone?.phoneNumber || null;
+    }
 
     // Create the scheduled callback record
     const callback = await req.prisma.scheduledCallback.create({
@@ -201,19 +225,30 @@ async function processCallbacks(prisma) {
           continue;
         }
 
-        // 3. Find phone number: use fromNumber if set, else agent's first assigned phone
+        // 3. Find phone number to dial out from. Try in order: the fromNumber
+        //    captured at schedule time, an agent-assigned phone, then any of
+        //    the user's VAPI-imported phones — agents often run with phones
+        //    that are owned by the user but not formally bound to the agent.
         let phoneNumber = null;
         if (callback.fromNumber) {
           phoneNumber = await prisma.phoneNumber.findFirst({
-            where: { phoneNumber: callback.fromNumber }
+            where: { phoneNumber: callback.fromNumber, vapiPhoneNumberId: { not: null } }
           });
         }
         if (!phoneNumber && agent.phoneNumbers.length > 0) {
-          phoneNumber = agent.phoneNumbers[0];
+          phoneNumber = agent.phoneNumbers.find(p => p.vapiPhoneNumberId) || null;
+        }
+        if (!phoneNumber) {
+          phoneNumber = await prisma.phoneNumber.findFirst({
+            where: {
+              telephonyCredential: { userId: callback.userId },
+              vapiPhoneNumberId: { not: null }
+            }
+          });
         }
 
         if (!phoneNumber || !phoneNumber.vapiPhoneNumberId) {
-          console.error(`Callback #${callback.id}: No valid phone number found`);
+          console.error(`Callback #${callback.id}: No valid phone number found (fromNumber=${callback.fromNumber}, agentPhones=${agent.phoneNumbers.length})`);
           await prisma.scheduledCallback.update({
             where: { id: callback.id },
             data: { status: 'failed' }
