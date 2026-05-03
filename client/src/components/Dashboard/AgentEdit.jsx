@@ -3888,8 +3888,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
           )
         }
 
-        // Render calendar dropdown for a given entry
-        const renderCalendarDropdown = (entryProvider, entryIntegrationId, entryCalendarId, entryTimezone, onCalendarSelect, entryId) => {
+        // Render calendar dropdown for a given entry. metaEntry/onMetaChange are
+        // optional and surface the inline GHL refresh icon next to the label.
+        const renderCalendarDropdown = (entryProvider, entryIntegrationId, entryCalendarId, entryTimezone, onCalendarSelect, entryId, metaEntry = null, onMetaChange = null) => {
           const isLegacyGhl = entryProvider === 'ghl' && !entryIntegrationId
           if (!entryProvider) return null
 
@@ -3913,7 +3914,12 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
 
           return (
             <div>
-              <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('calendarLabel')}</label>
+              <div className="flex items-center gap-1 mb-1">
+                {metaEntry && onMetaChange && (
+                  <CalendarMetaPanel entry={metaEntry} onMetaChange={onMetaChange} iconOnly />
+                )}
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{ta('calendarLabel')}</label>
+              </div>
               {error && (
                 <div className="p-2 mb-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
                   <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
@@ -4107,7 +4113,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                             }
                           }
                         },
-                        'single'
+                        'single',
+                        calendarConfig,
+                        (meta) => setCalendarConfig({ ...calendarConfig, meta })
                       )}
 
                       {calendarConfig.provider && (
@@ -4302,7 +4310,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                                     }
                                   }
                                 },
-                                entry.id
+                                entry.id,
+                                entry,
+                                (meta) => updateCalendarEntry(entry.id, { meta })
                               )}
 
                               {/* Timezone & Duration */}
