@@ -148,6 +148,17 @@ class GHLCalendarProvider extends CalendarProvider {
     const token = await this.getValidToken();
     const data = await this._ghlRequest(`/calendars/${calendarId}`, token);
     const cal = data.calendar || data;
+    // Temporary debug: surface every tz-relevant field GHL returns so we can
+    // diagnose when the cached meta.timezone diverges from the GHL UI setting.
+    console.log('[GHL getCalendarDetails]', calendarId, JSON.stringify({
+      name: cal.name,
+      calendarTimezone: cal.calendarTimezone,
+      timezone: cal.timezone,
+      slotDuration: cal.slotDuration,
+      eventTitle: cal.eventTitle,
+      locationId: cal.locationId,
+      allKeys: Object.keys(cal)
+    }));
     return {
       source: 'ghl',
       name: cal.name || '',
