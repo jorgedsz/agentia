@@ -8,6 +8,54 @@ const generateToken = (userId) => {
   });
 };
 
+// POST /api/auth/admin/reset-password — owner-only direct password reset.
+// Body: { email, newPassword }. Looks up the target user by email and writes
+// a fresh bcrypt hash. Audit-logged so the action is traceable.
+const adminResetPassword = async (req, res) => {
+  try {
+    if (req.user?.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only owners can reset other users\' passwords' });
+    }
+
+    const { email: rawEmail, newPassword } = req.body || {};
+    if (!rawEmail || !newPassword) {
+      return res.status(400).json({ error: 'email and newPassword are required' });
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'newPassword must be at least 6 characters' });
+    }
+
+    const email = String(rawEmail).trim().toLowerCase();
+    const target = await req.prisma.user.findUnique({ where: { email } });
+    if (!target) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await req.prisma.user.update({
+      where: { id: target.id },
+      data: { password: hashed }
+    });
+
+    try {
+      await logAudit(req.prisma, {
+        userId: req.user.id,
+        action: 'admin_reset_password',
+        targetType: 'User',
+        targetId: String(target.id),
+        details: JSON.stringify({ targetEmail: email })
+      });
+    } catch (e) {
+      console.warn('[adminResetPassword] audit log failed:', e.message);
+    }
+
+    return res.json({ success: true, userId: target.id, email });
+  } catch (error) {
+    console.error('adminResetPassword error:', error.message);
+    return res.status(500).json({ error: 'Failed to reset password' });
+  }
+};
+
 const register = async (req, res) => {
   try {
     const { email: rawEmail, password, name } = req.body;
@@ -151,5 +199,6 @@ const getMe = async (req, res) => {
 module.exports = {
   register,
   login,
-  getMe
+  getMe,
+  adminResetPassword
 };
