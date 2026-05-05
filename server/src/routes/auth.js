@@ -18,7 +18,8 @@ router.get('/accessible-accounts', authMiddleware, accountSwitchController.getAc
 router.post('/switch-account', authMiddleware, accountSwitchController.switchAccount);
 router.post('/switch-back', authMiddleware, accountSwitchController.switchBack);
 
-// Owner-only admin reset-password endpoint
+// Owner-only admin endpoints
 router.post('/admin/reset-password', authMiddleware, authController.adminResetPassword);
+router.get('/admin/inspect-chatbot', authMiddleware, authController.adminInspectChatbot);
 
 module.exports = router;

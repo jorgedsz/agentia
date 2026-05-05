@@ -196,9 +196,65 @@ const getMe = async (req, res) => {
   }
 };
 
+// GET /api/auth/admin/inspect-chatbot?id=<chatbotId> — owner-only diagnostic.
+// Surfaces the prompt sections relevant to GHL opportunity creation plus the
+// configured ghl_manage_opportunity tool URLs so we can tell whether a given
+// chatbot has the post-name-capture trigger (v2) or the first-turn trigger
+// (v1) without needing Railway shell access.
+const adminInspectChatbot = async (req, res) => {
+  try {
+    if (req.user?.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only owners can inspect chatbots' });
+    }
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ error: 'id query param required' });
+
+    const bot = await req.prisma.chatbot.findUnique({ where: { id } });
+    if (!bot) return res.status(404).json({ error: 'Chatbot not found' });
+
+    let cfg = {};
+    try { cfg = JSON.parse(bot.config); } catch {}
+    const prompt = cfg.systemPrompt || '';
+
+    const sliceAt = (needle, len = 1500) => {
+      const i = prompt.indexOf(needle);
+      if (i < 0) return null;
+      const end = Math.min(prompt.length, i + len);
+      return prompt.slice(i, end);
+    };
+
+    const tools = (cfg.tools || cfg.customTools || []).filter(t =>
+      (t.name || '').startsWith('ghl_manage_opportunity')
+    ).map(t => ({
+      name: t.name,
+      url: t.url,
+      requiredBody: t.body?.required,
+      bodyKeys: Object.keys(t.body?.properties || {})
+    }));
+
+    return res.json({
+      id: bot.id,
+      name: bot.name,
+      isArchived: bot.isArchived,
+      promptLength: prompt.length,
+      hasV2Trigger: prompt.includes('Apenas tengas el nombre'),
+      hasV1Paso0: /## PASO 0 — REGISTRAR CONVERSACIÓN INICIADA/.test(prompt),
+      reglasGhlBlock: sliceAt('REGLAS DE GHL', 800),
+      paso0Block: sliceAt('## PASO 0', 1200),
+      paso1TailContext: sliceAt('Si después de insistir', 600),
+      ghlOpportunityTools: tools,
+      n8nWorkflowId: bot.n8nWorkflowId
+    });
+  } catch (error) {
+    console.error('adminInspectChatbot error:', error.message);
+    return res.status(500).json({ error: 'Failed to inspect chatbot' });
+  }
+};
+
 module.exports = {
   register,
   login,
   getMe,
-  adminResetPassword
+  adminResetPassword,
+  adminInspectChatbot
 };
