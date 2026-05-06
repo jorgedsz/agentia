@@ -9,7 +9,7 @@ const getSettings = async (req, res) => {
     const settings = await req.prisma.platformSettings.findFirst();
 
     if (!settings) {
-      return res.json({ vapiApiKey: '', openaiApiKey: '', anthropicApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', recurringPaymentWebhookUrl: '', n8nUrl: '', n8nApiKey: '', hasVapi: false, hasOpenai: false, hasAnthropic: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false, hasRecurringPaymentWebhook: false, hasN8nUrl: false, hasN8nApiKey: false });
+      return res.json({ vapiApiKey: '', openaiApiKey: '', anthropicApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', recurringPaymentWebhookUrl: '', n8nUrl: '', n8nApiKey: '', n8nPostgresMemoryCredentialId: '', hasVapi: false, hasOpenai: false, hasAnthropic: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false, hasRecurringPaymentWebhook: false, hasN8nUrl: false, hasN8nApiKey: false });
     }
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
@@ -34,6 +34,7 @@ const getSettings = async (req, res) => {
       recurringPaymentWebhookUrl: decryptedRecurringWebhook ? mask(decryptedRecurringWebhook, 4) : '',
       n8nUrl: decryptedN8nUrl ? mask(decryptedN8nUrl, 4) : '',
       n8nApiKey: decryptedN8nApiKey ? mask(decryptedN8nApiKey, 4) : '',
+      n8nPostgresMemoryCredentialId: settings.n8nPostgresMemoryCredentialId || '',
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
       hasAnthropic: !!decryptedAnthropic,
@@ -57,7 +58,7 @@ const updateSettings = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can update platform settings' });
     }
 
-    const { vapiApiKey, openaiApiKey, anthropicApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl, recurringPaymentWebhookUrl, n8nUrl, n8nApiKey } = req.body;
+    const { vapiApiKey, openaiApiKey, anthropicApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl, recurringPaymentWebhookUrl, n8nUrl, n8nApiKey, n8nPostgresMemoryCredentialId } = req.body;
 
     const existing = await req.prisma.platformSettings.findFirst();
 
@@ -91,6 +92,10 @@ const updateSettings = async (req, res) => {
     }
     if (n8nApiKey !== undefined) {
       data.n8nApiKey = n8nApiKey ? encrypt(n8nApiKey) : null;
+    }
+    if (n8nPostgresMemoryCredentialId !== undefined) {
+      const trimmed = typeof n8nPostgresMemoryCredentialId === 'string' ? n8nPostgresMemoryCredentialId.trim() : '';
+      data.n8nPostgresMemoryCredentialId = trimmed || null;
     }
 
     let settings;
@@ -126,6 +131,7 @@ const updateSettings = async (req, res) => {
       recurringPaymentWebhookUrl: decryptedRecurringWebhook ? mask(decryptedRecurringWebhook, 4) : '',
       n8nUrl: decryptedN8nUrl ? mask(decryptedN8nUrl, 4) : '',
       n8nApiKey: decryptedN8nApiKey ? mask(decryptedN8nApiKey, 4) : '',
+      n8nPostgresMemoryCredentialId: settings.n8nPostgresMemoryCredentialId || '',
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
       hasAnthropic: !!decryptedAnthropic,

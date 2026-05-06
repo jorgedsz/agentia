@@ -164,7 +164,7 @@ const createChatbot = async (req, res) => {
       const n8nConfig = await getN8nConfig(req.prisma);
       if (n8nConfig) {
         console.log('n8n config found, creating workflow for chatbot:', chatbot.id, 'n8n URL:', n8nConfig.url);
-        n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+        n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, n8nConfig.pgMemoryCredentialId);
         const chatbotWithDecryptedUrl = { ...chatbot, outputUrl: outputUrl || null, config: persistedConfig || {}, serverBaseUrl: getServerBaseUrl() };
         const workflow = await n8nService.createWorkflow(chatbotWithDecryptedUrl);
         n8nWorkflowId = workflow.id;
@@ -270,7 +270,7 @@ const updateChatbot = async (req, res) => {
       const n8nConfig = await getN8nConfig(req.prisma);
       if (n8nConfig) {
         console.log('n8n config found, updating workflow for chatbot:', chatbot.id, 'existing n8nWorkflowId:', existingChatbot.n8nWorkflowId);
-        n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+        n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, n8nConfig.pgMemoryCredentialId);
         const decryptedOutputUrl = chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null;
         const chatbotForN8n = {
           ...chatbot,
@@ -356,7 +356,7 @@ const toggleChatbot = async (req, res) => {
       try {
         const n8nConfig = await getN8nConfig(req.prisma);
         if (n8nConfig) {
-          n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+          n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, n8nConfig.pgMemoryCredentialId);
           if (newActive) {
             await n8nService.activateWorkflow(chatbot.n8nWorkflowId);
           } else {
@@ -729,7 +729,7 @@ const syncWorkflow = async (req, res) => {
       return res.status(422).json({ error: 'n8n is not configured' });
     }
 
-    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, n8nConfig.pgMemoryCredentialId);
     const decryptedOutputUrl = chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null;
     const chatbotForN8n = {
       ...chatbot,
@@ -888,7 +888,7 @@ const clearMemory = async (req, res) => {
       if (!n8nConfig) {
         return res.status(422).json({ error: 'n8n is not configured' });
       }
-      n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+      n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, n8nConfig.pgMemoryCredentialId);
       const chatbotForN8n = {
         ...chatbot,
         outputUrl: chatbot.outputUrl ? decrypt(chatbot.outputUrl) : null,
@@ -1211,7 +1211,7 @@ const importChatbot = async (req, res) => {
     try {
       const n8nConfig = await getN8nConfig(req.prisma);
       if (n8nConfig) {
-        n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+        n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, n8nConfig.pgMemoryCredentialId);
         const decryptedOutputUrl = source.outputUrl ? (() => {
           try { return decrypt(source.outputUrl); } catch { return null; }
         })() : null;
@@ -1286,7 +1286,7 @@ const deleteChatbot = async (req, res) => {
       try {
         const n8nConfig = await getN8nConfig(req.prisma);
         if (n8nConfig) {
-          n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+          n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, n8nConfig.pgMemoryCredentialId);
           await n8nService.deactivateWorkflow(chatbot.n8nWorkflowId);
         }
       } catch (n8nError) {
@@ -1334,7 +1334,7 @@ const listExecutions = async (req, res) => {
 
     const n8nConfig = await getN8nConfig(req.prisma);
     if (!n8nConfig) return res.status(503).json({ error: 'n8n is not configured' });
-    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, n8nConfig.pgMemoryCredentialId);
 
     const result = await n8nService.listExecutions(chatbot.n8nWorkflowId, limit);
     const executions = (result.data || []).map(e => ({
@@ -1367,7 +1367,7 @@ const getExecutionDetail = async (req, res) => {
 
     const n8nConfig = await getN8nConfig(req.prisma);
     if (!n8nConfig) return res.status(503).json({ error: 'n8n is not configured' });
-    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, n8nConfig.pgMemoryCredentialId);
 
     const exec = await n8nService.getExecution(executionId);
 

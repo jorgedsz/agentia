@@ -9,11 +9,16 @@ class N8nService {
   constructor() {
     this.baseUrl = null;
     this._apiKey = null;
+    // ID of the n8n Postgres credential to use for chat memory persistence.
+    // Set by setConfig from PlatformSettings; falls back to env var for
+    // backward compat. When unset, buildWorkflowTemplate uses in-RAM memory.
+    this.pgMemoryCredentialId = null;
   }
 
-  setConfig(url, apiKey) {
+  setConfig(url, apiKey, pgMemoryCredentialId = null) {
     this.baseUrl = url?.replace(/\/$/, '');
     this._apiKey = apiKey;
+    this.pgMemoryCredentialId = pgMemoryCredentialId || process.env.N8N_POSTGRES_MEMORY_CREDENTIAL_ID || null;
   }
 
   isConfigured() {
@@ -276,12 +281,13 @@ class N8nService {
     }
 
     // 6. Memory sub-node for conversation context.
-    // When N8N_POSTGRES_MEMORY_CREDENTIAL_ID is set, use Postgres-backed chat
-    // memory so history survives n8n restarts and idle GC. The credential must
-    // be created once in the n8n UI (Postgres → Railway DB) and its ID copied
-    // to the env var. Without the var we fall back to in-memory (RAM-only,
-    // resets on restart) so deployments that haven't been set up still work.
-    const pgMemoryCredId = process.env.N8N_POSTGRES_MEMORY_CREDENTIAL_ID || null;
+    // When a Postgres credential ID is configured (PlatformSettings →
+    // n8nPostgresMemoryCredentialId, or env fallback), use Postgres-backed
+    // chat memory so history survives n8n restarts and idle GC. The
+    // credential must be created once in the n8n UI (Postgres → Railway DB)
+    // and its ID saved in owner settings. Without it we fall back to
+    // in-memory so deployments that haven't been set up still work.
+    const pgMemoryCredId = this.pgMemoryCredentialId;
     const memoryNode = pgMemoryCredId
       ? {
           id: 'memory-buffer',

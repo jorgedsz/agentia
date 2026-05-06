@@ -1931,6 +1931,8 @@ function APIKeysTab() {
   const [maskedAnthropic, setMaskedAnthropic] = useState('')
   const [n8nUrl, setN8nUrl] = useState('')
   const [n8nApiKey, setN8nApiKey] = useState('')
+  const [n8nPgMemoryCredId, setN8nPgMemoryCredId] = useState('')
+  const [savedN8nPgMemoryCredId, setSavedN8nPgMemoryCredId] = useState('')
   const [hasN8nUrl, setHasN8nUrl] = useState(false)
   const [hasN8nApiKey, setHasN8nApiKey] = useState(false)
   const [maskedN8nUrl, setMaskedN8nUrl] = useState('')
@@ -2008,6 +2010,7 @@ function APIKeysTab() {
       setHasN8nApiKey(data.hasN8nApiKey)
       setMaskedN8nUrl(data.n8nUrl || '')
       setMaskedN8nApiKey(data.n8nApiKey || '')
+      setSavedN8nPgMemoryCredId(data.n8nPostgresMemoryCredentialId || '')
     } catch (err) {
       setPlatError(err.response?.data?.error || 'Failed to load platform settings')
     } finally {
@@ -2075,6 +2078,7 @@ function APIKeysTab() {
       if (field === 'anthropic') payload.anthropicApiKey = anthropicApiKey
       if (field === 'n8nUrl') payload.n8nUrl = n8nUrl
       if (field === 'n8nApiKey') payload.n8nApiKey = n8nApiKey
+      if (field === 'n8nPgMemoryCredId') payload.n8nPostgresMemoryCredentialId = n8nPgMemoryCredId
       const { data } = await platformSettingsAPI.update(payload)
       setHasOpenai(data.hasOpenai)
       setHasElevenLabs(data.hasElevenLabs)
@@ -2086,12 +2090,14 @@ function APIKeysTab() {
       setHasN8nApiKey(data.hasN8nApiKey)
       setMaskedN8nUrl(data.n8nUrl || '')
       setMaskedN8nApiKey(data.n8nApiKey || '')
+      setSavedN8nPgMemoryCredId(data.n8nPostgresMemoryCredentialId || '')
       setOpenaiApiKey('')
       setElevenLabsApiKey('')
       setAnthropicApiKey('')
       setN8nUrl('')
       setN8nApiKey('')
-      const fieldLabel = { elevenLabs: 'ElevenLabs', openai: 'OpenAI', anthropic: 'Anthropic', n8nUrl: 'n8n URL', n8nApiKey: 'n8n API Key' }[field] || field
+      setN8nPgMemoryCredId('')
+      const fieldLabel = { elevenLabs: 'ElevenLabs', openai: 'OpenAI', anthropic: 'Anthropic', n8nUrl: 'n8n URL', n8nApiKey: 'n8n API Key', n8nPgMemoryCredId: 'n8n Postgres Memory Credential ID' }[field] || field
       setPlatSuccess(`${fieldLabel} key updated successfully`)
       setTimeout(() => setPlatSuccess(''), 3000)
     } catch (err) {
@@ -2102,7 +2108,7 @@ function APIKeysTab() {
   }
 
   const handlePlatRemove = async (field) => {
-    const fieldLabel = { elevenLabs: 'ElevenLabs', openai: 'OpenAI', anthropic: 'Anthropic', n8nUrl: 'n8n URL', n8nApiKey: 'n8n API Key' }[field] || field
+    const fieldLabel = { elevenLabs: 'ElevenLabs', openai: 'OpenAI', anthropic: 'Anthropic', n8nUrl: 'n8n URL', n8nApiKey: 'n8n API Key', n8nPgMemoryCredId: 'n8n Postgres Memory Credential ID' }[field] || field
     if (!confirm(`Are you sure you want to remove the ${fieldLabel}?`)) return
     setPlatError('')
     setPlatSuccess('')
@@ -2114,6 +2120,7 @@ function APIKeysTab() {
       if (field === 'anthropic') payload.anthropicApiKey = ''
       if (field === 'n8nUrl') payload.n8nUrl = ''
       if (field === 'n8nApiKey') payload.n8nApiKey = ''
+      if (field === 'n8nPgMemoryCredId') payload.n8nPostgresMemoryCredentialId = ''
       const { data } = await platformSettingsAPI.update(payload)
       setHasOpenai(data.hasOpenai)
       setHasElevenLabs(data.hasElevenLabs)
@@ -2125,6 +2132,7 @@ function APIKeysTab() {
       setHasN8nApiKey(data.hasN8nApiKey)
       setMaskedN8nUrl(data.n8nUrl || '')
       setMaskedN8nApiKey(data.n8nApiKey || '')
+      setSavedN8nPgMemoryCredId(data.n8nPostgresMemoryCredentialId || '')
       setPlatSuccess(`${fieldLabel} key removed`)
       setTimeout(() => setPlatSuccess(''), 3000)
     } catch (err) {
@@ -2434,6 +2442,19 @@ function APIKeysTab() {
                 onRemove={() => handlePlatRemove('n8nApiKey')}
                 saving={platSaving}
                 placeholder={hasN8nApiKey ? 'Enter new API key' : 'Enter n8n API key'}
+              />
+              <KeyRow
+                title="n8n Postgres Memory Credential ID"
+                description="ID of the Postgres credential in n8n that backs chatbot memory persistence. Without this, chatbot conversations reset when n8n restarts. Create the Postgres credential once in n8n's UI (pointing at this Railway DB) and paste its ID here — it then applies to all chatbots."
+                hasKey={!!savedN8nPgMemoryCredId}
+                masked={savedN8nPgMemoryCredId}
+                inputValue={n8nPgMemoryCredId}
+                onInputChange={(e) => setN8nPgMemoryCredId(e.target.value)}
+                onSave={() => handlePlatSave('n8nPgMemoryCredId')}
+                onRemove={() => handlePlatRemove('n8nPgMemoryCredId')}
+                saving={platSaving}
+                placeholder={savedN8nPgMemoryCredId ? 'Enter new credential ID' : 'e.g. xT7qH2Lk9pRfA3Bd'}
+                statusLabel="Configured"
               />
             </>
           )}

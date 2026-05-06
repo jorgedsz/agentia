@@ -266,7 +266,7 @@ const adminResyncChatbotWorkflows = async (req, res) => {
 
     const n8nConfig = await getN8nConfig(req.prisma);
     if (!n8nConfig) return res.status(422).json({ error: 'n8n is not configured' });
-    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, n8nConfig.pgMemoryCredentialId);
 
     const chatbots = await req.prisma.chatbot.findMany({
       where: { isArchived: false, n8nWorkflowId: { not: null } }

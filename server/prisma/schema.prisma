@@ -257,6 +257,7 @@ model PlatformSettings {
   slackWebhookUrl    String?  // Encrypted - Slack incoming webhook URL
   n8nUrl             String?  // Encrypted - Self-hosted n8n instance URL
   n8nApiKey          String?  // Encrypted - n8n API key
+  n8nPostgresMemoryCredentialId String? // Plaintext n8n credential ID for the Postgres-backed chatbot memory store. Not a secret on its own — anyone with n8n admin can list credentials — so we keep it readable for admin debugging.
   accountWebhookUrl  String?  // Encrypted - Webhook URL for new account creation
   recurringPaymentWebhookUrl String? // Encrypted - Webhook URL for recurring payment notifications
   createdAt          DateTime @default(now())
