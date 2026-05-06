@@ -287,7 +287,13 @@ class N8nService {
     // credential must be created once in the n8n UI (Postgres → Railway DB)
     // and its ID saved in owner settings. Without it we fall back to
     // in-memory so deployments that haven't been set up still work.
+    //
+    // Namespace the session key with the chatbot ID so multiple chatbots
+    // sharing the same Postgres table can't collide on common values like
+    // "default" or a shared GHL contactId. ID (not name) keeps memory stable
+    // when the chatbot is renamed in the UI.
     const pgMemoryCredId = this.pgMemoryCredentialId;
+    const namespacedSessionKey = `={{ "${chatbot.id}:" + ($('Resolve Variables').first().json.sessionId || "default") }}`;
     const memoryNode = pgMemoryCredId
       ? {
           id: 'memory-buffer',
@@ -297,7 +303,7 @@ class N8nService {
           position: [650, 700],
           parameters: {
             sessionIdType: 'customKey',
-            sessionKey: `={{ $('Resolve Variables').first().json.sessionId || "default" }}`,
+            sessionKey: namespacedSessionKey,
             contextWindowLength: 10,
             tableName: 'n8n_chat_histories'
           },
@@ -313,7 +319,7 @@ class N8nService {
           position: [650, 700],
           parameters: {
             sessionIdType: 'customKey',
-            sessionKey: `={{ $('Resolve Variables').first().json.sessionId || "default" }}`,
+            sessionKey: namespacedSessionKey,
             contextWindowLength: 10
           }
         };
@@ -339,11 +345,12 @@ class N8nService {
     };
     nodes.push(clearWebhookNode);
 
-    // Mirror the main memory node's backing store so clear-memory deletes
-    // the same rows the AI Agent reads. If we kept the clear node on
-    // memoryBufferWindow while the main one is on memoryPostgresChat, the
-    // clear would only drop the in-memory copy and the bot would still see
-    // the persisted history on the next turn.
+    // Mirror the main memory node's backing store AND its namespacing so
+    // clear-memory deletes the same rows the AI Agent reads. The clear
+    // webhook posts a raw sessionId; we apply the same chatbot-id prefix
+    // here so the resolved key matches the rows persisted by the Memory
+    // Buffer node.
+    const namespacedClearKey = `={{ "${chatbot.id}:" + ($json.body?.sessionId || "default") }}`;
     const clearMemoryBufferNode = pgMemoryCredId
       ? {
           id: 'clear-memory-buffer',
@@ -353,7 +360,7 @@ class N8nService {
           position: [450, 1050],
           parameters: {
             sessionIdType: 'customKey',
-            sessionKey: `={{ $json.body?.sessionId || "default" }}`,
+            sessionKey: namespacedClearKey,
             contextWindowLength: 10,
             tableName: 'n8n_chat_histories'
           },
@@ -369,7 +376,7 @@ class N8nService {
           position: [450, 1050],
           parameters: {
             sessionIdType: 'customKey',
-            sessionKey: `={{ $json.body?.sessionId || "default" }}`,
+            sessionKey: namespacedClearKey,
             contextWindowLength: 10
           }
         };
