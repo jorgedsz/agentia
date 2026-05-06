@@ -275,19 +275,42 @@ class N8nService {
       });
     }
 
-    // 6. Memory Buffer Window sub-node for conversation context
-    const memoryNode = {
-      id: 'memory-buffer',
-      name: 'Memory Buffer',
-      type: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
-      typeVersion: 1.3,
-      position: [650, 700],
-      parameters: {
-        sessionIdType: 'customKey',
-        sessionKey: `={{ $('Resolve Variables').first().json.sessionId || "default" }}`,
-        contextWindowLength: 10
-      }
-    };
+    // 6. Memory sub-node for conversation context.
+    // When N8N_POSTGRES_MEMORY_CREDENTIAL_ID is set, use Postgres-backed chat
+    // memory so history survives n8n restarts and idle GC. The credential must
+    // be created once in the n8n UI (Postgres → Railway DB) and its ID copied
+    // to the env var. Without the var we fall back to in-memory (RAM-only,
+    // resets on restart) so deployments that haven't been set up still work.
+    const pgMemoryCredId = process.env.N8N_POSTGRES_MEMORY_CREDENTIAL_ID || null;
+    const memoryNode = pgMemoryCredId
+      ? {
+          id: 'memory-buffer',
+          name: 'Memory Buffer',
+          type: '@n8n/n8n-nodes-langchain.memoryPostgresChat',
+          typeVersion: 1.3,
+          position: [650, 700],
+          parameters: {
+            sessionIdType: 'customKey',
+            sessionKey: `={{ $('Resolve Variables').first().json.sessionId || "default" }}`,
+            contextWindowLength: 10,
+            tableName: 'n8n_chat_histories'
+          },
+          credentials: {
+            postgres: { id: pgMemoryCredId, name: 'Memory Postgres' }
+          }
+        }
+      : {
+          id: 'memory-buffer',
+          name: 'Memory Buffer',
+          type: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
+          typeVersion: 1.3,
+          position: [650, 700],
+          parameters: {
+            sessionIdType: 'customKey',
+            sessionKey: `={{ $('Resolve Variables').first().json.sessionId || "default" }}`,
+            contextWindowLength: 10
+          }
+        };
     nodes.push(memoryNode);
 
     // 6b. Clear Memory path — separate webhook trigger and Memory Manager node.
@@ -310,18 +333,40 @@ class N8nService {
     };
     nodes.push(clearWebhookNode);
 
-    const clearMemoryBufferNode = {
-      id: 'clear-memory-buffer',
-      name: 'Clear Memory Buffer',
-      type: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
-      typeVersion: 1.3,
-      position: [450, 1050],
-      parameters: {
-        sessionIdType: 'customKey',
-        sessionKey: `={{ $json.body?.sessionId || "default" }}`,
-        contextWindowLength: 10
-      }
-    };
+    // Mirror the main memory node's backing store so clear-memory deletes
+    // the same rows the AI Agent reads. If we kept the clear node on
+    // memoryBufferWindow while the main one is on memoryPostgresChat, the
+    // clear would only drop the in-memory copy and the bot would still see
+    // the persisted history on the next turn.
+    const clearMemoryBufferNode = pgMemoryCredId
+      ? {
+          id: 'clear-memory-buffer',
+          name: 'Clear Memory Buffer',
+          type: '@n8n/n8n-nodes-langchain.memoryPostgresChat',
+          typeVersion: 1.3,
+          position: [450, 1050],
+          parameters: {
+            sessionIdType: 'customKey',
+            sessionKey: `={{ $json.body?.sessionId || "default" }}`,
+            contextWindowLength: 10,
+            tableName: 'n8n_chat_histories'
+          },
+          credentials: {
+            postgres: { id: pgMemoryCredId, name: 'Memory Postgres' }
+          }
+        }
+      : {
+          id: 'clear-memory-buffer',
+          name: 'Clear Memory Buffer',
+          type: '@n8n/n8n-nodes-langchain.memoryBufferWindow',
+          typeVersion: 1.3,
+          position: [450, 1050],
+          parameters: {
+            sessionIdType: 'customKey',
+            sessionKey: `={{ $json.body?.sessionId || "default" }}`,
+            contextWindowLength: 10
+          }
+        };
     nodes.push(clearMemoryBufferNode);
 
     const memoryManagerNode = {

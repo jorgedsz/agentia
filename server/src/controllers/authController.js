@@ -251,10 +251,60 @@ const adminInspectChatbot = async (req, res) => {
   }
 };
 
+// POST /api/auth/admin/resync-chatbot-workflows — owner-only.
+// Walks every non-archived chatbot with an n8nWorkflowId and re-pushes its
+// workflow definition. Used to retrofit changes to the workflow builder
+// (e.g. switching memory from RAM to Postgres-backed) onto existing bots.
+const adminResyncChatbotWorkflows = async (req, res) => {
+  try {
+    if (req.user?.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only owners can resync workflows' });
+    }
+    const n8nService = require('../services/n8nService');
+    const { getN8nConfig } = require('../utils/getN8nConfig');
+    const { decrypt } = require('../utils/encryption');
+
+    const n8nConfig = await getN8nConfig(req.prisma);
+    if (!n8nConfig) return res.status(422).json({ error: 'n8n is not configured' });
+    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+
+    const chatbots = await req.prisma.chatbot.findMany({
+      where: { isArchived: false, n8nWorkflowId: { not: null } }
+    });
+
+    const serverBaseUrl = (process.env.APP_URL || '').replace(/\/$/, '') || null;
+    const results = [];
+    for (const bot of chatbots) {
+      try {
+        let cfg;
+        try { cfg = JSON.parse(bot.config); } catch { cfg = {}; }
+        await n8nService.updateWorkflow(bot.n8nWorkflowId, {
+          ...bot,
+          outputUrl: bot.outputUrl ? decrypt(bot.outputUrl) : null,
+          config: cfg,
+          serverBaseUrl
+        });
+        await n8nService.activateWorkflow(bot.n8nWorkflowId);
+        results.push({ id: bot.id, name: bot.name, status: 'ok' });
+      } catch (err) {
+        results.push({ id: bot.id, name: bot.name, status: 'failed', error: err.message });
+      }
+    }
+
+    const ok = results.filter(r => r.status === 'ok').length;
+    const failed = results.length - ok;
+    return res.json({ total: results.length, ok, failed, results });
+  } catch (error) {
+    console.error('adminResyncChatbotWorkflows error:', error.message);
+    return res.status(500).json({ error: 'Failed to resync workflows' });
+  }
+};
+
 module.exports = {
   register,
   login,
   getMe,
   adminResetPassword,
-  adminInspectChatbot
+  adminInspectChatbot,
+  adminResyncChatbotWorkflows
 };

@@ -21,5 +21,6 @@ router.post('/switch-back', authMiddleware, accountSwitchController.switchBack);
 // Owner-only admin endpoints
 router.post('/admin/reset-password', authMiddleware, authController.adminResetPassword);
 router.get('/admin/inspect-chatbot', authMiddleware, authController.adminInspectChatbot);
+router.post('/admin/resync-chatbot-workflows', authMiddleware, authController.adminResyncChatbotWorkflows);
 
 module.exports = router;
