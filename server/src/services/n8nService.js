@@ -13,12 +13,30 @@ class N8nService {
     // Set by setConfig from PlatformSettings; falls back to env var for
     // backward compat. When unset, buildWorkflowTemplate uses in-RAM memory.
     this.pgMemoryCredentialId = null;
+    // Platform-wide chatbot defaults loaded from PlatformSettings.
+    this.chatbotGlobalRules = '';
+    this.chatbotContextWindowLength = 10;
   }
 
-  setConfig(url, apiKey, pgMemoryCredentialId = null) {
+  /**
+   * Backward compatible: third arg may be either the plain credential ID
+   * (legacy) or an options object carrying every chatbot default loaded from
+   * PlatformSettings.
+   */
+  setConfig(url, apiKey, pgMemoryCredentialIdOrOptions = null) {
     this.baseUrl = url?.replace(/\/$/, '');
     this._apiKey = apiKey;
-    this.pgMemoryCredentialId = pgMemoryCredentialId || process.env.N8N_POSTGRES_MEMORY_CREDENTIAL_ID || null;
+
+    if (pgMemoryCredentialIdOrOptions && typeof pgMemoryCredentialIdOrOptions === 'object') {
+      const opts = pgMemoryCredentialIdOrOptions;
+      this.pgMemoryCredentialId = opts.pgMemoryCredentialId || process.env.N8N_POSTGRES_MEMORY_CREDENTIAL_ID || null;
+      if (typeof opts.chatbotGlobalRules === 'string') this.chatbotGlobalRules = opts.chatbotGlobalRules;
+      if (Number.isFinite(opts.chatbotContextWindowLength) && opts.chatbotContextWindowLength > 0) {
+        this.chatbotContextWindowLength = Math.floor(opts.chatbotContextWindowLength);
+      }
+    } else {
+      this.pgMemoryCredentialId = pgMemoryCredentialIdOrOptions || process.env.N8N_POSTGRES_MEMORY_CREDENTIAL_ID || null;
+    }
   }
 
   isConfigured() {
@@ -130,7 +148,15 @@ class N8nService {
     nodes.push(testWebhookNode);
 
     // 3. Resolve Variables Code node (replaces {{placeholders}} in the system prompt)
-    const systemPromptText = (config.systemPrompt || 'You are a helpful assistant.').replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    // Prepend platform-wide global rules (set by the owner in Platform Settings)
+    // so behaviour like "don't re-ask info already collected" applies to every
+    // chatbot regardless of what the chatbot author wrote in their template.
+    const ownerSystemPrompt = config.systemPrompt || 'You are a helpful assistant.';
+    const globalRulesBlock = (this.chatbotGlobalRules || '').trim();
+    const composedPrompt = globalRulesBlock
+      ? `${globalRulesBlock}\n\n---\n\n${ownerSystemPrompt}`
+      : ownerSystemPrompt;
+    const systemPromptText = composedPrompt.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
     const resolveVarsNode = {
       id: 'resolve-variables',
       name: 'Resolve Variables',
@@ -304,7 +330,7 @@ class N8nService {
           parameters: {
             sessionIdType: 'customKey',
             sessionKey: namespacedSessionKey,
-            contextWindowLength: 10,
+            contextWindowLength: this.chatbotContextWindowLength,
             tableName: 'n8n_chat_histories'
           },
           credentials: {
@@ -320,7 +346,7 @@ class N8nService {
           parameters: {
             sessionIdType: 'customKey',
             sessionKey: namespacedSessionKey,
-            contextWindowLength: 10
+            contextWindowLength: this.chatbotContextWindowLength
           }
         };
     nodes.push(memoryNode);
@@ -361,7 +387,7 @@ class N8nService {
           parameters: {
             sessionIdType: 'customKey',
             sessionKey: namespacedClearKey,
-            contextWindowLength: 10,
+            contextWindowLength: this.chatbotContextWindowLength,
             tableName: 'n8n_chat_histories'
           },
           credentials: {
@@ -377,7 +403,7 @@ class N8nService {
           parameters: {
             sessionIdType: 'customKey',
             sessionKey: namespacedClearKey,
-            contextWindowLength: 10
+            contextWindowLength: this.chatbotContextWindowLength
           }
         };
     nodes.push(clearMemoryBufferNode);

@@ -1933,6 +1933,9 @@ function APIKeysTab() {
   const [n8nApiKey, setN8nApiKey] = useState('')
   const [n8nPgMemoryCredId, setN8nPgMemoryCredId] = useState('')
   const [savedN8nPgMemoryCredId, setSavedN8nPgMemoryCredId] = useState('')
+  const [chatbotGlobalRules, setChatbotGlobalRules] = useState('')
+  const [chatbotContextWindowLength, setChatbotContextWindowLength] = useState(10)
+  const [chatbotDefaultsSaving, setChatbotDefaultsSaving] = useState(false)
   const [hasN8nUrl, setHasN8nUrl] = useState(false)
   const [hasN8nApiKey, setHasN8nApiKey] = useState(false)
   const [maskedN8nUrl, setMaskedN8nUrl] = useState('')
@@ -2011,6 +2014,8 @@ function APIKeysTab() {
       setMaskedN8nUrl(data.n8nUrl || '')
       setMaskedN8nApiKey(data.n8nApiKey || '')
       setSavedN8nPgMemoryCredId(data.n8nPostgresMemoryCredentialId || '')
+      setChatbotGlobalRules(data.chatbotGlobalRules || '')
+      setChatbotContextWindowLength(data.chatbotContextWindowLength || 10)
     } catch (err) {
       setPlatError(err.response?.data?.error || 'Failed to load platform settings')
     } finally {
@@ -2139,6 +2144,26 @@ function APIKeysTab() {
       setPlatError(err.response?.data?.error || 'Failed to remove key')
     } finally {
       setPlatSaving(false)
+    }
+  }
+
+  const handleChatbotDefaultsSave = async () => {
+    setPlatError('')
+    setPlatSuccess('')
+    setChatbotDefaultsSaving(true)
+    try {
+      const { data } = await platformSettingsAPI.update({
+        chatbotGlobalRules,
+        chatbotContextWindowLength: parseInt(chatbotContextWindowLength, 10) || 10
+      })
+      setChatbotGlobalRules(data.chatbotGlobalRules || '')
+      setChatbotContextWindowLength(data.chatbotContextWindowLength || 10)
+      setPlatSuccess('Chatbot defaults saved. Run the resync to apply to existing chatbots.')
+      setTimeout(() => setPlatSuccess(''), 5000)
+    } catch (err) {
+      setPlatError(err.response?.data?.error || 'Failed to save chatbot defaults')
+    } finally {
+      setChatbotDefaultsSaving(false)
     }
   }
 
@@ -2456,6 +2481,55 @@ function APIKeysTab() {
                 placeholder={savedN8nPgMemoryCredId ? 'Enter new credential ID' : 'e.g. xT7qH2Lk9pRfA3Bd'}
                 statusLabel="Configured"
               />
+
+              <div className="border-t border-gray-100 dark:border-gray-700/30 p-5 space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-900 dark:text-white">Chatbot Defaults</h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Platform-wide rules and memory settings applied to every chatbot. Save here, then run the workflow resync to push to existing chatbots.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Global System Rules</label>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">
+                    Prepended to every chatbot's system prompt. Use it for hard rules like "do not request information already collected", "do not reset conversations on greetings", etc.
+                  </p>
+                  <textarea
+                    value={chatbotGlobalRules}
+                    onChange={(e) => setChatbotGlobalRules(e.target.value)}
+                    rows={8}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white font-mono"
+                    placeholder={`# REGLAS GLOBALES\n- NUNCA solicites información que ya tengas registrada en el contexto de la conversación.\n- NUNCA reinicies la conversación; mantén el hilo y continúa desde donde quedó.\n- ...`}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Memory Context Window (messages)</label>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mb-2">
+                    How many recent message turns the chatbot keeps in active memory per conversation. Higher = more context = higher LLM cost per turn. Range 1–200.
+                  </p>
+                  <input
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={chatbotContextWindowLength}
+                    onChange={(e) => setChatbotContextWindowLength(parseInt(e.target.value, 10) || 10)}
+                    className="w-32 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleChatbotDefaultsSave}
+                    disabled={chatbotDefaultsSaving}
+                    className="px-4 py-2 text-sm rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
+                  >
+                    {chatbotDefaultsSaving ? 'Saving…' : 'Save chatbot defaults'}
+                  </button>
+                </div>
+              </div>
             </>
           )}
         </div>

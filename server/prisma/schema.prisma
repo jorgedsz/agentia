@@ -258,6 +258,8 @@ model PlatformSettings {
   n8nUrl             String?  // Encrypted - Self-hosted n8n instance URL
   n8nApiKey          String?  // Encrypted - n8n API key
   n8nPostgresMemoryCredentialId String? // Plaintext n8n credential ID for the Postgres-backed chatbot memory store. Not a secret on its own — anyone with n8n admin can list credentials — so we keep it readable for admin debugging.
+  chatbotGlobalRules           String?  @db.Text // Hard rules prepended to every chatbot's system prompt. Used for platform-wide behaviour like "don't ask for info already collected" or "don't reset conversations". Plaintext.
+  chatbotContextWindowLength   Int      @default(10) // n8n memoryBufferWindow / memoryPostgresChat contextWindowLength. Bumped at the platform level affects all chatbots after a re-sync.
   accountWebhookUrl  String?  // Encrypted - Webhook URL for new account creation
   recurringPaymentWebhookUrl String? // Encrypted - Webhook URL for recurring payment notifications
   createdAt          DateTime @default(now())

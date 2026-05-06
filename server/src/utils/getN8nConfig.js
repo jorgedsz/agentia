@@ -13,7 +13,9 @@ async function getN8nConfig(prisma) {
     return {
       url: decrypt(settings.n8nUrl),
       apiKey: decrypt(settings.n8nApiKey),
-      pgMemoryCredentialId: settings.n8nPostgresMemoryCredentialId || null
+      pgMemoryCredentialId: settings.n8nPostgresMemoryCredentialId || null,
+      chatbotGlobalRules: settings.chatbotGlobalRules || '',
+      chatbotContextWindowLength: settings.chatbotContextWindowLength || 10
     };
   } catch (err) {
     console.error('Failed to decrypt n8n config:', err.message);
