@@ -7,16 +7,19 @@
  * VAPI Documentation: https://docs.vapi.ai/
  */
 
-// Anthropic retired the Claude 3.x IDs we used to expose in the UI; VAPI now
-// returns "providerfault-anthropic-llm-failed" for those model strings. Map
-// legacy saved model names to the current Claude 4.x family so existing agents
-// keep booting without a manual re-save.
+// Map model IDs we expose internally to ones VAPI's Anthropic adapter accepts.
+// Two cases:
+//   1. Retired Claude 3.x IDs — VAPI returns "providerfault-anthropic-llm-failed"
+//      for those, so legacy saved agents are remapped to the current 4.x family.
+//   2. Models newer than VAPI's allowlist (e.g. claude-opus-4-7) — fall back to
+//      the latest equivalent VAPI accepts until they update their schema.
 const LEGACY_CLAUDE_MODEL_MAP = {
   'claude-3-5-sonnet-20241022': 'claude-sonnet-4-6',
   'claude-3-5-haiku-20241022': 'claude-haiku-4-5-20251001',
-  'claude-3-opus-20240229': 'claude-opus-4-7',
+  'claude-3-opus-20240229': 'claude-opus-4-6',
   'claude-3-sonnet-20240229': 'claude-sonnet-4-6',
   'claude-3-haiku-20240307': 'claude-haiku-4-5-20251001',
+  'claude-opus-4-7': 'claude-opus-4-6',
 };
 
 const resolveModelName = (provider, modelName) => {
