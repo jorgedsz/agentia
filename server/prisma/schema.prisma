@@ -262,8 +262,22 @@ model PlatformSettings {
   chatbotContextWindowLength   Int      @default(10) // n8n memoryBufferWindow / memoryPostgresChat contextWindowLength. Bumped at the platform level affects all chatbots after a re-sync.
   accountWebhookUrl  String?  // Encrypted - Webhook URL for new account creation
   recurringPaymentWebhookUrl String? // Encrypted - Webhook URL for recurring payment notifications
+  openaiBalance      Float    @default(0) // Manually-seeded OpenAI credit. Topping up overwrites this and clears OpenAiUsageLog so remaining = openaiBalance - SUM(costUsd).
+  openaiBalanceUpdatedAt DateTime? // When the owner last set the balance (display only).
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+}
+
+model OpenAiUsageLog {
+  id               Int      @id @default(autoincrement())
+  model            String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  costUsd          Float    @default(0)
+  userId           Int?
+  createdAt        DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model Report {

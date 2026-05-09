@@ -239,7 +239,8 @@ export const promptGeneratorAPI = {
 export const platformSettingsAPI = {
   get: () => api.get('/platform-settings'),
   update: (data) => api.put('/platform-settings', data),
-  getVapiPublicKey: () => api.get('/platform-settings/vapi-public-key')
+  getVapiPublicKey: () => api.get('/platform-settings/vapi-public-key'),
+  getOpenaiBalance: () => api.get('/platform-settings/openai-balance')
 }
 
 // Account Settings API (per-account VAPI keys)

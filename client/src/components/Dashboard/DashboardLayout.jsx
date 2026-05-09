@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI } from '../../services/api'
+import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI, platformSettingsAPI } from '../../services/api'
 import ChatAssistant from './ChatAssistant'
 import WhopCheckoutModal from './WhopCheckoutModal'
 
@@ -146,11 +146,13 @@ export default function DashboardLayout() {
   const { t, language, toggleLanguage } = useLanguage()
   const [switchingBack, setSwitchingBack] = useState(false)
   const [balances, setBalances] = useState({ twilio: null, vapi: null })
+  const [openaiBalance, setOpenaiBalance] = useState(null)
   const [userCredits, setUserCredits] = useState(null)
   const [showCreditModal, setShowCreditModal] = useState(false)
   useEffect(() => {
     fetchBalances()
     fetchCredits()
+    fetchOpenaiBalance()
   }, [location.pathname])
 
   // Poll credits every 30s so sidebar stays up to date after calls
@@ -175,6 +177,15 @@ export default function DashboardLayout() {
       setBalances(response.data)
     } catch (err) {
       // Silently fail - balances are optional
+    }
+  }
+
+  const fetchOpenaiBalance = async () => {
+    try {
+      const response = await platformSettingsAPI.getOpenaiBalance()
+      setOpenaiBalance(response.data?.remaining ?? null)
+    } catch (err) {
+      // 403 for non-owners — silently leave hidden
     }
   }
 
@@ -336,7 +347,7 @@ export default function DashboardLayout() {
         </div>
 
         {/* Account Balances */}
-        {(balances.twilio !== null || balances.vapi !== null || userCredits !== null) && (
+        {(balances.twilio !== null || balances.vapi !== null || userCredits !== null || openaiBalance !== null) && (
           <div className="px-4 py-3 border-b border-gray-200 dark:border-dark-border">
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
               <Icons.Wallet />
@@ -373,6 +384,14 @@ export default function DashboardLayout() {
                   <span className="text-gray-600 dark:text-gray-400">VAPI</span>
                   <span className={`font-medium ${balances.vapi < 10 ? 'text-red-500' : 'text-green-500'}`}>
                     ${balances.vapi?.toFixed(2) || '0.00'}
+                  </span>
+                </div>
+              )}
+              {openaiBalance !== null && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">OpenAI</span>
+                  <span className={`font-medium ${openaiBalance < 5 ? 'text-red-500' : 'text-green-500'}`}>
+                    ${openaiBalance?.toFixed(2) || '0.00'}
                   </span>
                 </div>
               )}

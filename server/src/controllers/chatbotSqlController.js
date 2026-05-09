@@ -1,7 +1,7 @@
-const OpenAI = require('openai');
 const { decrypt } = require('../utils/encryption');
 const { getApiKeys } = require('../utils/getApiKeys');
 const { decryptCredentialData } = require('./credentialsController');
+const openaiService = require('../services/openaiService');
 
 const ENCRYPTED_RE = /^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/i;
 const isEncrypted = (val) => typeof val === 'string' && ENCRYPTED_RE.test(val);
@@ -112,10 +112,12 @@ async function searchKnowledgeBase(req, res) {
       return res.json({ success: false, message: 'OpenAI API key is not configured for embeddings.' });
     }
 
-    const openai = new OpenAI({ apiKey: openaiApiKey });
     let embedding;
     try {
-      const embedResp = await openai.embeddings.create({
+      const embedResp = await openaiService.embeddings({
+        prisma: req.prisma,
+        apiKey: openaiApiKey,
+        userId: req.user?.id,
         model: 'text-embedding-3-small',
         input: query,
       });

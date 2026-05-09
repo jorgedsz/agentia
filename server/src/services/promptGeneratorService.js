@@ -1,4 +1,4 @@
-const OpenAI = require('openai');
+const openaiService = require('./openaiService');
 
 // ─── FIXED SECTIONS (included verbatim in every prompt) ───
 
@@ -658,11 +658,8 @@ function getLanguageInstruction(language) {
 
 // ─── MAIN GENERATION FUNCTION ───
 
-const generatePrompt = async (wizardData, apiKey) => {
-  const openai = new OpenAI({
-    apiKey: apiKey || process.env.OPENAI_API_KEY
-  });
-
+const generatePrompt = async (wizardData, apiKey, opts = {}) => {
+  const { prisma = null, userId = null } = opts;
   const { botType, direction, language } = wizardData;
 
   // Select the specialized meta-prompt
@@ -673,7 +670,10 @@ const generatePrompt = async (wizardData, apiKey) => {
   // Build structured user message from wizard fields
   const userMessage = buildUserMessage(wizardData);
 
-  const response = await openai.chat.completions.create({
+  const response = await openaiService.chatCompletion({
+    prisma,
+    apiKey: apiKey || process.env.OPENAI_API_KEY,
+    userId,
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: metaPrompt },
@@ -727,16 +727,16 @@ CRITICAL RULES:
 
 Return ONLY the updated prompt text. No explanations, no markdown code blocks, no JSON wrapping.`;
 
-const updatePrompt = async (currentPrompt, changeDescription, language, apiKey) => {
-  const openai = new OpenAI({
-    apiKey: apiKey || process.env.OPENAI_API_KEY
-  });
-
+const updatePrompt = async (currentPrompt, changeDescription, language, apiKey, opts = {}) => {
+  const { prisma = null, userId = null } = opts;
   const langInstruction = language === 'es'
     ? '\n\nIMPORTANT: Maintain the prompt in SPANISH. Any new content should also be in Spanish.'
     : '';
 
-  const response = await openai.chat.completions.create({
+  const response = await openaiService.chatCompletion({
+    prisma,
+    apiKey: apiKey || process.env.OPENAI_API_KEY,
+    userId,
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: UPDATE_META_PROMPT + langInstruction },

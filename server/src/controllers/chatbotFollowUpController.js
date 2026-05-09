@@ -495,10 +495,11 @@ async function executeAiMessage(prisma, chatbot, action, contact, contactName, t
     ? `Your task: ${userInstructions}`
     : `Your task: Write a natural, concise message to re-engage the contact.`;
 
-  const OpenAI = require('openai');
-  const openai = new OpenAI({ apiKey: openaiApiKey });
-
-  const response = await openai.chat.completions.create({
+  const openaiService = require('../services/openaiService');
+  const response = await openaiService.chatCompletion({
+    prisma,
+    apiKey: openaiApiKey,
+    userId: chatbot.userId || null,
     model: 'gpt-4o-mini',
     messages: [
       {

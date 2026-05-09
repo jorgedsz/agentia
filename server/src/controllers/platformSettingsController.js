@@ -1,4 +1,5 @@
 const { encrypt, decrypt, mask } = require('../utils/encryption');
+const openaiService = require('../services/openaiService');
 
 const getSettings = async (req, res) => {
   try {
@@ -9,7 +10,7 @@ const getSettings = async (req, res) => {
     const settings = await req.prisma.platformSettings.findFirst();
 
     if (!settings) {
-      return res.json({ vapiApiKey: '', openaiApiKey: '', anthropicApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', recurringPaymentWebhookUrl: '', n8nUrl: '', n8nApiKey: '', n8nPostgresMemoryCredentialId: '', chatbotGlobalRules: '', chatbotContextWindowLength: 10, hasVapi: false, hasOpenai: false, hasAnthropic: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false, hasRecurringPaymentWebhook: false, hasN8nUrl: false, hasN8nApiKey: false });
+      return res.json({ vapiApiKey: '', openaiApiKey: '', anthropicApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', recurringPaymentWebhookUrl: '', n8nUrl: '', n8nApiKey: '', n8nPostgresMemoryCredentialId: '', chatbotGlobalRules: '', chatbotContextWindowLength: 10, openaiBalance: 0, openaiBalanceUpdatedAt: null, hasVapi: false, hasOpenai: false, hasAnthropic: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false, hasRecurringPaymentWebhook: false, hasN8nUrl: false, hasN8nApiKey: false });
     }
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
@@ -37,6 +38,8 @@ const getSettings = async (req, res) => {
       n8nPostgresMemoryCredentialId: settings.n8nPostgresMemoryCredentialId || '',
       chatbotGlobalRules: settings.chatbotGlobalRules || '',
       chatbotContextWindowLength: settings.chatbotContextWindowLength || 10,
+      openaiBalance: settings.openaiBalance ?? 0,
+      openaiBalanceUpdatedAt: settings.openaiBalanceUpdatedAt || null,
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
       hasAnthropic: !!decryptedAnthropic,
@@ -60,7 +63,7 @@ const updateSettings = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can update platform settings' });
     }
 
-    const { vapiApiKey, openaiApiKey, anthropicApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl, recurringPaymentWebhookUrl, n8nUrl, n8nApiKey, n8nPostgresMemoryCredentialId, chatbotGlobalRules, chatbotContextWindowLength } = req.body;
+    const { vapiApiKey, openaiApiKey, anthropicApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl, recurringPaymentWebhookUrl, n8nUrl, n8nApiKey, n8nPostgresMemoryCredentialId, chatbotGlobalRules, chatbotContextWindowLength, openaiBalance } = req.body;
 
     const existing = await req.prisma.platformSettings.findFirst();
 
@@ -110,6 +113,15 @@ const updateSettings = async (req, res) => {
         data.chatbotContextWindowLength = n;
       }
     }
+    let resetOpenaiUsage = false;
+    if (openaiBalance !== undefined) {
+      const v = parseFloat(openaiBalance);
+      if (Number.isFinite(v) && v >= 0) {
+        data.openaiBalance = v;
+        data.openaiBalanceUpdatedAt = new Date();
+        resetOpenaiUsage = true;
+      }
+    }
 
     let settings;
     if (existing) {
@@ -119,6 +131,14 @@ const updateSettings = async (req, res) => {
       });
     } else {
       settings = await req.prisma.platformSettings.create({ data });
+    }
+
+    if (resetOpenaiUsage) {
+      try {
+        await req.prisma.openAiUsageLog.deleteMany({});
+      } catch (err) {
+        console.error('Failed to clear OpenAI usage log on top-up:', err.message);
+      }
     }
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
@@ -147,6 +167,8 @@ const updateSettings = async (req, res) => {
       n8nPostgresMemoryCredentialId: settings.n8nPostgresMemoryCredentialId || '',
       chatbotGlobalRules: settings.chatbotGlobalRules || '',
       chatbotContextWindowLength: settings.chatbotContextWindowLength || 10,
+      openaiBalance: settings.openaiBalance ?? 0,
+      openaiBalanceUpdatedAt: settings.openaiBalanceUpdatedAt || null,
       hasVapi: !!decryptedVapi,
       hasOpenai: !!decryptedOpenai,
       hasAnthropic: !!decryptedAnthropic,
@@ -161,6 +183,20 @@ const updateSettings = async (req, res) => {
   } catch (error) {
     console.error('Update platform settings error:', error);
     res.status(500).json({ error: 'Failed to update platform settings' });
+  }
+};
+
+// GET /api/platform-settings/openai-balance — owner-only. Returns starting/used/remaining.
+const getOpenaiBalance = async (req, res) => {
+  try {
+    if (req.user.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only the owner can view OpenAI balance' });
+    }
+    const balance = await openaiService.getBalance(req.prisma);
+    res.json(balance);
+  } catch (error) {
+    console.error('Get OpenAI balance error:', error);
+    res.status(500).json({ error: 'Failed to fetch OpenAI balance' });
   }
 };
 
@@ -214,4 +250,4 @@ const getVapiPublicKey = async (req, res) => {
   }
 };
 
-module.exports = { getSettings, updateSettings, getVapiPublicKey };
+module.exports = { getSettings, updateSettings, getVapiPublicKey, getOpenaiBalance };

@@ -1940,6 +1940,11 @@ function APIKeysTab() {
   const [hasN8nApiKey, setHasN8nApiKey] = useState(false)
   const [maskedN8nUrl, setMaskedN8nUrl] = useState('')
   const [maskedN8nApiKey, setMaskedN8nApiKey] = useState('')
+  const [openaiBalanceInput, setOpenaiBalanceInput] = useState('0')
+  const [savedOpenaiBalance, setSavedOpenaiBalance] = useState(0)
+  const [openaiBalanceUpdatedAt, setOpenaiBalanceUpdatedAt] = useState(null)
+  const [openaiUsedUsd, setOpenaiUsedUsd] = useState(0)
+  const [openaiRemainingUsd, setOpenaiRemainingUsd] = useState(0)
 
   useEffect(() => {
     if (isOwner && canEditVapiKeys) {
@@ -1948,7 +1953,10 @@ function APIKeysTab() {
     if (canEditVapiKeys) {
       fetchTriggerKey()
     }
-    if (isOwner) fetchPlatformSettings()
+    if (isOwner) {
+      fetchPlatformSettings()
+      fetchOpenaiBalanceDetails()
+    }
   }, [])
 
   const fetchAccountKeys = async () => {
@@ -2016,10 +2024,46 @@ function APIKeysTab() {
       setSavedN8nPgMemoryCredId(data.n8nPostgresMemoryCredentialId || '')
       setChatbotGlobalRules(data.chatbotGlobalRules || '')
       setChatbotContextWindowLength(data.chatbotContextWindowLength || 10)
+      setOpenaiBalanceInput(String(data.openaiBalance ?? 0))
+      setSavedOpenaiBalance(data.openaiBalance ?? 0)
+      setOpenaiBalanceUpdatedAt(data.openaiBalanceUpdatedAt || null)
     } catch (err) {
       setPlatError(err.response?.data?.error || 'Failed to load platform settings')
     } finally {
       setPlatLoading(false)
+    }
+  }
+
+  const fetchOpenaiBalanceDetails = async () => {
+    try {
+      const { data } = await platformSettingsAPI.getOpenaiBalance()
+      setOpenaiUsedUsd(data.used || 0)
+      setOpenaiRemainingUsd(data.remaining || 0)
+    } catch {
+      // 403 for non-owners
+    }
+  }
+
+  const handleOpenaiBalanceSave = async () => {
+    setPlatError('')
+    setPlatSuccess('')
+    setPlatSaving(true)
+    try {
+      const v = parseFloat(openaiBalanceInput)
+      if (!Number.isFinite(v) || v < 0) {
+        setPlatError('Enter a non-negative number')
+        return
+      }
+      const { data } = await platformSettingsAPI.update({ openaiBalance: v })
+      setSavedOpenaiBalance(data.openaiBalance ?? 0)
+      setOpenaiBalanceUpdatedAt(data.openaiBalanceUpdatedAt || null)
+      setOpenaiUsedUsd(0)
+      setOpenaiRemainingUsd(data.openaiBalance ?? 0)
+      setPlatSuccess('OpenAI balance updated. Usage history was reset.')
+    } catch (err) {
+      setPlatError(err.response?.data?.error || 'Failed to update OpenAI balance')
+    } finally {
+      setPlatSaving(false)
     }
   }
 
@@ -2390,6 +2434,53 @@ function APIKeysTab() {
                 saving={platSaving}
                 placeholder={hasOpenai ? t('settings.enterNewKey') : t('settings.enterOpenaiKey')}
               />
+              <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1e2024]">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="flex-1 min-w-[240px]">
+                    <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">OpenAI Balance</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                      Copy your remaining credit from platform.openai.com/usage and paste it here. Each chat/embedding call deducts its cost. Saving resets the usage history.
+                    </p>
+                    <div className="mt-2 grid grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <div className="text-gray-500 dark:text-gray-500">Starting</div>
+                        <div className="font-mono text-gray-800 dark:text-gray-200">${(savedOpenaiBalance || 0).toFixed(4)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500 dark:text-gray-500">Used</div>
+                        <div className="font-mono text-red-500">${(openaiUsedUsd || 0).toFixed(4)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500 dark:text-gray-500">Remaining</div>
+                        <div className={`font-mono ${(openaiRemainingUsd || 0) < 5 ? 'text-red-500' : 'text-green-500'}`}>${(openaiRemainingUsd || 0).toFixed(4)}</div>
+                      </div>
+                    </div>
+                    {openaiBalanceUpdatedAt && (
+                      <div className="text-[11px] text-gray-400 mt-1">
+                        Set on {new Date(openaiBalanceUpdatedAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={openaiBalanceInput}
+                      onChange={(e) => setOpenaiBalanceInput(e.target.value)}
+                      placeholder="0.00"
+                      className="w-32 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-[#0f1115] text-sm text-gray-800 dark:text-gray-200"
+                    />
+                    <button
+                      onClick={handleOpenaiBalanceSave}
+                      disabled={platSaving}
+                      className="px-3 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium disabled:opacity-50"
+                    >
+                      {platSaving ? 'Saving…' : 'Set / Top up'}
+                    </button>
+                  </div>
+                </div>
+              </div>
               <KeyRow
                 title={t('settings.elevenLabsApiKey')}
                 description={t('settings.elevenLabsApiKeyDesc')}

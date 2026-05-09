@@ -1,5 +1,5 @@
-const OpenAI = require('openai');
 const { getApiKeys } = require('../utils/getApiKeys');
+const openaiService = require('../services/openaiService');
 
 const sendMessage = async (req, res) => {
   try {
@@ -46,9 +46,10 @@ Be concise, helpful, and friendly. If asked about something outside the platform
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    const openai = new OpenAI({ apiKey: openaiApiKey });
-
-    const stream = await openai.chat.completions.create({
+    const stream = await openaiService.chatCompletion({
+      prisma: req.prisma,
+      apiKey: openaiApiKey,
+      userId: req.user.id,
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },

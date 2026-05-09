@@ -1,12 +1,17 @@
 const OpenAI = require('openai');
 const axios = require('axios');
 const { getApiKeys } = require('../utils/getApiKeys');
+const openaiService = require('./openaiService');
+
+async function resolveKey(prisma) {
+  if (!prisma) return process.env.OPENAI_API_KEY || '';
+  const { openaiApiKey } = await getApiKeys(prisma);
+  return openaiApiKey || '';
+}
 
 async function getClient(prisma) {
-  const { openaiApiKey } = prisma
-    ? await getApiKeys(prisma)
-    : { openaiApiKey: process.env.OPENAI_API_KEY || '' };
-  return new OpenAI({ apiKey: openaiApiKey, timeout: 60000 });
+  const apiKey = await resolveKey(prisma);
+  return new OpenAI({ apiKey, timeout: 60000 });
 }
 
 /**
@@ -59,13 +64,15 @@ async function transcribeAudio(mediaUrl, prisma) {
 async function analyzeImage(mediaUrl, prisma) {
   try {
     console.log('[MediaProcessor] Analyzing image:', mediaUrl);
-    const openai = await getClient(prisma);
+    const apiKey = await resolveKey(prisma);
 
     let imageContent = { type: 'image_url', image_url: { url: mediaUrl } };
 
     // Try URL-based first; if that fails, download and base64-encode
     try {
-      const result = await openai.chat.completions.create({
+      const result = await openaiService.chatCompletion({
+        prisma,
+        apiKey,
         model: 'gpt-4o-mini',
         messages: [{
           role: 'user',
@@ -95,7 +102,9 @@ async function analyzeImage(mediaUrl, prisma) {
         image_url: { url: `data:${mimeType};base64,${base64}` },
       };
 
-      const result = await openai.chat.completions.create({
+      const result = await openaiService.chatCompletion({
+        prisma,
+        apiKey,
         model: 'gpt-4o-mini',
         messages: [{
           role: 'user',

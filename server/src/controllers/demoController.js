@@ -1,8 +1,8 @@
 const crypto = require('crypto');
-const OpenAI = require('openai');
 const { generatePrompt } = require('../services/promptGeneratorService');
 const { getApiKeys } = require('../utils/getApiKeys');
 const { decrypt } = require('../utils/encryption');
+const openaiService = require('../services/openaiService');
 
 // In-memory store for demo sessions (30-min TTL)
 const demoSessions = new Map();
@@ -71,11 +71,13 @@ const generateDemo = async (req, res) => {
     };
 
     // Generate voicebot prompt using existing service
-    const { prompt: voicebotPrompt, firstMessage } = await generatePrompt(wizardData, openaiApiKey);
+    const { prompt: voicebotPrompt, firstMessage } = await generatePrompt(wizardData, openaiApiKey, { prisma: req.prisma, userId: req.user?.id });
 
     // Adapt voice prompt to chatbot prompt
-    const openai = new OpenAI({ apiKey: openaiApiKey });
-    const adaptResponse = await openai.chat.completions.create({
+    const adaptResponse = await openaiService.chatCompletion({
+      prisma: req.prisma,
+      apiKey: openaiApiKey,
+      userId: req.user?.id,
       model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: CHATBOT_ADAPT_PROMPT },
@@ -159,8 +161,10 @@ const chatDemo = async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const openai = new OpenAI({ apiKey: openaiApiKey });
-    const stream = await openai.chat.completions.create({
+    const stream = await openaiService.chatCompletion({
+      prisma: req.prisma,
+      apiKey: openaiApiKey,
+      userId: req.user?.id,
       model: 'gpt-4o-mini',
       messages: session.chatHistory,
       temperature: 0.7,

@@ -11,6 +11,9 @@ router.get('/', platformSettingsController.getSettings);
 // GET /api/platform-settings/vapi-public-key - Get decrypted VAPI public key (any authenticated user)
 router.get('/vapi-public-key', platformSettingsController.getVapiPublicKey);
 
+// GET /api/platform-settings/openai-balance - OWNER only. Starting/used/remaining USD.
+router.get('/openai-balance', platformSettingsController.getOpenaiBalance);
+
 // PUT /api/platform-settings - Update settings
 router.put('/', platformSettingsController.updateSettings);
 

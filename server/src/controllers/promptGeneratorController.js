@@ -29,7 +29,7 @@ const generatePrompt = async (req, res) => {
       additionalNotes: additionalNotes ? additionalNotes.trim() : ''
     };
 
-    const result = await promptGeneratorService.generatePrompt(wizardData, openaiApiKey);
+    const result = await promptGeneratorService.generatePrompt(wizardData, openaiApiKey, { prisma: req.prisma, userId: req.user?.id });
 
     res.json({ prompt: result.prompt, firstMessage: result.firstMessage });
   } catch (error) {
@@ -57,7 +57,8 @@ const updatePrompt = async (req, res) => {
       currentPrompt.trim(),
       changeDescription.trim(),
       language || 'en',
-      openaiApiKey
+      openaiApiKey,
+      { prisma: req.prisma, userId: req.user?.id }
     );
 
     res.json({ prompt: result.prompt });
