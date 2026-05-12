@@ -87,15 +87,18 @@ export default function TrainingCallModal({ agent, onClose, onAccepted }) {
 
   const handleCallEnd = async (sessionId) => {
     clearTimer()
-    setPhase('ended')
+    setPhase('analyzing')
     try {
       const transcriptText = transcript.map(t => `${t.role}: ${t.text}`).join('\n')
       const { data } = await trainingAPI.completeSession(sessionId || session?.id, transcriptText)
       setSession(data)
       setProposedChanges(data.proposedChanges || [])
       if (data.proposedChanges?.length > 0) setPhase('review')
+      else setPhase('ended')
     } catch (err) {
       console.error('Failed to complete session:', err)
+      setError(err.response?.data?.error || err.message || 'Failed to analyze session')
+      setPhase('ended')
     }
   }
 
@@ -260,22 +263,28 @@ export default function TrainingCallModal({ agent, onClose, onAccepted }) {
               <div className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 border-2 ${
                 phase === 'active' ? 'border-primary-500/40 bg-primary-500/10'
                   : phase === 'connecting' ? 'border-yellow-500/40 bg-yellow-500/10'
+                  : phase === 'analyzing' ? 'border-primary-500/40 bg-primary-500/10'
                   : 'border-gray-600/50 bg-[#1a1d22]'
               }`}>
-                <svg className={`w-8 h-8 transition-colors duration-300 ${
-                  phase === 'active' ? 'text-primary-400' : phase === 'connecting' ? 'text-yellow-400' : 'text-gray-500'
-                }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                </svg>
+                {phase === 'analyzing' ? (
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-400" />
+                ) : (
+                  <svg className={`w-8 h-8 transition-colors duration-300 ${
+                    phase === 'active' ? 'text-primary-400' : phase === 'connecting' ? 'text-yellow-400' : 'text-gray-500'
+                  }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                )}
               </div>
             </div>
-            <span className="text-sm text-gray-400">
+            <span className={`text-sm ${phase === 'analyzing' ? 'text-primary-400 font-medium' : 'text-gray-400'}`}>
               {phase === 'idle' && t('trainingMode.ready')}
               {phase === 'connecting' && t('testCall.connecting')}
               {phase === 'active' && t('trainingMode.active')}
+              {phase === 'analyzing' && (t('trainingMode.analyzing') || 'Analyzing your session…')}
               {phase === 'ended' && t('trainingMode.processing')}
             </span>
-            {(phase === 'active' || phase === 'ended') && elapsed > 0 && (
+            {(phase === 'active' || phase === 'ended' || phase === 'analyzing') && elapsed > 0 && (
               <span className="text-xs font-mono text-gray-500">{formatElapsed(elapsed)} {t('testCall.elapsed')}</span>
             )}
           </div>
@@ -309,8 +318,8 @@ export default function TrainingCallModal({ agent, onClose, onAccepted }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                 </svg>
               </button>
-            ) : phase === 'connecting' ? (
-              <button disabled className="p-4 rounded-2xl bg-yellow-600/80 text-white cursor-not-allowed shadow-lg">
+            ) : phase === 'connecting' || phase === 'analyzing' ? (
+              <button disabled className={`p-4 rounded-2xl ${phase === 'analyzing' ? 'bg-primary-600/80' : 'bg-yellow-600/80'} text-white cursor-not-allowed shadow-lg`}>
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white" />
               </button>
             ) : phase === 'active' ? (

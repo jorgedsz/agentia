@@ -142,14 +142,14 @@ ${transcript}`;
       prisma,
       apiKey: openaiApiKey,
       userId,
-      model: 'gpt-4.1-mini',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: context },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.3,
-      max_tokens: 4096,
+      temperature: 0.2,
+      max_tokens: 2000,
     });
     const raw = resp.choices?.[0]?.message?.content?.trim();
     if (!raw) return [];
