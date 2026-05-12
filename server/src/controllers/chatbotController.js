@@ -1727,8 +1727,13 @@ const getCostReport = async (req, res) => {
       ? new Date(req.query.since)
       : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // default: last 30 days
 
+    // Hide the platform OWNER's own chatbots from the report — this view is
+    // meant to track client consumption, not the owner's test bots.
     const chatbots = await req.prisma.chatbot.findMany({
-      where: { isArchived: false },
+      where: {
+        isArchived: false,
+        user: { role: { not: 'OWNER' } },
+      },
       select: {
         id: true, name: true, userId: true,
         user: { select: { email: true, name: true, vapiCredits: true } },
