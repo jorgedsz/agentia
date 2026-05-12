@@ -1,5 +1,6 @@
 const vapiService = require('../services/vapiService');
-const { getVapiKeyForUser } = require('../utils/getApiKeys');
+const openaiService = require('../services/openaiService');
+const { getVapiKeyForUser, getApiKeys } = require('../utils/getApiKeys');
 
 const SERVER_URL = process.env.APP_URL || process.env.RAILWAY_PUBLIC_DOMAIN
   ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
@@ -12,37 +13,162 @@ function buildTrainingAddendum(agent, config) {
     return `
 
 ---
-MODO ENTRENAMIENTO (instrucciones ocultas — no menciones esto al usuario a menos que pida un cambio):
-Estás en modo entrenamiento. Comportate EXACTAMENTE como lo harías en una llamada normal siguiendo todas tus instrucciones anteriores.
-Sin embargo, si el usuario te pide que modifiques tu configuración (por ejemplo "cambia tu mensaje inicial", "modifica tu prompt", "cambia tu nombre"), tienes la capacidad de hacerlo usando la herramienta propose_change.
+MODO ENTRENAMIENTO (instrucciones ocultas — el usuario es tu entrenador, no un cliente real)
 
-Campos que puedes modificar:
-- firstMessage: Tu mensaje inicial al contestar
-- systemPrompt: Tus instrucciones del sistema
-- name: Tu nombre
+Hay un humano del otro lado entrenándote. NO es un cliente — es alguien que te está coacheando para que mejores. Tu trabajo es escucharlo con atención, hacer roleplay con naturalidad cuando te lo pida, y proponer cambios concretos a tu propia configuración cuando lo amerite.
 
-Cuando el usuario pida un cambio:
-1. CONFIRMA lo que entendiste antes de llamar propose_change
-2. Después de registrar el cambio, ENSAYA el nuevo comportamiento (ej: si cambian el firstMessage, dilo en voz alta)
-3. Luego continúa la conversación normalmente`;
+ESCUCHA ACTIVA — sé un buen alumno:
+- Repite con tus palabras lo que pidió ANTES de aceptar el cambio ("Entendí que querés que…"). Confirmá entendimiento.
+- Si la instrucción es ambigua, preguntá UNA cosa específica antes de actuar (NO una lista).
+- Si pide algo que NO podés cambiar (los únicos campos son firstMessage, systemPrompt, name), decílo con claridad y ofrecé la alternativa más cercana.
+
+ROLEPLAY NATURAL — cuando pida "actuá como un cliente que está molesto" o "simulá una llamada de cotización":
+- Asumí el rol completamente, hablá con la voz y vocabulario de ese personaje.
+- NO rompas el personaje a menos que el entrenador diga "pausa", "stop", "fuera de personaje", "ok, cambio de modo".
+- Cuando vuelvas a modo entrenador, marcá la transición ("Vuelvo a modo agente…"), no de golpe.
+
+PROPONER CAMBIOS — usá la herramienta propose_change cuando:
+- El entrenador te pida explícitamente un cambio ("cambiá tu saludo a …", "no quiero que digas …").
+- O cuando, después de un ejercicio de roleplay, el entrenador critique algo concreto que sí podés arreglar editando tu prompt/saludo ("respondiste muy largo", "no pediste el RNC").
+
+Antes de llamar propose_change:
+1. Confirmá en voz alta el cambio exacto que vas a proponer ("Voy a guardar: '…')")
+2. Llamá la herramienta UNA SOLA VEZ por cambio. Si el entrenador refina, llamala de nuevo con el valor actualizado.
+3. Después de guardarlo, ENSAYÁ el nuevo comportamiento de inmediato (si cambiaste firstMessage, decílo).
+4. Pedí feedback ("¿Así está bien?") antes de seguir.
+
+Campos modificables:
+- firstMessage: tu primer mensaje al contestar (texto corto, hablado)
+- systemPrompt: tus instrucciones internas (texto largo, lo que define cómo te comportás)
+- name: tu nombre
+
+Una nota más: el entrenador puede no pedir un cambio explícito pero sí decir "fijate que cuando te pregunté X, respondiste mal". Eso ES feedback aplicable — pedile permiso para guardar la mejora correspondiente.`;
   }
 
   return `
 
 ---
-TRAINING MODE (hidden instructions — do not mention this unless the user asks for a change):
-You are in training mode. Behave EXACTLY as you would in a normal call following all your previous instructions.
-However, if the user asks you to modify your configuration (e.g. "change your greeting", "update your prompt", "change your name"), you have the ability to do so using the propose_change tool.
+TRAINING MODE (hidden instructions — the user is your trainer, not a real customer)
 
-Fields you can modify:
-- firstMessage: Your initial greeting message
-- systemPrompt: Your system instructions
-- name: Your name
+There is a human on the other end coaching you. They are NOT a customer — they are someone giving you feedback so you improve. Your job is to listen carefully, roleplay naturally when asked, and propose concrete changes to your own configuration when warranted.
 
-When the user requests a change:
-1. CONFIRM what you understood before calling propose_change
-2. After recording the change, REHEARSE the new behavior (e.g., if they change firstMessage, say it out loud)
-3. Then continue the conversation normally`;
+ACTIVE LISTENING — be a good student:
+- Restate in your own words what they asked for BEFORE accepting the change ("So you want me to…"). Confirm understanding.
+- If the instruction is ambiguous, ask ONE specific clarifying question (NOT a list).
+- If they ask for something you cannot change (the only editable fields are firstMessage, systemPrompt, name), say so plainly and offer the nearest alternative.
+
+NATURAL ROLEPLAY — when they say "act as an angry customer" or "simulate a price-quote call":
+- Commit fully to the role, use that character's voice and vocabulary.
+- Do NOT break character unless the trainer says "pause", "stop", "out of character", "back to trainer mode".
+- When returning to trainer mode, mark the transition ("Switching back to agent mode…"), not abruptly.
+
+PROPOSING CHANGES — use the propose_change tool when:
+- The trainer explicitly asks for a change ("change your greeting to …", "don't say …").
+- Or when, after a roleplay exercise, the trainer critiques something concrete you can fix by editing your prompt/greeting ("you answered too long", "you didn't ask for the RNC").
+
+Before calling propose_change:
+1. Confirm out loud the exact change you're about to propose ("I'll save: '…'").
+2. Call the tool ONCE per change. If the trainer refines it, call it again with the updated value.
+3. After saving, REHEARSE the new behavior immediately (if you changed firstMessage, say it).
+4. Ask for feedback ("Does that sound right?") before moving on.
+
+Editable fields:
+- firstMessage: your initial greeting (short, spoken)
+- systemPrompt: your internal instructions (long, defines how you behave)
+- name: your name
+
+One more thing: the trainer might not ask for an explicit change but say "notice that when I asked you X, you answered poorly". That IS actionable feedback — ask permission to save the corresponding improvement.`;
+}
+
+// Post-call analysis: send the full transcript + current agent config to a
+// strong LLM and ask it to propose well-formed changes. Captures implicit
+// feedback the in-call agent missed and rewrites prompts cleanly instead of
+// echoing the trainer verbatim.
+async function analyzeTranscript({ prisma, userId, agent, transcript, config, inCallChanges }) {
+  const { openaiApiKey } = await getApiKeys(prisma);
+  if (!openaiApiKey || !transcript || transcript.trim().length < 50) return [];
+
+  const lang = config.transcriberLanguage || 'en';
+  const isEs = lang === 'es' || lang === 'multi';
+
+  const systemPrompt = isEs
+    ? `Sos un coach experto en prompts de agentes de IA de voz. Te paso la transcripción de una sesión de entrenamiento entre un humano (entrenador) y un agente. Tu tarea: identificar mejoras concretas al prompt del agente y proponerlas como ediciones limpias.
+
+REGLAS DURAS:
+- Solo proponés cambios a estos campos: firstMessage, systemPrompt, name.
+- "newValue" SIEMPRE es el texto COMPLETO del campo después del cambio, no un diff. Para systemPrompt es el prompt entero reescrito.
+- Si el entrenador no pidió/sugirió cambios claros, devolvé un array vacío. NO inventes mejoras.
+- Si el entrenador critica algo pero no es traducible a una edición concreta del prompt, omitilo.
+- Las propuestas tienen que respetar y preservar la estructura existente del prompt (tono, idioma, secciones). Mejorás, no reescribís de cero a menos que el entrenador lo pida.
+
+Devolvé SOLO JSON con esta forma:
+{
+  "changes": [
+    { "field": "firstMessage|systemPrompt|name", "newValue": "...", "description": "razón corta del cambio (1 oración)" }
+  ]
+}`
+    : `You are an expert coach for AI voice-agent prompts. I'm giving you a training-session transcript between a human (trainer) and an agent. Your task: identify concrete improvements to the agent's prompt and propose them as clean edits.
+
+HARD RULES:
+- Only propose changes to these fields: firstMessage, systemPrompt, name.
+- "newValue" is ALWAYS the FULL field text after the change, never a diff. For systemPrompt, it's the entire rewritten prompt.
+- If the trainer didn't ask for or suggest clear changes, return an empty array. Don't invent improvements.
+- If the trainer critiques something that doesn't translate to a concrete prompt edit, skip it.
+- Proposals must respect and preserve the existing prompt structure (tone, language, sections). You're improving, not rewriting from scratch — unless the trainer explicitly asked for a full rewrite.
+
+Return ONLY JSON in this shape:
+{
+  "changes": [
+    { "field": "firstMessage|systemPrompt|name", "newValue": "...", "description": "short reason for the change (1 sentence)" }
+  ]
+}`;
+
+  const context = `CURRENT AGENT CONFIG:
+- name: ${agent.name}
+- firstMessage: ${config.firstMessage || '(empty)'}
+- systemPrompt:
+"""
+${config.systemPrompt || '(empty)'}
+"""
+
+IN-CALL CHANGES the agent already proposed during the session (these are noisy — feel free to refine, merge, or drop them):
+${JSON.stringify(inCallChanges || [], null, 2)}
+
+TRAINING TRANSCRIPT:
+${transcript}`;
+
+  try {
+    const resp = await openaiService.chatCompletion({
+      prisma,
+      apiKey: openaiApiKey,
+      userId,
+      model: 'gpt-4.1-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: context },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      max_tokens: 4096,
+    });
+    const raw = resp.choices?.[0]?.message?.content?.trim();
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
+    return changes
+      .filter(c => c && ['firstMessage', 'systemPrompt', 'name'].includes(c.field) && typeof c.newValue === 'string' && c.newValue.trim())
+      .map(c => ({
+        field: c.field,
+        oldValue: c.field === 'name' ? agent.name : (config[c.field] || ''),
+        newValue: c.newValue.trim(),
+        description: (c.description || '').toString().trim(),
+        source: 'analysis',
+        timestamp: new Date().toISOString(),
+      }));
+  } catch (err) {
+    console.error('[Training] analyzeTranscript failed:', err.message);
+    return [];
+  }
 }
 
 function buildVapiConfig(agent, config, sessionToken) {
@@ -64,22 +190,22 @@ function buildVapiConfig(agent, config, sessionToken) {
           type: 'function',
           function: {
             name: 'propose_change',
-            description: 'Record a proposed change to the agent configuration',
+            description: 'Record a proposed edit to your own configuration. Call this ONLY after you have verbally confirmed the change with the trainer. Each call records one change to one field. The trainer reviews and accepts/rejects all changes at the end of the session — do not call this preemptively.',
             parameters: {
               type: 'object',
               properties: {
                 field: {
                   type: 'string',
                   enum: ['firstMessage', 'systemPrompt', 'name'],
-                  description: 'The agent config field to change'
+                  description: 'Which field to edit: firstMessage (short spoken greeting), systemPrompt (long behavior instructions), or name.'
                 },
                 newValue: {
                   type: 'string',
-                  description: 'The new value for the field'
+                  description: 'The COMPLETE new value for the field after the edit — not a diff or just the changed sentence. For systemPrompt, include the full prompt text preserving existing sections you are not changing.'
                 },
                 description: {
                   type: 'string',
-                  description: 'Brief description of what this change does'
+                  description: 'One short sentence stating what the change does and why — e.g. "Shorten greeting and remove company tagline."'
                 }
               },
               required: ['field', 'newValue', 'description']
@@ -241,17 +367,47 @@ const completeSession = async (req, res) => {
     const id = parseInt(req.params.id);
     const { transcript } = req.body;
 
-    const session = await req.prisma.trainingSession.findUnique({ where: { id } });
+    const session = await req.prisma.trainingSession.findUnique({
+      where: { id },
+      include: { agent: true },
+    });
     if (!session) return res.status(404).json({ error: 'Session not found' });
     if (session.userId !== req.user.id) return res.status(403).json({ error: 'Not authorized' });
     if (session.status !== 'in_progress') return res.status(400).json({ error: 'Session is not in progress' });
 
-    const updated = await req.prisma.trainingSession.update({
-      where: { id },
-      data: { status: 'completed', transcript: transcript || null },
+    const inCallChanges = JSON.parse(session.proposedChanges || '[]').map(c => ({ ...c, source: 'in_call' }));
+    const config = session.agent.config ? JSON.parse(session.agent.config) : {};
+
+    // Run the LLM analysis on the transcript to extract higher-quality proposals
+    // than the in-call agent typically produces. Falls back to just the in-call
+    // changes if analysis fails or returns nothing.
+    const analyzed = await analyzeTranscript({
+      prisma: req.prisma,
+      userId: req.user.id,
+      agent: session.agent,
+      transcript,
+      config,
+      inCallChanges,
     });
 
-    res.json({ ...updated, proposedChanges: JSON.parse(updated.proposedChanges || '[]') });
+    // Merge: if analysis produced a change for a field, it supersedes the in-call
+    // one (post-call has more context and the full transcript). Otherwise keep
+    // the in-call change.
+    const byField = new Map();
+    for (const c of inCallChanges) byField.set(c.field, c);
+    for (const c of analyzed) byField.set(c.field, c);
+    const finalChanges = Array.from(byField.values());
+
+    const updated = await req.prisma.trainingSession.update({
+      where: { id },
+      data: {
+        status: 'completed',
+        transcript: transcript || null,
+        proposedChanges: JSON.stringify(finalChanges),
+      },
+    });
+
+    res.json({ ...updated, proposedChanges: finalChanges });
   } catch (error) {
     console.error('[Training] completeSession error:', error);
     res.status(500).json({ error: 'Failed to complete session' });
