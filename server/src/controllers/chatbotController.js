@@ -1727,10 +1727,9 @@ const getCostReport = async (req, res) => {
       ? new Date(req.query.since)
       : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // default: last 30 days
 
-    // Include archived chatbots — they may still have historical activity in
-    // the requested window that we want the owner to see. UI marks them.
     const chatbots = await req.prisma.chatbot.findMany({
-      select: { id: true, name: true, userId: true, isArchived: true, user: { select: { email: true, name: true } } },
+      where: { isArchived: false },
+      select: { id: true, name: true, userId: true, user: { select: { email: true, name: true } } },
     });
 
     const [chargedAgg, realAgg] = await Promise.all([
@@ -1760,7 +1759,6 @@ const getCostReport = async (req, res) => {
         chatbotId: c.id,
         name: c.name,
         owner: c.user?.name || c.user?.email || `user#${c.userId}`,
-        isArchived: c.isArchived,
         messages,
         charged,
         realCost,

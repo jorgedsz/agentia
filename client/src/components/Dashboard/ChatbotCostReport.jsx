@@ -121,13 +121,8 @@ export default function ChatbotCostReport() {
                 <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No chatbot activity in this window.</td></tr>
               ) : (
                 rows.map((r) => (
-                  <tr key={r.chatbotId} className={`border-b border-gray-200 dark:border-gray-700/50 last:border-b-0 ${r.isArchived ? 'opacity-60' : ''}`}>
-                    <td className="px-4 py-3 font-medium">
-                      {r.name}
-                      {r.isArchived && (
-                        <span className="ml-2 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">archived</span>
-                      )}
-                    </td>
+                  <tr key={r.chatbotId} className="border-b border-gray-200 dark:border-gray-700/50 last:border-b-0">
+                    <td className="px-4 py-3 font-medium">{r.name}</td>
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{r.owner}</td>
                     <td className="px-4 py-3 text-right font-mono">{fmtInt(r.messages)}</td>
                     <td className="px-4 py-3 text-right font-mono text-gray-500">{fmtInt(r.promptTokens)}</td>
