@@ -1608,31 +1608,50 @@ const testDbConnection = async (req, res) => {
 const { calculateCost: openaiCalculateCost } = require('../services/openaiService');
 
 const extractTokenUsage = (executionData) => {
-  // Walk every node's runData looking for an OpenAI/langchain LLM node
-  // output that carries `tokenUsage` (langchain wrapper format) or `usage`
-  // (raw OpenAI SDK format). Return the first hit so we tolerate the
-  // template renaming nodes.
+  // Walk every node's runData looking for an LLM sub-node that carries token
+  // usage. The langchain wrapper actually uses `tokenUsageEstimate` (not
+  // `tokenUsage` like the docs suggest) — we accept all known field names.
+  // Tool-calling agents invoke the LLM multiple times in one execution; we
+  // sum across every run so the total reflects the full conversation turn.
+  // The model name isn't in the runData — it lives in the workflow definition
+  // under workflowData.nodes — so we resolve it by name lookup.
   const runData = executionData?.data?.resultData?.runData || {};
-  for (const nodeRuns of Object.values(runData)) {
-    if (!Array.isArray(nodeRuns)) continue;
-    for (const run of nodeRuns) {
-      const items = run?.data?.main?.[0] || run?.data?.ai_languageModel?.[0] || [];
+  const allNodes = executionData?.workflowData?.nodes || [];
+
+  let promptTokens = 0, completionTokens = 0, llmNodeName = null;
+  for (const [nodeName, runs] of Object.entries(runData)) {
+    if (!Array.isArray(runs)) continue;
+    for (const run of runs) {
+      const items = run?.data?.ai_languageModel?.[0] || run?.data?.main?.[0] || [];
       for (const item of items) {
         const json = item?.json || {};
-        // Langchain wraps usage as `tokenUsage`, raw SDK uses `usage`.
-        const usage = json.tokenUsage || json.usage || json.response?.usage || json.llmOutput?.tokenUsage;
-        if (usage && (usage.promptTokens != null || usage.prompt_tokens != null || usage.completionTokens != null || usage.completion_tokens != null)) {
-          const model = json.model || json.options?.model || run?.inputOverride?.model || 'unknown';
-          return {
-            model: typeof model === 'string' ? model : 'unknown',
-            promptTokens: usage.promptTokens ?? usage.prompt_tokens ?? 0,
-            completionTokens: usage.completionTokens ?? usage.completion_tokens ?? 0,
-          };
+        const usage = json.tokenUsageEstimate
+                   || json.tokenUsage
+                   || json.usage
+                   || json.response?.usage
+                   || json.llmOutput?.tokenUsage;
+        if (!usage) continue;
+        const pt = usage.promptTokens ?? usage.prompt_tokens ?? 0;
+        const ct = usage.completionTokens ?? usage.completion_tokens ?? 0;
+        if (pt + ct > 0) {
+          promptTokens += pt;
+          completionTokens += ct;
+          if (!llmNodeName) llmNodeName = nodeName;
         }
       }
     }
   }
-  return null;
+
+  if (promptTokens + completionTokens === 0) return null;
+
+  // Resolve the model from the workflow definition's matching LLM node.
+  const llmNode = allNodes.find(n => n.name === llmNodeName);
+  const rawModel = llmNode?.parameters?.model?.value
+                || llmNode?.parameters?.model
+                || 'unknown';
+  const model = typeof rawModel === 'string' ? rawModel : 'unknown';
+
+  return { model, promptTokens, completionTokens };
 };
 
 const processTokenUsage = async (prisma, chatbotId, executionId) => {
@@ -1708,9 +1727,10 @@ const getCostReport = async (req, res) => {
       ? new Date(req.query.since)
       : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // default: last 30 days
 
+    // Include archived chatbots — they may still have historical activity in
+    // the requested window that we want the owner to see. UI marks them.
     const chatbots = await req.prisma.chatbot.findMany({
-      where: { isArchived: false },
-      select: { id: true, name: true, userId: true, user: { select: { email: true, name: true } } },
+      select: { id: true, name: true, userId: true, isArchived: true, user: { select: { email: true, name: true } } },
     });
 
     const [chargedAgg, realAgg] = await Promise.all([
@@ -1740,6 +1760,7 @@ const getCostReport = async (req, res) => {
         chatbotId: c.id,
         name: c.name,
         owner: c.user?.name || c.user?.email || `user#${c.userId}`,
+        isArchived: c.isArchived,
         messages,
         charged,
         realCost,
