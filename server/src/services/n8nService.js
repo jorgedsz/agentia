@@ -494,6 +494,35 @@ class N8nService {
       nodes.push(httpNode);
     }
 
+    // 10. Token-usage tracker. Fires after the chatbot has responded (so it
+    //     never delays the user), telling our server the executionId. The
+    //     server then pulls execution data from n8n's API to extract real
+    //     LLM token usage and logs a ChatbotTokenUsage row for owner cost
+    //     reporting. Only added when we know our server's public URL.
+    let tokenTrackerNode = null;
+    if (serverBaseUrl) {
+      tokenTrackerNode = {
+        id: 'token-tracker',
+        name: 'Report Token Usage',
+        type: 'n8n-nodes-base.httpRequest',
+        typeVersion: 4.2,
+        position: [isGhlType && serverBaseUrl ? (outputUrl ? 1550 : 1300) : (outputUrl ? 1400 : 1150), 480],
+        parameters: {
+          url: `${serverBaseUrl}/api/chatbots/${chatbot.id}/token-usage`,
+          method: 'POST',
+          sendBody: true,
+          specifyBody: 'json',
+          jsonBody: `={{ JSON.stringify({ executionId: $execution.id }) }}`,
+          options: {
+            // Never block the response on this — short timeout, no retries.
+            timeout: 5000,
+            redirect: { redirect: {} }
+          }
+        }
+      };
+      nodes.push(tokenTrackerNode);
+    }
+
     // Build connections
     // Both webhooks feed into Resolve Variables
     connections['Webhook Trigger'] = {
@@ -522,11 +551,14 @@ class N8nService {
       };
     }
 
-    // If external webhook configured, chain it after the respond node
-    if (outputUrl) {
-      connections['Respond to Webhook'] = {
-        main: [[{ node: 'Send to External Webhook', type: 'main', index: 0 }]]
-      };
+    // After the response: fan-out to (a) optional external webhook and
+    // (b) the token-usage tracker. Both are fire-and-forget so failure of
+    // either doesn't break the chatbot reply.
+    const postRespondTargets = [];
+    if (outputUrl) postRespondTargets.push({ node: 'Send to External Webhook', type: 'main', index: 0 });
+    if (tokenTrackerNode) postRespondTargets.push({ node: 'Report Token Usage', type: 'main', index: 0 });
+    if (postRespondTargets.length) {
+      connections['Respond to Webhook'] = { main: [postRespondTargets] };
     }
 
     // LLM connected as ai_languageModel to AI Agent

@@ -84,7 +84,8 @@ export const chatbotsAPI = {
   getFollowUpLogs: (chatbotId) => api.get('/chatbot-follow-ups/logs', { params: { chatbotId } }),
   testDbConnection: (body) => api.post('/chatbots/test-db-connection', body),
   listExecutions: (id, limit) => api.get(`/chatbots/${id}/executions`, { params: limit ? { limit } : {} }),
-  getExecutionDetail: (id, executionId) => api.get(`/chatbots/${id}/executions/${executionId}`)
+  getExecutionDetail: (id, executionId) => api.get(`/chatbots/${id}/executions/${executionId}`),
+  getCostReport: (since) => api.get('/chatbots/cost-report', { params: since ? { since } : {} })
 }
 
 // Users/Clients API (for OWNER and AGENCY)

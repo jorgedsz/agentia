@@ -272,6 +272,7 @@ export default function DashboardLayout() {
       items: [
         { id: 'accounts', path: '/dashboard/accounts', label: t('sidebar.accounts'), icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
         { id: 'payments', path: '/dashboard/payments', label: t('sidebar.payments'), icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
+        { id: 'chatbot-costs', path: '/dashboard/chatbot-costs', label: 'Chatbot Costs', icon: Icons.Chatbot, roles: [ROLES.OWNER] },
       ]
     },
     {

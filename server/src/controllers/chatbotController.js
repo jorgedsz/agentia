@@ -1594,6 +1594,168 @@ const testDbConnection = async (req, res) => {
   }
 };
 
+// ──────────────────────────────────────────────────────────────────────────
+// Real token-usage tracking
+//
+// n8n fires `POST /:id/token-usage` with { executionId } at the end of every
+// chatbot run. The request body alone doesn't contain the LLM's token usage
+// — that's buried in the execution's `runData` — so we fetch the execution
+// from n8n's API, walk the LLM-Model node's output, compute USD cost from
+// the openaiService PRICING table, and insert one row per execution. The
+// endpoint is idempotent: replays of the same executionId are ignored via a
+// unique index on `executionId` so a hook retry can't double-count.
+// ──────────────────────────────────────────────────────────────────────────
+const { calculateCost: openaiCalculateCost } = require('../services/openaiService');
+
+const extractTokenUsage = (executionData) => {
+  // Walk every node's runData looking for an OpenAI/langchain LLM node
+  // output that carries `tokenUsage` (langchain wrapper format) or `usage`
+  // (raw OpenAI SDK format). Return the first hit so we tolerate the
+  // template renaming nodes.
+  const runData = executionData?.data?.resultData?.runData || {};
+  for (const nodeRuns of Object.values(runData)) {
+    if (!Array.isArray(nodeRuns)) continue;
+    for (const run of nodeRuns) {
+      const items = run?.data?.main?.[0] || run?.data?.ai_languageModel?.[0] || [];
+      for (const item of items) {
+        const json = item?.json || {};
+        // Langchain wraps usage as `tokenUsage`, raw SDK uses `usage`.
+        const usage = json.tokenUsage || json.usage || json.response?.usage || json.llmOutput?.tokenUsage;
+        if (usage && (usage.promptTokens != null || usage.prompt_tokens != null || usage.completionTokens != null || usage.completion_tokens != null)) {
+          const model = json.model || json.options?.model || run?.inputOverride?.model || 'unknown';
+          return {
+            model: typeof model === 'string' ? model : 'unknown',
+            promptTokens: usage.promptTokens ?? usage.prompt_tokens ?? 0,
+            completionTokens: usage.completionTokens ?? usage.completion_tokens ?? 0,
+          };
+        }
+      }
+    }
+  }
+  return null;
+};
+
+const processTokenUsage = async (prisma, chatbotId, executionId) => {
+  try {
+    const chatbot = await prisma.chatbot.findUnique({ where: { id: chatbotId } });
+    if (!chatbot) return;
+
+    const existing = await prisma.chatbotTokenUsage.findUnique({ where: { executionId: String(executionId) } });
+    if (existing) return;
+
+    const n8nConfig = await getN8nConfig(prisma);
+    if (!n8nConfig) return;
+    n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey);
+
+    // Retry once if the execution data isn't fully persisted yet — n8n
+    // flushes runData on completion and the token-tracker node fires before
+    // that happens.
+    let usage = null;
+    for (const wait of [0, 3000, 6000]) {
+      if (wait) await new Promise(r => setTimeout(r, wait));
+      try {
+        const execution = await n8nService.getExecution(executionId);
+        usage = extractTokenUsage(execution);
+        if (usage) break;
+      } catch (err) {
+        // 404 is expected during the initial polls — keep retrying.
+        if (wait === 6000) console.error('[chatbot token-usage] execution fetch failed:', err.message);
+      }
+    }
+    if (!usage) return;
+
+    const costUsd = openaiCalculateCost(usage.model, usage.promptTokens, usage.completionTokens);
+
+    await prisma.chatbotTokenUsage.create({
+      data: {
+        chatbotId,
+        userId: chatbot.userId,
+        executionId: String(executionId),
+        model: usage.model,
+        promptTokens: usage.promptTokens,
+        completionTokens: usage.completionTokens,
+        costUsd,
+      },
+    });
+  } catch (err) {
+    console.error('[chatbot token-usage]', err.message);
+  }
+};
+
+const logTokenUsage = async (req, res) => {
+  const { id: chatbotId } = req.params;
+  const { executionId } = req.body || {};
+  if (!chatbotId || !executionId) return res.json({ ok: false, reason: 'missing_fields' });
+
+  // Respond immediately so the n8n token-tracker node finishes fast and the
+  // execution can settle. The fetch + insert runs in the background.
+  res.json({ ok: true, queued: true });
+  processTokenUsage(req.prisma, chatbotId, executionId);
+};
+
+// GET /api/chatbots/cost-report — OWNER only.
+// Returns one row per chatbot with totals over the requested window:
+//   { chatbotId, name, owner, messages, charged, realCost, margin }
+// `charged` aggregates ChatbotMessage.costCharged (what the customer paid).
+// `realCost` aggregates ChatbotTokenUsage.costUsd (what OpenAI actually
+// billed us). Margin can go negative — that's the point of the report.
+const getCostReport = async (req, res) => {
+  try {
+    if (req.user?.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only the owner can view chatbot cost reports' });
+    }
+    const since = req.query.since
+      ? new Date(req.query.since)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // default: last 30 days
+
+    const chatbots = await req.prisma.chatbot.findMany({
+      where: { isArchived: false },
+      select: { id: true, name: true, userId: true, user: { select: { email: true, name: true } } },
+    });
+
+    const [chargedAgg, realAgg] = await Promise.all([
+      req.prisma.chatbotMessage.groupBy({
+        by: ['chatbotId'],
+        where: { createdAt: { gte: since }, status: 'success' },
+        _sum: { costCharged: true },
+        _count: { _all: true },
+      }),
+      req.prisma.chatbotTokenUsage.groupBy({
+        by: ['chatbotId'],
+        where: { createdAt: { gte: since } },
+        _sum: { costUsd: true, promptTokens: true, completionTokens: true },
+      }),
+    ]);
+
+    const chargedMap = Object.fromEntries(chargedAgg.map(r => [r.chatbotId, r]));
+    const realMap = Object.fromEntries(realAgg.map(r => [r.chatbotId, r]));
+
+    const rows = chatbots.map(c => {
+      const charged = chargedMap[c.id]?._sum?.costCharged || 0;
+      const messages = chargedMap[c.id]?._count?._all || 0;
+      const realCost = realMap[c.id]?._sum?.costUsd || 0;
+      const promptTokens = realMap[c.id]?._sum?.promptTokens || 0;
+      const completionTokens = realMap[c.id]?._sum?.completionTokens || 0;
+      return {
+        chatbotId: c.id,
+        name: c.name,
+        owner: c.user?.name || c.user?.email || `user#${c.userId}`,
+        messages,
+        charged,
+        realCost,
+        margin: charged - realCost,
+        promptTokens,
+        completionTokens,
+      };
+    });
+    rows.sort((a, b) => b.realCost - a.realCost);
+    res.json({ since: since.toISOString(), rows });
+  } catch (err) {
+    console.error('[chatbot cost-report]', err);
+    res.status(500).json({ error: 'Failed to build cost report' });
+  }
+};
+
 module.exports = {
   getChatbots,
   getChatbot,
@@ -1616,5 +1778,7 @@ module.exports = {
   getExecutionDetail,
   webhookProxy,
   ghlRespond,
-  handleBufferFlush
+  handleBufferFlush,
+  logTokenUsage,
+  getCostReport
 };

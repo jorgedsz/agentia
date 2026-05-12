@@ -280,6 +280,21 @@ model OpenAiUsageLog {
   @@index([createdAt])
 }
 
+model ChatbotTokenUsage {
+  id                Int      @id @default(autoincrement())
+  chatbotId         String
+  userId            Int      // Owner of the chatbot — for per-user roll-up
+  executionId       String?  @unique // n8n execution id, used to de-dupe replayed notifications
+  model             String
+  promptTokens      Int      @default(0)
+  completionTokens  Int      @default(0)
+  costUsd           Float    @default(0) // Computed locally from PRICING table at log time
+  createdAt         DateTime @default(now())
+
+  @@index([chatbotId, createdAt])
+  @@index([userId, createdAt])
+}
+
 model Report {
   id        String   @id @default(uuid())
   userId    Int

@@ -22,6 +22,7 @@ import Support from './components/Dashboard/Support'
 import Training from './components/Dashboard/Training'
 import Payments from './components/Dashboard/Payments'
 import ChatbotList from './components/Dashboard/ChatbotList'
+import ChatbotCostReport from './components/Dashboard/ChatbotCostReport'
 import ChatbotEdit from './components/Dashboard/ChatbotEdit'
 import ReportsList from './components/Dashboard/ReportsList'
 import ReportNew from './components/Dashboard/ReportNew'
@@ -159,6 +160,7 @@ function App() {
           <Route path="voice-library" element={<VoiceLibrary />} />
           <Route path="chatbots" element={<ChatbotList />} />
           <Route path="chatbot/:id" element={<ChatbotEdit />} />
+          <Route path="chatbot-costs" element={<ChatbotCostReport />} />
           <Route path="reports" element={<ReportsList />} />
           <Route path="reports/new" element={<ReportNew />} />
           <Route path="reports/:id" element={<ReportDetail />} />

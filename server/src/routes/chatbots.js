@@ -6,12 +6,18 @@ const authMiddleware = require('../middleware/authMiddleware');
 // Public endpoints — no auth required
 router.post('/:id/webhook', chatbotController.webhookProxy);
 router.post('/:id/ghl-respond', chatbotController.ghlRespond);
+// n8n posts here at the end of every run with { executionId } so we can fetch
+// LLM token usage from n8n's executions API and log per-chatbot real spend.
+router.post('/:id/token-usage', chatbotController.logTokenUsage);
 // Public share-link endpoints (token-gated, quota-limited)
 router.get('/:id/public-share/:token/info', chatbotController.getPublicChatbotInfo);
 router.post('/:id/public-share/:token/message', chatbotController.postPublicChatbotMessage);
 
 // All other chatbot routes are protected
 router.use(authMiddleware);
+
+// GET /api/chatbots/cost-report - OWNER-only chatbot margin report (charged vs real OpenAI cost)
+router.get('/cost-report', chatbotController.getCostReport);
 
 // GET /api/chatbots - List user's chatbots
 router.get('/', chatbotController.getChatbots);
