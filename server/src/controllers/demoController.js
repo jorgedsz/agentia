@@ -199,7 +199,7 @@ const chatDemo = async (req, res) => {
 
 const getDemoVapiKey = async (req, res) => {
   try {
-    // 1. Check PlatformSettings
+    // 1. Check PlatformSettings (global platform key)
     const settings = await req.prisma.platformSettings.findFirst();
     if (settings?.vapiPublicKey) {
       const decrypted = decrypt(settings.vapiPublicKey);
@@ -208,7 +208,22 @@ const getDemoVapiKey = async (req, res) => {
       }
     }
 
-    // 2. Fallback to env var
+    // 2. Fall back to the OWNER account's per-account VAPI public key. The
+    //    Settings UI lets the owner set a per-account key under "Cuenta" that
+    //    overrides the global one — without this fallback the public demo
+    //    would 404 even though the owner already configured the same key.
+    const owner = await req.prisma.user.findFirst({
+      where: { role: 'OWNER' },
+      select: { vapiPublicKey: true }
+    });
+    if (owner?.vapiPublicKey) {
+      const decrypted = decrypt(owner.vapiPublicKey);
+      if (decrypted) {
+        return res.json({ vapiPublicKey: decrypted });
+      }
+    }
+
+    // 3. Fallback to env var
     const envKey = process.env.VAPI_PUBLIC_KEY;
     if (envKey) {
       return res.json({ vapiPublicKey: envKey });
