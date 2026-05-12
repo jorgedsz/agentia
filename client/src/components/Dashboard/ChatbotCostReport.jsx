@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../../contexts/AuthContext'
+import { useAuth } from '../../context/AuthContext'
 import { chatbotsAPI } from '../../services/api'
 
 const RANGES = [
