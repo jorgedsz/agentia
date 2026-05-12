@@ -1729,7 +1729,10 @@ const getCostReport = async (req, res) => {
 
     const chatbots = await req.prisma.chatbot.findMany({
       where: { isArchived: false },
-      select: { id: true, name: true, userId: true, user: { select: { email: true, name: true } } },
+      select: {
+        id: true, name: true, userId: true,
+        user: { select: { email: true, name: true, vapiCredits: true } },
+      },
     });
 
     const [chargedAgg, realAgg] = await Promise.all([
@@ -1759,6 +1762,7 @@ const getCostReport = async (req, res) => {
         chatbotId: c.id,
         name: c.name,
         owner: c.user?.name || c.user?.email || `user#${c.userId}`,
+        ownerBalance: c.user?.vapiCredits ?? 0,
         messages,
         charged,
         realCost,

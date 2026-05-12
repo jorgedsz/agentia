@@ -106,6 +106,7 @@ export default function ChatbotCostReport() {
               <tr className="text-left text-xs uppercase tracking-wider text-gray-500 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700/50">
                 <th className="px-4 py-3 font-medium">Chatbot</th>
                 <th className="px-4 py-3 font-medium">Owner</th>
+                <th className="px-4 py-3 font-medium text-right">Balance</th>
                 <th className="px-4 py-3 font-medium text-right">Msgs</th>
                 <th className="px-4 py-3 font-medium text-right">Tokens in</th>
                 <th className="px-4 py-3 font-medium text-right">Tokens out</th>
@@ -116,14 +117,15 @@ export default function ChatbotCostReport() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">Loading…</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-500">Loading…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No chatbot activity in this window.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-500">No chatbot activity in this window.</td></tr>
               ) : (
                 rows.map((r) => (
                   <tr key={r.chatbotId} className="border-b border-gray-200 dark:border-gray-700/50 last:border-b-0">
                     <td className="px-4 py-3 font-medium">{r.name}</td>
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{r.owner}</td>
+                    <td className={`px-4 py-3 text-right font-mono ${(r.ownerBalance ?? 0) <= 0 ? 'text-red-500' : (r.ownerBalance ?? 0) < 10 ? 'text-yellow-500' : 'text-gray-600 dark:text-gray-400'}`}>{fmt(r.ownerBalance)}</td>
                     <td className="px-4 py-3 text-right font-mono">{fmtInt(r.messages)}</td>
                     <td className="px-4 py-3 text-right font-mono text-gray-500">{fmtInt(r.promptTokens)}</td>
                     <td className="px-4 py-3 text-right font-mono text-gray-500">{fmtInt(r.completionTokens)}</td>
