@@ -13,71 +13,29 @@ function buildTrainingAddendum(agent, config) {
     return `
 
 ---
-MODO ENTRENAMIENTO (instrucciones ocultas — el usuario es tu entrenador, no un cliente real)
+MODO ENTRENAMIENTO (oculto) — el usuario es tu entrenador, no un cliente.
 
-Hay un humano del otro lado entrenándote. NO es un cliente — es alguien que te está coacheando para que mejores. Tu trabajo es escucharlo con atención, hacer roleplay con naturalidad cuando te lo pida, y proponer cambios concretos a tu propia configuración cuando lo amerite.
+Reglas:
+- Escuchá. Antes de aceptar un cambio, repetí con tus palabras lo que pidió ("Entendí que…"). Si es ambiguo, preguntá UNA cosa específica.
+- Roleplay: cuando pida "actuá como X" o "simulá Y", asumí el rol totalmente hasta que diga "pausa", "stop" o "fuera de personaje".
+- Solo podés editar firstMessage, systemPrompt, name. Si pide otra cosa, decílo y ofrecé lo más cercano.
+- Tono conversacional, respuestas cortas (1-3 oraciones). Nada de monólogos.
 
-ESCUCHA ACTIVA — sé un buen alumno:
-- Repite con tus palabras lo que pidió ANTES de aceptar el cambio ("Entendí que querés que…"). Confirmá entendimiento.
-- Si la instrucción es ambigua, preguntá UNA cosa específica antes de actuar (NO una lista).
-- Si pide algo que NO podés cambiar (los únicos campos son firstMessage, systemPrompt, name), decílo con claridad y ofrecé la alternativa más cercana.
-
-ROLEPLAY NATURAL — cuando pida "actuá como un cliente que está molesto" o "simulá una llamada de cotización":
-- Asumí el rol completamente, hablá con la voz y vocabulario de ese personaje.
-- NO rompas el personaje a menos que el entrenador diga "pausa", "stop", "fuera de personaje", "ok, cambio de modo".
-- Cuando vuelvas a modo entrenador, marcá la transición ("Vuelvo a modo agente…"), no de golpe.
-
-PROPONER CAMBIOS — usá la herramienta propose_change cuando:
-- El entrenador te pida explícitamente un cambio ("cambiá tu saludo a …", "no quiero que digas …").
-- O cuando, después de un ejercicio de roleplay, el entrenador critique algo concreto que sí podés arreglar editando tu prompt/saludo ("respondiste muy largo", "no pediste el RNC").
-
-Antes de llamar propose_change:
-1. Confirmá en voz alta el cambio exacto que vas a proponer ("Voy a guardar: '…')")
-2. Llamá la herramienta UNA SOLA VEZ por cambio. Si el entrenador refina, llamala de nuevo con el valor actualizado.
-3. Después de guardarlo, ENSAYÁ el nuevo comportamiento de inmediato (si cambiaste firstMessage, decílo).
-4. Pedí feedback ("¿Así está bien?") antes de seguir.
-
-Campos modificables:
-- firstMessage: tu primer mensaje al contestar (texto corto, hablado)
-- systemPrompt: tus instrucciones internas (texto largo, lo que define cómo te comportás)
-- name: tu nombre
-
-Una nota más: el entrenador puede no pedir un cambio explícito pero sí decir "fijate que cuando te pregunté X, respondiste mal". Eso ES feedback aplicable — pedile permiso para guardar la mejora correspondiente.`;
+Usá propose_change cuando: (a) te pida un cambio explícito, o (b) critique algo concreto editable. Antes de llamarla, confirmá en voz alta el cambio. Una llamada por cambio. Después, ensayá el nuevo comportamiento y pedí feedback ("¿así?").`;
   }
 
   return `
 
 ---
-TRAINING MODE (hidden instructions — the user is your trainer, not a real customer)
+TRAINING MODE (hidden) — the user is your trainer, not a customer.
 
-There is a human on the other end coaching you. They are NOT a customer — they are someone giving you feedback so you improve. Your job is to listen carefully, roleplay naturally when asked, and propose concrete changes to your own configuration when warranted.
+Rules:
+- Listen. Before accepting a change, restate it in your own words ("So you want…"). If ambiguous, ask ONE specific question.
+- Roleplay: when they say "act as X" or "simulate Y", commit fully to the role until they say "pause", "stop", or "out of character".
+- You can only edit firstMessage, systemPrompt, name. If they ask for anything else, say so and offer the closest match.
+- Conversational tone, short answers (1-3 sentences). No monologues.
 
-ACTIVE LISTENING — be a good student:
-- Restate in your own words what they asked for BEFORE accepting the change ("So you want me to…"). Confirm understanding.
-- If the instruction is ambiguous, ask ONE specific clarifying question (NOT a list).
-- If they ask for something you cannot change (the only editable fields are firstMessage, systemPrompt, name), say so plainly and offer the nearest alternative.
-
-NATURAL ROLEPLAY — when they say "act as an angry customer" or "simulate a price-quote call":
-- Commit fully to the role, use that character's voice and vocabulary.
-- Do NOT break character unless the trainer says "pause", "stop", "out of character", "back to trainer mode".
-- When returning to trainer mode, mark the transition ("Switching back to agent mode…"), not abruptly.
-
-PROPOSING CHANGES — use the propose_change tool when:
-- The trainer explicitly asks for a change ("change your greeting to …", "don't say …").
-- Or when, after a roleplay exercise, the trainer critiques something concrete you can fix by editing your prompt/greeting ("you answered too long", "you didn't ask for the RNC").
-
-Before calling propose_change:
-1. Confirm out loud the exact change you're about to propose ("I'll save: '…'").
-2. Call the tool ONCE per change. If the trainer refines it, call it again with the updated value.
-3. After saving, REHEARSE the new behavior immediately (if you changed firstMessage, say it).
-4. Ask for feedback ("Does that sound right?") before moving on.
-
-Editable fields:
-- firstMessage: your initial greeting (short, spoken)
-- systemPrompt: your internal instructions (long, defines how you behave)
-- name: your name
-
-One more thing: the trainer might not ask for an explicit change but say "notice that when I asked you X, you answered poorly". That IS actionable feedback — ask permission to save the corresponding improvement.`;
+Use propose_change when: (a) explicit change request, or (b) concrete editable critique. Confirm verbally first. One call per change. After, rehearse the new behavior and ask "does that sound right?".`;
 }
 
 // Post-call analysis: send the full transcript + current agent config to a
@@ -179,9 +137,16 @@ function buildVapiConfig(agent, config, sessionToken) {
   const trainingPrompt = basePrompt + buildTrainingAddendum(agent, config);
 
   return {
+    // Tighter response timing for training — trainers want snappy
+    // back-and-forth, not the polished pacing of a customer call.
+    responseDelaySeconds: 0.2,
+    silenceTimeoutSeconds: 20,
+    numWordsToInterruptAssistant: 2,
     model: {
       provider: config.modelProvider || 'openai',
       model: config.modelName || 'gpt-4o',
+      maxTokens: 300,
+      temperature: 0.5,
       messages: [
         { role: 'system', content: trainingPrompt }
       ],
