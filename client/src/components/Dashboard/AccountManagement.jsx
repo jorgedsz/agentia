@@ -34,6 +34,7 @@ export default function AccountManagement() {
     messagesPaused: false,
     planType: '',
     planPrice: '',
+    chatbotMessagePrice: '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -113,6 +114,7 @@ export default function AccountManagement() {
       messagesPaused: targetUser.messagesPaused || false,
       planType: targetUser.planType || '',
       planPrice: targetUser.planPrice != null ? String(targetUser.planPrice) : '',
+      chatbotMessagePrice: targetUser.chatbotMessagePrice != null ? String(targetUser.chatbotMessagePrice) : '',
     })
     setError('')
     setSuccess('')
@@ -120,7 +122,7 @@ export default function AccountManagement() {
 
   const closeBillingModal = () => {
     setEditingUser(null)
-    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, callsPaused: false, messagesPaused: false, planType: '', planPrice: '' })
+    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, callsPaused: false, messagesPaused: false, planType: '', planPrice: '', chatbotMessagePrice: '' })
   }
 
   const handleBillingSubmit = async (e) => {
@@ -147,6 +149,7 @@ export default function AccountManagement() {
         data.planType = billingForm.planType || null
       }
       data.planPrice = billingForm.planPrice !== '' ? billingForm.planPrice : null
+      data.chatbotMessagePrice = billingForm.chatbotMessagePrice !== '' ? billingForm.chatbotMessagePrice : null
 
       await usersAPI.updateBilling(editingUser.id, data)
       setSuccess('Billing updated successfully')
@@ -675,6 +678,23 @@ export default function AccountManagement() {
                       value={billingForm.planPrice}
                       onChange={(e) => setBillingForm({ ...billingForm, planPrice: e.target.value })}
                       placeholder="0.00"
+                      className="w-full pl-7 pr-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    Chatbot $/message <span className="text-gray-400 normal-case">(blank = default $0.01)</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      value={billingForm.chatbotMessagePrice}
+                      onChange={(e) => setBillingForm({ ...billingForm, chatbotMessagePrice: e.target.value })}
+                      placeholder="0.01"
                       className="w-full pl-7 pr-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
                     />
                   </div>

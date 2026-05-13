@@ -49,6 +49,7 @@ const getAllUsers = async (req, res) => {
         vapiCredits: true,
         outboundRate: true,
         inboundRate: true,
+        chatbotMessagePrice: true,
         voiceAgentsEnabled: true,
         chatbotsEnabled: true,
         crmEnabled: true,
@@ -496,7 +497,7 @@ const deleteUser = async (req, res) => {
 const updateUserBilling = async (req, res) => {
   try {
     const { id } = req.params;
-    const { credits, creditOperation, outboundRate, inboundRate, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, callsPaused, messagesPaused, planType, planPrice } = req.body;
+    const { credits, creditOperation, outboundRate, inboundRate, chatbotMessagePrice, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, callsPaused, messagesPaused, planType, planPrice } = req.body;
 
     const targetUser = await req.prisma.user.findUnique({
       where: { id: parseInt(id) }
@@ -558,6 +559,21 @@ const updateUserBilling = async (req, res) => {
       updateData.inboundRate = rate;
     }
 
+    // Per-account chatbot $/message override. Owner sends:
+    //   - a number  → custom rate
+    //   - null      → reset to platform default ($0.01)
+    if (chatbotMessagePrice !== undefined) {
+      if (chatbotMessagePrice === null || chatbotMessagePrice === '') {
+        updateData.chatbotMessagePrice = null;
+      } else {
+        const price = parseFloat(chatbotMessagePrice);
+        if (isNaN(price) || price < 0) {
+          return res.status(400).json({ error: 'Chatbot message price must be a non-negative number' });
+        }
+        updateData.chatbotMessagePrice = price;
+      }
+    }
+
     // Handle feature toggles
     if (voiceAgentsEnabled !== undefined) {
       updateData.voiceAgentsEnabled = Boolean(voiceAgentsEnabled);
@@ -601,6 +617,7 @@ const updateUserBilling = async (req, res) => {
         vapiCredits: true,
         outboundRate: true,
         inboundRate: true,
+        chatbotMessagePrice: true,
         voiceAgentsEnabled: true,
         chatbotsEnabled: true,
         crmEnabled: true,

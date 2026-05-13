@@ -492,11 +492,31 @@ const testChatbot = async (req, res) => {
 };
 
 // ── Helper: forward message to n8n, deduct credits, log ──────
-const MESSAGE_COST = 0.01;
+// Platform default per-message price for chatbot traffic. Owner can
+// override on a per-account basis via User.chatbotMessagePrice — see
+// resolveMessageCost() below.
+const DEFAULT_MESSAGE_COST = 0.01;
 const TEST_MESSAGE_COST = 0.0025;
+
+// Resolve the per-message cost for a chatbot's owner. Falls back to the
+// platform default when no override is set. Accepts a pre-fetched user
+// object (with chatbotMessagePrice) to avoid an extra round-trip in
+// hot paths that already loaded the user.
+function resolveMessageCost(user) {
+  if (user && typeof user.chatbotMessagePrice === 'number' && Number.isFinite(user.chatbotMessagePrice) && user.chatbotMessagePrice >= 0) {
+    return user.chatbotMessagePrice;
+  }
+  return DEFAULT_MESSAGE_COST;
+}
 
 async function forwardToN8n(chatbot, forwardBody, prisma) {
   const { message, sessionId, contactId, contactName } = forwardBody;
+  // Fetch the chatbot owner's per-message rate (or default) once per call.
+  const owner = await prisma.user.findUnique({
+    where: { id: chatbot.userId },
+    select: { chatbotMessagePrice: true },
+  });
+  const messageCost = resolveMessageCost(owner);
 
   const n8nResponse = await fetch(chatbot.n8nWebhookUrl, {
     method: 'POST',
@@ -542,7 +562,7 @@ async function forwardToN8n(chatbot, forwardBody, prisma) {
   try {
     await prisma.user.update({
       where: { id: chatbot.userId },
-      data: { vapiCredits: { decrement: MESSAGE_COST } }
+      data: { vapiCredits: { decrement: messageCost } }
     });
   } catch (creditErr) {
     console.error('Failed to deduct chatbot message credit:', creditErr.message);
@@ -559,7 +579,7 @@ async function forwardToN8n(chatbot, forwardBody, prisma) {
       contactName: contactName || null,
       inputMessage: message,
       outputMessage: data.response || data.output || JSON.stringify(data),
-      costCharged: MESSAGE_COST,
+      costCharged: messageCost,
       status: 'success',
     }
   }).catch(err => console.error('Failed to log chatbot message:', err.message));
@@ -668,7 +688,7 @@ const webhookProxy = async (req, res) => {
     }
 
     // Check if chatbots are enabled for the owner
-    const chatbotOwner = await req.prisma.user.findUnique({ where: { id: chatbot.userId }, select: { chatbotsEnabled: true, messagesPaused: true, vapiCredits: true } });
+    const chatbotOwner = await req.prisma.user.findUnique({ where: { id: chatbot.userId }, select: { chatbotsEnabled: true, messagesPaused: true, vapiCredits: true, chatbotMessagePrice: true } });
     if (!chatbotOwner?.chatbotsEnabled) {
       return res.status(403).json({ error: 'Chatbots are disabled for this account.' });
     }
@@ -676,7 +696,8 @@ const webhookProxy = async (req, res) => {
       return res.status(403).json({ error: 'Messages are currently paused for this account.' });
     }
 
-    if ((chatbotOwner.vapiCredits || 0) < MESSAGE_COST) {
+    const ownerMessageCost = resolveMessageCost(chatbotOwner);
+    if ((chatbotOwner.vapiCredits || 0) < ownerMessageCost) {
       return res.status(402).json({ error: 'Insufficient credits. Owner needs to add credits to continue.' });
     }
 

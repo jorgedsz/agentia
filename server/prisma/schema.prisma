@@ -19,6 +19,7 @@ model User {
   vapiCredits       Float              @default(0) // VAPI call credits balance
   outboundRate      Float              @default(0.10) // $ per minute for outbound calls
   inboundRate       Float              @default(0.05) // $ per minute for inbound calls
+  chatbotMessagePrice Float?           // Per-account override for chatbot $/message. Null = platform default ($0.01).
   companyName       String?            // Custom branding: company name
   companyLogo       String?            // Custom branding: logo URL
   companyTagline    String?            // Custom branding: tagline
