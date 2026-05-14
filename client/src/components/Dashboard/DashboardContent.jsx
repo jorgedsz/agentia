@@ -578,7 +578,7 @@ export default function DashboardContent({ tab }) {
                       const isExpanded = expandedFolders.has(folder.id)
                       const isRenaming = renamingFolderId === folder.id
                       return (
-                        <div key={folder.id} className="rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#16181c] overflow-hidden">
+                        <div key={folder.id} className="rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#16181c]">
                           <div className="flex items-center justify-between px-4 py-3">
                             <button onClick={() => toggleFolder(folder.id)} className="flex items-center gap-2 flex-1 text-left">
                               <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -652,7 +652,7 @@ export default function DashboardContent({ tab }) {
                       if (uncategorized.length === 0) return null
                       const isExpanded = expandedFolders.has('__uncategorized__')
                       return (
-                        <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#16181c] overflow-hidden">
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#16181c]">
                           <button onClick={() => toggleFolder('__uncategorized__')} className="flex items-center gap-2 w-full px-4 py-3 text-left">
                             <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -1194,7 +1194,7 @@ function AgentCard({ agent, folders = [], modelRates, transcriberRates, onDelete
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1e2024] overflow-hidden">
+    <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#1e2024]">
       <div className="p-5 space-y-3">
         {/* Row 1: Name + Status */}
         <div className="flex items-start justify-between">
