@@ -10,6 +10,7 @@ const { Client: WAClient, LocalAuth } = require('whatsapp-web.js');
 
 const authRoutes = require('./routes/auth');
 const agentRoutes = require('./routes/agents');
+const folderRoutes = require('./routes/folders');
 const userRoutes = require('./routes/users');
 const twilioRoutes = require('./routes/twilio');
 const telephonyRoutes = require('./routes/telephony');
@@ -192,6 +193,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/agents', agentRoutes);
+app.use('/api/folders', folderRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/twilio', twilioRoutes);
 app.use('/api/telephony', telephonyRoutes);

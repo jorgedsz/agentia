@@ -153,10 +153,25 @@ model Agent {
   publicShareMaxDurationSeconds Int      @default(180)  // Hard cap per shared call (3 min default)
   userId       Int
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId     String?       // Per-account folder for organization. Null = Uncategorized.
+  folder       AgentFolder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   phoneNumbers     PhoneNumber[]
   trainingSessions TrainingSession[]
+
+  @@index([userId, folderId])
+}
+
+model AgentFolder {
+  id        String   @id @default(cuid())
+  name      String
+  userId    Int      // Account owner — folders are per-account and shared with team members
+  agents    Agent[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model AgentShareUsage {

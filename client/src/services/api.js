@@ -48,6 +48,7 @@ export const agentsAPI = {
   get: (id) => api.get(`/agents/${id}`),
   create: (data) => api.post('/agents', data),
   update: (id, data) => api.put(`/agents/${id}`, data),
+  moveToFolder: (id, folderId) => api.patch(`/agents/${id}/folder`, { folderId }),
   duplicate: (id) => api.post(`/agents/${id}/duplicate`),
   import: (agentId) => api.post('/agents/import', { agentId }),
   enableShare: (id) => api.post(`/agents/${id}/share/enable`),
@@ -55,6 +56,14 @@ export const agentsAPI = {
   disableShare: (id) => api.post(`/agents/${id}/share/disable`),
   updateShareLimits: (id, data) => api.put(`/agents/${id}/share/limits`, data),
   delete: (id) => api.delete(`/agents/${id}`)
+}
+
+// Folders API (organize agents into per-account folders)
+export const foldersAPI = {
+  list: () => api.get('/folders'),
+  create: (name) => api.post('/folders', { name }),
+  rename: (id, name) => api.patch(`/folders/${id}`, { name }),
+  delete: (id) => api.delete(`/folders/${id}`)
 }
 
 // Reports API

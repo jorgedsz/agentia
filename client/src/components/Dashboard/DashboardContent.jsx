@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { agentsAPI, usersAPI, callsAPI, phoneNumbersAPI, pricingAPI } from '../../services/api'
+import { agentsAPI, usersAPI, callsAPI, phoneNumbersAPI, pricingAPI, foldersAPI } from '../../services/api'
 import TestCallModal from './TestCallModal'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -153,6 +153,17 @@ export default function DashboardContent({ tab }) {
   const [overviewData, setOverviewData] = useState(null)
   const [modelRates, setModelRates] = useState({})
   const [transcriberRates, setTranscriberRates] = useState({})
+  const [folders, setFolders] = useState([])
+  const [expandedFolders, setExpandedFolders] = useState(() => {
+    try {
+      const stored = localStorage.getItem('agentFoldersExpanded')
+      return stored ? new Set(JSON.parse(stored)) : new Set()
+    } catch { return new Set() }
+  })
+  const [creatingFolder, setCreatingFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [renamingFolderId, setRenamingFolderId] = useState(null)
+  const [renamingValue, setRenamingValue] = useState('')
 
   const quickCreateAgent = async (agentType = 'outbound') => {
     try {
@@ -207,12 +218,14 @@ export default function DashboardContent({ tab }) {
         setAgents(agentsRes.data.agents)
         setOverviewData(overviewRes.data)
       } else if (tab === 'agents') {
-        const [agentsRes, modelsRes, transcribersRes] = await Promise.all([
+        const [agentsRes, modelsRes, transcribersRes, foldersRes] = await Promise.all([
           agentsAPI.list(),
           pricingAPI.getModelRates(),
-          pricingAPI.getTranscriberRates()
+          pricingAPI.getTranscriberRates(),
+          foldersAPI.list().catch(() => ({ data: { folders: [] } }))
         ])
         setAgents(agentsRes.data.agents)
+        setFolders(foldersRes.data.folders || [])
         const mRates = {}
         ;(modelsRes.data.rates || []).forEach(r => { mRates[`${r.provider}::${r.model}`] = r.rate })
         setModelRates(mRates)
@@ -334,6 +347,83 @@ export default function DashboardContent({ tab }) {
     }
   }
 
+  const persistExpandedFolders = (next) => {
+    setExpandedFolders(next)
+    try { localStorage.setItem('agentFoldersExpanded', JSON.stringify([...next])) } catch {}
+  }
+
+  const toggleFolder = (id) => {
+    const next = new Set(expandedFolders)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    persistExpandedFolders(next)
+  }
+
+  const handleCreateFolder = async () => {
+    const name = newFolderName.trim()
+    if (!name) return
+    try {
+      const { data } = await foldersAPI.create(name)
+      setFolders(prev => [...prev, { ...data.folder, agentCount: 0 }].sort((a, b) => a.name.localeCompare(b.name)))
+      persistExpandedFolders(new Set([...expandedFolders, data.folder.id]))
+      setNewFolderName('')
+      setCreatingFolder(false)
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to create folder')
+    }
+  }
+
+  const handleRenameFolder = async (id) => {
+    const name = renamingValue.trim()
+    if (!name) { setRenamingFolderId(null); return }
+    try {
+      await foldersAPI.rename(id, name)
+      setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f).sort((a, b) => a.name.localeCompare(b.name)))
+      setRenamingFolderId(null)
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to rename folder')
+    }
+  }
+
+  const handleDeleteFolder = async (id) => {
+    const folder = folders.find(f => f.id === id)
+    const inside = agents.filter(a => a.folderId === id).length
+    const msg = inside > 0
+      ? `Delete folder "${folder?.name}"? Its ${inside} agent${inside === 1 ? '' : 's'} will move to Uncategorized.`
+      : `Delete folder "${folder?.name}"?`
+    if (!confirm(msg)) return
+    try {
+      await foldersAPI.delete(id)
+      setFolders(prev => prev.filter(f => f.id !== id))
+      setAgents(prev => prev.map(a => a.folderId === id ? { ...a, folderId: null } : a))
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete folder')
+    }
+  }
+
+  const handleMoveAgent = async (agentId, folderId) => {
+    const prevAgent = agents.find(a => a.id === agentId)
+    if (!prevAgent || prevAgent.folderId === folderId) return
+    // Optimistic update — revert on error
+    setAgents(prev => prev.map(a => a.id === agentId ? { ...a, folderId } : a))
+    setFolders(prev => prev.map(f => {
+      if (f.id === folderId) return { ...f, agentCount: f.agentCount + 1 }
+      if (f.id === prevAgent.folderId) return { ...f, agentCount: Math.max(0, f.agentCount - 1) }
+      return f
+    }))
+    try {
+      await agentsAPI.moveToFolder(agentId, folderId)
+      if (folderId) persistExpandedFolders(new Set([...expandedFolders, folderId]))
+    } catch (err) {
+      setAgents(prev => prev.map(a => a.id === agentId ? { ...a, folderId: prevAgent.folderId } : a))
+      setFolders(prev => prev.map(f => {
+        if (f.id === folderId) return { ...f, agentCount: Math.max(0, f.agentCount - 1) }
+        if (f.id === prevAgent.folderId) return { ...f, agentCount: f.agentCount + 1 }
+        return f
+      }))
+      alert(err.response?.data?.error || 'Failed to move agent')
+    }
+  }
+
   const getRoleBadgeColor = (role) => {
     switch (role) {
       case ROLES.OWNER: return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
@@ -442,20 +532,144 @@ export default function DashboardContent({ tab }) {
 
             {tab === 'agents' && (
               <div>
-                {agents.length === 0 ? (
+                {agents.length === 0 && folders.length === 0 ? (
                   <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
                     <EmptyState type="agents" onCreate={() => quickCreateAgent()} />
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <span className="px-3 py-1 text-sm font-medium text-gray-300 bg-[#1e2024] border border-gray-700/50 rounded-lg">
                         {agents.length} {agents.length === 1 ? 'agent' : 'agents'}
                       </span>
+                      {creatingFolder ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            autoFocus
+                            type="text"
+                            value={newFolderName}
+                            onChange={(e) => setNewFolderName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleCreateFolder()
+                              if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName('') }
+                            }}
+                            placeholder="Folder name"
+                            maxLength={60}
+                            className="px-3 py-1 text-sm bg-[#1e2024] border border-gray-600/50 rounded-lg text-gray-200 focus:outline-none focus:border-primary-500"
+                          />
+                          <button onClick={handleCreateFolder} className="px-3 py-1 text-sm font-medium rounded-lg bg-primary-500/20 border border-primary-500/30 text-primary-400 hover:bg-primary-500/30">{t('common.save') || 'Save'}</button>
+                          <button onClick={() => { setCreatingFolder(false); setNewFolderName('') }} className="px-3 py-1 text-sm font-medium rounded-lg text-gray-400 hover:bg-gray-500/10">{t('common.cancel') || 'Cancel'}</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setCreatingFolder(true)}
+                          className="flex items-center gap-1.5 px-3 py-1 text-sm font-medium rounded-lg border border-gray-600/50 text-gray-300 hover:bg-gray-500/10 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          New folder
+                        </button>
+                      )}
                     </div>
-                    {agents.map((agent) => (
-                      <AgentCard key={agent.id} agent={agent} modelRates={modelRates} transcriberRates={transcriberRates} onDelete={() => handleDelete('agent', agent.id)} onDuplicate={() => handleDuplicate(agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} onOpenBuilder={() => navigate(`/dashboard/agent-builder/voice/${agent.id}`)} />
-                    ))}
+
+                    {folders.map(folder => {
+                      const folderAgents = agents.filter(a => a.folderId === folder.id)
+                      const isExpanded = expandedFolders.has(folder.id)
+                      const isRenaming = renamingFolderId === folder.id
+                      return (
+                        <div key={folder.id} className="rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#16181c] overflow-hidden">
+                          <div className="flex items-center justify-between px-4 py-3">
+                            <button onClick={() => toggleFolder(folder.id)} className="flex items-center gap-2 flex-1 text-left">
+                              <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                              <svg className="w-4 h-4 text-primary-400" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                              </svg>
+                              {isRenaming ? (
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  value={renamingValue}
+                                  onChange={(e) => setRenamingValue(e.target.value)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => {
+                                    e.stopPropagation()
+                                    if (e.key === 'Enter') handleRenameFolder(folder.id)
+                                    if (e.key === 'Escape') setRenamingFolderId(null)
+                                  }}
+                                  onBlur={() => handleRenameFolder(folder.id)}
+                                  maxLength={60}
+                                  className="px-2 py-0.5 text-sm bg-[#1e2024] border border-gray-600/50 rounded text-gray-200 focus:outline-none focus:border-primary-500"
+                                />
+                              ) : (
+                                <span className="text-sm font-semibold text-gray-100">{folder.name}</span>
+                              )}
+                              <span className="text-xs text-gray-500">{folderAgents.length}</span>
+                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => { setRenamingFolderId(folder.id); setRenamingValue(folder.name) }}
+                                title="Rename"
+                                className="p-1.5 rounded text-gray-400 hover:bg-gray-500/10 hover:text-gray-200"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFolder(folder.id)}
+                                title="Delete folder"
+                                className="p-1.5 rounded text-red-400 hover:bg-red-500/10"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                          {isExpanded && (
+                            <div className="px-3 pb-3 pt-1 space-y-2 border-t border-gray-200 dark:border-gray-700/50">
+                              {folderAgents.length === 0 ? (
+                                <p className="text-xs text-gray-500 py-3 px-2">No agents in this folder. Move agents here from Uncategorized.</p>
+                              ) : folderAgents.map(agent => (
+                                <AgentCard key={agent.id} agent={agent} folders={folders} modelRates={modelRates} transcriberRates={transcriberRates} onDelete={() => handleDelete('agent', agent.id)} onDuplicate={() => handleDuplicate(agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} onOpenBuilder={() => navigate(`/dashboard/agent-builder/voice/${agent.id}`)} onMoveToFolder={(fid) => handleMoveAgent(agent.id, fid)} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {(() => {
+                      const uncategorized = agents.filter(a => !a.folderId)
+                      if (folders.length === 0) {
+                        return uncategorized.map(agent => (
+                          <AgentCard key={agent.id} agent={agent} folders={folders} modelRates={modelRates} transcriberRates={transcriberRates} onDelete={() => handleDelete('agent', agent.id)} onDuplicate={() => handleDuplicate(agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} onOpenBuilder={() => navigate(`/dashboard/agent-builder/voice/${agent.id}`)} onMoveToFolder={(fid) => handleMoveAgent(agent.id, fid)} />
+                        ))
+                      }
+                      if (uncategorized.length === 0) return null
+                      const isExpanded = expandedFolders.has('__uncategorized__')
+                      return (
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white dark:bg-[#16181c] overflow-hidden">
+                          <button onClick={() => toggleFolder('__uncategorized__')} className="flex items-center gap-2 w-full px-4 py-3 text-left">
+                            <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                            <span className="text-sm font-semibold text-gray-300">Uncategorized</span>
+                            <span className="text-xs text-gray-500">{uncategorized.length}</span>
+                          </button>
+                          {isExpanded && (
+                            <div className="px-3 pb-3 pt-1 space-y-2 border-t border-gray-200 dark:border-gray-700/50">
+                              {uncategorized.map(agent => (
+                                <AgentCard key={agent.id} agent={agent} folders={folders} modelRates={modelRates} transcriberRates={transcriberRates} onDelete={() => handleDelete('agent', agent.id)} onDuplicate={() => handleDuplicate(agent.id)} onEdit={() => navigate(`/dashboard/agent/${agent.id}`)} onTest={() => agent.vapiId && setTestCallAgent(agent)} onPhoneCall={() => agent.vapiId && setPhoneCallAgent(agent)} onOpenBuilder={() => navigate(`/dashboard/agent-builder/voice/${agent.id}`)} onMoveToFolder={(fid) => handleMoveAgent(agent.id, fid)} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
               </div>
@@ -943,9 +1157,19 @@ function OverviewDashboard({ overviewData, user, agents, navigate, setTestCallAg
   )
 }
 
-function AgentCard({ agent, modelRates, transcriberRates, onDelete, onDuplicate, onEdit, onTest, onPhoneCall, onOpenBuilder }) {
+function AgentCard({ agent, folders = [], modelRates, transcriberRates, onDelete, onDuplicate, onEdit, onTest, onPhoneCall, onOpenBuilder, onMoveToFolder }) {
   const { t } = useLanguage()
   const [copied, setCopied] = useState(false)
+  const [moveMenuOpen, setMoveMenuOpen] = useState(false)
+
+  useEffect(() => {
+    if (!moveMenuOpen) return
+    const close = (e) => {
+      if (!e.target.closest?.('[data-move-menu]')) setMoveMenuOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [moveMenuOpen])
   const type = agent.agentType || agent.config?.agentType || 'outbound'
   const hasPhone = agent.phoneNumbers && agent.phoneNumbers.length > 0
 
@@ -1085,6 +1309,46 @@ function AgentCard({ agent, modelRates, transcriberRates, onDelete, onDuplicate,
             )}
           </div>
           <div className="flex items-center gap-1">
+            {onMoveToFolder && (
+              <div className="relative" data-move-menu>
+                <button
+                  onClick={() => setMoveMenuOpen(o => !o)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-gray-400 hover:bg-gray-500/10 transition-colors"
+                  title="Move to folder"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                </button>
+                {moveMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1 z-30 min-w-[200px] max-h-[280px] overflow-y-auto rounded-lg border border-gray-700/60 bg-[#1a1d22] shadow-lg py-1">
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-gray-500">Move to</div>
+                    <button
+                      onClick={() => { setMoveMenuOpen(false); onMoveToFolder(null) }}
+                      disabled={!agent.folderId}
+                      className="w-full text-left px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-500/10 disabled:opacity-40 disabled:cursor-default"
+                    >
+                      Uncategorized
+                    </button>
+                    {folders.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-500">No folders yet</div>
+                    ) : folders.map(f => (
+                      <button
+                        key={f.id}
+                        onClick={() => { setMoveMenuOpen(false); onMoveToFolder(f.id) }}
+                        disabled={agent.folderId === f.id}
+                        className="w-full text-left px-3 py-1.5 text-sm text-gray-300 hover:bg-gray-500/10 disabled:opacity-40 disabled:cursor-default flex items-center gap-2"
+                      >
+                        <svg className="w-3.5 h-3.5 text-primary-400" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>
+                        </svg>
+                        <span className="truncate">{f.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <button
               onClick={onDuplicate}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-gray-400 hover:bg-gray-500/10 transition-colors"

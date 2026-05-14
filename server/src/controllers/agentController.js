@@ -500,6 +500,49 @@ const deleteAgent = async (req, res) => {
   }
 };
 
+// Move an agent into a folder (or out to Uncategorized when folderId is null).
+// Doesn't touch VAPI — purely local organization.
+const moveAgentToFolder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { folderId } = req.body || {};
+
+    const existing = await req.prisma.agent.findFirst({
+      where: { id, userId: req.user.id }
+    });
+    if (!existing) return res.status(404).json({ error: 'Agent not found' });
+
+    if (folderId) {
+      const folder = await req.prisma.agentFolder.findFirst({
+        where: { id: folderId, userId: req.user.id }
+      });
+      if (!folder) return res.status(404).json({ error: 'Folder not found' });
+    }
+
+    const agent = await req.prisma.agent.update({
+      where: { id },
+      data: { folderId: folderId || null }
+    });
+
+    logAudit(req.prisma, {
+      userId: req.user.id,
+      actorId: req.isTeamMember ? req.teamMember.id : req.user.id,
+      actorEmail: req.isTeamMember ? req.teamMember.email : req.user.email,
+      actorType: req.isTeamMember ? 'team_member' : 'user',
+      action: 'agent.move',
+      resourceType: 'agent',
+      resourceId: id,
+      details: { folderId: folderId || null },
+      req
+    });
+
+    res.json({ agent: { ...agent, config: parseConfig(agent.config) } });
+  } catch (error) {
+    console.error('Move agent error:', error);
+    res.status(500).json({ error: 'Failed to move agent' });
+  }
+};
+
 // Debug: Check what VAPI actually has for this agent
 const checkVapiSync = async (req, res) => {
   try {
@@ -783,6 +826,7 @@ module.exports = {
   getAgent,
   createAgent,
   updateAgent,
+  moveAgentToFolder,
   duplicateAgent,
   importAgent,
   deleteAgent,
