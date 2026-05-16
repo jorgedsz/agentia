@@ -20,31 +20,39 @@ if (!fs.existsSync(recordingsDir)) {
 // Returns true when the call has no evidence of a human on the line:
 // no transcript, transcript with only assistant turns, or VAPI's voicemail
 // detector flagged it. Used to override "answered"-looking endedReasons.
-const hasNoHumanInteraction = (call) => {
-  // VAPI sets these when its voicemail detector kicks in.
+// In webhook payloads the transcript/messages live on `message`, not on
+// `message.call` — so we accept both and look in either place.
+const hasNoHumanInteraction = (call, message) => {
   if (call?.analysis?.detectedVoicemail === true) return true;
   if (call?.detectedVoicemail === true) return true;
+  if (message?.analysis?.detectedVoicemail === true) return true;
 
-  const transcript = call?.transcript || call?.artifact?.transcript || '';
-  const messages = call?.messages || call?.artifact?.messages || [];
+  const transcript = message?.transcript
+    || call?.transcript
+    || message?.artifact?.transcript
+    || call?.artifact?.transcript
+    || '';
+  const messages = (Array.isArray(message?.messages) && message.messages)
+    || (Array.isArray(call?.messages) && call.messages)
+    || (Array.isArray(message?.artifact?.messages) && message.artifact.messages)
+    || (Array.isArray(call?.artifact?.messages) && call.artifact.messages)
+    || [];
 
-  const messageHasUser = Array.isArray(messages) && messages.some(m => {
+  const messageHasUser = messages.some(m => {
     const role = (m?.role || '').toLowerCase();
     return role === 'user' || role === 'customer';
   });
   if (messageHasUser) return false;
 
   if (typeof transcript === 'string' && transcript.trim()) {
-    // The textual transcript labels customer turns as "User:" or "Customer:".
     if (/(^|\n)\s*(user|customer)\s*:/i.test(transcript)) return false;
   }
 
-  // No user turn anywhere → the customer never spoke.
   return true;
 };
 
 // Categorize outcome (same logic as callController)
-const categorizeOutcome = (call, overrideReason) => {
+const categorizeOutcome = (call, overrideReason, message) => {
   const reason = overrideReason || call.endedReason;
 
   const noAnswerReasons = [
@@ -104,7 +112,7 @@ const categorizeOutcome = (call, overrideReason) => {
     // Even with an answered-shaped endedReason, if there's no user turn in the
     // transcript the customer never actually picked up (rang out, voicemail
     // disconnected silently, AMD missed it). Reclassify as no_answer.
-    if (hasNoHumanInteraction(call)) {
+    if (hasNoHumanInteraction(call, message)) {
       console.log(`[Outcome] endedReason="${reason}" but no human interaction — reclassifying as no_answer`);
       return 'no_answer';
     }
@@ -611,7 +619,7 @@ const handleEvent = async (req, res) => {
 
     const durationMinutes = durationSeconds / 60;
     const cost = durationMinutes * rate;
-    const outcome = categorizeOutcome(call, endedReason);
+    const outcome = categorizeOutcome(call, endedReason, message);
 
     // 4. Update or create CallLog (encrypt PHI fields before DB write)
     const existingLog = await prisma.callLog.findUnique({ where: { vapiCallId } });
