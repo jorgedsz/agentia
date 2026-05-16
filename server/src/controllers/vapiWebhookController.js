@@ -44,7 +44,15 @@ const hasNoHumanInteraction = (call, message) => {
   });
   if (messageHasUser) return false;
 
-  if (typeof transcript === 'string' && transcript.trim()) {
+  // Transcript may be a string ("Agent: ...\nUser: ...") or an array of
+  // turn objects ([{role:'user', message:'...'}, ...]).
+  if (Array.isArray(transcript)) {
+    const arrHasUser = transcript.some(t => {
+      const role = (t?.role || '').toLowerCase();
+      return role === 'user' || role === 'customer';
+    });
+    if (arrHasUser) return false;
+  } else if (typeof transcript === 'string' && transcript.trim()) {
     if (/(^|\n)\s*(user|customer)\s*:/i.test(transcript)) return false;
   }
 
@@ -113,7 +121,15 @@ const categorizeOutcome = (call, overrideReason, message) => {
     // transcript the customer never actually picked up (rang out, voicemail
     // disconnected silently, AMD missed it). Reclassify as no_answer.
     if (hasNoHumanInteraction(call, message)) {
-      console.log(`[Outcome] endedReason="${reason}" but no human interaction — reclassifying as no_answer`);
+      const tDesc = message?.transcript
+        ? `message.transcript(${typeof message.transcript}${Array.isArray(message.transcript) ? `,len=${message.transcript.length}` : `,len=${String(message.transcript).length}`})`
+        : call?.artifact?.transcript
+          ? `call.artifact.transcript(${typeof call.artifact.transcript}${Array.isArray(call.artifact.transcript) ? `,len=${call.artifact.transcript.length}` : `,len=${String(call.artifact.transcript).length}`})`
+          : 'NONE';
+      const msgsLen = (Array.isArray(message?.messages) && message.messages.length)
+        || (Array.isArray(message?.artifact?.messages) && message.artifact.messages.length)
+        || 0;
+      console.log(`[Outcome] endedReason="${reason}" but no human interaction — reclassifying as no_answer. transcript=${tDesc}, messages=${msgsLen}`);
       return 'no_answer';
     }
     return 'answered';
