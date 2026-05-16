@@ -410,12 +410,20 @@ class VapiService {
           console.error('[Analysis] Invalid structured data schema JSON:', e.message);
         }
       }
-      if (config.structuredDataPrompt) {
-        analysisPlan.structuredDataPlan.messages = [{
-          role: 'system',
-          content: config.structuredDataPrompt
-        }];
-      }
+      // Always prepend a strict-output guard. Without it the LLM tends to
+      // return the literal string "N/A" when fields are missing from the
+      // conversation, which VAPI then stores as a string instead of the
+      // expected object — and our downstream webhook sees structuredData=null.
+      const guard = {
+        role: 'system',
+        content: 'You MUST return a JSON object that matches the provided schema exactly. For any field not present in the conversation, use an empty string "" for strings, false for booleans, 0 for numbers, or null. NEVER return "N/A", explanatory text, or anything other than a valid JSON object matching the schema. Always include every field listed in the schema.'
+      };
+      const userPromptMessage = config.structuredDataPrompt
+        ? { role: 'system', content: config.structuredDataPrompt }
+        : null;
+      analysisPlan.structuredDataPlan.messages = userPromptMessage
+        ? [guard, userPromptMessage]
+        : [guard];
     }
 
     const sdp = analysisPlan.structuredDataPlan;
