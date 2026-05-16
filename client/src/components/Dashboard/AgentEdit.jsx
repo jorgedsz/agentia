@@ -2988,9 +2988,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         </div>
 
         {/* Bottom Actions */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
+        <div className="flex flex-wrap items-center justify-between gap-y-3 px-6 py-4 border-t border-gray-200 dark:border-dark-border">
           {/* Left: Phone Number Assignment */}
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
             {phoneNumbers.length > 0 ? (
               <>
                 <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3036,7 +3036,7 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
           </div>
 
           {/* Right: Action Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setShowCallModal(true)}
               disabled={!agent.vapiId}
