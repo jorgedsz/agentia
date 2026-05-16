@@ -44,6 +44,44 @@ const parseConfig = (config) => {
   }
 };
 
+// Ensures a VAPI Structured Output exists for this agent if structured-data
+// extraction is configured. Creates one on first save, updates the existing
+// one on subsequent saves. Returns the resulting Structured Output ID (or
+// null when extraction is disabled / has no fields).
+//
+// VAPI runs the extraction reliably via `artifactPlan.structuredOutputIds`,
+// unlike the legacy `analysisPlan.structuredDataPlan` path which silently
+// dropped the schema or returned the literal "N/A".
+const ensureStructuredOutput = async (vapiApiKey, existingId, config, agentName) => {
+  if (!vapiApiKey) return { id: null };
+  if (!config?.structuredDataEnabled) return { id: existingId || null };
+
+  let schema = null;
+  try {
+    schema = config.structuredDataSchema ? JSON.parse(config.structuredDataSchema) : null;
+  } catch {
+    return { id: existingId || null, warning: 'Invalid structured data schema JSON' };
+  }
+  const hasFields = schema?.properties && Object.keys(schema.properties).length > 0;
+  if (!hasFields) return { id: existingId || null };
+
+  vapiService.setApiKey(vapiApiKey);
+  const name = `${agentName || 'Agent'} extraction`.slice(0, 80);
+  const description = (config.structuredDataPrompt || `Post-call structured data extraction for ${agentName || 'agent'}`).slice(0, 1000);
+
+  if (existingId) {
+    try {
+      await vapiService.updateStructuredOutput(existingId, { name, description, schema });
+      return { id: existingId };
+    } catch (err) {
+      // PATCH can 404 if the SO was deleted out-of-band; fall through to create.
+      if (!/not found|404/i.test(err.message || '')) throw err;
+    }
+  }
+  const created = await vapiService.createStructuredOutput({ type: 'ai', name, description, schema });
+  return { id: created.id };
+};
+
 const getAgents = async (req, res) => {
   try {
     const agents = await req.prisma.agent.findMany({
@@ -97,6 +135,7 @@ const createAgent = async (req, res) => {
     }
 
     let vapiId = null;
+    let vapiStructuredOutputId = null;
     let vapiWarning = null;
 
     // Try to create VAPI agent if service is configured
@@ -105,12 +144,24 @@ const createAgent = async (req, res) => {
       try {
         vapiService.setApiKey(vapiApiKey);
         const fixedConfig = rewriteToolUrls(config) || config;
+
+        // Create the Structured Output first so we can attach its ID at
+        // assistant-creation time (saves a follow-up PATCH).
+        try {
+          const so = await ensureStructuredOutput(vapiApiKey, null, fixedConfig, name);
+          vapiStructuredOutputId = so.id;
+        } catch (soErr) {
+          console.error('VAPI structured output creation failed:', soErr.message);
+          vapiWarning = `Structured output creation failed: ${soErr.message}`;
+        }
+
         const vapiAgent = await vapiService.createAgent({
           name,
-          ...fixedConfig
+          ...fixedConfig,
+          vapiStructuredOutputId
         });
         vapiId = vapiAgent.id;
-        console.log('VAPI agent created:', vapiId);
+        console.log('VAPI agent created:', vapiId, '| structuredOutputId:', vapiStructuredOutputId || 'none');
       } catch (vapiError) {
         console.error('VAPI agent creation failed:', vapiError.message);
         vapiWarning = `Agent saved locally but VAPI creation failed: ${vapiError.message}`;
@@ -126,6 +177,7 @@ const createAgent = async (req, res) => {
         description: description || null,
         agentType: agentType || 'outbound',
         vapiId,
+        vapiStructuredOutputId,
         config: savedConfig ? JSON.stringify(savedConfig) : null,
         userId: req.user.id
       }
@@ -186,7 +238,23 @@ const updateAgent = async (req, res) => {
       try {
         vapiService.setApiKey(vapiKey);
         const fixedConfig = rewriteToolUrls(config) || config;
-        const vapiPayload = { name, ...fixedConfig };
+
+        // Ensure the agent's Structured Output exists / is up to date before
+        // attaching its ID to artifactPlan.structuredOutputIds in the assistant.
+        let soId = existingAgent.vapiStructuredOutputId;
+        try {
+          const so = await ensureStructuredOutput(vapiKey, soId, fixedConfig, name || existingAgent.name);
+          if (so.id !== soId) {
+            soId = so.id;
+            await req.prisma.agent.update({ where: { id }, data: { vapiStructuredOutputId: soId } });
+            existingAgent.vapiStructuredOutputId = soId;
+          }
+        } catch (soErr) {
+          console.error('Structured output sync failed:', soErr.message);
+          vapiWarning = `Structured output sync failed: ${soErr.message}`;
+        }
+
+        const vapiPayload = { name, ...fixedConfig, vapiStructuredOutputId: soId };
         const sentToolCount = vapiPayload.tools?.length || 0;
         const sentToolNames = (vapiPayload.tools || []).map(t => t.function?.name || t.type).join(', ');
         console.log('=== CALLING VAPI UPDATE ===');
@@ -231,7 +299,11 @@ const updateAgent = async (req, res) => {
           try {
             console.log('=== VAPI SELF-HEAL: recreating missing assistant ===');
             const fixedConfig = rewriteToolUrls(config) || config;
-            const vapiAgent = await vapiService.createAgent({ name, ...fixedConfig });
+            const vapiAgent = await vapiService.createAgent({
+              name,
+              ...fixedConfig,
+              vapiStructuredOutputId: existingAgent.vapiStructuredOutputId
+            });
             await req.prisma.agent.update({
               where: { id: id },
               data: { vapiId: vapiAgent.id }
@@ -252,8 +324,18 @@ const updateAgent = async (req, res) => {
       try {
         vapiService.setApiKey(vapiKey);
         const fixedConfig = rewriteToolUrls(config) || config;
-        const vapiAgent = await vapiService.createAgent({ name, ...fixedConfig });
-        // Store the new vapiId
+        let soId = existingAgent.vapiStructuredOutputId;
+        try {
+          const so = await ensureStructuredOutput(vapiKey, soId, fixedConfig, name || existingAgent.name);
+          if (so.id !== soId) {
+            soId = so.id;
+            await req.prisma.agent.update({ where: { id }, data: { vapiStructuredOutputId: soId } });
+            existingAgent.vapiStructuredOutputId = soId;
+          }
+        } catch (soErr) {
+          console.error('Structured output sync failed (no-vapi path):', soErr.message);
+        }
+        const vapiAgent = await vapiService.createAgent({ name, ...fixedConfig, vapiStructuredOutputId: soId });
         await req.prisma.agent.update({
           where: { id: id },
           data: { vapiId: vapiAgent.id }
@@ -325,15 +407,24 @@ const duplicateAgent = async (req, res) => {
 
     // Create a new VAPI agent from the config
     let vapiId = null;
+    let vapiStructuredOutputId = null;
     let vapiWarning = null;
     const vapiApiKey = await getVapiKeyForUser(req.prisma, req.user.id);
     if (vapiApiKey && originalConfig) {
       try {
         vapiService.setApiKey(vapiApiKey);
         const fixedConfig = rewriteToolUrls(originalConfig) || originalConfig;
+        const copyName = `${original.name} (Copy)`;
+        try {
+          const so = await ensureStructuredOutput(vapiApiKey, null, fixedConfig, copyName);
+          vapiStructuredOutputId = so.id;
+        } catch (soErr) {
+          console.error('VAPI structured output creation failed during duplicate:', soErr.message);
+        }
         const vapiAgent = await vapiService.createAgent({
-          name: `${original.name} (Copy)`,
-          ...fixedConfig
+          name: copyName,
+          ...fixedConfig,
+          vapiStructuredOutputId
         });
         vapiId = vapiAgent.id;
       } catch (vapiError) {
@@ -351,6 +442,7 @@ const duplicateAgent = async (req, res) => {
         description: original.description,
         agentType: original.agentType,
         vapiId,
+        vapiStructuredOutputId,
         config: savedConfig,
         userId: req.user.id
       }
@@ -395,15 +487,24 @@ const importAgent = async (req, res) => {
     const sourceConfig = parseConfig(source.config);
 
     let vapiId = null;
+    let vapiStructuredOutputId = null;
     let vapiWarning = null;
     const vapiApiKey = await getVapiKeyForUser(req.prisma, req.user.id);
     if (vapiApiKey && sourceConfig) {
       try {
         vapiService.setApiKey(vapiApiKey);
         const fixedConfig = rewriteToolUrls(sourceConfig) || sourceConfig;
+        const importName = `${source.name} (Imported)`;
+        try {
+          const so = await ensureStructuredOutput(vapiApiKey, null, fixedConfig, importName);
+          vapiStructuredOutputId = so.id;
+        } catch (soErr) {
+          console.error('VAPI structured output creation failed during import:', soErr.message);
+        }
         const vapiAgent = await vapiService.createAgent({
-          name: `${source.name} (Imported)`,
-          ...fixedConfig
+          name: importName,
+          ...fixedConfig,
+          vapiStructuredOutputId
         });
         vapiId = vapiAgent.id;
       } catch (vapiError) {
@@ -421,6 +522,7 @@ const importAgent = async (req, res) => {
         description: source.description,
         agentType: source.agentType,
         vapiId,
+        vapiStructuredOutputId,
         config: savedConfig,
         userId: req.user.id
       }
@@ -466,14 +568,21 @@ const deleteAgent = async (req, res) => {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    // Delete VAPI agent if exists
+    // Delete VAPI agent (and its Structured Output) if they exist
     const vapiDelKey = await getVapiKeyForUser(req.prisma, req.user.id);
+    if (vapiDelKey) vapiService.setApiKey(vapiDelKey);
     if (existingAgent.vapiId && vapiDelKey) {
       try {
-        vapiService.setApiKey(vapiDelKey);
         await vapiService.deleteAgent(existingAgent.vapiId);
       } catch (vapiError) {
-        console.error('VAPI agent deletion failed:', vapiError);
+        console.error('VAPI agent deletion failed:', vapiError.message);
+      }
+    }
+    if (existingAgent.vapiStructuredOutputId && vapiDelKey) {
+      try {
+        await vapiService.deleteStructuredOutput(existingAgent.vapiStructuredOutputId);
+      } catch (soErr) {
+        console.error('VAPI structured output deletion failed:', soErr.message);
       }
     }
 

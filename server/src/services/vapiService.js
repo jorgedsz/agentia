@@ -308,8 +308,10 @@ class VapiService {
     // Add analysis plan
     agentConfig.analysisPlan = this.buildAnalysisPlan(config);
 
-    // Add artifact plan
-    agentConfig.artifactPlan = this.buildArtifactPlan(config);
+    // Add artifact plan — attaches the Structured Output (post-call extraction)
+    // when the caller created/maintained one and passed its ID in config.
+    const soIds = config.vapiStructuredOutputId ? [config.vapiStructuredOutputId] : null;
+    agentConfig.artifactPlan = this.buildArtifactPlan(config, soIds);
 
     // Stop Speaking Plan — VAPI caps voiceSeconds at 0.5, so clamp to
     // avoid 400s on agents whose stored config predates the UI limit.
@@ -386,65 +388,25 @@ class VapiService {
       }
     }
 
-    // Structured data plan
-    if (config.structuredDataEnabled) {
-      analysisPlan.structuredDataPlan = { enabled: true };
-      if (config.structuredDataSchema) {
-        try {
-          const parsed = JSON.parse(config.structuredDataSchema);
-          // VAPI runs extraction with OpenAI strict structured-outputs, which
-          // require every property in `required` and `additionalProperties: false`.
-          // Older saved schemas may not have these — normalize on the way out so
-          // VAPI doesn't silently return null.
-          if (parsed && parsed.type === 'object' && parsed.properties) {
-            const propKeys = Object.keys(parsed.properties);
-            if (!Array.isArray(parsed.required) || parsed.required.length !== propKeys.length) {
-              parsed.required = propKeys;
-            }
-            if (parsed.additionalProperties !== false) {
-              parsed.additionalProperties = false;
-            }
-          }
-          analysisPlan.structuredDataPlan.schema = parsed;
-        } catch (e) {
-          console.error('[Analysis] Invalid structured data schema JSON:', e.message);
-        }
-      }
-      // Always prepend a strict-output guard. Without it the LLM tends to
-      // return the literal string "N/A" when fields are missing from the
-      // conversation, which VAPI then stores as a string instead of the
-      // expected object — and our downstream webhook sees structuredData=null.
-      const guard = {
-        role: 'system',
-        content: 'You MUST return a JSON object that matches the provided schema exactly. For any field not present in the conversation, use an empty string "" for strings, false for booleans, 0 for numbers, or null. NEVER return "N/A", explanatory text, or anything other than a valid JSON object matching the schema. Always include every field listed in the schema.'
-      };
-      const userPromptMessage = config.structuredDataPrompt
-        ? { role: 'system', content: config.structuredDataPrompt }
-        : null;
-      analysisPlan.structuredDataPlan.messages = userPromptMessage
-        ? [guard, userPromptMessage]
-        : [guard];
-    }
-
-    const sdp = analysisPlan.structuredDataPlan;
-    console.log(
-      '[Analysis] Built analysisPlan — structuredDataEnabled:', !!config.structuredDataEnabled,
-      '| plan present:', !!sdp,
-      '| schema props:', sdp?.schema?.properties ? Object.keys(sdp.schema.properties).length : 0,
-      '| messages:', sdp?.messages?.length || 0
-    );
+    // Structured data extraction now uses the dedicated `/structured-output`
+    // resource (see createStructuredOutput) attached via artifactPlan, not
+    // analysisPlan.structuredDataPlan — that path was unreliable in VAPI.
 
     return analysisPlan;
   }
 
-  buildArtifactPlan(config) {
-    return {
+  buildArtifactPlan(config, structuredOutputIds) {
+    const plan = {
       recordingEnabled: true,
       videoRecordingEnabled: false,
       transcriptPlan: {
         enabled: true
       }
     };
+    if (Array.isArray(structuredOutputIds) && structuredOutputIds.length > 0) {
+      plan.structuredOutputIds = structuredOutputIds;
+    }
+    return plan;
   }
 
   buildTranscriberConfig(config) {
@@ -544,7 +506,10 @@ class VapiService {
       voice: this.buildVoiceConfig(config),
       transcriber: this.buildTranscriberConfig(config),
       analysisPlan: this.buildAnalysisPlan(config),
-      artifactPlan: this.buildArtifactPlan(config)
+      artifactPlan: this.buildArtifactPlan(
+        config,
+        config.vapiStructuredOutputId ? [config.vapiStructuredOutputId] : null
+      )
     };
 
     // Stop Speaking Plan — VAPI caps voiceSeconds at 0.5, so clamp to
@@ -655,6 +620,42 @@ class VapiService {
    */
   async deleteAgent(agentId) {
     return this.makeRequest(`/assistant/${agentId}`, 'DELETE');
+  }
+
+  // ── Structured Outputs ─────────────────────────────────────
+  // VAPI has a dedicated top-level resource for post-call AI extraction
+  // that's more reliable than `analysisPlan.structuredDataPlan`. The flow:
+  //   1. POST /structured-output to register a schema → returns { id }
+  //   2. PATCH assistant with artifactPlan.structuredOutputIds = [id]
+  //   3. Results arrive in webhook at:
+  //      message.artifact.structuredOutputs[id].result
+
+  async createStructuredOutput({ name, description, schema, type = 'ai' }) {
+    return this.makeRequest('/structured-output', 'POST', {
+      type,
+      name,
+      description,
+      schema
+    });
+  }
+
+  async updateStructuredOutput(id, { name, description, schema, type }) {
+    const body = {};
+    if (name !== undefined) body.name = name;
+    if (description !== undefined) body.description = description;
+    if (schema !== undefined) body.schema = schema;
+    if (type !== undefined) body.type = type;
+    // schemaOverride=true tells VAPI to fully replace the stored schema
+    // instead of attempting a merge.
+    return this.makeRequest(`/structured-output/${id}?schemaOverride=true`, 'PATCH', body);
+  }
+
+  async deleteStructuredOutput(id) {
+    return this.makeRequest(`/structured-output/${id}`, 'DELETE');
+  }
+
+  async getStructuredOutput(id) {
+    return this.makeRequest(`/structured-output/${id}`, 'GET');
   }
 
   /**

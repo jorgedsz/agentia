@@ -604,11 +604,35 @@ const handleEvent = async (req, res) => {
     // 2. Extract transcript, summary, structured data
     const transcriptText = extractTranscriptText(message.transcript || call.artifact?.transcript);
     const summary = message.analysis?.summary || call.analysis?.summary || null;
-    const structuredData = message.analysis?.structuredData || call.analysis?.structuredData || null;
+
+    // New path: VAPI's Structured Outputs deliver results under
+    //   message.artifact.structuredOutputs[outputId].result
+    // Pick the first non-empty result. (We currently configure one Structured
+    // Output per agent.) Falls back to the legacy analysisPlan.structuredData
+    // for assistants still on the old path.
+    const soBag = message?.artifact?.structuredOutputs
+      || call?.artifact?.structuredOutputs
+      || null;
+    let structuredData = null;
+    let structuredOutputSource = null;
+    if (soBag && typeof soBag === 'object') {
+      for (const [soId, entry] of Object.entries(soBag)) {
+        if (entry && entry.result && (typeof entry.result !== 'object' || Object.keys(entry.result).length)) {
+          structuredData = entry.result;
+          structuredOutputSource = soId;
+          break;
+        }
+      }
+    }
+    if (!structuredData) {
+      structuredData = message.analysis?.structuredData || call.analysis?.structuredData || null;
+      if (structuredData) structuredOutputSource = 'analysisPlan (legacy)';
+    }
+
     const endedReason = message.endedReason || call.endedReason || null;
     const customerNumber = extractCustomerNumber(call);
 
-    console.log(`[VAPI Webhook] ${vapiCallId} analysis: summary=${!!summary}, structuredData=${structuredData ? JSON.stringify(structuredData).slice(0, 300) : 'NULL (VAPI did not extract anything)'}`);
+    console.log(`[VAPI Webhook] ${vapiCallId} analysis: summary=${!!summary}, structuredData=${structuredData ? JSON.stringify(structuredData).slice(0, 300) : 'NULL'}, source=${structuredOutputSource || 'none'}`);
 
     console.log(`Call ${vapiCallId}: endedReason=${endedReason}, message.endedReason=${message.endedReason}, call.endedReason=${call.endedReason}`);
 

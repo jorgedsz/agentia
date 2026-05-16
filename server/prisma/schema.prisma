@@ -145,6 +145,7 @@ model Agent {
   description  String?
   agentType    String        @default("outbound")
   vapiId       String?
+  vapiStructuredOutputId String? // ID of the VAPI Structured Output linked via artifactPlan.structuredOutputIds. Null when the agent has no structured data extraction configured.
   config       String?
   publicShareToken              String?  @unique  // Token used in /voice/<id>/<token>; null when disabled
   publicShareEnabled            Boolean  @default(false)
