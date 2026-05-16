@@ -393,7 +393,7 @@ class VapiService {
         try {
           analysisPlan.structuredDataPlan.schema = JSON.parse(config.structuredDataSchema);
         } catch (e) {
-          console.error('Invalid structured data schema JSON:', e.message);
+          console.error('[Analysis] Invalid structured data schema JSON:', e.message);
         }
       }
       if (config.structuredDataPrompt) {
@@ -403,6 +403,14 @@ class VapiService {
         }];
       }
     }
+
+    const sdp = analysisPlan.structuredDataPlan;
+    console.log(
+      '[Analysis] Built analysisPlan — structuredDataEnabled:', !!config.structuredDataEnabled,
+      '| plan present:', !!sdp,
+      '| schema props:', sdp?.schema?.properties ? Object.keys(sdp.schema.properties).length : 0,
+      '| messages:', sdp?.messages?.length || 0
+    );
 
     return analysisPlan;
   }

@@ -562,6 +562,7 @@ const checkVapiSync = async (req, res) => {
 
     const localConfig = JSON.parse(agent.config || '{}');
 
+    const vapiSdp = vapiAgent.analysisPlan?.structuredDataPlan;
     res.json({
       local: {
         id: agent.id,
@@ -569,7 +570,12 @@ const checkVapiSync = async (req, res) => {
         vapiId: agent.vapiId,
         toolCount: localConfig.tools?.length || 0,
         toolNames: (localConfig.tools || []).map(t => t.function?.name || t.type),
-        promptLength: localConfig.systemPrompt?.length || 0
+        promptLength: localConfig.systemPrompt?.length || 0,
+        structuredDataEnabled: !!localConfig.structuredDataEnabled,
+        structuredDataSchemaPropCount: (() => {
+          try { return Object.keys(JSON.parse(localConfig.structuredDataSchema || '{}').properties || {}).length; } catch { return 0; }
+        })(),
+        structuredDataPromptLength: localConfig.structuredDataPrompt?.length || 0
       },
       vapi: {
         id: vapiAgent.id,
@@ -581,7 +587,16 @@ const checkVapiSync = async (req, res) => {
         promptLength: vapiAgent.model?.systemPrompt?.length || 0,
         promptPreview: vapiAgent.model?.systemPrompt?.substring(0, 100) + '...',
         firstMessage: vapiAgent.firstMessage,
-        voice: vapiAgent.voice
+        voice: vapiAgent.voice,
+        serverUrl: vapiAgent.serverUrl || vapiAgent.server?.url || null,
+        serverMessages: vapiAgent.serverMessages || [],
+        analysisPlan: {
+          summaryEnabled: !!vapiAgent.analysisPlan?.summaryPlan?.enabled,
+          successEvalEnabled: !!vapiAgent.analysisPlan?.successEvaluationPlan?.enabled,
+          structuredDataEnabled: !!vapiSdp?.enabled,
+          structuredDataSchema: vapiSdp?.schema || null,
+          structuredDataMessages: vapiSdp?.messages || null
+        }
       }
     });
   } catch (error) {
