@@ -391,7 +391,21 @@ class VapiService {
       analysisPlan.structuredDataPlan = { enabled: true };
       if (config.structuredDataSchema) {
         try {
-          analysisPlan.structuredDataPlan.schema = JSON.parse(config.structuredDataSchema);
+          const parsed = JSON.parse(config.structuredDataSchema);
+          // VAPI runs extraction with OpenAI strict structured-outputs, which
+          // require every property in `required` and `additionalProperties: false`.
+          // Older saved schemas may not have these — normalize on the way out so
+          // VAPI doesn't silently return null.
+          if (parsed && parsed.type === 'object' && parsed.properties) {
+            const propKeys = Object.keys(parsed.properties);
+            if (!Array.isArray(parsed.required) || parsed.required.length !== propKeys.length) {
+              parsed.required = propKeys;
+            }
+            if (parsed.additionalProperties !== false) {
+              parsed.additionalProperties = false;
+            }
+          }
+          analysisPlan.structuredDataPlan.schema = parsed;
         } catch (e) {
           console.error('[Analysis] Invalid structured data schema JSON:', e.message);
         }

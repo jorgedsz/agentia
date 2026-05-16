@@ -1914,10 +1914,22 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
             const fields = (serverConfig.structuredDataFields || []).filter(f => f.key.trim())
             if (fields.length === 0) return '{\n  "type": "object",\n  "properties": {}\n}'
             const props = {}
+            const required = []
             fields.forEach(f => {
-              props[f.key.trim()] = { type: f.type || 'string', ...(f.description ? { description: f.description } : {}) }
+              const key = f.key.trim()
+              props[key] = { type: f.type || 'string', ...(f.description ? { description: f.description } : {}) }
+              required.push(key)
             })
-            return JSON.stringify({ type: 'object', properties: props }, null, 2)
+            // OpenAI strict structured-outputs (which VAPI uses) requires every key
+            // to be in `required` and `additionalProperties: false`. Without these
+            // the analysis returns null silently. Values can still be empty/null at
+            // runtime — the LLM just has to produce the shape.
+            return JSON.stringify({
+              type: 'object',
+              properties: props,
+              required,
+              additionalProperties: false
+            }, null, 2)
           })(),
           structuredDataPrompt: serverConfig.structuredDataPrompt,
           ghlCustomFields: serverConfig.ghlCustomFields || [],
