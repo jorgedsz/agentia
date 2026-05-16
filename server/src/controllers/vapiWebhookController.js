@@ -584,6 +584,8 @@ const handleEvent = async (req, res) => {
     const endedReason = message.endedReason || call.endedReason || null;
     const customerNumber = extractCustomerNumber(call);
 
+    console.log(`[VAPI Webhook] ${vapiCallId} analysis: summary=${!!summary}, structuredData=${structuredData ? JSON.stringify(structuredData).slice(0, 300) : 'NULL (VAPI did not extract anything)'}`);
+
     console.log(`Call ${vapiCallId}: endedReason=${endedReason}, message.endedReason=${message.endedReason}, call.endedReason=${call.endedReason}`);
 
     // 3. Calculate duration and billing
@@ -690,6 +692,7 @@ const handleEvent = async (req, res) => {
       const webhookUrl = agentConfig.serverUrl;
 
       if (webhookUrl) {
+        console.log(`[VAPI Webhook] Will forward to user webhook: ${webhookUrl} (structuredData ${structuredData ? 'present' : 'NULL'})`);
         const cleanPayload = {
           type: 'end-of-call-report',
           call: {
@@ -727,6 +730,8 @@ const handleEvent = async (req, res) => {
         }).catch(err => {
           console.error(`[VAPI Webhook] Failed to forward to ${webhookUrl}:`, err.message);
         });
+      } else {
+        console.log(`[VAPI Webhook] No user webhook URL configured on agent ${agent.id} — structuredData (${structuredData ? 'present' : 'NULL'}) saved to CallLog only`);
       }
     }
 
