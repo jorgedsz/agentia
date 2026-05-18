@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import axios from 'axios'
 import { useAuth } from './context/AuthContext'
 import Login from './components/Auth/Login'
 import Register from './components/Auth/Register'
@@ -76,6 +78,26 @@ function PublicRoute({ children }) {
   return children
 }
 
+// On whitelabel custom domains (e.g. lmconsultingai.com) the marketing
+// landing isn't the right entry — those visitors should go straight to
+// their branded login. Resolves by hitting /api/branding/by-host once and
+// redirects when a brand owns the host. Renders blank during the lookup so
+// the Sword AI landing doesn't flash on a whitelabel domain.
+function WhitelabelAwareLanding({ fallback }) {
+  const [resolved, setResolved] = useState(null) // null=loading, true=redirect, false=show fallback
+
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_URL || '/api'
+    axios.get(`${apiBase}/branding/by-host`, { params: { host: window.location.host } })
+      .then((r) => setResolved(!!r.data?.branding))
+      .catch(() => setResolved(false))
+  }, [])
+
+  if (resolved === null) return <div className="min-h-screen bg-gray-900" />
+  if (resolved) return <Navigate to="/login" replace />
+  return fallback
+}
+
 function ComingSoon({ title }) {
   return (
     <div className="p-6">
@@ -121,7 +143,7 @@ function App() {
           path="/"
           element={
             <PublicRoute>
-              <DemoPage />
+              <WhitelabelAwareLanding fallback={<DemoPage />} />
             </PublicRoute>
           }
         />
