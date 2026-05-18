@@ -201,8 +201,18 @@ class N8nService {
       }
     };
 
-    // Attach credentials if available in n8n
-    const matchingCred = n8nCredentials.find(c => c.type === llmCredType);
+    // Attach credentials. For OpenAI we ALWAYS use one specific shared
+    // credential — every chatbot must point at the same n8n OpenAI cred so
+    // usage rolls up to one billing account and we don't fan out per-user
+    // tokens. For other providers, fall back to first matching type.
+    const FORCED_OPENAI_CRED_ID = 'DMfJhB9w1WWA2zA8';
+    let matchingCred = null;
+    if (config.modelProvider === 'openai') {
+      matchingCred = n8nCredentials.find(c => String(c.id) === FORCED_OPENAI_CRED_ID)
+        || { id: FORCED_OPENAI_CRED_ID, name: 'OpenAI' };
+    } else {
+      matchingCred = n8nCredentials.find(c => c.type === llmCredType);
+    }
     if (matchingCred) {
       llmNode.credentials = {
         [llmCredType]: {
