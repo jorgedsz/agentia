@@ -3,6 +3,11 @@ const router = express.Router();
 const brandingController = require('../controllers/brandingController');
 const authMiddleware = require('../middleware/authMiddleware');
 
+// Public — used by the login page to show whitelabel branding for custom
+// domains. No auth: the response is intentionally just public branding
+// (name, logo, tagline) and contains no PII.
+router.get('/by-host', brandingController.getBrandingByHost);
+
 router.use(authMiddleware);
 
 // GET /api/branding - Get current branding

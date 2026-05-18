@@ -1,6 +1,38 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Public — resolve whitelabel branding from the request's Host header so
+// custom domains (e.g. lmconsultingai.com) can show the right logo/name on
+// the login page before the user is authenticated. Returns null fields when
+// no whitelabel owns this domain so the client falls back to defaults.
+exports.getBrandingByHost = async (req, res) => {
+  try {
+    // Allow ?host=... as a fallback for local dev / when running behind a
+    // proxy that rewrites the Host header.
+    const rawHost = (req.query.host || req.headers.host || '').toString();
+    const host = rawHost.toLowerCase().split(':')[0].replace(/^www\./, '');
+    if (!host) return res.json({ branding: null });
+
+    const user = await prisma.user.findUnique({
+      where: { loginDomain: host },
+      select: { companyName: true, companyLogo: true, companyTagline: true }
+    });
+
+    if (!user) return res.json({ branding: null });
+
+    res.json({
+      branding: {
+        companyName: user.companyName,
+        companyLogo: user.companyLogo,
+        companyTagline: user.companyTagline
+      }
+    });
+  } catch (err) {
+    console.error('getBrandingByHost error:', err);
+    res.json({ branding: null });
+  }
+};
+
 // Get branding for current user (or their agency's branding for clients)
 exports.getBranding = async (req, res) => {
   try {

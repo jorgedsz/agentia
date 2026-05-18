@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
@@ -9,10 +10,22 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [branding, setBranding] = useState(null)
   const { login } = useAuth()
   const { darkMode, toggleDarkMode } = useTheme()
   const { t, language, toggleLanguage } = useLanguage()
   const navigate = useNavigate()
+
+  // Whitelabel branding — pulled by hostname so visitors on custom domains
+  // (e.g. lmconsultingai.com) see the right logo + name on the login page.
+  // Falls back silently to the default Sword AI branding when the endpoint
+  // returns null or fails.
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_URL || '/api'
+    axios.get(`${apiBase}/branding/by-host`, { params: { host: window.location.host } })
+      .then((r) => { if (r.data?.branding) setBranding(r.data.branding) })
+      .catch(() => {})
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -57,9 +70,21 @@ export default function Login() {
 
       <div className="max-w-md w-full space-y-8">
         <div>
+          {branding?.companyLogo && (
+            <img
+              src={branding.companyLogo}
+              alt={branding.companyName || ''}
+              className="mx-auto mb-4 max-h-20 w-auto object-contain"
+            />
+          )}
           <h1 className="text-center text-3xl font-extrabold text-primary-600 dark:text-primary-400">
-            {t('auth.title')}
+            {branding?.companyName || t('auth.title')}
           </h1>
+          {branding?.companyTagline && (
+            <p className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">
+              {branding.companyTagline}
+            </p>
+          )}
           <h2 className="mt-6 text-center text-2xl font-bold text-gray-900 dark:text-white">
             {t('auth.signIn')}
           </h2>
