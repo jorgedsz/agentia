@@ -20,6 +20,14 @@ export function AuthProvider({ children }) {
     checkAuth()
   }, [])
 
+  // Update <title> when branding name changes — also sets the browser tab
+  // label for whitelabel custom domains.
+  useEffect(() => {
+    if (branding.companyName) {
+      document.title = branding.companyName
+    }
+  }, [branding.companyName])
+
   // Update favicon when branding logo changes (with rounded corners)
   useEffect(() => {
     if (branding.companyLogo) {
@@ -92,6 +100,18 @@ export function AuthProvider({ children }) {
   const checkAuth = async () => {
     const token = localStorage.getItem('token')
     if (!token) {
+      // No session yet — still resolve host branding so the login page,
+      // browser tab title, and favicon match the whitelabel domain.
+      try {
+        const { data: hostData } = await brandingAPI.getByHost(window.location.host)
+        if (hostData?.branding?.companyName || hostData?.branding?.companyLogo) {
+          setBranding({
+            companyName: hostData.branding.companyName,
+            companyLogo: hostData.branding.companyLogo,
+            companyTagline: hostData.branding.companyTagline
+          })
+        }
+      } catch { /* keep defaults */ }
       setLoading(false)
       return
     }
