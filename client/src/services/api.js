@@ -265,6 +265,10 @@ export const accountSettingsAPI = {
 // Branding API
 export const brandingAPI = {
   get: () => api.get('/branding'),
+  // Public — resolves whitelabel branding from the request's Host header,
+  // used on the login page and on app boot before falling back to the
+  // logged-in user's own branding.
+  getByHost: (host) => api.get('/branding/by-host', { params: { host } }),
   update: (data) => api.put('/branding', data)
 }
 

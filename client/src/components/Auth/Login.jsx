@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import axios from 'axios'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
+import { brandingAPI } from '../../services/api'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -21,8 +21,7 @@ export default function Login() {
   // Falls back silently to the default Sword AI branding when the endpoint
   // returns null or fails.
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL || '/api'
-    axios.get(`${apiBase}/branding/by-host`, { params: { host: window.location.host } })
+    brandingAPI.getByHost(window.location.host)
       .then((r) => { if (r.data?.branding) setBranding(r.data.branding) })
       .catch(() => {})
   }, [])

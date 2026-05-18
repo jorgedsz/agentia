@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import axios from 'axios'
 import { useAuth } from './context/AuthContext'
+import { brandingAPI } from './services/api'
 import Login from './components/Auth/Login'
 import Register from './components/Auth/Register'
 import DashboardLayout from './components/Dashboard/DashboardLayout'
@@ -87,8 +87,7 @@ function WhitelabelAwareLanding({ fallback }) {
   const [resolved, setResolved] = useState(null) // null=loading, true=redirect, false=show fallback
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL || '/api'
-    axios.get(`${apiBase}/branding/by-host`, { params: { host: window.location.host } })
+    brandingAPI.getByHost(window.location.host)
       .then((r) => setResolved(!!r.data?.branding))
       .catch(() => setResolved(false))
   }, [])

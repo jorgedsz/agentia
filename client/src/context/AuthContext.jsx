@@ -57,6 +57,22 @@ export function AuthProvider({ children }) {
 
   const fetchBranding = async () => {
     try {
+      // Host-based branding wins so whitelabel custom domains (e.g.
+      // lmconsultingai.com) stay consistent regardless of who is logged in.
+      // Fall through to the user's own / agency branding only when no
+      // whitelabel owns this host.
+      try {
+        const { data: hostData } = await brandingAPI.getByHost(window.location.host)
+        if (hostData?.branding?.companyName || hostData?.branding?.companyLogo) {
+          setBranding({
+            companyName: hostData.branding.companyName,
+            companyLogo: hostData.branding.companyLogo,
+            companyTagline: hostData.branding.companyTagline
+          })
+          return
+        }
+      } catch { /* fall back below */ }
+
       const { data } = await brandingAPI.get()
       setBranding({
         companyName: data.companyName,
