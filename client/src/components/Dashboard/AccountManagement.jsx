@@ -43,6 +43,61 @@ export default function AccountManagement() {
   const [formData, setFormData] = useState({})
   const [creating, setCreating] = useState(false)
 
+  // Role change modal state
+  const [roleTarget, setRoleTarget] = useState(null) // the account being edited
+  const [newRole, setNewRole] = useState('')
+  const [roleSaving, setRoleSaving] = useState(false)
+
+  // Roles this actor is allowed to assign. Mirrors server-side ROLE_TRANSITIONS.
+  const allowedTargetRoles = (() => {
+    if (user?.role === ROLES.OWNER) return [ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT]
+    if (user?.role === ROLES.WHITELABEL) return [ROLES.AGENCY, ROLES.CLIENT]
+    if (user?.role === ROLES.AGENCY) return [ROLES.CLIENT]
+    return []
+  })()
+
+  const canChangeRoleOf = (account) => {
+    if (!account || account.id === user?.id) return false
+    if (account.role === ROLES.OWNER) return false
+    if (user?.role === ROLES.OWNER) return true
+    if (user?.role === ROLES.WHITELABEL) {
+      // direct agency under this whitelabel, OR a client under one of their agencies
+      if (account.whitelabelId === user.id) return true
+      const parentAgency = accounts.find(a => a.id === account.agencyId)
+      return parentAgency?.whitelabelId === user.id
+    }
+    if (user?.role === ROLES.AGENCY) {
+      return account.role === ROLES.CLIENT && account.agencyId === user.id
+    }
+    return false
+  }
+
+  const openRoleModal = (account) => {
+    setRoleTarget(account)
+    // Default to the first allowed role that isn't the current one
+    const first = allowedTargetRoles.find(r => r !== account.role) || allowedTargetRoles[0] || ''
+    setNewRole(first)
+  }
+
+  const submitRoleChange = async () => {
+    if (!roleTarget || !newRole || newRole === roleTarget.role) {
+      setRoleTarget(null)
+      return
+    }
+    setRoleSaving(true)
+    setError('')
+    try {
+      await usersAPI.updateRole(roleTarget.id, newRole)
+      setSuccess(`Rol actualizado: ${roleTarget.email} → ${newRole}`)
+      setRoleTarget(null)
+      await fetchAccounts()
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo cambiar el rol')
+    } finally {
+      setRoleSaving(false)
+    }
+  }
+
   useEffect(() => {
     fetchAccounts()
   }, [user?.id, user?.role])
@@ -436,6 +491,15 @@ export default function AccountManagement() {
                             {t('common.manageBilling')}
                           </button>
                         )}
+                        {canChangeRoleOf(account) && (
+                          <button
+                            onClick={() => openRoleModal(account)}
+                            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+                            title="Cambiar rol del usuario"
+                          >
+                            Cambiar rol
+                          </button>
+                        )}
                         {account.id !== user?.id && (user?.role === ROLES.OWNER || user?.role === ROLES.WHITELABEL || (user?.role === ROLES.AGENCY && account.agencyId === user?.id)) && (
                           <button
                             onClick={() => handleDeleteUser(account)}
@@ -469,6 +533,52 @@ export default function AccountManagement() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Role Change Modal */}
+      {roleTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Cambiar rol</h3>
+              <button onClick={() => setRoleTarget(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              <span className="font-medium text-gray-900 dark:text-white">{roleTarget.name || roleTarget.email}</span>
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">Rol actual: <span className="font-mono">{roleTarget.role}</span></p>
+
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-2">Nuevo rol</label>
+            <div className="space-y-2">
+              {allowedTargetRoles.map((r) => (
+                <label key={r} className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer ${newRole === r ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}>
+                  <input type="radio" name="newRole" value={r} checked={newRole === r} onChange={() => setNewRole(r)} className="accent-primary-600" />
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getRoleBadgeColor(r)}`}>{r}</span>
+                  {r === roleTarget.role && <span className="text-xs text-gray-500 ml-auto">(actual)</span>}
+                </label>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setRoleTarget(null)}
+                disabled={roleSaving}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover rounded-lg disabled:opacity-50"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={submitRoleChange}
+                disabled={roleSaving || !newRole || newRole === roleTarget.role}
+                className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {roleSaving ? 'Guardando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

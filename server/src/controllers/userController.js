@@ -378,31 +378,63 @@ const createClient = async (req, res) => {
   }
 };
 
-// Update user role (OWNER only)
+// Allowed role transitions per actor. Keeps WHITELABEL/AGENCY from escalating
+// privilege or touching roles outside their authority.
+const ROLE_TRANSITIONS = {
+  OWNER:      new Set([ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT]),
+  WHITELABEL: new Set([ROLES.AGENCY, ROLES.CLIENT]),
+  AGENCY:     new Set([ROLES.CLIENT])
+};
+
 const updateUserRole = async (req, res) => {
   try {
     const { id } = req.params;
     const { role } = req.body;
+    const targetId = parseInt(id);
 
     if (!Object.values(ROLES).includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
-    const user = await req.prisma.user.update({
-      where: { id: parseInt(id) },
-      data: { role },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true
+    const target = await req.prisma.user.findUnique({
+      where: { id: targetId },
+      select: { id: true, role: true, agencyId: true, whitelabelId: true }
+    });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (target.id === req.user.id) {
+      return res.status(403).json({ error: 'Cannot change your own role' });
+    }
+
+    // Ownership scope: WHITELABEL and AGENCY can only touch users in their tree.
+    if (req.user.role === ROLES.WHITELABEL) {
+      let inTree = target.whitelabelId === req.user.id;
+      if (!inTree && target.agencyId) {
+        const agency = await req.prisma.user.findUnique({
+          where: { id: target.agencyId },
+          select: { whitelabelId: true }
+        });
+        inTree = agency?.whitelabelId === req.user.id;
       }
+      if (!inTree) return res.status(403).json({ error: 'Cannot manage this user' });
+    } else if (req.user.role === ROLES.AGENCY) {
+      if (target.agencyId !== req.user.id) {
+        return res.status(403).json({ error: 'Cannot manage this user' });
+      }
+    }
+
+    // Transition guard — only OWNER can set OWNER/WHITELABEL roles.
+    const allowed = ROLE_TRANSITIONS[req.user.role] || new Set();
+    if (!allowed.has(role)) {
+      return res.status(403).json({ error: `Your role cannot set users to ${role}` });
+    }
+
+    const user = await req.prisma.user.update({
+      where: { id: targetId },
+      data: { role },
+      select: { id: true, email: true, name: true, role: true }
     });
 
-    res.json({
-      message: 'Role updated',
-      user
-    });
+    res.json({ message: 'Role updated', user });
   } catch (error) {
     console.error('Update role error:', error);
     res.status(500).json({ error: 'Failed to update role' });

@@ -32,8 +32,9 @@ router.get('/clients/:agencyId', requireRole(ROLES.OWNER, ROLES.WHITELABEL), use
 // Create client (AGENCY creates under themselves, OWNER/WHITELABEL can specify agency)
 router.post('/clients', requireRole(ROLES.AGENCY, ROLES.OWNER, ROLES.WHITELABEL), userController.createClient);
 
-// Update user role (OWNER only)
-router.patch('/:id/role', requireRole(ROLES.OWNER), userController.updateUserRole);
+// Update user role (OWNER, WHITELABEL, AGENCY — scoped to their hierarchy with
+// transitions enforced inside the controller).
+router.patch('/:id/role', requireRole(ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY), userController.updateUserRole);
 
 // Update user billing - credits and rates (OWNER and WHITELABEL)
 router.patch('/:id/billing', requireRole(ROLES.OWNER, ROLES.WHITELABEL), userController.updateUserBilling);
