@@ -708,18 +708,19 @@ const getDashboardStats = async (req, res) => {
       ]);
       stats = { totalAgencies, totalClients, totalAgents, totalCalls };
     } else if (role === ROLES.AGENCY) {
+      // CallLog has only a userId column (no `user` relation in schema), so
+      // we can't use a nested relational filter — gather the userIds we own
+      // up front and use `userId: { in: ... }`. Agent does have the relation
+      // but we use the same path for symmetry / cheaper queries.
+      const clients = await req.prisma.user.findMany({
+        where: { agencyId: id },
+        select: { id: true }
+      });
+      const userIds = [id, ...clients.map(c => c.id)];
       const [totalClients, totalAgents, totalCalls] = await Promise.all([
-        req.prisma.user.count({ where: { agencyId: id } }),
-        req.prisma.agent.count({
-          where: {
-            user: { OR: [{ id }, { agencyId: id }] }
-          }
-        }),
-        req.prisma.callLog.count({
-          where: {
-            user: { OR: [{ id }, { agencyId: id }] }
-          }
-        })
+        Promise.resolve(clients.length),
+        req.prisma.agent.count({ where: { userId: { in: userIds } } }),
+        req.prisma.callLog.count({ where: { userId: { in: userIds } } })
       ]);
       stats = { totalClients, totalAgents, totalCalls };
     } else {
