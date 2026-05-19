@@ -23,7 +23,7 @@ model User {
   companyName       String?            // Custom branding: company name
   companyLogo       String?            // Custom branding: logo URL
   companyTagline    String?            // Custom branding: tagline
-  loginDomain       String?  @unique   // Custom domain the login page should brand to this user (e.g. "lmconsultingai.com"). Whitelabel only.
+  loginDomain       String?  @unique   // Custom domain the login page (and dashboard) should brand to this user (e.g. "lmconsultingai.com", "goatai.us"). Used by any partner role, not just WHITELABEL.
   vapiApiKey        String?            // Encrypted - Per-account VAPI API Key
   vapiPublicKey     String?            // Encrypted - Per-account VAPI Public Key
   triggerApiKey     String?            // Encrypted - API key for /api/call/trigger
