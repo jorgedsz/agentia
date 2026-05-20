@@ -112,16 +112,30 @@ jobs:
 
       - name: Wait for deployment to be active
         run: |
+          # While a deployment is in progress it lives in `nextDeployment`
+          # (state: ACTIVATING). Only after it becomes ACTIVE does it
+          # replace `currentDeployment`. Check both so we don't poll on
+          # a stale "None" while the real deployment is making progress.
           for i in {1..30}; do
-            STATE=$(aws lightsail get-container-services \
+            STATES=$(aws lightsail get-container-services \
               --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
-              --query 'containerServices[0].currentDeployment.state' \
+              --query 'containerServices[0].[currentDeployment.state, nextDeployment.state]' \
               --output text)
-            echo "Attempt $i: $STATE"
-            case "$STATE" in
-              ACTIVE) echo "Deployment active." && exit 0 ;;
-              FAILED) echo "Deployment failed." && exit 1 ;;
-            esac
+            CURRENT=$(echo "$STATES" | awk '{print $1}')
+            NEXT=$(echo "$STATES" | awk '{print $2}')
+            echo "Attempt $i: current=$CURRENT next=$NEXT"
+
+            # Success: either the new deployment we just created is active,
+            # or it moved into current as ACTIVE without us catching the
+            # transition in `next`.
+            if [ "$NEXT" = "ACTIVE" ] || ( [ "$CURRENT" = "ACTIVE" ] && [ "$NEXT" = "None" ] ); then
+              echo "Deployment active."
+              exit 0
+            fi
+            if [ "$NEXT" = "FAILED" ]; then
+              echo "Deployment failed (see Lightsail console for container logs)."
+              exit 1
+            fi
             sleep 20
           done
           echo "Deployment did not become active within 10 minutes."
