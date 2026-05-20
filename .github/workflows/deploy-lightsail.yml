@@ -49,13 +49,24 @@ jobs:
       - name: Push image to Lightsail
         id: push
         run: |
-          OUTPUT=$(aws lightsail push-container-image \
+          # `push-container-image` is implemented by the lightsailctl plugin
+          # and prints human-readable status to stdout, ignoring --output json.
+          # We let it print whatever, then resolve the just-pushed image ref
+          # via get-container-images (newest first).
+          aws lightsail push-container-image \
             --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
             --label ${{ env.IMAGE_LABEL }} \
-            --image ${{ env.LIGHTSAIL_SERVICE_NAME }}:${{ github.sha }} \
-            --output json)
-          echo "$OUTPUT"
-          IMAGE=$(echo "$OUTPUT" | jq -r '.image')
+            --image ${{ env.LIGHTSAIL_SERVICE_NAME }}:${{ github.sha }}
+
+          IMAGE=$(aws lightsail get-container-images \
+            --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
+            --query 'containerImages[0].image' \
+            --output text)
+          echo "Resolved image reference: $IMAGE"
+          if [ -z "$IMAGE" ] || [ "$IMAGE" = "None" ]; then
+            echo "Could not resolve image reference after push" >&2
+            exit 1
+          fi
           echo "image=$IMAGE" >> $GITHUB_OUTPUT
 
       # Build the deployment payload by substituting the just-pushed image
@@ -69,20 +80,30 @@ jobs:
              '.web.image = $image' \
              .lightsail/containers.template.json > containers.json
 
+          # Pull env vars from whatever container the previous deployment had
+          # (could be `web`, `sword-ai`, or anything else if it was created
+          # via the UI). Picks the first non-empty environment in the map.
           CURRENT=$(aws lightsail get-container-services \
             --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
-            --query 'containerServices[0].currentDeployment.containers.web.environment' \
-            --output json 2>/dev/null || echo '{}')
+            --query 'containerServices[0].currentDeployment.containers.*.environment' \
+            --output json 2>/dev/null \
+            | jq 'map(select(. != null and . != {})) | .[0] // {}' 2>/dev/null \
+            || echo '{}')
+
+          if [ -z "$CURRENT" ]; then CURRENT='{}'; fi
 
           if [ "$CURRENT" != "null" ] && [ "$CURRENT" != "{}" ]; then
+            echo "=== preserving $(echo "$CURRENT" | jq 'length') env vars from previous deployment ==="
             jq --argjson env "$CURRENT" \
                '.web.environment = ($env + .web.environment)' \
                containers.json > containers.merged.json
             mv containers.merged.json containers.json
+          else
+            echo "=== no previous env vars to preserve (first real deploy) ==="
           fi
 
-          echo "=== deployment containers payload ==="
-          cat containers.json
+          echo "=== deployment containers payload (env values redacted in logs) ==="
+          jq 'walk(if type == "object" and has("environment") then .environment |= map_values("<redacted>") else . end)' containers.json
 
           aws lightsail create-container-service-deployment \
             --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
