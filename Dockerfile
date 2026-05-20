@@ -24,13 +24,19 @@ WORKDIR /app/server
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy the Prisma schema BEFORE installing — server/package.json has a
+# `postinstall: "prisma generate"` hook that needs schema.prisma to exist
+# when `npm ci` runs, otherwise the whole install crashes.
 COPY server/package.json server/package-lock.json* ./
+COPY server/prisma ./prisma
+
 # Keep dev deps so `prisma` CLI is available at startup for `prisma db push`.
 # Removing devDeps to save image size means we'd need to bake migrations into
 # build time (more complex). Image is ~250 MB either way — not worth optimizing.
 RUN npm ci
 
-COPY server/prisma ./prisma
+# Re-run generate explicitly (idempotent) so a build cache invalidation on the
+# schema alone still regenerates the client.
 RUN npx prisma generate
 
 
