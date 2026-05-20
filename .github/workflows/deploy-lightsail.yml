@@ -69,40 +69,125 @@ jobs:
           fi
           echo "image=$IMAGE" >> $GITHUB_OUTPUT
 
-      # Build the deployment payload by substituting the just-pushed image
-      # into the containers template, then issue the deployment. Env vars
-      # for the service (DATABASE_URL, secrets, etc.) live on the Lightsail
-      # service itself and are preserved across deployments by merging the
-      # currently-deployed env into the new container spec.
+      # Build containers.json from GitHub Actions secrets. Avoids the
+      # "preserve env vars from previous deployment" approach which is
+      # fragile when the previous deployment never reached ACTIVE state.
+      # The single source of truth for env values is GitHub Secrets.
       - name: Deploy
+        env:
+          # Application
+          APP_URL: ${{ secrets.APP_URL }}
+          CLIENT_URL: ${{ secrets.CLIENT_URL }}
+          WEBSITE_URL: ${{ secrets.WEBSITE_URL }}
+          # Database & encryption
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN: ${{ secrets.JWT_EXPIRES_IN }}
+          # VAPI
+          VAPI_API_KEY: ${{ secrets.VAPI_API_KEY }}
+          # GHL
+          GHL_CLIENT_ID: ${{ secrets.GHL_CLIENT_ID }}
+          GHL_CLIENT_SECRET: ${{ secrets.GHL_CLIENT_SECRET }}
+          GHL_REDIRECT_URI: ${{ secrets.GHL_REDIRECT_URI }}
+          # Google OAuth
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+          # PayPal
+          PAYPAL_CLIENT_ID: ${{ secrets.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET: ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          PAYPAL_MODE: ${{ secrets.PAYPAL_MODE }}
+          PAYPAL_WEBHOOK_ID: ${{ secrets.PAYPAL_WEBHOOK_ID }}
+          # Whop
+          WHOP_API_KEY: ${{ secrets.WHOP_API_KEY }}
+          WHOP_COMPANY_ID: ${{ secrets.WHOP_COMPANY_ID }}
+          WHOP_WEBHOOK_SECRET: ${{ secrets.WHOP_WEBHOOK_SECRET }}
+          # Recordings → Lightsail Object Storage (S3-compatible)
+          RECORDINGS_S3_BUCKET: ${{ secrets.RECORDINGS_S3_BUCKET }}
+          RECORDINGS_S3_REGION: ${{ secrets.RECORDINGS_S3_REGION }}
+          # IMPORTANT: bucket credentials are DIFFERENT from the workflow's
+          # AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY (which are the IAM user
+          # that talks to Lightsail). The container needs its own pair to
+          # access the bucket. Stored under BUCKET_* in GitHub Secrets to
+          # avoid the name collision; mapped back to the standard names
+          # the AWS SDK looks for inside the container.
+          BUCKET_AWS_ACCESS_KEY_ID: ${{ secrets.BUCKET_AWS_ACCESS_KEY_ID }}
+          BUCKET_AWS_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_AWS_SECRET_ACCESS_KEY }}
         run: |
-          jq --arg image "${{ steps.push.outputs.image }}" \
-             '.web.image = $image' \
-             .lightsail/containers.template.json > containers.json
-
-          # Pull env vars from whatever container the previous deployment had
-          # (could be `web`, `sword-ai`, or anything else if it was created
-          # via the UI). Picks the first non-empty environment in the map.
-          CURRENT=$(aws lightsail get-container-services \
-            --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
-            --query 'containerServices[0].currentDeployment.containers.*.environment' \
-            --output json 2>/dev/null \
-            | jq 'map(select(. != null and . != {})) | .[0] // {}' 2>/dev/null \
-            || echo '{}')
-
-          if [ -z "$CURRENT" ]; then CURRENT='{}'; fi
-
-          if [ "$CURRENT" != "null" ] && [ "$CURRENT" != "{}" ]; then
-            echo "=== preserving $(echo "$CURRENT" | jq 'length') env vars from previous deployment ==="
-            jq --argjson env "$CURRENT" \
-               '.web.environment = ($env + .web.environment)' \
-               containers.json > containers.merged.json
-            mv containers.merged.json containers.json
-          else
-            echo "=== no previous env vars to preserve (first real deploy) ==="
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is empty. Add it under repo Settings -> Secrets and variables -> Actions." >&2
+            exit 1
+          fi
+          if [ -z "$ENCRYPTION_KEY" ]; then
+            echo "::error::ENCRYPTION_KEY secret is empty. This MUST match what Railway has." >&2
+            exit 1
           fi
 
-          echo "=== deployment containers payload (env values redacted in logs) ==="
+          jq -n \
+            --arg image "${{ steps.push.outputs.image }}" \
+            --arg APP_URL "$APP_URL" \
+            --arg CLIENT_URL "$CLIENT_URL" \
+            --arg WEBSITE_URL "$WEBSITE_URL" \
+            --arg DATABASE_URL "$DATABASE_URL" \
+            --arg ENCRYPTION_KEY "$ENCRYPTION_KEY" \
+            --arg JWT_SECRET "$JWT_SECRET" \
+            --arg JWT_EXPIRES_IN "$JWT_EXPIRES_IN" \
+            --arg VAPI_API_KEY "$VAPI_API_KEY" \
+            --arg GHL_CLIENT_ID "$GHL_CLIENT_ID" \
+            --arg GHL_CLIENT_SECRET "$GHL_CLIENT_SECRET" \
+            --arg GHL_REDIRECT_URI "$GHL_REDIRECT_URI" \
+            --arg GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID" \
+            --arg GOOGLE_CLIENT_SECRET "$GOOGLE_CLIENT_SECRET" \
+            --arg GOOGLE_REDIRECT_URI "$GOOGLE_REDIRECT_URI" \
+            --arg PAYPAL_CLIENT_ID "$PAYPAL_CLIENT_ID" \
+            --arg PAYPAL_CLIENT_SECRET "$PAYPAL_CLIENT_SECRET" \
+            --arg PAYPAL_MODE "$PAYPAL_MODE" \
+            --arg PAYPAL_WEBHOOK_ID "$PAYPAL_WEBHOOK_ID" \
+            --arg WHOP_API_KEY "$WHOP_API_KEY" \
+            --arg WHOP_COMPANY_ID "$WHOP_COMPANY_ID" \
+            --arg WHOP_WEBHOOK_SECRET "$WHOP_WEBHOOK_SECRET" \
+            --arg RECORDINGS_S3_BUCKET "$RECORDINGS_S3_BUCKET" \
+            --arg RECORDINGS_S3_REGION "$RECORDINGS_S3_REGION" \
+            --arg AWS_ACCESS_KEY_ID "$BUCKET_AWS_ACCESS_KEY_ID" \
+            --arg AWS_SECRET_ACCESS_KEY "$BUCKET_AWS_SECRET_ACCESS_KEY" \
+            '{
+              web: {
+                image: $image,
+                ports: { "8080": "HTTP" },
+                environment: {
+                  NODE_ENV: "production",
+                  PORT: "8080",
+                  APP_URL: $APP_URL,
+                  CLIENT_URL: $CLIENT_URL,
+                  WEBSITE_URL: $WEBSITE_URL,
+                  DATABASE_URL: $DATABASE_URL,
+                  ENCRYPTION_KEY: $ENCRYPTION_KEY,
+                  JWT_SECRET: $JWT_SECRET,
+                  JWT_EXPIRES_IN: $JWT_EXPIRES_IN,
+                  VAPI_API_KEY: $VAPI_API_KEY,
+                  GHL_CLIENT_ID: $GHL_CLIENT_ID,
+                  GHL_CLIENT_SECRET: $GHL_CLIENT_SECRET,
+                  GHL_REDIRECT_URI: $GHL_REDIRECT_URI,
+                  GOOGLE_CLIENT_ID: $GOOGLE_CLIENT_ID,
+                  GOOGLE_CLIENT_SECRET: $GOOGLE_CLIENT_SECRET,
+                  GOOGLE_REDIRECT_URI: $GOOGLE_REDIRECT_URI,
+                  PAYPAL_CLIENT_ID: $PAYPAL_CLIENT_ID,
+                  PAYPAL_CLIENT_SECRET: $PAYPAL_CLIENT_SECRET,
+                  PAYPAL_MODE: $PAYPAL_MODE,
+                  PAYPAL_WEBHOOK_ID: $PAYPAL_WEBHOOK_ID,
+                  WHOP_API_KEY: $WHOP_API_KEY,
+                  WHOP_COMPANY_ID: $WHOP_COMPANY_ID,
+                  WHOP_WEBHOOK_SECRET: $WHOP_WEBHOOK_SECRET,
+                  RECORDINGS_S3_BUCKET: $RECORDINGS_S3_BUCKET,
+                  RECORDINGS_S3_REGION: $RECORDINGS_S3_REGION,
+                  AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID,
+                  AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+                }
+              }
+            }' > containers.json
+
+          echo "=== deployment containers payload (env values redacted) ==="
           jq 'walk(if type == "object" and has("environment") then .environment |= map_values("<redacted>") else . end)' containers.json
 
           aws lightsail create-container-service-deployment \
