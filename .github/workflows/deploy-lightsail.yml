@@ -1,0 +1,107 @@
+name: Deploy to Lightsail Container Service
+
+# Auto-deploys on push to main. Equivalent to Railway's auto-deploy hook.
+# Manual trigger also available from the Actions tab.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  LIGHTSAIL_SERVICE_NAME: container-service-1
+  IMAGE_LABEL: web        # arbitrary tag stored inside the Lightsail registry
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # AWS credentials come from GitHub repo Settings → Secrets and
+      # variables → Actions. Use an IAM user limited to Lightsail.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # `push-container-image` lives in a separate plugin binary that AWS
+      # CLI doesn't bundle. Install it before pushing.
+      - name: Install Lightsail Control plugin
+        run: |
+          curl "https://s3.us-west-2.amazonaws.com/lightsailctl/latest/linux-amd64/lightsailctl" \
+            -o "/usr/local/bin/lightsailctl"
+          sudo chmod +x /usr/local/bin/lightsailctl
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        run: |
+          docker build \
+            --tag ${{ env.LIGHTSAIL_SERVICE_NAME }}:${{ github.sha }} \
+            .
+
+      - name: Push image to Lightsail
+        id: push
+        run: |
+          OUTPUT=$(aws lightsail push-container-image \
+            --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
+            --label ${{ env.IMAGE_LABEL }} \
+            --image ${{ env.LIGHTSAIL_SERVICE_NAME }}:${{ github.sha }} \
+            --output json)
+          echo "$OUTPUT"
+          IMAGE=$(echo "$OUTPUT" | jq -r '.image')
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
+      # Build the deployment payload by substituting the just-pushed image
+      # into the containers template, then issue the deployment. Env vars
+      # for the service (DATABASE_URL, secrets, etc.) live on the Lightsail
+      # service itself and are preserved across deployments by merging the
+      # currently-deployed env into the new container spec.
+      - name: Deploy
+        run: |
+          jq --arg image "${{ steps.push.outputs.image }}" \
+             '.web.image = $image' \
+             .lightsail/containers.template.json > containers.json
+
+          CURRENT=$(aws lightsail get-container-services \
+            --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
+            --query 'containerServices[0].currentDeployment.containers.web.environment' \
+            --output json 2>/dev/null || echo '{}')
+
+          if [ "$CURRENT" != "null" ] && [ "$CURRENT" != "{}" ]; then
+            jq --argjson env "$CURRENT" \
+               '.web.environment = ($env + .web.environment)' \
+               containers.json > containers.merged.json
+            mv containers.merged.json containers.json
+          fi
+
+          echo "=== deployment containers payload ==="
+          cat containers.json
+
+          aws lightsail create-container-service-deployment \
+            --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
+            --containers file://containers.json \
+            --public-endpoint file://.lightsail/public-endpoint.json
+
+      - name: Wait for deployment to be active
+        run: |
+          for i in {1..30}; do
+            STATE=$(aws lightsail get-container-services \
+              --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
+              --query 'containerServices[0].currentDeployment.state' \
+              --output text)
+            echo "Attempt $i: $STATE"
+            case "$STATE" in
+              ACTIVE) echo "Deployment active." && exit 0 ;;
+              FAILED) echo "Deployment failed." && exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo "Deployment did not become active within 10 minutes."
+          exit 1

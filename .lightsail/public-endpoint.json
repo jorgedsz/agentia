@@ -1,0 +1,12 @@
+{
+  "containerName": "web",
+  "containerPort": 8080,
+  "healthCheck": {
+    "path": "/api/health",
+    "healthyThreshold": 2,
+    "unhealthyThreshold": 2,
+    "intervalSeconds": 20,
+    "timeoutSeconds": 5,
+    "successCodes": "200-299"
+  }
+}

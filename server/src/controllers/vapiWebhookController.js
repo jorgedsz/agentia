@@ -2,6 +2,7 @@ const { PrismaClient } = require('@prisma/client');
 const { getApiKeys } = require('../utils/getApiKeys');
 const { encryptPHI, encryptFile } = require('../utils/phiEncryption');
 const { getAgentRate } = require('../utils/pricingUtils');
+const recordingStorage = require('../utils/recordingStorage');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -592,6 +593,19 @@ const handleEvent = async (req, res) => {
         const encPath = path.join(recordingsDir, encFilename);
         await encryptFile(tempPath, encPath);
         fs.unlinkSync(tempPath); // remove plaintext file
+
+        // If object storage is configured, push the encrypted blob there and
+        // drop the local copy. On ephemeral container hosts (Lightsail /
+        // Fargate) the local file would be lost on restart anyway.
+        if (recordingStorage.isConfigured()) {
+          try {
+            await recordingStorage.uploadEncryptedRecording(encPath, encFilename);
+            fs.unlinkSync(encPath);
+            console.log(`[VAPI Webhook] Encrypted recording uploaded to object storage: ${encFilename}`);
+          } catch (uploadErr) {
+            console.error(`[VAPI Webhook] Storage upload failed, keeping local copy:`, uploadErr.message);
+          }
+        }
 
         const baseUrl = getPublicBaseUrl();
         localRecordingUrl = `${baseUrl}/api/recordings/public/${vapiCallId}`;

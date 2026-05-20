@@ -105,8 +105,16 @@ function encryptFile(inputPath, outputPath) {
  * File format: [16-byte IV][16-byte authTag][ciphertext]
  */
 function decryptFileStream(encryptedPath) {
+  return decryptBufferToStream(fs.readFileSync(encryptedPath));
+}
+
+/**
+ * Same shape as decryptFileStream but takes the ciphertext as a Buffer
+ * already loaded in memory — used when the encrypted blob comes from
+ * object storage instead of disk.
+ */
+function decryptBufferToStream(fileBuffer) {
   const key = getKey();
-  const fileBuffer = fs.readFileSync(encryptedPath);
 
   const iv = fileBuffer.subarray(0, IV_LENGTH);
   const authTag = fileBuffer.subarray(IV_LENGTH, IV_LENGTH + AUTH_TAG_LENGTH);
@@ -115,7 +123,6 @@ function decryptFileStream(encryptedPath) {
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
 
-  // Create a pass-through transform that pushes the decrypted data
   const stream = new Transform({
     transform(chunk, encoding, callback) {
       callback(null, chunk);
@@ -127,7 +134,7 @@ function decryptFileStream(encryptedPath) {
     const final = decipher.final();
     stream.push(decrypted);
     stream.push(final);
-    stream.push(null); // signal end
+    stream.push(null);
   } catch (err) {
     process.nextTick(() => stream.destroy(err));
   }
@@ -141,5 +148,6 @@ module.exports = {
   encryptPHI,
   decryptPHI,
   encryptFile,
-  decryptFileStream
+  decryptFileStream,
+  decryptBufferToStream
 };

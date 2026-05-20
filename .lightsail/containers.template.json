@@ -1,0 +1,12 @@
+{
+  "web": {
+    "image": "__IMAGE__",
+    "ports": {
+      "8080": "HTTP"
+    },
+    "environment": {
+      "NODE_ENV": "production",
+      "PORT": "8080"
+    }
+  }
+}

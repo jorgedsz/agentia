@@ -1,0 +1,44 @@
+# Build artifacts & dev files that don't belong in the production image.
+
+# Node
+**/node_modules
+**/npm-debug.log
+
+# Build outputs (rebuilt inside Docker)
+client/dist
+client/.vite
+server/dist
+
+# Env / secrets — never copy these into the image
+.env
+.env.*
+server/.env
+server/.env.*
+client/.env
+client/.env.*
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Misc dev junk in this repo
+*.py
+*.png
+nul
+temp_*.jsx
+docs
+
+# Avoid copying in old recordings sitting on the dev machine
+server/uploads
+server/prisma/dev.db
+server/prisma/dev.db-journal
+
+# Claude Code / settings
+.claude
+CLAUDE.md
