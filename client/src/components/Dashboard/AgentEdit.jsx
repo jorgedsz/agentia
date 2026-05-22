@@ -316,6 +316,16 @@ const TRANSFER_DESTINATION_TYPES = [
   { id: 'assistant', label: 'Another Assistant' },
 ]
 
+// Vapi needs E.164-ish numbers to dial. Users often type "(424) 401-3627"
+// or "424-401 3627", so strip spaces/dashes/parens/dots and keep a leading +.
+const normalizeTransferNumber = (raw) => {
+  if (!raw) return raw
+  const trimmed = String(raw).trim()
+  const hasPlus = trimmed.startsWith('+')
+  const digits = trimmed.replace(/\D/g, '')
+  return hasPlus ? `+${digits}` : digits
+}
+
 const DEFAULT_SERVER_MESSAGES = [
   'conversation-update',
   'end-of-call-report',
@@ -1379,18 +1389,25 @@ export default function AgentEdit() {
           const messages = []
 
           activeTransfers.forEach((entry) => {
+            // Phone numbers get normalized (strip dashes/parens/spaces); SIP URIs
+            // and assistant names are used as-is. The same value must feed the
+            // destination, the enum, and the message condition so they match.
+            const destValue = entry.destinationType === 'number'
+              ? normalizeTransferNumber(entry.destinationValue)
+              : entry.destinationValue
+
             // Build destination based on type
             const destination = { type: entry.destinationType }
             if (entry.destinationType === 'number') {
-              destination.number = entry.destinationValue
+              destination.number = destValue
               if (entry.message) destination.message = entry.message
               if (entry.scenario || entry.name) destination.description = entry.scenario || entry.name
             } else if (entry.destinationType === 'sip') {
-              destination.sipUri = entry.destinationValue
+              destination.sipUri = destValue
               if (entry.message) destination.message = entry.message
               if (entry.scenario || entry.name) destination.description = entry.scenario || entry.name
             } else if (entry.destinationType === 'assistant') {
-              destination.assistantName = entry.destinationValue
+              destination.assistantName = destValue
               destination.description = entry.scenario || entry.name || ''
               if (entry.message) destination.message = entry.message
             }
@@ -1404,14 +1421,16 @@ export default function AgentEdit() {
                 conditions: [{
                   param: 'destination',
                   operator: 'eq',
-                  value: entry.destinationValue
+                  value: destValue
                 }]
               })
             }
           })
 
           // Build function parameters with destination enum
-          const destValues = activeTransfers.map(e => e.destinationValue)
+          const destValues = activeTransfers.map(e =>
+            e.destinationType === 'number' ? normalizeTransferNumber(e.destinationValue) : e.destinationValue
+          )
           const toolDescription = activeTransfers.length === 1
             ? (activeTransfers[0].scenario || `Transfer the call to ${activeTransfers[0].destinationValue}`)
             : 'Use this function to transfer the call to the appropriate destination based on the conversation context.'
