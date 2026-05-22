@@ -1130,7 +1130,7 @@ export default function AgentEdit() {
           startSpeakingOnNumberSeconds: cfg.startSpeakingOnNumberSeconds ?? 0.5,
           voicemailDetectionEnabled: cfg.voicemailDetectionEnabled || false,
           maxDurationSeconds: cfg.maxDurationSeconds ?? 1800,
-          silenceTimeoutSeconds: cfg.silenceTimeoutSeconds ?? 30
+          silenceTimeoutSeconds: Math.max(10, cfg.silenceTimeoutSeconds ?? 30)
         })
       }
 
@@ -5450,7 +5450,7 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                     </div>
                     <input
                       type="range"
-                      min={5}
+                      min={10}
                       max={120}
                       step={5}
                       value={callBehaviorSettings.silenceTimeoutSeconds}
