@@ -164,7 +164,23 @@ const handleWebhook = async (req, res) => {
       event = whopService.verifyWebhook(rawBody, headers);
     } catch (err) {
       console.error('Webhook verification failed:', err.message);
-      return res.status(400).json({ error: 'Invalid webhook signature' });
+      // TEMP DEBUG: surface the real reason + the headers Whop actually sent so
+      // we can diagnose from the Whop dashboard delivery view. REVERT after fix.
+      return res.status(400).json({
+        error: 'Invalid webhook signature',
+        debug: {
+          reason: err.message,
+          secretConfigured: !!process.env.WHOP_WEBHOOK_SECRET,
+          secretPrefix: (process.env.WHOP_WEBHOOK_SECRET || '').slice(0, 6),
+          expectedHeadersPresent: {
+            'webhook-id': !!headers['webhook-id'],
+            'webhook-timestamp': !!headers['webhook-timestamp'],
+            'webhook-signature': !!headers['webhook-signature']
+          },
+          allReceivedHeaderNames: Object.keys(req.headers || {}),
+          rawBodyLength: rawBody.length
+        }
+      });
     }
 
     // Parse if string
