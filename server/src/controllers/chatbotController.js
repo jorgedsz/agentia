@@ -5,6 +5,7 @@ const { getN8nConfig } = require('../utils/getN8nConfig');
 const { findGhlConnection, ghlRequest } = require('./ghlController');
 const messageBuffer = require('../services/messageBuffer');
 const { transcribeAudio, analyzeImage } = require('../services/mediaProcessor');
+const { reportFailure } = require('../services/failureReporter');
 
 const getServerBaseUrl = () => {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '');
@@ -545,6 +546,19 @@ async function forwardToN8n(chatbot, forwardBody, prisma) {
         errorMessage: `Upstream error (${n8nResponse.status}): ${responseText.substring(0, 200) || 'No response'}`,
       }
     }).catch(err => console.error('Failed to log chatbot message:', err.message));
+
+    // Report chatbot failures to the central failure webhook (fire-and-forget)
+    prisma.user.findUnique({
+      where: { id: chatbot.userId },
+      select: { email: true, role: true }
+    }).then(u => reportFailure({
+      type: 'chatbot',
+      client: { userId: chatbot.userId, email: u?.email || null, role: u?.role || null },
+      agent: { id: chatbot.id, name: chatbot.name, type: 'chatbot' },
+      reason: `n8n_${n8nResponse.status}`,
+      detail: `Chatbot n8n flow returned ${n8nResponse.status}: ${responseText.substring(0, 200) || 'No response'}`,
+      context: { chatbotId: chatbot.id, sessionId: sessionId || 'default', contactId: contactId || null }
+    }, prisma)).catch(() => {});
 
     const err = new Error(`Upstream error (${n8nResponse.status}): ${responseText.substring(0, 200) || 'No response'}`);
     err.statusCode = 502;

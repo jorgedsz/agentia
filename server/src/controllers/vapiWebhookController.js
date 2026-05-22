@@ -9,6 +9,7 @@ const https = require('https');
 const http = require('http');
 
 const { getValidToken, ghlRequest, findGhlConnection } = require('./ghlController');
+const { reportFailure } = require('../services/failureReporter');
 
 const prisma = new PrismaClient();
 
@@ -711,6 +712,22 @@ const handleEvent = async (req, res) => {
           ...callLogData
         }
       });
+    }
+
+    // 4b. Report failed calls to the central failure webhook (fire-and-forget).
+    // Only fires on failures, so the extra user lookup is rare.
+    if (outcome === 'failed') {
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, role: true }
+      }).then(u => reportFailure({
+        type: 'voice_call',
+        client: { userId, email: u?.email || null, role: u?.role || null },
+        agent: agent ? { id: agent.id, name: agent.name, type: 'voice' } : null,
+        reason: endedReason || 'unknown',
+        detail: `Voice call ${vapiCallId} ended as failed`,
+        context: { vapiCallId, callLogId: callLog.id, customerNumber, durationSeconds }
+      }, prisma)).catch(() => {});
     }
 
     // 5. Deduct credits

@@ -10,7 +10,7 @@ const getSettings = async (req, res) => {
     const settings = await req.prisma.platformSettings.findFirst();
 
     if (!settings) {
-      return res.json({ vapiApiKey: '', openaiApiKey: '', anthropicApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', recurringPaymentWebhookUrl: '', n8nUrl: '', n8nApiKey: '', n8nPostgresMemoryCredentialId: '', chatbotGlobalRules: '', chatbotContextWindowLength: 10, openaiBalance: 0, openaiBalanceUpdatedAt: null, hasVapi: false, hasOpenai: false, hasAnthropic: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false, hasRecurringPaymentWebhook: false, hasN8nUrl: false, hasN8nApiKey: false });
+      return res.json({ vapiApiKey: '', openaiApiKey: '', anthropicApiKey: '', vapiPublicKey: '', elevenLabsApiKey: '', slackWebhookUrl: '', accountWebhookUrl: '', recurringPaymentWebhookUrl: '', failureWebhookUrl: '', n8nUrl: '', n8nApiKey: '', n8nPostgresMemoryCredentialId: '', chatbotGlobalRules: '', chatbotContextWindowLength: 10, openaiBalance: 0, openaiBalanceUpdatedAt: null, hasVapi: false, hasOpenai: false, hasAnthropic: false, hasVapiPublicKey: false, hasElevenLabs: false, hasSlackWebhook: false, hasAccountWebhook: false, hasRecurringPaymentWebhook: false, hasFailureWebhook: false, hasN8nUrl: false, hasN8nApiKey: false });
     }
 
     const decryptedVapi = settings.vapiApiKey ? decrypt(settings.vapiApiKey) : '';
@@ -21,6 +21,7 @@ const getSettings = async (req, res) => {
     const decryptedSlackWebhook = settings.slackWebhookUrl ? decrypt(settings.slackWebhookUrl) : '';
     const decryptedAccountWebhook = settings.accountWebhookUrl ? decrypt(settings.accountWebhookUrl) : '';
     const decryptedRecurringWebhook = settings.recurringPaymentWebhookUrl ? decrypt(settings.recurringPaymentWebhookUrl) : '';
+    const decryptedFailureWebhook = settings.failureWebhookUrl ? decrypt(settings.failureWebhookUrl) : '';
     const decryptedN8nUrl = settings.n8nUrl ? decrypt(settings.n8nUrl) : '';
     const decryptedN8nApiKey = settings.n8nApiKey ? decrypt(settings.n8nApiKey) : '';
 
@@ -33,6 +34,7 @@ const getSettings = async (req, res) => {
       slackWebhookUrl: decryptedSlackWebhook ? mask(decryptedSlackWebhook, 4) : '',
       accountWebhookUrl: decryptedAccountWebhook ? mask(decryptedAccountWebhook, 4) : '',
       recurringPaymentWebhookUrl: decryptedRecurringWebhook ? mask(decryptedRecurringWebhook, 4) : '',
+      failureWebhookUrl: decryptedFailureWebhook ? mask(decryptedFailureWebhook, 4) : '',
       n8nUrl: decryptedN8nUrl ? mask(decryptedN8nUrl, 4) : '',
       n8nApiKey: decryptedN8nApiKey ? mask(decryptedN8nApiKey, 4) : '',
       n8nPostgresMemoryCredentialId: settings.n8nPostgresMemoryCredentialId || '',
@@ -48,6 +50,7 @@ const getSettings = async (req, res) => {
       hasSlackWebhook: !!decryptedSlackWebhook,
       hasAccountWebhook: !!decryptedAccountWebhook,
       hasRecurringPaymentWebhook: !!decryptedRecurringWebhook,
+      hasFailureWebhook: !!decryptedFailureWebhook,
       hasN8nUrl: !!decryptedN8nUrl,
       hasN8nApiKey: !!decryptedN8nApiKey
     });
@@ -63,7 +66,7 @@ const updateSettings = async (req, res) => {
       return res.status(403).json({ error: 'Only the owner can update platform settings' });
     }
 
-    const { vapiApiKey, openaiApiKey, anthropicApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl, recurringPaymentWebhookUrl, n8nUrl, n8nApiKey, n8nPostgresMemoryCredentialId, chatbotGlobalRules, chatbotContextWindowLength, openaiBalance } = req.body;
+    const { vapiApiKey, openaiApiKey, anthropicApiKey, vapiPublicKey, elevenLabsApiKey, slackWebhookUrl, accountWebhookUrl, recurringPaymentWebhookUrl, failureWebhookUrl, n8nUrl, n8nApiKey, n8nPostgresMemoryCredentialId, chatbotGlobalRules, chatbotContextWindowLength, openaiBalance } = req.body;
 
     const existing = await req.prisma.platformSettings.findFirst();
 
@@ -91,6 +94,9 @@ const updateSettings = async (req, res) => {
     }
     if (recurringPaymentWebhookUrl !== undefined) {
       data.recurringPaymentWebhookUrl = recurringPaymentWebhookUrl ? encrypt(recurringPaymentWebhookUrl) : null;
+    }
+    if (failureWebhookUrl !== undefined) {
+      data.failureWebhookUrl = failureWebhookUrl ? encrypt(failureWebhookUrl) : null;
     }
     if (n8nUrl !== undefined) {
       data.n8nUrl = n8nUrl ? encrypt(n8nUrl) : null;
@@ -149,6 +155,7 @@ const updateSettings = async (req, res) => {
     const decryptedSlackWebhook = settings.slackWebhookUrl ? decrypt(settings.slackWebhookUrl) : '';
     const decryptedAccountWebhook = settings.accountWebhookUrl ? decrypt(settings.accountWebhookUrl) : '';
     const decryptedRecurringWebhook = settings.recurringPaymentWebhookUrl ? decrypt(settings.recurringPaymentWebhookUrl) : '';
+    const decryptedFailureWebhook = settings.failureWebhookUrl ? decrypt(settings.failureWebhookUrl) : '';
     const decryptedN8nUrl = settings.n8nUrl ? decrypt(settings.n8nUrl) : '';
     const decryptedN8nApiKey = settings.n8nApiKey ? decrypt(settings.n8nApiKey) : '';
 
@@ -162,6 +169,7 @@ const updateSettings = async (req, res) => {
       slackWebhookUrl: decryptedSlackWebhook ? mask(decryptedSlackWebhook, 4) : '',
       accountWebhookUrl: decryptedAccountWebhook ? mask(decryptedAccountWebhook, 4) : '',
       recurringPaymentWebhookUrl: decryptedRecurringWebhook ? mask(decryptedRecurringWebhook, 4) : '',
+      failureWebhookUrl: decryptedFailureWebhook ? mask(decryptedFailureWebhook, 4) : '',
       n8nUrl: decryptedN8nUrl ? mask(decryptedN8nUrl, 4) : '',
       n8nApiKey: decryptedN8nApiKey ? mask(decryptedN8nApiKey, 4) : '',
       n8nPostgresMemoryCredentialId: settings.n8nPostgresMemoryCredentialId || '',
@@ -177,6 +185,7 @@ const updateSettings = async (req, res) => {
       hasSlackWebhook: !!decryptedSlackWebhook,
       hasAccountWebhook: !!decryptedAccountWebhook,
       hasRecurringPaymentWebhook: !!decryptedRecurringWebhook,
+      hasFailureWebhook: !!decryptedFailureWebhook,
       hasN8nUrl: !!decryptedN8nUrl,
       hasN8nApiKey: !!decryptedN8nApiKey
     });

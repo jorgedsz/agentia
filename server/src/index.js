@@ -7,6 +7,7 @@ const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 const { Server: SocketIOServer } = require('socket.io');
 const { Client: WAClient, LocalAuth } = require('whatsapp-web.js');
+const { reportFailure } = require('./services/failureReporter');
 
 const authRoutes = require('./routes/auth');
 const agentRoutes = require('./routes/agents');
@@ -421,6 +422,20 @@ app.get('*', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
+
+  // Report unhandled server errors to the central failure webhook (fire-and-forget).
+  reportFailure({
+    type: 'server_error',
+    client: req.user ? { userId: req.user.id, email: req.user.email || null, role: req.user.role || null } : null,
+    reason: err.name || 'Error',
+    detail: err.message || 'Unhandled server error',
+    context: {
+      path: req.originalUrl || req.path,
+      method: req.method,
+      stack: (err.stack || '').split('\n').slice(0, 5).join('\n')
+    }
+  }, prisma);
+
   res.status(500).json({
     error: 'Something went wrong!',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined
