@@ -739,6 +739,7 @@ export default function Payments() {
                 <thead>
                   <tr className="border-b border-gray-200 dark:border-dark-border text-left text-gray-500 dark:text-gray-400">
                     <th className="px-4 py-3 font-medium">Client</th>
+                    <th className="px-4 py-3 font-medium">Description</th>
                     <th className="px-4 py-3 font-medium">Amount</th>
                     <th className="px-4 py-3 font-medium">Period</th>
                     <th className="px-4 py-3 font-medium">Notify</th>
@@ -755,6 +756,7 @@ export default function Payments() {
                         <div className="text-gray-900 dark:text-white">{item.user?.name || item.user?.email}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">{item.user?.phoneNumber || 'no phone'}</div>
                       </td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-xs">{item.description || '—'}</td>
                       <td className="px-4 py-3 text-gray-900 dark:text-white font-medium">{formatCurrency(item.amount)} {item.currency}</td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-300 capitalize">{item.periodLabel} <span className="text-xs text-gray-400">({item.periodDays}d)</span></td>
                       <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{item.daysBeforeNotify}d before</td>
