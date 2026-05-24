@@ -250,6 +250,7 @@ export default function Credits() {
       {checkoutModal && (
         <WhopCheckoutModal
           planId={checkoutModal.planId}
+          userEmail={user?.email}
           onComplete={handleCheckoutComplete}
           onClose={() => setCheckoutModal(null)}
         />
