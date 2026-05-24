@@ -164,23 +164,7 @@ const handleWebhook = async (req, res) => {
       event = whopService.verifyWebhook(rawBody, headers);
     } catch (err) {
       console.error('Webhook verification failed:', err.message);
-      // TEMP DEBUG: surface the real reason + the headers Whop actually sent so
-      // we can diagnose from the Whop dashboard delivery view. REVERT after fix.
-      return res.status(400).json({
-        error: 'Invalid webhook signature',
-        debug: {
-          reason: err.message,
-          secretConfigured: !!process.env.WHOP_WEBHOOK_SECRET,
-          secretPrefix: (process.env.WHOP_WEBHOOK_SECRET || '').slice(0, 6),
-          expectedHeadersPresent: {
-            'webhook-id': !!headers['webhook-id'],
-            'webhook-timestamp': !!headers['webhook-timestamp'],
-            'webhook-signature': !!headers['webhook-signature']
-          },
-          allReceivedHeaderNames: Object.keys(req.headers || {}),
-          rawBodyLength: rawBody.length
-        }
-      });
+      return res.status(400).json({ error: 'Invalid webhook signature' });
     }
 
     // Parse if string
@@ -279,29 +263,46 @@ async function handlePaymentSucceeded(prisma, data, metadata) {
     }).catch((err) => console.error(`[Whop Webhook] Failed to update whopCustomerId:`, err.message));
   }
 
-  // Detect credit purchase: check metadata.type, or infer from plan/amount if metadata is empty
+  // Detect credit purchase. Whop does NOT propagate the checkout-session
+  // metadata to payment webhooks (metadata arrives empty), and the plan id
+  // varies per purchase, so we can rely on neither. The reliable signals are
+  // the Whop product id (stable) and the dollars actually paid. vapiCredits is
+  // a dollar-denominated balance (calls bill in $), and credit tiers are 1:1
+  // with dollars, so credits added = usd_total.
   let isCredits = type === 'credits';
   let creditAmount = parseFloat(metadata.credits) || 0;
 
-  if (!type && !isCredits) {
-    // Metadata may be missing — try to infer from the plan
-    // Check if this payment matches a credits product plan
+  if (!isCredits || creditAmount <= 0) {
     try {
       const creditsProduct = await prisma.product.findUnique({ where: { slug: 'credits' } });
-      if (creditsProduct?.whopPlanIds) {
+      const paymentProductId = data.product?.id;
+
+      // Primary: match the credits product by its stable Whop product id
+      if (creditsProduct?.whopProductId && paymentProductId && creditsProduct.whopProductId === paymentProductId) {
+        isCredits = true;
+      }
+
+      // Fallback: legacy plan-map match (kept for older configs)
+      if (!isCredits && creditsProduct?.whopPlanIds) {
         const planMap = JSON.parse(creditsProduct.whopPlanIds);
         const paymentPlanId = data.plan?.id || data.membership?.plan_id;
         for (const [tier, planId] of Object.entries(planMap)) {
           if (planId === paymentPlanId) {
             isCredits = true;
             creditAmount = parseFloat(tier);
-            console.log(`[Whop Webhook] Inferred credit purchase: ${creditAmount} credits from plan ${planId}`);
             break;
           }
         }
       }
+
+      // Amount: use the dollars actually paid (robust against empty metadata
+      // and per-purchase plan ids).
+      if (isCredits && creditAmount <= 0) {
+        creditAmount = parseFloat(data.usd_total || data.total || 0);
+        console.log(`[Whop Webhook] Credit purchase detected by product; amount from usd_total=${creditAmount}`);
+      }
     } catch (err) {
-      console.error('[Whop Webhook] Error inferring credit type:', err.message);
+      console.error('[Whop Webhook] Error detecting credit purchase:', err.message);
     }
   }
 
