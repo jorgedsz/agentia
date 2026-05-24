@@ -78,7 +78,14 @@ function verifyWebhook(rawBody, headers) {
   const secret = process.env.WHOP_WEBHOOK_SECRET;
   if (!secret) throw new Error('WHOP_WEBHOOK_SECRET is not configured');
 
-  const wh = new Webhook(secret);
+  // Whop's webhook secret is a raw "ws_..." string. The standardwebhooks lib
+  // expects a base64-encoded key (it base64-decodes it back to the raw HMAC key
+  // bytes). Passing "ws_..." directly throws "Base64Coder: incorrect characters
+  // for decoding". Whop's own SDK base64-encodes it first (webhookKey: btoa(secret)),
+  // so we match that. If a secret is already in whsec_<base64> form, use it as-is.
+  const key = secret.startsWith('whsec_') ? secret : Buffer.from(secret, 'utf8').toString('base64');
+
+  const wh = new Webhook(key);
   // standardwebhooks verify expects raw body string and headers object
   const payload = wh.verify(rawBody, headers);
   return payload;
