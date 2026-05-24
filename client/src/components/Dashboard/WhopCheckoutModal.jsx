@@ -1,7 +1,7 @@
 import { WhopCheckoutEmbed } from '@whop/checkout/react'
 import { useLanguage } from '../../context/LanguageContext'
 
-export default function WhopCheckoutModal({ planId, userEmail, onComplete, onClose }) {
+export default function WhopCheckoutModal({ planId, sessionId, userEmail, onComplete, onClose }) {
   const { t } = useLanguage()
 
   return (
@@ -21,6 +21,7 @@ export default function WhopCheckoutModal({ planId, userEmail, onComplete, onClo
         <div className="p-4">
           <WhopCheckoutEmbed
             planId={planId}
+            {...(sessionId ? { sessionId } : {})}
             {...(userEmail ? { prefill: { email: userEmail }, disableEmail: true } : {})}
             onComplete={({ receiptId }) => onComplete(receiptId)}
             onStateChange={(state) => {

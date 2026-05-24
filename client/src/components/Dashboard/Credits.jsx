@@ -109,7 +109,10 @@ export default function Credits() {
       const { data } = await creditsAPI.purchase(num)
       if (data.planId) {
         setBuyModalOpen(false)
-        setCheckoutModal({ planId: data.planId })
+        // checkoutId is the Whop checkout configuration id (ch_xxx) that carries
+        // metadata.userId. Passing it as the embed's sessionId makes that metadata
+        // propagate to the payment webhook → reliable user attribution.
+        setCheckoutModal({ planId: data.planId, sessionId: data.checkoutId })
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create checkout')
@@ -250,6 +253,7 @@ export default function Credits() {
       {checkoutModal && (
         <WhopCheckoutModal
           planId={checkoutModal.planId}
+          sessionId={checkoutModal.sessionId}
           userEmail={user?.email}
           onComplete={handleCheckoutComplete}
           onClose={() => setCheckoutModal(null)}
