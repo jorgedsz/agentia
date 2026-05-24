@@ -271,6 +271,20 @@ const purchaseCredits = async (req, res) => {
       redirectUrl: `${clientUrl}/credits?checkout=success`,
     });
 
+    // Record a PENDING purchase keyed by the unique one-time plan id. This is the
+    // reliable link back to the buyer: Whop doesn't propagate checkout metadata to
+    // webhooks and the payer's email may differ from their app account, but the
+    // plan id we just created always appears in the payment webhook as data.plan.id.
+    await req.prisma.creditPurchase.create({
+      data: {
+        userId: req.user.id,
+        amount,
+        credits: amount,
+        status: 'pending',
+        whopPlanId: plan.id,
+      },
+    }).catch((err) => console.error('[Credits] Failed to create pending purchase:', err.message));
+
     res.json({
       checkoutId: session.id,
       planId: plan.id,

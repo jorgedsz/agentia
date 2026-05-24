@@ -220,6 +220,43 @@ async function handlePaymentSucceeded(prisma, data, metadata) {
   // Log full payment data for debugging
   console.log(`[Whop Webhook] payment.succeeded id=${paymentId}, metadata=`, JSON.stringify(metadata));
 
+  // ── Primary credit attribution: match the unique one-time plan id ──
+  // Each in-app credit purchase creates a unique Whop plan and a PENDING
+  // CreditPurchase row keyed by that plan id. The plan id always appears in the
+  // webhook as data.plan.id, so this links the payment back to the exact buyer
+  // and amount WITHOUT relying on Whop metadata (not propagated) or the payer's
+  // email (may differ from their app account).
+  const webhookPlanId = data.plan?.id || data.membership?.plan_id || null;
+  if (webhookPlanId) {
+    const pending = await prisma.creditPurchase.findFirst({
+      where: { whopPlanId: webhookPlanId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (pending) {
+      if (pending.status === 'completed') {
+        console.log(`[Whop Webhook] Plan ${webhookPlanId} already completed (purchase #${pending.id}), skipping`);
+        return;
+      }
+      await prisma.user.update({
+        where: { id: pending.userId },
+        data: { vapiCredits: { increment: pending.credits } },
+      });
+      await prisma.creditPurchase.update({
+        where: { id: pending.id },
+        data: { status: 'completed', whopPaymentId: paymentId, rawPayload: JSON.stringify(data) },
+      });
+      // Backfill whopCustomerId so future events resolve faster
+      if (data.user?.id) {
+        await prisma.user.update({
+          where: { id: pending.userId },
+          data: { whopCustomerId: data.user.id },
+        }).catch(() => {});
+      }
+      console.log(`[Whop Webhook] SUCCESS: Added ${pending.credits} credits to user ${pending.userId} via plan ${webhookPlanId} (payment ${paymentId})`);
+      return;
+    }
+  }
+
   // Try to resolve userId from metadata, or fall back to matching whopCustomerId
   let userId = metadata.userId ? parseInt(metadata.userId) : null;
 

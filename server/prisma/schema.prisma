@@ -562,10 +562,12 @@ model CreditPurchase {
   status              String   // "completed", "pending", "failed"
   rawPayload          String?
   whopPaymentId       String?  // Whop payment ID for this credit purchase
+  whopPlanId          String?  // Unique one-time Whop plan created for this purchase. The reliable link from the webhook back to this user (metadata isn't propagated by Whop, email may not match).
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   @@index([userId, createdAt])
+  @@index([whopPlanId])
 }
 
 model Transaction {
