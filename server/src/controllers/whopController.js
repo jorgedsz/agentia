@@ -235,8 +235,23 @@ async function handlePaymentSucceeded(prisma, data, metadata) {
     }
   }
 
+  // Final fallback: match by email. Whop does NOT propagate the checkout
+  // metadata.userId, and whopCustomerId is only set the FIRST time we resolve a
+  // user — which created a deadlock (could never resolve → never stored). The
+  // email is always present in the payload, so use it to break the deadlock.
+  if (!userId && data.user?.email) {
+    const userByEmail = await prisma.user.findFirst({
+      where: { email: data.user.email },
+      select: { id: true },
+    });
+    if (userByEmail) {
+      userId = userByEmail.id;
+      console.log(`[Whop Webhook] Resolved userId ${userId} from email ${data.user.email}`);
+    }
+  }
+
   if (!userId) {
-    console.error(`[Whop Webhook] payment.succeeded FAILED: cannot resolve userId. metadata=${JSON.stringify(metadata)}, whopUserId=${data.user?.id}, paymentId=${paymentId}`);
+    console.error(`[Whop Webhook] payment.succeeded FAILED: cannot resolve userId. metadata=${JSON.stringify(metadata)}, whopUserId=${data.user?.id}, email=${data.user?.email}, paymentId=${paymentId}`);
     return;
   }
 
