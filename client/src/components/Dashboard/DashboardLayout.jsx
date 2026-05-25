@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI, platformSettingsAPI } from '../../services/api'
+import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI, platformSettingsAPI, authAPI } from '../../services/api'
 import ChatAssistant from './ChatAssistant'
 import WhopCheckoutModal from './WhopCheckoutModal'
 
@@ -23,6 +23,11 @@ const Icons = {
   Agents: () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+  ),
+  SubAccounts: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16l-4-4m0 0l4-4m-4 4h18M17 8l4 4m0 0l-4 4m4-4H3" />
     </svg>
   ),
   Voice: () => (
@@ -141,10 +146,16 @@ const Icons = {
 export default function DashboardLayout() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, logout, isImpersonating, switchBack, branding, isTeamMember, teamMember } = useAuth()
+  const { user, logout, isImpersonating, switchBack, switchAccount, branding, isTeamMember, teamMember } = useAuth()
   const { darkMode, toggleDarkMode } = useTheme()
   const { t, language, toggleLanguage } = useLanguage()
   const [switchingBack, setSwitchingBack] = useState(false)
+  // Sub-accounts switcher (floating panel)
+  const [subAccountsOpen, setSubAccountsOpen] = useState(false)
+  const [subAccounts, setSubAccounts] = useState([])
+  const [subAccountsLoading, setSubAccountsLoading] = useState(false)
+  const [subAccountsError, setSubAccountsError] = useState('')
+  const [switchingTo, setSwitchingTo] = useState(null)
   const [balances, setBalances] = useState({ twilio: null, vapi: null })
   const [openaiBalance, setOpenaiBalance] = useState(null)
   const [userCredits, setUserCredits] = useState(null)
@@ -222,6 +233,34 @@ export default function DashboardLayout() {
     }
   }
 
+  const openSubAccounts = async () => {
+    setSubAccountsOpen(true)
+    setSubAccountsError('')
+    setSubAccountsLoading(true)
+    try {
+      const { data } = await authAPI.getAccessibleAccounts()
+      setSubAccounts(data.accounts || data || [])
+    } catch (err) {
+      setSubAccountsError(err.response?.data?.error || 'No se pudieron cargar las sub-cuentas')
+    } finally {
+      setSubAccountsLoading(false)
+    }
+  }
+
+  const handleSwitchTo = async (accountId) => {
+    setSwitchingTo(accountId)
+    setSubAccountsError('')
+    try {
+      await switchAccount(accountId)
+      setSubAccountsOpen(false)
+      navigate('/dashboard')
+    } catch (err) {
+      setSubAccountsError(err.response?.data?.error || 'No se pudo cambiar de cuenta')
+    } finally {
+      setSwitchingTo(null)
+    }
+  }
+
   const getActiveTab = () => {
     const path = location.pathname
     if (path === '/dashboard') return 'overview'
@@ -240,6 +279,7 @@ export default function DashboardLayout() {
       items: [
         { id: 'overview', path: '/dashboard', label: t('sidebar.overview'), icon: Icons.Overview, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'analytics', path: '/dashboard/analytics', label: t('sidebar.analytics'), icon: Icons.Analytics, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'sub-accounts', label: t('sidebar.subAccounts'), icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY], isSubAccounts: true },
       ]
     },
     {
@@ -413,6 +453,20 @@ export default function DashboardLayout() {
                   {visibleItems.map((item) => {
                     const Icon = item.icon
                     const isActive = activeTab === item.id
+
+                    if (item.isSubAccounts) {
+                      return (
+                        <li key={item.id}>
+                          <button
+                            onClick={openSubAccounts}
+                            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover"
+                          >
+                            <Icon />
+                            {item.label}
+                          </button>
+                        </li>
+                      )
+                    }
 
                     if (item.isAction) {
                       return (
@@ -607,6 +661,54 @@ export default function DashboardLayout() {
           userRole={user?.role}
           onCreditsUpdated={() => fetchCredits()}
         />
+      )}
+
+      {/* Sub-accounts switcher panel */}
+      {subAccountsOpen && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={() => setSubAccountsOpen(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-dark-border">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('sidebar.subAccounts')}</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t('subAccounts.accessibleAccounts')}</p>
+              </div>
+              <button onClick={() => setSubAccountsOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl leading-none">&times;</button>
+            </div>
+            <div className="p-4 overflow-y-auto">
+              {subAccountsError && (
+                <div className="mb-3 bg-red-500/10 border border-red-500/30 text-red-500 px-3 py-2 rounded-lg text-sm">{subAccountsError}</div>
+              )}
+              {subAccountsLoading ? (
+                <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" /></div>
+              ) : subAccounts.length === 0 ? (
+                <div className="text-center py-10 text-gray-500 dark:text-gray-400 text-sm">{t('subAccounts.noAccountsAvailable')}</div>
+              ) : (
+                <ul className="space-y-2">
+                  {subAccounts.map(acc => (
+                    <li key={acc.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-dark-border">
+                      <div className="w-9 h-9 rounded-full bg-primary-600/15 text-primary-600 dark:text-primary-400 flex items-center justify-center font-semibold flex-shrink-0">
+                        {(acc.name || acc.email || '?').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{acc.name || acc.email}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{acc.email} · {acc.role}</div>
+                      </div>
+                      <button
+                        onClick={() => handleSwitchTo(acc.id)}
+                        disabled={switchingTo === acc.id}
+                        className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5 flex-shrink-0"
+                      >
+                        {switchingTo === acc.id
+                          ? <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white" />
+                          : t('subAccounts.switch')}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

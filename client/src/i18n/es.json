@@ -750,7 +750,8 @@
     "createClients": "Crea clientes para acceder a sus cuentas.",
     "noCreatedYet": "Aún no se han creado agencias ni clientes.",
     "agents": "Agentes:",
-    "clientsLabel": "Clientes:"
+    "clientsLabel": "Clientes:",
+    "switch": "Cambiar"
   },
   "voiceLibrary": {
     "title": "Librería de voces",
