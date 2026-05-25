@@ -217,7 +217,7 @@ export default function Credits() {
               />
             </div>
             <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
-              {t('credits.minCreditAmount', { min: creditConfig.min, max: creditConfig.max })}
+              {t('credits.minCreditAmount')}: ${creditConfig.min} – ${creditConfig.max}
             </p>
             {creditConfig.presets.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-5">

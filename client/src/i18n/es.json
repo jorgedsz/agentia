@@ -623,7 +623,7 @@
     "buyCredits": "Comprar Créditos",
     "buyCreditsDesc": "Selecciona un paquete de créditos. $1 = 1$ créditos.",
     "creditAmount": "Monto (USD)",
-    "minCreditAmount": "Mín ${{min}}, máx ${{max}}",
+    "minCreditAmount": "Monto permitido",
     "creditsLabel": "créditos",
     "purchaseSuccess": "¡Créditos comprados exitosamente! Aparecerán en breve.",
     "proceedToPayment": "Proceder al Pago"
