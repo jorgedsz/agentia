@@ -249,7 +249,6 @@ export default function DashboardLayout() {
         { id: 'agents', path: '/dashboard/agents', label: t('sidebar.myAgents'), icon: Icons.Agents, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'voice-library', path: '/dashboard/voice-library', label: t('sidebar.voiceLibrary'), icon: Icons.Voice, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'create-agent', label: t('sidebar.createAgent'), icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT], isAction: true },
-        { id: 'agent-builder-voice', path: '/dashboard/agent-builder/voice/new', label: t('sidebar.agentBuilderVoice'), icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT], featureKey: 'agentGenerator' },
       ]
     },
     {
@@ -258,7 +257,6 @@ export default function DashboardLayout() {
       items: [
         { id: 'chatbots', path: '/dashboard/chatbots', label: t('sidebar.myChatbots') || 'My Chatbots', icon: Icons.Chatbot, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'create-chatbot', label: t('sidebar.createChatbot') || 'Create Chatbot', icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT], isAction: true, actionType: 'chatbot' },
-        { id: 'agent-builder-chat', path: '/dashboard/agent-builder/chat/new', label: t('sidebar.agentBuilderChat'), icon: Icons.CreateAgent, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT], featureKey: 'agentGenerator' },
       ]
     },
     {
