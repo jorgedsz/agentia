@@ -2,26 +2,48 @@ import { useState, useEffect, useRef } from 'react'
 import { trainingAPI, accountSettingsAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 
+// Serialize anything to a readable string (objects → JSON, handling circular
+// refs and Error instances). Returns '' for empty/unhelpful values.
+function safeStringify(v) {
+  if (v == null) return ''
+  if (typeof v === 'string') return v.trim()
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  if (v instanceof Error) return v.message || v.toString()
+  try {
+    const seen = new WeakSet()
+    const s = JSON.stringify(v, (_k, val) => {
+      if (typeof val === 'object' && val !== null) {
+        if (seen.has(val)) return '[Circular]'
+        seen.add(val)
+      }
+      return val
+    })
+    return s && s !== '{}' && s !== '[]' ? s.slice(0, 400) : ''
+  } catch {
+    return ''
+  }
+}
+
 // The Vapi web SDK fires `error` with inconsistent shapes (plain Error, nested
-// { error: { message } }, daily.co ejection events). Dig out a useful message
-// instead of always falling back to a generic "Call failed".
+// { error: { message } }, validation arrays, daily.co ejection events). Dig out
+// a useful message instead of falling back to a generic "Call failed".
 function extractVapiError(err) {
   if (!err) return 'Call failed'
   if (typeof err === 'string') return err
-  const e = err.error ?? err
-  const msg =
-    err.message ||
-    (typeof e === 'string' ? e : null) ||
-    e?.message ||
-    e?.msg ||
-    err.errorMsg ||
-    e?.error?.message ||
-    e?.type
-  if (msg) return msg
-  try {
-    const s = JSON.stringify(err)
-    if (s && s !== '{}') return s.slice(0, 300)
-  } catch { /* ignore */ }
+  const candidates = [
+    err.message,
+    err.errorMsg,
+    err.error?.message,
+    err.error?.msg,
+    err.error?.error?.message,
+    err.error?.type,
+    err.error,
+    err,
+  ]
+  for (const c of candidates) {
+    const s = safeStringify(c)
+    if (s) return s
+  }
   return 'Call failed'
 }
 
