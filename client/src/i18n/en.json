@@ -28,6 +28,7 @@
     "close": "Close",
     "back": "Back",
     "next": "Next",
+    "previous": "Previous",
     "yes": "Yes",
     "no": "No",
     "import": "Import",
@@ -187,9 +188,13 @@
     "chatbotsCost": "Chatbots Cost",
     "topChatbots": "Top Chatbots"
   },
+  "agents": {
+    "title": "Agents"
+  },
   "analytics": {
     "title": "Analytics",
     "subtitle": "Performance and outcomes",
+    "chatbotName": "Chatbot",
     "totalCalls": "Total Calls",
     "answerRate": "Answer Rate",
     "bookingRate": "Booking Rate",
@@ -617,6 +622,8 @@
     "noUsersFound": "No users found",
     "buyCredits": "Buy Credits",
     "buyCreditsDesc": "Select a credit package. $1 = 1$ credits.",
+    "creditAmount": "Amount (USD)",
+    "minCreditAmount": "Min ${{min}}, max ${{max}}",
     "creditsLabel": "credits",
     "purchaseSuccess": "Credits purchased successfully! They will appear shortly.",
     "proceedToPayment": "Proceed to Payment"
@@ -814,6 +821,9 @@
   "trainingMode": {
     "title": "Training Mode",
     "readyToCall": "Ready to train",
+    "ready": "Ready to train",
+    "active": "Training active",
+    "analyzing": "Analyzing your session…",
     "connecting": "Connecting...",
     "callActive": "Training Active",
     "callEnded": "Training Ended",
