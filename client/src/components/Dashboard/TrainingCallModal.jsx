@@ -2,6 +2,29 @@ import { useState, useEffect, useRef } from 'react'
 import { trainingAPI, accountSettingsAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 
+// The Vapi web SDK fires `error` with inconsistent shapes (plain Error, nested
+// { error: { message } }, daily.co ejection events). Dig out a useful message
+// instead of always falling back to a generic "Call failed".
+function extractVapiError(err) {
+  if (!err) return 'Call failed'
+  if (typeof err === 'string') return err
+  const e = err.error ?? err
+  const msg =
+    err.message ||
+    (typeof e === 'string' ? e : null) ||
+    e?.message ||
+    e?.msg ||
+    err.errorMsg ||
+    e?.error?.message ||
+    e?.type
+  if (msg) return msg
+  try {
+    const s = JSON.stringify(err)
+    if (s && s !== '{}') return s.slice(0, 300)
+  } catch { /* ignore */ }
+  return 'Call failed'
+}
+
 export default function TrainingCallModal({ agent, onClose, onAccepted }) {
   const { t } = useLanguage()
   const [phase, setPhase] = useState('idle') // idle, connecting, active, ended, review
@@ -72,7 +95,7 @@ export default function TrainingCallModal({ agent, onClose, onAccepted }) {
       vapi.on('error', (err) => {
         console.error('VAPI training call error:', err)
         setPhase('ended')
-        setTranscript(prev => [...prev, { role: 'System', text: `Error: ${err.message || 'Call failed'}` }])
+        setTranscript(prev => [...prev, { role: 'System', text: `Error: ${extractVapiError(err)}` }])
         clearTimer()
       })
 

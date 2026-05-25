@@ -3,9 +3,9 @@ const openaiService = require('../services/openaiService');
 const { getVapiKeyForUser, getApiKeys } = require('../utils/getApiKeys');
 const { appendPlaybook } = require('../utils/playbook');
 
-const SERVER_URL = process.env.APP_URL || process.env.RAILWAY_PUBLIC_DOMAIN
-  ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-  : 'http://localhost:5000';
+const SERVER_URL =
+  (process.env.APP_URL && process.env.APP_URL.replace(/\/$/, '')) ||
+  (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:5000');
 
 function buildTrainingAddendum(agent, config) {
   const lang = config.transcriberLanguage || 'en';
