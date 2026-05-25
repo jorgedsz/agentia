@@ -194,9 +194,11 @@ model TrainingSession {
   agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   userId          Int
   sessionToken    String   @unique @default(cuid())
-  status          String   @default("in_progress")
+  status          String   @default("in_progress") // in_progress, completed, accepted, rejected, reverted
   proposedChanges String?  @db.Text
   transcript      String?  @db.Text
+  previousConfig  String?  @db.Text // Agent config JSON snapshot taken right before this session's changes were applied (enables one-click revert)
+  previousName    String?  // Agent name snapshot taken before applying (for revert)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

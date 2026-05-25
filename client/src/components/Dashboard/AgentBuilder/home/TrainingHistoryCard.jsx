@@ -3,7 +3,7 @@ const formatDate = (s) => {
   try { return new Date(s).toLocaleString() } catch { return s }
 }
 
-export default function TrainingHistoryCard({ sessions, t }) {
+export default function TrainingHistoryCard({ sessions, t, onRevert, revertingId }) {
   if (!sessions || sessions.length === 0) {
     return (
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
@@ -18,6 +18,7 @@ export default function TrainingHistoryCard({ sessions, t }) {
   const statusLabel = (s) => {
     if (s === 'accepted') return t('agentBuilder.homeHistoryStatusAccepted')
     if (s === 'rejected') return t('agentBuilder.homeHistoryStatusRejected')
+    if (s === 'reverted') return t('agentBuilder.homeHistoryStatusReverted')
     return t('agentBuilder.homeHistoryStatusActive')
   }
 
@@ -33,7 +34,18 @@ export default function TrainingHistoryCard({ sessions, t }) {
               <span className="text-gray-700 dark:text-gray-300">{formatDate(s.createdAt)}</span>
               <span className="ml-2 text-gray-500">— {s.changesCount || 0} {t('agentBuilder.homeHistoryChanges')}</span>
             </span>
-            <span className="text-xs text-gray-500">{statusLabel(s.status)}</span>
+            <span className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">{statusLabel(s.status)}</span>
+              {s.status === 'accepted' && onRevert && (
+                <button
+                  onClick={() => onRevert(s)}
+                  disabled={revertingId === s.id}
+                  className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-hover disabled:opacity-50"
+                >
+                  {revertingId === s.id ? '…' : t('agentBuilder.homeHistoryRevert')}
+                </button>
+              )}
+            </span>
           </div>
         ))}
       </div>

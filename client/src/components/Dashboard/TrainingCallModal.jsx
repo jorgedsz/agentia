@@ -121,7 +121,7 @@ export default function TrainingCallModal({ agent, onClose, onAccepted }) {
     if (!session) return
     setAccepting(true)
     try {
-      await trainingAPI.acceptSession(session.id)
+      await trainingAPI.acceptSession(session.id, proposedChanges)
       onAccepted?.()
       onClose()
     } catch (err) {
@@ -208,9 +208,12 @@ export default function TrainingCallModal({ agent, onClose, onAccepted }) {
                 </div>
                 <div>
                   <span className="text-[10px] font-semibold uppercase text-green-400/70 tracking-wider">{t('trainingMode.after')}</span>
-                  <div className="mt-1 text-sm rounded p-2 font-mono break-words bg-green-500/8 text-green-300 border border-green-500/15">
-                    {change.newValue}
-                  </div>
+                  <textarea
+                    value={change.newValue}
+                    onChange={(e) => setProposedChanges(prev => prev.map((c, idx) => idx === i ? { ...c, newValue: e.target.value } : c))}
+                    rows={Math.min(12, Math.max(2, (change.newValue || '').split('\n').length + 1))}
+                    className="mt-1 w-full text-sm rounded p-2 font-mono break-words bg-green-500/8 text-green-300 border border-green-500/15 focus:outline-none focus:border-green-500/40 resize-y"
+                  />
                 </div>
               </div>
             ))}

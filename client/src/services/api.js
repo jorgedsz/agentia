@@ -160,8 +160,9 @@ export const trainingAPI = {
   listSessions: (agentId) => api.get('/training/sessions', { params: { agentId } }),
   getSession: (id) => api.get(`/training/sessions/${id}`),
   completeSession: (id, transcript) => api.post(`/training/sessions/${id}/complete`, { transcript }),
-  acceptSession: (id) => api.post(`/training/sessions/${id}/accept`),
+  acceptSession: (id, changes) => api.post(`/training/sessions/${id}/accept`, changes ? { changes } : {}),
   rejectSession: (id) => api.post(`/training/sessions/${id}/reject`),
+  revertSession: (id) => api.post(`/training/sessions/${id}/revert`),
 }
 
 // Calls API

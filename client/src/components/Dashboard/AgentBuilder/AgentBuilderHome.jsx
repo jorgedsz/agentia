@@ -35,6 +35,7 @@ export default function AgentBuilderHome({ type }) {
   const [error, setError] = useState('')
   const [showCallModal, setShowCallModal] = useState(false)
   const [showChatModal, setShowChatModal] = useState(false)
+  const [revertingId, setRevertingId] = useState(null)
 
   // Feature flag guard
   useEffect(() => {
@@ -67,6 +68,19 @@ export default function AgentBuilderHome({ type }) {
   }, [id, type])
 
   useEffect(() => { fetchAll() }, [fetchAll])
+
+  const handleRevert = async (s) => {
+    if (!confirm(t('agentBuilder.homeHistoryRevertConfirm'))) return
+    setRevertingId(s.id)
+    try {
+      await trainingAPI.revertSession(s.id)
+      await fetchAll()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to revert')
+    } finally {
+      setRevertingId(null)
+    }
+  }
 
   if (loading) {
     return (
@@ -115,7 +129,7 @@ export default function AgentBuilderHome({ type }) {
           t={t}
         />
         {type === 'voice' && (
-          <TrainingHistoryCard sessions={sessions} t={t} />
+          <TrainingHistoryCard sessions={sessions} t={t} onRevert={handleRevert} revertingId={revertingId} />
         )}
       </div>
 

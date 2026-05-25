@@ -9,6 +9,7 @@ router.get('/sessions/:id', authMiddleware, tc.getSession);
 router.post('/sessions/:id/complete', authMiddleware, tc.completeSession);
 router.post('/sessions/:id/accept', authMiddleware, tc.acceptSession);
 router.post('/sessions/:id/reject', authMiddleware, tc.rejectSession);
+router.post('/sessions/:id/revert', authMiddleware, tc.revertSession);
 
 // Public — VAPI calls this during the training call
 router.post('/propose-change', tc.proposeChange);

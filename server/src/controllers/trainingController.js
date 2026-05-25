@@ -100,7 +100,9 @@ ${transcript}`;
       prisma,
       apiKey: openaiApiKey,
       userId,
-      model: 'gpt-4o-mini',
+      // gpt-4o gives noticeably better prompt-engineering proposals than 4o-mini.
+      // Analysis runs once per training session, so the extra cost is negligible.
+      model: 'gpt-4o',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: context },
@@ -392,8 +394,18 @@ const acceptSession = async (req, res) => {
     if (session.userId !== req.user.id) return res.status(403).json({ error: 'Not authorized' });
     if (session.status !== 'completed') return res.status(400).json({ error: 'Session must be completed first' });
 
-    const changes = JSON.parse(session.proposedChanges || '[]');
+    // Prefer edited changes from the client (the reviewer may have tweaked the
+    // proposed newValue before accepting); fall back to the stored proposals.
+    // Only allow the three trainable fields.
+    const ALLOWED = ['firstMessage', 'systemPrompt', 'name'];
+    let changes = Array.isArray(req.body?.changes) && req.body.changes.length
+      ? req.body.changes.filter(c => c && ALLOWED.includes(c.field) && typeof c.newValue === 'string')
+      : JSON.parse(session.proposedChanges || '[]');
     if (changes.length === 0) return res.status(400).json({ error: 'No changes to apply' });
+
+    // Snapshot current config/name BEFORE applying, so this session can be reverted
+    const previousConfig = session.agent.config || JSON.stringify({});
+    const previousName = session.agent.name;
 
     // Apply changes to agent config
     const config = session.agent.config ? JSON.parse(session.agent.config) : {};
@@ -426,7 +438,12 @@ const acceptSession = async (req, res) => {
 
     await req.prisma.trainingSession.update({
       where: { id },
-      data: { status: 'accepted' },
+      data: {
+        status: 'accepted',
+        proposedChanges: JSON.stringify(changes), // persist the (possibly edited) applied changes
+        previousConfig,
+        previousName,
+      },
     });
 
     res.json({ ok: true, applied: changes.length });
@@ -458,4 +475,52 @@ const rejectSession = async (req, res) => {
   }
 };
 
-module.exports = { createSession, proposeChange, listSessions, getSession, completeSession, acceptSession, rejectSession };
+// POST /api/training/sessions/:id/revert
+// Restores the agent config/name snapshot taken when this accepted session was applied.
+const revertSession = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+
+    const session = await req.prisma.trainingSession.findUnique({
+      where: { id },
+      include: { agent: true },
+    });
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.userId !== req.user.id) return res.status(403).json({ error: 'Not authorized' });
+    if (session.status !== 'accepted') return res.status(400).json({ error: 'Only accepted sessions can be reverted' });
+    if (!session.previousConfig) return res.status(400).json({ error: 'No snapshot available to revert to' });
+
+    const config = JSON.parse(session.previousConfig);
+    const agentName = session.previousName || session.agent.name;
+
+    await req.prisma.agent.update({
+      where: { id: session.agentId },
+      data: { name: agentName, config: session.previousConfig },
+    });
+
+    // Sync the restored config back to VAPI if connected
+    if (session.agent.vapiId) {
+      try {
+        const vapiKey = await getVapiKeyForUser(req.prisma, session.userId);
+        if (vapiKey) {
+          vapiService.setApiKey(vapiKey);
+          await vapiService.updateAgent(session.agent.vapiId, { name: agentName, ...config });
+        }
+      } catch (vapiErr) {
+        console.error('[Training] VAPI sync (revert) failed:', vapiErr.message);
+      }
+    }
+
+    await req.prisma.trainingSession.update({
+      where: { id },
+      data: { status: 'reverted' },
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('[Training] revertSession error:', error);
+    res.status(500).json({ error: 'Failed to revert session' });
+  }
+};
+
+module.exports = { createSession, proposeChange, listSessions, getSession, completeSession, acceptSession, rejectSession, revertSession };

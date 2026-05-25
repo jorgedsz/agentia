@@ -1657,6 +1657,9 @@
     "homeHistoryStatusAccepted": "Accepted",
     "homeHistoryStatusRejected": "Rejected",
     "homeHistoryStatusActive": "In progress",
+    "homeHistoryStatusReverted": "Reverted",
+    "homeHistoryRevert": "Revert",
+    "homeHistoryRevertConfirm": "Revert this training? The agent will return to its previous configuration.",
 
     "errorGenerateFailed": "Could not generate prompt. Try again or write it manually.",
     "errorCreateFailed": "Could not create the agent. Please try again.",
