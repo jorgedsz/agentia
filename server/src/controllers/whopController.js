@@ -195,6 +195,16 @@ const handleWebhook = async (req, res) => {
         await handlePaymentSucceeded(req.prisma, eventData, metadata);
         break;
 
+      case 'payment.failed':
+        // Currently only recurring payments act on a declined charge (notify the
+        // client). Returns false (no-op) for non-recurring payments.
+        try {
+          await recurringPaymentController.handleWhopPaymentFailedForRecurring(req.prisma, eventData, metadata);
+        } catch (err) {
+          console.error('[Whop Webhook] payment.failed handler error:', err.message);
+        }
+        break;
+
       case 'membership.activated':
         await handleMembershipActivated(req.prisma, eventData, metadata);
         break;

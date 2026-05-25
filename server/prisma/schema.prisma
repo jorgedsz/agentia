@@ -638,6 +638,7 @@ model RecurringPayment {
   lastPaidAt           DateTime?
   lastNotifiedAt       DateTime?
   lastNotifiedForDate  DateTime? // nextPaymentDate value at last notification (dedup)
+  lastFailureNotifiedForDate DateTime? // nextPaymentDate value at last FAILURE notification (dedup for overdue alerts)
   status               String    @default("active") // active, paused, cancelled
   whopProductId        String?
   whopPlanId           String?

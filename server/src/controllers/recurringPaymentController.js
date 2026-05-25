@@ -320,6 +320,48 @@ async function sendConfirmation(prisma, entry, { whopPaymentId, source, paidAt }
   console.log(`[RecurringPayment] Confirmation webhook sent for id=${entry.id} (source=${source})`);
 }
 
+// ── Internal: send a payment-FAILED webhook ──
+// reason: 'payment_declined' (Whop payment.failed) | 'overdue' (not paid by due date)
+async function sendFailureNotification(prisma, entry, { reason, whopPaymentId } = {}) {
+  const settings = await prisma.platformSettings.findFirst();
+  const webhookEnc = settings?.recurringPaymentWebhookUrl;
+  const webhookUrl = webhookEnc ? decrypt(webhookEnc) : '';
+  if (!webhookUrl) return; // silently skip if not configured
+
+  let client = entry.user;
+  if (!client) {
+    client = await prisma.user.findUnique({
+      where: { id: entry.userId },
+      select: { id: true, name: true, email: true, phoneNumber: true, companyName: true },
+    });
+  }
+
+  const payload = {
+    type: 'recurring_payment_failed',
+    reason: reason || 'unknown',
+    recurringPaymentId: entry.id,
+    client: {
+      id: client?.id,
+      name: client?.name || null,
+      email: client?.email || null,
+      phoneNumber: client?.phoneNumber || null,
+      companyName: client?.companyName || null,
+    },
+    amount: entry.amount,
+    currency: entry.currency,
+    period: entry.periodLabel,
+    periodDays: entry.periodDays,
+    nextPaymentDate: entry.nextPaymentDate,
+    paymentLink: entry.lastCheckoutUrl || null,
+    whopPaymentId: whopPaymentId || null,
+    description: entry.description || null,
+    sentAt: new Date().toISOString(),
+  };
+
+  await axios.post(webhookUrl, payload, { timeout: 15000 });
+  console.log(`[RecurringPayment] Failure webhook sent for id=${entry.id} (reason=${reason})`);
+}
+
 // ── Internal: send a notification via webhook ──
 async function sendNotification(prisma, entry) {
   // Resolve webhook URL from PlatformSettings
@@ -456,6 +498,22 @@ async function processDueNotifications(prisma) {
 
     for (const entry of active) {
       try {
+        // Overdue check: the due date passed without a payment. A successful
+        // payment advances nextPaymentDate, so an active entry with a past
+        // nextPaymentDate means this cycle went unpaid. Notify once per cycle.
+        if (startOfDay(new Date(entry.nextPaymentDate)) < today) {
+          const alreadyFlagged = entry.lastFailureNotifiedForDate &&
+            new Date(entry.lastFailureNotifiedForDate).getTime() === new Date(entry.nextPaymentDate).getTime();
+          if (!alreadyFlagged) {
+            await sendFailureNotification(prisma, entry, { reason: 'overdue' });
+            await prisma.recurringPayment.update({
+              where: { id: entry.id },
+              data: { lastFailureNotifiedForDate: entry.nextPaymentDate },
+            });
+          }
+          continue;
+        }
+
         const triggerDate = addDays(entry.nextPaymentDate, -entry.daysBeforeNotify);
         if (today < startOfDay(triggerDate)) continue;
 
@@ -504,6 +562,33 @@ async function handleWhopPaymentForRecurring(prisma, paymentData, metadata) {
   return false;
 }
 
+// ── Whop webhook integration: called from whopController on payment.failed ──
+// A declined card during a recurring checkout. Notifies the client; does NOT
+// advance the cycle (the payment isn't due yet/again).
+async function handleWhopPaymentFailedForRecurring(prisma, paymentData, metadata) {
+  const include = { user: { select: { id: true, name: true, email: true, phoneNumber: true, companyName: true } } };
+
+  let entry = null;
+  const recurringPaymentId = metadata?.recurringPaymentId ? parseInt(metadata.recurringPaymentId) : null;
+  if (recurringPaymentId) {
+    entry = await prisma.recurringPayment.findUnique({ where: { id: recurringPaymentId }, include });
+  }
+  if (!entry) {
+    const planId = paymentData.plan?.id || paymentData.membership?.plan_id;
+    if (planId) {
+      entry = await prisma.recurringPayment.findFirst({
+        where: { whopPlanId: planId, status: 'active' },
+        orderBy: { nextPaymentDate: 'asc' },
+        include,
+      });
+    }
+  }
+  if (!entry) return false;
+
+  await sendFailureNotification(prisma, entry, { reason: 'payment_declined', whopPaymentId: paymentData.id });
+  return true;
+}
+
 module.exports = {
   list,
   create,
@@ -514,4 +599,5 @@ module.exports = {
   startScheduler,
   processDueNotifications,
   handleWhopPaymentForRecurring,
+  handleWhopPaymentFailedForRecurring,
 };
