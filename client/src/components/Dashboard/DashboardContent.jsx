@@ -457,32 +457,16 @@ export default function DashboardContent({ tab }) {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {(tab === 'agents' || tab === 'overview') && (
-              <>
-                <button
-                  onClick={() => { setShowModal('importAgent'); setFormData({}); setError(''); }}
-                  className="px-4 py-2 bg-gray-200 dark:bg-dark-card text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-dark-border transition-colors flex items-center gap-2 border border-gray-300 dark:border-dark-border"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M16 12l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Import Agent
-                </button>
-                <button
-                  onClick={() => quickCreateAgent()}
-                  disabled={creating}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50"
-                >
-                  {creating ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  )}
-                  {t('dashboardContent.newAgent')}
-                </button>
-              </>
+            {tab === 'agents' && (
+              <button
+                onClick={() => { setShowModal('importAgent'); setFormData({}); setError(''); }}
+                className="px-4 py-2 bg-gray-200 dark:bg-dark-card text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-dark-border transition-colors flex items-center gap-2 border border-gray-300 dark:border-dark-border"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M16 12l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Import Agent
+              </button>
             )}
             {tab === 'clients' && (
               <button
