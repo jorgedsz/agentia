@@ -174,6 +174,15 @@ export default function TrainingCallModal({ agent, onClose, onAccepted }) {
     name: t('trainingMode.fieldName')
   }[field] || field)
 
+  const categoryLabel = (c) => ({
+    faq: t('trainingMode.catFaq'),
+    objection: t('trainingMode.catObjection'),
+    rule: t('trainingMode.catRule'),
+    example: t('trainingMode.catExample')
+  }[c] || c)
+
+  const updateChange = (i, patch) => setProposedChanges(prev => prev.map((c, idx) => idx === i ? { ...c, ...patch } : c))
+
   // ── Review Phase ──
   if (phase === 'review') {
     return (
@@ -193,29 +202,58 @@ export default function TrainingCallModal({ agent, onClose, onAccepted }) {
               <p className="text-sm text-gray-400 text-center py-4">{t('trainingMode.noChanges')}</p>
             )}
             {proposedChanges.map((change, i) => (
-              <div key={i} className="rounded-lg p-4 bg-[#16181d] border border-gray-700/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-bold uppercase px-2 py-0.5 rounded bg-primary-500/15 text-primary-400">
-                    {fieldLabel(change.field)}
-                  </span>
-                  {change.description && <span className="text-xs text-gray-500">{change.description}</span>}
-                </div>
-                <div className="mb-2">
-                  <span className="text-[10px] font-semibold uppercase text-red-400/70 tracking-wider">{t('trainingMode.before')}</span>
-                  <div className="mt-1 text-sm rounded p-2 font-mono break-words bg-red-500/8 text-red-300 border border-red-500/15">
-                    {change.oldValue || '(empty)'}
+              change.type === 'playbook' ? (
+                <div key={i} className="rounded-lg p-4 bg-[#16181d] border border-emerald-700/30">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400">
+                      {t('trainingMode.playbook')} · {categoryLabel(change.category)}
+                    </span>
+                    {change.description && <span className="text-xs text-gray-500">{change.description}</span>}
+                  </div>
+                  <div className="mb-2">
+                    <span className="text-[10px] font-semibold uppercase text-gray-400/70 tracking-wider">{t('trainingMode.playbookTitle')}</span>
+                    <textarea
+                      value={change.title}
+                      onChange={(e) => updateChange(i, { title: e.target.value })}
+                      rows={2}
+                      className="mt-1 w-full text-sm rounded p-2 break-words bg-[#1e2024] text-gray-200 border border-gray-700/50 focus:outline-none focus:border-emerald-500/40 resize-y"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase text-gray-400/70 tracking-wider">{t('trainingMode.playbookContent')}</span>
+                    <textarea
+                      value={change.content}
+                      onChange={(e) => updateChange(i, { content: e.target.value })}
+                      rows={Math.min(10, Math.max(2, (change.content || '').split('\n').length + 1))}
+                      className="mt-1 w-full text-sm rounded p-2 break-words bg-[#1e2024] text-gray-200 border border-gray-700/50 focus:outline-none focus:border-emerald-500/40 resize-y"
+                    />
                   </div>
                 </div>
-                <div>
-                  <span className="text-[10px] font-semibold uppercase text-green-400/70 tracking-wider">{t('trainingMode.after')}</span>
-                  <textarea
-                    value={change.newValue}
-                    onChange={(e) => setProposedChanges(prev => prev.map((c, idx) => idx === i ? { ...c, newValue: e.target.value } : c))}
-                    rows={Math.min(12, Math.max(2, (change.newValue || '').split('\n').length + 1))}
-                    className="mt-1 w-full text-sm rounded p-2 font-mono break-words bg-green-500/8 text-green-300 border border-green-500/15 focus:outline-none focus:border-green-500/40 resize-y"
-                  />
+              ) : (
+                <div key={i} className="rounded-lg p-4 bg-[#16181d] border border-gray-700/50">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-bold uppercase px-2 py-0.5 rounded bg-primary-500/15 text-primary-400">
+                      {fieldLabel(change.field)}
+                    </span>
+                    {change.description && <span className="text-xs text-gray-500">{change.description}</span>}
+                  </div>
+                  <div className="mb-2">
+                    <span className="text-[10px] font-semibold uppercase text-red-400/70 tracking-wider">{t('trainingMode.before')}</span>
+                    <div className="mt-1 text-sm rounded p-2 font-mono break-words bg-red-500/8 text-red-300 border border-red-500/15">
+                      {change.oldValue || '(empty)'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase text-green-400/70 tracking-wider">{t('trainingMode.after')}</span>
+                    <textarea
+                      value={change.newValue}
+                      onChange={(e) => updateChange(i, { newValue: e.target.value })}
+                      rows={Math.min(12, Math.max(2, (change.newValue || '').split('\n').length + 1))}
+                      className="mt-1 w-full text-sm rounded p-2 font-mono break-words bg-green-500/8 text-green-300 border border-green-500/15 focus:outline-none focus:border-green-500/40 resize-y"
+                    />
+                  </div>
                 </div>
-              </div>
+              )
             ))}
             {error && <div className="text-sm text-red-400 text-center">{error}</div>}
           </div>

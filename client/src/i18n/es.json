@@ -849,7 +849,24 @@
     "mute": "Silenciar",
     "unmute": "Activar sonido",
     "changesApplied": "¡Cambios aplicados exitosamente!",
-    "changesRejected": "Cambios rechazados."
+    "changesRejected": "Cambios rechazados.",
+    "playbook": "Conocimiento",
+    "playbookTitle": "Título",
+    "playbookContent": "Contenido",
+    "catFaq": "Preguntas frecuentes",
+    "catObjection": "Manejo de objeciones",
+    "catRule": "Reglas",
+    "catExample": "Ejemplos"
+  },
+  "playbook": {
+    "title": "Base de conocimiento",
+    "subtitle": "Conocimiento acumulado de tus sesiones de entrenamiento. Se añade al agente automáticamente.",
+    "empty": "Aún no hay conocimiento. Entrena a tu agente por voz para empezar a construirlo.",
+    "deleteConfirm": "¿Eliminar esta entrada de conocimiento?",
+    "disable": "Desactivar",
+    "enable": "Activar",
+    "on": "Activo",
+    "off": "Inactivo"
   },
   "chat": {
     "title": "Asistente IA",

@@ -1,6 +1,7 @@
 const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
 const { logAudit } = require('../utils/auditLog');
+const { appendPlaybook } = require('../utils/playbook');
 
 // Get the public base URL for this server (VAPI needs publicly reachable URLs)
 const getPublicBaseUrl = () => {
@@ -254,7 +255,8 @@ const updateAgent = async (req, res) => {
           vapiWarning = `Structured output sync failed: ${soErr.message}`;
         }
 
-        const vapiPayload = { name, ...fixedConfig, vapiStructuredOutputId: soId };
+        // Overlay the agent's playbook onto the prompt for Vapi only (not persisted)
+        const vapiPayload = await appendPlaybook(req.prisma, existingAgent.id, { name, ...fixedConfig, vapiStructuredOutputId: soId });
         const sentToolCount = vapiPayload.tools?.length || 0;
         const sentToolNames = (vapiPayload.tools || []).map(t => t.function?.name || t.type).join(', ');
         console.log('=== CALLING VAPI UPDATE ===');

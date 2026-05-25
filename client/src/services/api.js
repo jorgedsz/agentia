@@ -165,6 +165,14 @@ export const trainingAPI = {
   revertSession: (id) => api.post(`/training/sessions/${id}/revert`),
 }
 
+// Agent Playbook API (training knowledge base)
+export const playbookAPI = {
+  list: (agentId) => api.get('/playbook', { params: { agentId } }),
+  create: (data) => api.post('/playbook', data),
+  update: (id, data) => api.patch(`/playbook/${id}`, data),
+  remove: (id) => api.delete(`/playbook/${id}`),
+}
+
 // Calls API
 export const callsAPI = {
   create: (data) => api.post('/calls', data),

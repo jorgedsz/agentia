@@ -8,6 +8,7 @@ import AgentBuilderShell from './AgentBuilderShell'
 import BehaviorPreviewCard from './home/BehaviorPreviewCard'
 import WizardAnswersCard from './home/WizardAnswersCard'
 import TrainingHistoryCard from './home/TrainingHistoryCard'
+import PlaybookCard from './home/PlaybookCard'
 import TrainingCallModal from '../TrainingCallModal'
 import TestChatbotModal from '../TestChatbotModal'
 
@@ -128,6 +129,9 @@ export default function AgentBuilderHome({ type }) {
           agentId={id}
           t={t}
         />
+        {type === 'voice' && agent?.vapiId && (
+          <PlaybookCard agentId={id} t={t} />
+        )}
         {type === 'voice' && (
           <TrainingHistoryCard sessions={sessions} t={t} onRevert={handleRevert} revertingId={revertingId} />
         )}

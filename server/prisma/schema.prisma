@@ -161,8 +161,27 @@ model Agent {
   updatedAt    DateTime      @updatedAt
   phoneNumbers     PhoneNumber[]
   trainingSessions TrainingSession[]
+  playbookEntries  AgentPlaybook[]
 
   @@index([userId, folderId])
+}
+
+// Accumulated knowledge built by Training Mode. Compiled and appended to the
+// agent's systemPrompt at Vapi-sync time (never persisted into the stored prompt).
+model AgentPlaybook {
+  id              Int      @id @default(autoincrement())
+  agentId         String
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  category        String   // faq | objection | rule | example
+  title           String   @db.Text // the trigger/question/short label
+  content         String   @db.Text // the answer/response/rule body
+  enabled         Boolean  @default(true)
+  order           Int      @default(0)
+  sourceSessionId Int?     // TrainingSession that created this entry (for revert)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([agentId, enabled, order])
 }
 
 model AgentFolder {

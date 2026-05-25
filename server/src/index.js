@@ -55,6 +55,7 @@ const demoRoutes = require('./routes/demo');
 const portalRoutes = require('./routes/portal');
 const googleWorkspaceRoutes = require('./routes/googleWorkspace');
 const trainingRoutes = require('./routes/training');
+const playbookRoutes = require('./routes/playbook');
 const whopRoutes = require('./routes/whop');
 const recurringPaymentRoutes = require('./routes/recurringPayments');
 const recurringPaymentController = require('./controllers/recurringPaymentController');
@@ -236,6 +237,7 @@ app.use('/api/demo', demoRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/google-workspace', googleWorkspaceRoutes);
 app.use('/api/training', trainingRoutes);
+app.use('/api/playbook', playbookRoutes);
 app.use('/api/whop', whopRoutes);
 app.use('/api/recurring-payments', recurringPaymentRoutes);
 

@@ -1,6 +1,7 @@
 const vapiService = require('../services/vapiService');
 const openaiService = require('../services/openaiService');
 const { getVapiKeyForUser, getApiKeys } = require('../utils/getApiKeys');
+const { appendPlaybook } = require('../utils/playbook');
 
 const SERVER_URL = process.env.APP_URL || process.env.RAILWAY_PUBLIC_DOMAIN
   ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
@@ -42,7 +43,7 @@ Use propose_change when: (a) explicit change request, or (b) concrete editable c
 // strong LLM and ask it to propose well-formed changes. Captures implicit
 // feedback the in-call agent missed and rewrites prompts cleanly instead of
 // echoing the trainer verbatim.
-async function analyzeTranscript({ prisma, userId, agent, transcript, config, inCallChanges }) {
+async function analyzeTranscript({ prisma, userId, agent, transcript, config, inCallChanges, existingPlaybook }) {
   const { openaiApiKey } = await getApiKeys(prisma);
   if (!openaiApiKey || !transcript || transcript.trim().length < 50) return [];
 
@@ -50,35 +51,41 @@ async function analyzeTranscript({ prisma, userId, agent, transcript, config, in
   const isEs = lang === 'es' || lang === 'multi';
 
   const systemPrompt = isEs
-    ? `Sos un coach experto en prompts de agentes de IA de voz. Te paso la transcripción de una sesión de entrenamiento entre un humano (entrenador) y un agente. Tu tarea: identificar mejoras concretas al prompt del agente y proponerlas como ediciones limpias.
+    ? `Sos un coach experto en agentes de IA de voz. Te paso la transcripción de una sesión de entrenamiento entre un humano (entrenador) y un agente. Tu tarea: convertir el feedback del entrenador en (1) ediciones limpias al prompt y (2) entradas de un "playbook" de conocimiento acumulado.
 
 REGLAS DURAS:
-- Solo proponés cambios a estos campos: firstMessage, systemPrompt, name.
-- "newValue" SIEMPRE es el texto COMPLETO del campo después del cambio, no un diff. Para systemPrompt es el prompt entero reescrito.
-- Si el entrenador no pidió/sugirió cambios claros, devolvé un array vacío. NO inventes mejoras.
-- Si el entrenador critica algo pero no es traducible a una edición concreta del prompt, omitilo.
-- Las propuestas tienen que respetar y preservar la estructura existente del prompt (tono, idioma, secciones). Mejorás, no reescribís de cero a menos que el entrenador lo pida.
+- Ediciones de campos: solo firstMessage, systemPrompt, name. "newValue" SIEMPRE es el texto COMPLETO del campo, no un diff.
+- Entradas de playbook = conocimiento reutilizable que el agente debe recordar. Categorías:
+  - faq: pregunta frecuente (title=pregunta, content=respuesta canónica)
+  - objection: objeción del cliente (title=la objeción, content=cómo responder)
+  - rule: regla dura / do o don't (title=resumen corto, content=la regla completa)
+  - example: frase modelo de buena respuesta (title=cuándo usarla, content=la frase)
+- PREFERÍ entradas de playbook para conocimiento puntual (precios, objeciones, reglas, datos) en vez de reescribir el systemPrompt entero. Reescribí el prompt solo para cambios estructurales de comportamiento.
+- Te paso el PLAYBOOK ACTUAL. NO dupliques entradas existentes; si algo ya está cubierto, omitilo.
+- Si el entrenador no pidió cambios claros, devolvé arrays vacíos. No inventes.
 
 Devolvé SOLO JSON con esta forma:
 {
-  "changes": [
-    { "field": "firstMessage|systemPrompt|name", "newValue": "...", "description": "razón corta del cambio (1 oración)" }
-  ]
+  "changes": [ { "field": "firstMessage|systemPrompt|name", "newValue": "...", "description": "razón corta (1 oración)" } ],
+  "playbook": [ { "category": "faq|objection|rule|example", "title": "...", "content": "...", "description": "razón corta (1 oración)" } ]
 }`
-    : `You are an expert coach for AI voice-agent prompts. I'm giving you a training-session transcript between a human (trainer) and an agent. Your task: identify concrete improvements to the agent's prompt and propose them as clean edits.
+    : `You are an expert coach for AI voice agents. I'm giving you a training-session transcript between a human (trainer) and an agent. Your task: turn the trainer's feedback into (1) clean prompt edits and (2) entries for an accumulated "playbook" of knowledge.
 
 HARD RULES:
-- Only propose changes to these fields: firstMessage, systemPrompt, name.
-- "newValue" is ALWAYS the FULL field text after the change, never a diff. For systemPrompt, it's the entire rewritten prompt.
-- If the trainer didn't ask for or suggest clear changes, return an empty array. Don't invent improvements.
-- If the trainer critiques something that doesn't translate to a concrete prompt edit, skip it.
-- Proposals must respect and preserve the existing prompt structure (tone, language, sections). You're improving, not rewriting from scratch — unless the trainer explicitly asked for a full rewrite.
+- Field edits: only firstMessage, systemPrompt, name. "newValue" is ALWAYS the FULL field text, never a diff.
+- Playbook entries = reusable knowledge the agent must remember. Categories:
+  - faq: a frequently asked question (title=question, content=canonical answer)
+  - objection: a customer objection (title=the objection, content=how to respond)
+  - rule: a hard do/don't (title=short summary, content=the full rule)
+  - example: a model good-response phrase (title=when to use it, content=the phrase)
+- PREFER playbook entries for pointed knowledge (pricing, objections, rules, facts) instead of rewriting the whole systemPrompt. Only rewrite the prompt for structural behavior changes.
+- I give you the CURRENT PLAYBOOK. Do NOT duplicate existing entries; if something is already covered, skip it.
+- If the trainer didn't ask for clear changes, return empty arrays. Don't invent.
 
 Return ONLY JSON in this shape:
 {
-  "changes": [
-    { "field": "firstMessage|systemPrompt|name", "newValue": "...", "description": "short reason for the change (1 sentence)" }
-  ]
+  "changes": [ { "field": "firstMessage|systemPrompt|name", "newValue": "...", "description": "short reason (1 sentence)" } ],
+  "playbook": [ { "category": "faq|objection|rule|example", "title": "...", "content": "...", "description": "short reason (1 sentence)" } ]
 }`;
 
   const context = `CURRENT AGENT CONFIG:
@@ -88,6 +95,9 @@ Return ONLY JSON in this shape:
 """
 ${config.systemPrompt || '(empty)'}
 """
+
+CURRENT PLAYBOOK (do NOT duplicate these — refine via field edits only if truly better):
+${JSON.stringify((existingPlaybook || []).map(e => ({ category: e.category, title: e.title, content: e.content })), null, 2)}
 
 IN-CALL CHANGES the agent already proposed during the session (these are noisy — feel free to refine, merge, or drop them):
 ${JSON.stringify(inCallChanges || [], null, 2)}
@@ -114,17 +124,33 @@ ${transcript}`;
     const raw = resp.choices?.[0]?.message?.content?.trim();
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    const changes = Array.isArray(parsed.changes) ? parsed.changes : [];
-    return changes
+    const now = new Date().toISOString();
+
+    const fieldItems = (Array.isArray(parsed.changes) ? parsed.changes : [])
       .filter(c => c && ['firstMessage', 'systemPrompt', 'name'].includes(c.field) && typeof c.newValue === 'string' && c.newValue.trim())
       .map(c => ({
+        type: 'field',
         field: c.field,
         oldValue: c.field === 'name' ? agent.name : (config[c.field] || ''),
         newValue: c.newValue.trim(),
         description: (c.description || '').toString().trim(),
         source: 'analysis',
-        timestamp: new Date().toISOString(),
+        timestamp: now,
       }));
+
+    const playbookItems = (Array.isArray(parsed.playbook) ? parsed.playbook : [])
+      .filter(p => p && ['faq', 'objection', 'rule', 'example'].includes(p.category) && typeof p.title === 'string' && p.title.trim())
+      .map(p => ({
+        type: 'playbook',
+        category: p.category,
+        title: p.title.trim(),
+        content: (p.content || '').toString().trim(),
+        description: (p.description || '').toString().trim(),
+        source: 'analysis',
+        timestamp: now,
+      }));
+
+    return [...fieldItems, ...playbookItems];
   } catch (err) {
     console.error('[Training] analyzeTranscript failed:', err.message);
     return [];
@@ -345,6 +371,12 @@ const completeSession = async (req, res) => {
     const inCallChanges = JSON.parse(session.proposedChanges || '[]').map(c => ({ ...c, source: 'in_call' }));
     const config = session.agent.config ? JSON.parse(session.agent.config) : {};
 
+    // Existing playbook so analysis avoids proposing duplicates
+    const existingPlaybook = await req.prisma.agentPlaybook.findMany({
+      where: { agentId: session.agentId },
+      select: { category: true, title: true, content: true },
+    });
+
     // Run the LLM analysis on the transcript to extract higher-quality proposals
     // than the in-call agent typically produces. Falls back to just the in-call
     // changes if analysis fails or returns nothing.
@@ -355,15 +387,22 @@ const completeSession = async (req, res) => {
       transcript,
       config,
       inCallChanges,
+      existingPlaybook,
     });
 
-    // Merge: if analysis produced a change for a field, it supersedes the in-call
-    // one (post-call has more context and the full transcript). Otherwise keep
-    // the in-call change.
+    // Merge field edits by field (analysis supersedes in-call — it has the full
+    // transcript). Playbook entries are additive, just collect them.
     const byField = new Map();
-    for (const c of inCallChanges) byField.set(c.field, c);
-    for (const c of analyzed) byField.set(c.field, c);
-    const finalChanges = Array.from(byField.values());
+    const playbookItems = [];
+    for (const c of inCallChanges) {
+      if (c.type === 'playbook') playbookItems.push(c);
+      else byField.set(c.field, { ...c, type: 'field' });
+    }
+    for (const c of analyzed) {
+      if (c.type === 'playbook') playbookItems.push(c);
+      else byField.set(c.field, c);
+    }
+    const finalChanges = [...Array.from(byField.values()), ...playbookItems];
 
     const updated = await req.prisma.trainingSession.update({
       where: { id },
@@ -395,33 +434,53 @@ const acceptSession = async (req, res) => {
     if (session.status !== 'completed') return res.status(400).json({ error: 'Session must be completed first' });
 
     // Prefer edited changes from the client (the reviewer may have tweaked the
-    // proposed newValue before accepting); fall back to the stored proposals.
-    // Only allow the three trainable fields.
-    const ALLOWED = ['firstMessage', 'systemPrompt', 'name'];
+    // proposed value before accepting); fall back to the stored proposals.
+    const ALLOWED_FIELDS = ['firstMessage', 'systemPrompt', 'name'];
+    const ALLOWED_CATS = ['faq', 'objection', 'rule', 'example'];
     let changes = Array.isArray(req.body?.changes) && req.body.changes.length
-      ? req.body.changes.filter(c => c && ALLOWED.includes(c.field) && typeof c.newValue === 'string')
+      ? req.body.changes.filter(c => c && (
+          ((c.type || 'field') === 'field' && ALLOWED_FIELDS.includes(c.field) && typeof c.newValue === 'string') ||
+          (c.type === 'playbook' && ALLOWED_CATS.includes(c.category) && typeof c.title === 'string' && c.title.trim())
+        ))
       : JSON.parse(session.proposedChanges || '[]');
     if (changes.length === 0) return res.status(400).json({ error: 'No changes to apply' });
+
+    const fieldChanges = changes.filter(c => (c.type || 'field') === 'field');
+    const playbookItems = changes.filter(c => c.type === 'playbook');
 
     // Snapshot current config/name BEFORE applying, so this session can be reverted
     const previousConfig = session.agent.config || JSON.stringify({});
     const previousName = session.agent.name;
 
-    // Apply changes to agent config
+    // Apply field changes to agent config
     const config = session.agent.config ? JSON.parse(session.agent.config) : {};
     let agentName = session.agent.name;
 
-    for (const change of changes) {
+    for (const change of fieldChanges) {
       if (change.field === 'firstMessage') config.firstMessage = change.newValue;
       else if (change.field === 'systemPrompt') config.systemPrompt = change.newValue;
       else if (change.field === 'name') agentName = change.newValue;
     }
 
-    // Update agent in DB
+    // Update agent in DB (config stays clean — playbook is overlaid at sync time)
     await req.prisma.agent.update({
       where: { id: session.agentId },
       data: { name: agentName, config: JSON.stringify(config) },
     });
+
+    // Create the accepted playbook entries (tagged with this session for revert)
+    for (const p of playbookItems) {
+      await req.prisma.agentPlaybook.create({
+        data: {
+          agentId: session.agentId,
+          category: p.category,
+          title: (p.title || '').toString().trim(),
+          content: (p.content || '').toString().trim(),
+          sourceSessionId: id,
+          enabled: true,
+        },
+      });
+    }
 
     // Sync to VAPI if connected
     if (session.agent.vapiId) {
@@ -429,7 +488,8 @@ const acceptSession = async (req, res) => {
         const vapiKey = await getVapiKeyForUser(req.prisma, session.userId);
         if (vapiKey) {
           vapiService.setApiKey(vapiKey);
-          await vapiService.updateAgent(session.agent.vapiId, { name: agentName, ...config });
+          const vapiPayload = await appendPlaybook(req.prisma, session.agentId, { name: agentName, ...config });
+          await vapiService.updateAgent(session.agent.vapiId, vapiPayload);
         }
       } catch (vapiErr) {
         console.error('[Training] VAPI sync failed:', vapiErr.message);
@@ -498,13 +558,18 @@ const revertSession = async (req, res) => {
       data: { name: agentName, config: session.previousConfig },
     });
 
+    // Remove the playbook entries this session added (before re-syncing, so the
+    // overlay no longer includes them)
+    await req.prisma.agentPlaybook.deleteMany({ where: { sourceSessionId: id } });
+
     // Sync the restored config back to VAPI if connected
     if (session.agent.vapiId) {
       try {
         const vapiKey = await getVapiKeyForUser(req.prisma, session.userId);
         if (vapiKey) {
           vapiService.setApiKey(vapiKey);
-          await vapiService.updateAgent(session.agent.vapiId, { name: agentName, ...config });
+          const vapiPayload = await appendPlaybook(req.prisma, session.agentId, { name: agentName, ...config });
+          await vapiService.updateAgent(session.agent.vapiId, vapiPayload);
         }
       } catch (vapiErr) {
         console.error('[Training] VAPI sync (revert) failed:', vapiErr.message);

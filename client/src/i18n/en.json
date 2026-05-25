@@ -849,7 +849,24 @@
     "mute": "Mute",
     "unmute": "Unmute",
     "changesApplied": "Changes applied successfully!",
-    "changesRejected": "Changes rejected."
+    "changesRejected": "Changes rejected.",
+    "playbook": "Knowledge",
+    "playbookTitle": "Title",
+    "playbookContent": "Content",
+    "catFaq": "FAQs",
+    "catObjection": "Objection handling",
+    "catRule": "Rules",
+    "catExample": "Examples"
+  },
+  "playbook": {
+    "title": "Knowledge base",
+    "subtitle": "Knowledge accumulated from your training sessions. Added to the agent automatically.",
+    "empty": "No knowledge yet. Train your voice agent to start building it.",
+    "deleteConfirm": "Delete this knowledge entry?",
+    "disable": "Disable",
+    "enable": "Enable",
+    "on": "On",
+    "off": "Off"
   },
   "chat": {
     "title": "AI Assistant",
