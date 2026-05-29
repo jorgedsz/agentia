@@ -153,6 +153,15 @@ model Agent {
   publicShareDailyLimit         Int      @default(20)   // Total shared calls per day
   publicShareIpDailyLimit       Int      @default(3)    // Per-IP shared calls per day
   publicShareMaxDurationSeconds Int      @default(180)  // Hard cap per shared call (3 min default)
+  // External dashboard mirror — OWNER-only. When set, the vapi webhook
+  // controller mirrors each end-of-call to dashboardForwardUrl using
+  // dashboardForwardSecret as the x-ingest-secret header. Used to surface
+  // a single client's call activity on dashboardJH without exposing the
+  // sword-ai DB. Both fields are stored plaintext because they're
+  // operational configuration the OWNER edits directly; we never expose
+  // them in API responses for non-OWNER users.
+  dashboardForwardUrl    String?
+  dashboardForwardSecret String?
   userId       Int
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   folderId     String?       // Per-account folder for organization. Null = Uncategorized.

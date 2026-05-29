@@ -272,6 +272,22 @@ const createCall = async (req, res) => {
       callPayload.assistantOverrides.firstMessage = outboundGreeting;
     }
 
+    // External dashboard pre-call gate — OWNER-only feature. If the agent
+    // mirrors activity to a dashboardForwardUrl, ask that dashboard if
+    // there's balance before placing the call. A dashboard outage falls
+    // through to the normal credit check so this never silently breaks
+    // call placement.
+    const { checkDashboardBalance } = require('../utils/dashboardForward');
+    const gate = await checkDashboardBalance(agent, { estimatedMinutes: 5 });
+    if (gate.allowed === false) {
+      console.log(`[Call] Dashboard gate blocked call: ${gate.reason} (agent ${agent.id})`);
+      return res.status(402).json({
+        error: gate.noBalanceMessage || 'External dashboard reports no balance',
+        code: 'DASHBOARD_NO_BALANCE',
+        availableBalance: gate.availableBalance ?? 0
+      });
+    }
+
     // Create the call via VAPI
     const call = await vapiService.createCall(callPayload);
 

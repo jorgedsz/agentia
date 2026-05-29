@@ -119,7 +119,18 @@ const getAgent = async (req, res) => {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    res.json({ agent: { ...agent, config: parseConfig(agent.config) } });
+    // OWNER-only mirror fields. Strip them out for everyone else so the
+    // dashboardForwardSecret never reaches a non-OWNER client. The OWNER
+    // sees the secret (they set it); we don't store it elsewhere.
+    const isOwnerReq = req.user.role === 'OWNER';
+    const safe = isOwnerReq
+      ? agent
+      : (() => {
+          const { dashboardForwardUrl: _u, dashboardForwardSecret: _s, ...rest } = agent;
+          return rest;
+        })();
+
+    res.json({ agent: { ...safe, config: parseConfig(safe.config) } });
   } catch (error) {
     console.error('Get agent error:', error);
     res.status(500).json({ error: 'Failed to fetch agent' });
@@ -128,7 +139,17 @@ const getAgent = async (req, res) => {
 
 const createAgent = async (req, res) => {
   try {
-    const { name, description, config, agentType } = req.body;
+    const { name, description, config, agentType, dashboardForwardUrl, dashboardForwardSecret } = req.body;
+    // OWNER-only fields: silently drop if the request isn't from an OWNER.
+    // Stored as plaintext (operational config, not a credential to a third
+    // party — these are internal mirroring endpoints).
+    const isOwnerReq = req.user.role === 'OWNER';
+    const ownerFields = isOwnerReq
+      ? {
+          dashboardForwardUrl: typeof dashboardForwardUrl === 'string' && dashboardForwardUrl.trim() ? dashboardForwardUrl.trim() : null,
+          dashboardForwardSecret: typeof dashboardForwardSecret === 'string' && dashboardForwardSecret.trim() ? dashboardForwardSecret.trim() : null
+        }
+      : {};
     console.log('Create agent request - name:', name, 'agentType:', agentType, 'config:', JSON.stringify(config, null, 2));
 
     if (!name) {
@@ -180,7 +201,8 @@ const createAgent = async (req, res) => {
         vapiId,
         vapiStructuredOutputId,
         config: savedConfig ? JSON.stringify(savedConfig) : null,
-        userId: req.user.id
+        userId: req.user.id,
+        ...ownerFields
       }
     });
 
@@ -211,7 +233,8 @@ const createAgent = async (req, res) => {
 const updateAgent = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, config, agentType } = req.body;
+    const { name, description, config, agentType, dashboardForwardUrl, dashboardForwardSecret } = req.body;
+    const isOwnerReq = req.user.role === 'OWNER';
     console.log('=== UPDATE AGENT REQUEST ===');
     console.log('Agent ID:', id, '| Name:', name, '| Type:', agentType);
     console.log('Tools count:', config?.tools?.length || 0);
@@ -358,6 +381,17 @@ const updateAgent = async (req, res) => {
     const savedConfig = rewriteToolUrls(config) || config;
     const updateData = { name, description: description || null, config: savedConfig ? JSON.stringify(savedConfig) : null };
     if (agentType) updateData.agentType = agentType;
+    // OWNER-only mirror config. undefined = leave alone, '' = unset.
+    if (isOwnerReq) {
+      if (dashboardForwardUrl !== undefined) {
+        const v = typeof dashboardForwardUrl === 'string' ? dashboardForwardUrl.trim() : '';
+        updateData.dashboardForwardUrl = v || null;
+      }
+      if (dashboardForwardSecret !== undefined) {
+        const v = typeof dashboardForwardSecret === 'string' ? dashboardForwardSecret.trim() : '';
+        updateData.dashboardForwardSecret = v || null;
+      }
+    }
 
     const agent = await req.prisma.agent.update({
       where: { id: id },

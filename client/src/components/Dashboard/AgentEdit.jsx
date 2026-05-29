@@ -360,6 +360,10 @@ export default function AgentEdit() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [showAgentInfoModal, setShowAgentInfoModal] = useState(false)
+  // OWNER-only fields. Mirrored to an external dashboard via the
+  // sword-ai vapi webhook controller; not visible to any other role.
+  const [dashboardForwardUrl, setDashboardForwardUrl] = useState('')
+  const [dashboardForwardSecret, setDashboardForwardSecret] = useState('')
   const [language, setLanguage] = useState('en')
   const [systemPrompt, setSystemPrompt] = useState('')
   const [firstMessage, setFirstMessage] = useState('')
@@ -980,6 +984,10 @@ export default function AgentEdit() {
       setAgent(agentData)
       setName(agentData.name || '')
       setDescription(agentData.description || '')
+      // Server only includes these fields for OWNER callers; non-OWNER
+      // sees them as undefined and the inputs stay hidden anyway.
+      setDashboardForwardUrl(agentData.dashboardForwardUrl || '')
+      setDashboardForwardSecret(agentData.dashboardForwardSecret || '')
       setShareEnabled(!!agentData.publicShareEnabled)
       setShareToken(agentData.publicShareToken || '')
       setShareDailyLimit(agentData.publicShareDailyLimit || 20)
@@ -1872,6 +1880,11 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         name,
         description,
         agentType,
+        // OWNER-only fields. Sent unconditionally — server drops them for
+        // non-OWNER callers, and the inputs are hidden in the UI anyway,
+        // so non-OWNER state stays at '' and just no-ops on the server.
+        dashboardForwardUrl,
+        dashboardForwardSecret,
         config: {
           agentType,
           systemPrompt: finalSystemPrompt,
@@ -6996,6 +7009,45 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                   placeholder={ta('agentDescPlaceholder')}
                 />
               </div>
+              {/* OWNER-only: mirror this agent's call activity to an external dashboard. */}
+              {user?.role === 'OWNER' && (
+                <div className="border-t border-gray-200 dark:border-dark-border pt-4 mt-2 space-y-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                      Owner · External Dashboard Mirror
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Cuando una llamada de este agente termina, se reenvía un POST con los datos
+                      al endpoint indicado. También se chequea el saldo de ese dashboard antes
+                      de iniciar llamadas manuales (pre-call gate). Visible y editable solo por OWNER.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                      Dashboard ingest URL
+                    </label>
+                    <input
+                      type="text"
+                      value={dashboardForwardUrl}
+                      onChange={(e) => setDashboardForwardUrl(e.target.value)}
+                      placeholder="https://dashboardjh-production.up.railway.app/api/calls/ingest"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm font-mono focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                      Dashboard ingest secret
+                    </label>
+                    <input
+                      type="text"
+                      value={dashboardForwardSecret}
+                      onChange={(e) => setDashboardForwardSecret(e.target.value)}
+                      placeholder="x-ingest-secret value"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm font-mono focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                    />
+                  </div>
+                </div>
+              )}
               {assignedPhoneId && (
                 <div>
                   <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{ta('agentInfoType')}</label>

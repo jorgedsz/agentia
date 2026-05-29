@@ -812,6 +812,40 @@ const handleEvent = async (req, res) => {
       } else {
         console.log(`[VAPI Webhook] No user webhook URL configured on agent ${agent.id} — structuredData (${structuredData ? 'present' : 'NULL'}) saved to CallLog only`);
       }
+
+      // 7b. Mirror to external owner-configured dashboard if set on the
+      // agent row (OWNER-only field). Independent of the user webhook —
+      // some agents have both, some only this. Schema matches
+      // dashboardJH's POST /api/calls/ingest.
+      if (agent.dashboardForwardUrl && agent.dashboardForwardSecret) {
+        const dashboardPayload = {
+          vapiCallId,
+          agentId: agent.id,
+          agentName: agent.name,
+          contactId: callMetadata.contactId || null,
+          contactName: callMetadata.contactName || null,
+          customerNumber,
+          fromNumber: call.phoneNumber?.number || call.phoneNumber?.twilioPhoneNumber || null,
+          durationSeconds,
+          outcome,
+          endedReason,
+          summary: summary || null,
+          transcript: transcriptText || null,
+          recordingUrl: localRecordingUrl || null
+        };
+        fetch(agent.dashboardForwardUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-ingest-secret': agent.dashboardForwardSecret
+          },
+          body: JSON.stringify(dashboardPayload)
+        }).then(r => {
+          console.log(`[VAPI Webhook] Forwarded to dashboard ${agent.dashboardForwardUrl}: ${r.status}`);
+        }).catch(err => {
+          console.error(`[VAPI Webhook] Dashboard forward failed for ${agent.dashboardForwardUrl}:`, err.message);
+        });
+      }
     }
 
     console.log(`[VAPI Webhook] Processed call ${vapiCallId}: outcome=${outcome}, duration=${durationSeconds}s, cost=$${cost.toFixed(4)}`);
