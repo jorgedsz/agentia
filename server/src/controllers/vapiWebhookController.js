@@ -19,6 +19,17 @@ if (!fs.existsSync(recordingsDir)) {
   fs.mkdirSync(recordingsDir, { recursive: true });
 }
 
+// Roles / transcript labels that count as the human side of the call.
+// Extends beyond user/customer because VAPI transcribers emit HUMAN:/BOT:
+// when running in Spanish (Deepgram in particular) and a handful of other
+// labels show up in older flows. Kept lower-cased; matching is done
+// case-insensitively at the call site.
+const HUMAN_ROLES = new Set([
+  'user', 'customer', 'human', 'caller', 'person', 'client',
+  'cliente', 'usuario'
+]);
+const HUMAN_LABEL_RE = /(^|\n)\s*\[?[\d:.\s]*\]?\s*(user|customer|human|caller|person|client|cliente|usuario)\s*:/i;
+
 // Returns true when the call has no evidence of a human on the line:
 // no transcript, transcript with only assistant turns, or VAPI's voicemail
 // detector flagged it. Used to override "answered"-looking endedReasons.
@@ -42,20 +53,21 @@ const hasNoHumanInteraction = (call, message) => {
 
   const messageHasUser = messages.some(m => {
     const role = (m?.role || '').toLowerCase();
-    return role === 'user' || role === 'customer';
+    return HUMAN_ROLES.has(role);
   });
   if (messageHasUser) return false;
 
-  // Transcript may be a string ("Agent: ...\nUser: ...") or an array of
-  // turn objects ([{role:'user', message:'...'}, ...]).
+  // Transcript may be a string ("Agent: ...\nUser: ...", "BOT: ...\nHUMAN: ...",
+  // optionally prefixed by timestamps like "[00:03.46] HUMAN: …") or an array
+  // of turn objects ([{role:'user', message:'...'}, ...]).
   if (Array.isArray(transcript)) {
     const arrHasUser = transcript.some(t => {
       const role = (t?.role || '').toLowerCase();
-      return role === 'user' || role === 'customer';
+      return HUMAN_ROLES.has(role);
     });
     if (arrHasUser) return false;
   } else if (typeof transcript === 'string' && transcript.trim()) {
-    if (/(^|\n)\s*(user|customer)\s*:/i.test(transcript)) return false;
+    if (HUMAN_LABEL_RE.test(transcript)) return false;
   }
 
   return true;
