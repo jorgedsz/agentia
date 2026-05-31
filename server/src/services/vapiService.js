@@ -162,9 +162,15 @@ class VapiService {
       url,
       name,
       description,
-      body,
       timeoutSeconds: timeout
     };
+
+    // VAPI rejects body=`{type:'object', properties:{}}` with
+    // "properties must have at least one property", so omit body entirely
+    // when there are no fields. Same rule was already applied to headers.
+    if (body?.properties && Object.keys(body.properties).length > 0) {
+      vapiTool.body = body;
+    }
 
     if (headers?.properties && Object.keys(headers.properties).length > 0) {
       vapiTool.headers = headers;

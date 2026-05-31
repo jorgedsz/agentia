@@ -2236,8 +2236,11 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         return
       }
 
-      // Build body JSON Schema from httpBodyFields array
-      let body = { type: 'object', properties: {} }
+      // Build body JSON Schema from httpBodyFields array. VAPI rejects
+      // `{ type: 'object', properties: {} }` with "properties must have at
+      // least one property", so we omit body entirely when there are no
+      // fields. Same shape rule applies to headers.
+      let body = null
       const validBodyFields = (toolForm.httpBodyFields || []).filter(f => f.key.trim())
       if (validBodyFields.length > 0) {
         const props = {}
@@ -2247,8 +2250,7 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         body = { type: 'object', properties: props }
       }
 
-      // Build headers schema from httpHeaders array
-      let headers
+      let headers = null
       const validHeaders = (toolForm.httpHeaders || []).filter(h => h.key.trim())
       if (validHeaders.length > 0) {
         const properties = {}
@@ -2264,8 +2266,8 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         description: toolForm.functionDescription,
         method: toolForm.httpMethod || 'POST',
         url: toolForm.webhookUrl,
-        headers: headers || { type: 'object', properties: {} },
-        body,
+        ...(headers ? { headers } : {}),
+        ...(body ? { body } : {}),
         async: toolForm.async,
         timeoutSeconds: 20
       }
