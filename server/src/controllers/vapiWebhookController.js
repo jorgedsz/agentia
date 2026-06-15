@@ -749,6 +749,13 @@ const handleEvent = async (req, res) => {
         data: { vapiCredits: { decrement: cost } }
       });
       console.log(`[VAPI Webhook] Billed user ${userId}: $${cost.toFixed(4)}`);
+
+      // 5b. Auto-recharge if the new balance dropped below the user's threshold.
+      // Fire-and-forget: Whop settles async and the webhook adds the credits.
+      const { triggerAutoRecharge } = require('./creditsController');
+      triggerAutoRecharge(prisma, userId).catch(err =>
+        console.error('[Auto-Recharge] trigger failed:', err.message)
+      );
     }
 
     // 6. GHL CRM post-call actions (fire-and-forget)

@@ -297,9 +297,235 @@ const purchaseCredits = async (req, res) => {
   }
 };
 
+// ──────────────────────────────────────────────────────────────────────────
+// Auto-recharge (Whop off-session charges)
+// ──────────────────────────────────────────────────────────────────────────
+
+const AUTO_RECHARGE_COOLDOWN_MS = 5 * 60 * 1000; // min gap between auto charges
+const AUTO_RECHARGE_DAILY_CAP = 5;               // max auto charges per 24h (safety)
+
+/**
+ * Charge a user's saved Whop card off-session and record a PENDING CreditPurchase
+ * keyed by the inline one-time plan id. The existing payment.succeeded webhook
+ * credits the balance via that plan id (no reliance on Whop metadata).
+ * Returns the Whop payment object. Throws if the user has no saved card.
+ */
+async function performOffSessionCharge(prisma, user, amount, kind) {
+  if (!user.whopMemberId || !user.whopPaymentMethodId) {
+    const err = new Error('No saved payment method');
+    err.code = 'NO_CARD';
+    throw err;
+  }
+
+  const whopService = require('../services/whopService');
+  const payment = await whopService.chargeOffSession({
+    memberId: user.whopMemberId,
+    paymentMethodId: user.whopPaymentMethodId,
+    amount,
+    metadata: { userId: String(user.id), type: 'credits', kind, credits: String(amount) },
+  });
+
+  const planId = payment.plan?.id || payment.plan_id || null;
+  await prisma.creditPurchase.create({
+    data: {
+      userId: user.id,
+      amount,
+      credits: amount,
+      status: 'pending',
+      kind,
+      whopPlanId: planId,
+    },
+  }).catch((e) => console.error('[Credits] Failed to record pending off-session purchase:', e.message));
+
+  return payment;
+}
+
+/**
+ * Evaluate and fire auto-recharge for a user. Safe to call fire-and-forget after
+ * billing a call. Applies all guardrails (enabled, threshold, cooldown, daily
+ * cap, pending lock) and silently no-ops when any fails. Never throws.
+ */
+async function triggerAutoRecharge(prisma, userId) {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return;
+    if (!user.autoRechargeEnabled) return;
+    if (!user.whopMemberId || !user.whopPaymentMethodId) return;
+    const threshold = user.autoRechargeThreshold;
+    const amount = user.autoRechargeAmount;
+    if (!(threshold > 0) || !(amount > 0)) return;
+    if (user.vapiCredits >= threshold) return;
+
+    // Cooldown — avoid rapid repeat charges while a charge settles.
+    if (user.autoRechargeLastAt && (Date.now() - new Date(user.autoRechargeLastAt).getTime()) < AUTO_RECHARGE_COOLDOWN_MS) {
+      return;
+    }
+
+    // Lock — don't fire if a previous auto charge is still pending.
+    const pending = await prisma.creditPurchase.findFirst({
+      where: { userId, kind: 'auto_recharge', status: 'pending' },
+    });
+    if (pending) return;
+
+    // Daily cap — bound the number of auto charges in any 24h window.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentCount = await prisma.creditPurchase.count({
+      where: { userId, kind: 'auto_recharge', createdAt: { gte: since } },
+    });
+    if (recentCount >= AUTO_RECHARGE_DAILY_CAP) {
+      console.warn(`[Auto-Recharge] Daily cap reached for user ${userId}, skipping`);
+      return;
+    }
+
+    // Stamp the attempt time first so the cooldown/lock holds even if the call is slow.
+    await prisma.user.update({ where: { id: userId }, data: { autoRechargeLastAt: new Date() } });
+
+    await performOffSessionCharge(prisma, user, amount, 'auto_recharge');
+    console.log(`[Auto-Recharge] Charged user ${userId} $${amount} (balance was $${user.vapiCredits.toFixed(2)} < $${threshold})`);
+  } catch (err) {
+    console.error(`[Auto-Recharge] Failed for user ${userId}:`, err.response?.data || err.message);
+  }
+}
+
+/**
+ * Create a setup-mode Whop checkout so the customer can vault a card without
+ * being charged. Returns { sessionId } for the WhopCheckoutEmbed.
+ * POST /api/credits/setup-card
+ */
+const setupCard = async (req, res) => {
+  try {
+    if (!process.env.WHOP_API_KEY) {
+      return res.status(400).json({ error: 'Payment processing is not configured' });
+    }
+    const whopService = require('../services/whopService');
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const session = await whopService.createSetupCheckout({
+      metadata: { userId: String(req.user.id), type: 'setup' },
+      redirectUrl: `${clientUrl}/credits?setup=success`,
+    });
+    res.json({ sessionId: session.id, purchaseUrl: session.purchase_url });
+  } catch (error) {
+    console.error('Error creating setup checkout:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to start card setup' });
+  }
+};
+
+/**
+ * Get the requester's auto-recharge config and whether a card is on file.
+ * GET /api/credits/auto-recharge
+ */
+const getAutoRecharge = async (req, res) => {
+  try {
+    const user = await req.prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        autoRechargeEnabled: true,
+        autoRechargeThreshold: true,
+        autoRechargeAmount: true,
+        whopPaymentMethodId: true,
+      },
+    });
+    res.json({
+      enabled: !!user?.autoRechargeEnabled,
+      threshold: user?.autoRechargeThreshold ?? null,
+      amount: user?.autoRechargeAmount ?? null,
+      hasCard: !!user?.whopPaymentMethodId,
+      min: CREDITS_MIN_AMOUNT,
+      max: CREDITS_MAX_AMOUNT,
+    });
+  } catch (error) {
+    console.error('Error getting auto-recharge config:', error.message);
+    res.status(500).json({ error: 'Failed to load auto-recharge settings' });
+  }
+};
+
+/**
+ * Update the requester's own auto-recharge config (self-service).
+ * PUT /api/credits/auto-recharge
+ * Body: { enabled: boolean, threshold: number, amount: number }
+ */
+const updateAutoRecharge = async (req, res) => {
+  try {
+    const { enabled, threshold, amount } = req.body;
+
+    const user = await req.prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { whopPaymentMethodId: true },
+    });
+
+    if (enabled) {
+      if (!user?.whopPaymentMethodId) {
+        return res.status(400).json({ error: 'Add a payment method before enabling auto-recharge.' });
+      }
+      const t = parseFloat(threshold);
+      const a = Math.round(parseFloat(amount) * 100) / 100;
+      if (!Number.isFinite(t) || t < 0) {
+        return res.status(400).json({ error: 'Threshold must be 0 or greater.' });
+      }
+      if (!Number.isFinite(a) || a < CREDITS_MIN_AMOUNT || a > CREDITS_MAX_AMOUNT) {
+        return res.status(400).json({ error: `Recharge amount must be between $${CREDITS_MIN_AMOUNT} and $${CREDITS_MAX_AMOUNT}.` });
+      }
+      await req.prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          autoRechargeEnabled: true,
+          autoRechargeThreshold: t,
+          autoRechargeAmount: a,
+          autoRechargeFailCount: 0, // re-enabling clears prior failures
+        },
+      });
+    } else {
+      await req.prisma.user.update({
+        where: { id: req.user.id },
+        data: { autoRechargeEnabled: false },
+      });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating auto-recharge config:', error.message);
+    res.status(500).json({ error: 'Failed to save auto-recharge settings' });
+  }
+};
+
+/**
+ * One-click manual recharge using the saved card (off-session).
+ * POST /api/credits/recharge-now
+ * Body: { amount: number }
+ */
+const rechargeNow = async (req, res) => {
+  try {
+    if (!process.env.WHOP_API_KEY) {
+      return res.status(400).json({ error: 'Payment processing is not configured' });
+    }
+    const amount = Math.round(parseFloat(req.body?.amount) * 100) / 100;
+    if (!Number.isFinite(amount) || amount < CREDITS_MIN_AMOUNT || amount > CREDITS_MAX_AMOUNT) {
+      return res.status(400).json({ error: `Amount must be between $${CREDITS_MIN_AMOUNT} and $${CREDITS_MAX_AMOUNT}.` });
+    }
+
+    const user = await req.prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user?.whopMemberId || !user?.whopPaymentMethodId) {
+      return res.status(400).json({ error: 'No saved payment method. Add a card first.' });
+    }
+
+    await performOffSessionCharge(req.prisma, user, amount, 'manual_card');
+    // Whop settles asynchronously; the webhook adds the credits.
+    res.json({ success: true, amount, message: 'Payment processing. Credits will appear shortly.' });
+  } catch (error) {
+    console.error('Error in manual recharge:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to charge saved card' });
+  }
+};
+
 module.exports = {
   getCredits,
   updateCredits,
   listCredits,
-  purchaseCredits
+  purchaseCredits,
+  setupCard,
+  getAutoRecharge,
+  updateAutoRecharge,
+  rechargeNow,
+  triggerAutoRecharge,
+  performOffSessionCharge,
 };

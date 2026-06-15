@@ -1,7 +1,10 @@
 import { WhopCheckoutEmbed } from '@whop/checkout/react'
 import { useLanguage } from '../../context/LanguageContext'
 
-export default function WhopCheckoutModal({ planId, sessionId, userEmail, onComplete, onClose }) {
+// `title` overrides the header (e.g. "Save card" for setup mode). In setup mode
+// pass only `sessionId` (no `planId`): the embed collects/vaults the card
+// without charging.
+export default function WhopCheckoutModal({ planId, sessionId, userEmail, title, onComplete, onClose }) {
   const { t } = useLanguage()
 
   return (
@@ -9,7 +12,7 @@ export default function WhopCheckoutModal({ planId, sessionId, userEmail, onComp
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-lg max-h-[90vh] overflow-auto">
         <div className="p-4 border-b border-gray-200 dark:border-dark-border flex justify-between items-center">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {t('payments.completePayment') || 'Complete Payment'}
+            {title || t('payments.completePayment') || 'Complete Payment'}
           </h3>
           <button
             onClick={onClose}
@@ -20,10 +23,10 @@ export default function WhopCheckoutModal({ planId, sessionId, userEmail, onComp
         </div>
         <div className="p-4">
           <WhopCheckoutEmbed
-            planId={planId}
+            {...(planId ? { planId } : {})}
             {...(sessionId ? { sessionId } : {})}
             {...(userEmail ? { prefill: { email: userEmail }, disableEmail: true } : {})}
-            onComplete={({ receiptId }) => onComplete(receiptId)}
+            onComplete={(data) => onComplete(data?.receiptId)}
             onStateChange={(state) => {
               if (state === 'disabled') {
                 // Plan not available or error

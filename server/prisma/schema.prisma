@@ -37,6 +37,14 @@ model User {
   planPrice          Float?             // Monthly plan price for any account type
   portalToken        String?           @unique // Shareable read-only portal token
   whopCustomerId    String?            // Whop customer/user ID
+  // ── Auto-recharge (Whop off-session charges) ──
+  whopMemberId          String?        // Whop member id (mber_xxx) from setup_intent.succeeded
+  whopPaymentMethodId   String?        // Whop saved payment method id (payt_xxx) for off-session charges
+  autoRechargeEnabled   Boolean        @default(false) // Auto top-up when balance drops below threshold
+  autoRechargeThreshold Float?         // Trigger when vapiCredits < this value
+  autoRechargeAmount    Float?         // Dollars to charge per auto top-up
+  autoRechargeLastAt    DateTime?      // Last auto-recharge attempt (cooldown / daily-cap guard)
+  autoRechargeFailCount Int            @default(0) // Consecutive failed charges; auto-disables after N
   whitelabelId      Int?               // If AGENCY, belongs to this whitelabel
   whitelabel        User?              @relation("WhitelabelAgencies", fields: [whitelabelId], references: [id])
   agencies          User[]             @relation("WhitelabelAgencies") // If WHITELABEL, these are their agencies
@@ -590,6 +598,7 @@ model CreditPurchase {
   amount              Float    // USD amount paid
   credits             Float    // Credits added (equal to amount)
   status              String   // "completed", "pending", "failed"
+  kind                String   @default("manual") // "manual" (hosted checkout), "manual_card" (off-session 1-click), "auto_recharge"
   rawPayload          String?
   whopPaymentId       String?  // Whop payment ID for this credit purchase
   whopPlanId          String?  // Unique one-time Whop plan created for this purchase. The reliable link from the webhook back to this user (metadata isn't propagated by Whop, email may not match).

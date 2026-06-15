@@ -58,6 +58,50 @@ async function createCheckoutSession({ planId, metadata, redirectUrl }) {
   return data;
 }
 
+// ── Setup checkout (vault a card without charging) ──
+
+// Creates a checkout configuration in "setup" mode. The customer enters their
+// card once (no charge); on completion Whop fires `setup_intent.succeeded` with
+// the saved payment_method.id and member.id, which we store for off-session
+// charges. Returns the configuration ({ id, purchase_url, ... }); id is passed
+// to the WhopCheckoutEmbed as `sessionId`.
+async function createSetupCheckout({ metadata, redirectUrl }) {
+  const body = {
+    company_id: process.env.WHOP_COMPANY_ID,
+    mode: 'setup',
+    metadata: metadata || {},
+    redirect_url: redirectUrl || undefined,
+  };
+
+  const { data } = await axios.post(`${WHOP_API_BASE}/checkout_configurations`, body, { headers: getHeaders() });
+  return data;
+}
+
+// ── Off-session charge (auto-recharge / manual 1-click) ──
+
+// Charges a previously-saved payment method without the customer present. Whop
+// returns a payment object immediately (status "processing") and settles
+// asynchronously — success/failure arrives via the payment.succeeded /
+// payment.failed webhooks. An inline one-time plan keeps each charge keyed by a
+// unique plan id, so the existing webhook attribution (CreditPurchase pending
+// row → vapiCredits increment) works unchanged.
+async function chargeOffSession({ memberId, paymentMethodId, amount, metadata }) {
+  const body = {
+    company_id: process.env.WHOP_COMPANY_ID,
+    member_id: memberId,
+    payment_method_id: paymentMethodId,
+    plan: {
+      initial_price: amount,
+      currency: 'usd',
+      plan_type: 'one_time',
+    },
+    metadata: metadata || {},
+  };
+
+  const { data } = await axios.post(`${WHOP_API_BASE}/payments`, body, { headers: getHeaders() });
+  return data;
+}
+
 // ── Memberships ──
 
 async function getMembership(membershipId) {
@@ -95,6 +139,8 @@ module.exports = {
   createProduct,
   createPlan,
   createCheckoutSession,
+  createSetupCheckout,
+  chargeOffSession,
   getMembership,
   cancelMembership,
   verifyWebhook,

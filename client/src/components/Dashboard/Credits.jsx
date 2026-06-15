@@ -27,10 +27,27 @@ export default function Credits() {
   const [success, setSuccess] = useState('')
   const [searchParams] = useSearchParams()
 
+  // Auto-recharge + saved card (self-service)
+  const [ar, setAr] = useState({ enabled: false, threshold: '', amount: '', hasCard: false, min: 1, max: 10000 })
+  const [arSaving, setArSaving] = useState(false)
+  const [setupModal, setSetupModal] = useState(null) // { sessionId }
+  const [setupLoading, setSetupLoading] = useState(false)
+  const [rechargeAmount, setRechargeAmount] = useState('')
+  const [rechargeLoading, setRechargeLoading] = useState(false)
+
   useEffect(() => {
     fetchCredits()
     fetchTiers()
+    fetchAutoRecharge()
   }, [])
+
+  // Detect card-setup success from redirect fallback
+  useEffect(() => {
+    if (searchParams.get('setup') === 'success') {
+      setSuccess('Payment method saved.')
+      fetchAutoRecharge()
+    }
+  }, [searchParams])
 
   // Detect checkout success from redirect
   useEffect(() => {
@@ -127,6 +144,85 @@ export default function Credits() {
     setTimeout(() => fetchCredits(), 2000)
   }
 
+  const fetchAutoRecharge = async () => {
+    try {
+      const { data } = await creditsAPI.getAutoRecharge()
+      setAr({
+        enabled: !!data.enabled,
+        threshold: data.threshold ?? '',
+        amount: data.amount ?? '',
+        hasCard: !!data.hasCard,
+        min: data.min || 1,
+        max: data.max || 10000,
+      })
+    } catch {
+      // Endpoint unavailable (e.g. Whop not configured) — leave defaults.
+    }
+  }
+
+  const handleAddCard = async () => {
+    setSetupLoading(true)
+    setError(null)
+    try {
+      const { data } = await creditsAPI.setupCard()
+      if (data.sessionId) setSetupModal({ sessionId: data.sessionId })
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to start card setup')
+    } finally {
+      setSetupLoading(false)
+    }
+  }
+
+  const handleSetupComplete = () => {
+    setSetupModal(null)
+    setSuccess('Payment method saved.')
+    setTimeout(() => fetchAutoRecharge(), 2000)
+  }
+
+  const handleSaveAutoRecharge = async () => {
+    if (ar.enabled) {
+      const th = parseFloat(ar.threshold)
+      const amt = parseFloat(ar.amount)
+      if (!Number.isFinite(th) || th < 0) { setError('Ingresa un umbral válido (0 o mayor).'); return }
+      if (!Number.isFinite(amt) || amt < ar.min || amt > ar.max) {
+        setError(`El monto de recarga debe estar entre $${ar.min} y $${ar.max}.`); return
+      }
+    }
+    setArSaving(true)
+    setError(null)
+    try {
+      await creditsAPI.updateAutoRecharge({
+        enabled: ar.enabled,
+        threshold: parseFloat(ar.threshold),
+        amount: parseFloat(ar.amount),
+      })
+      setSuccess('Auto-recarga actualizada.')
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save auto-recharge')
+    } finally {
+      setArSaving(false)
+    }
+  }
+
+  const handleRechargeNow = async () => {
+    const amt = parseFloat(rechargeAmount)
+    if (!Number.isFinite(amt) || amt < ar.min || amt > ar.max) {
+      setError(`Ingresa un monto entre $${ar.min} y $${ar.max}.`); return
+    }
+    setRechargeLoading(true)
+    setError(null)
+    try {
+      await creditsAPI.rechargeNow(amt)
+      setSuccess('Cobro en proceso. Los créditos aparecerán en breve.')
+      setRechargeAmount('')
+      setTimeout(() => fetchCredits(), 3000)
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to charge saved card')
+    } finally {
+      setRechargeLoading(false)
+    }
+  }
+
   const getRoleBadgeColor = (role) => {
     switch (role) {
       case 'OWNER':
@@ -177,6 +273,128 @@ export default function Credits() {
         <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
           {error}
           <button onClick={() => setError(null)} className="ml-2 underline">{t('common.dismiss')}</button>
+        </div>
+      )}
+
+      {/* Auto-recharge / saved card (self-service) */}
+      {creditConfig.enabled && (
+        <div className="mb-6 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {t('credits.autoRecharge') || 'Auto-recarga'}
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {t('credits.autoRechargeDesc') || 'Cuando tu saldo baje del umbral, cobramos tu tarjeta guardada automáticamente.'}
+              </p>
+            </div>
+            <span className={`px-2 py-1 text-xs font-medium rounded-full ${ar.hasCard ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+              {ar.hasCard ? (t('credits.cardOnFile') || 'Tarjeta guardada') : (t('credits.noCard') || 'Sin tarjeta')}
+            </span>
+          </div>
+
+          {!ar.hasCard ? (
+            <button
+              onClick={handleAddCard}
+              disabled={setupLoading}
+              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {setupLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
+              {t('credits.addCard') || 'Agregar tarjeta'}
+            </button>
+          ) : (
+            <div className="space-y-5">
+              {/* Toggle */}
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={ar.enabled}
+                  onChange={(e) => setAr(s => ({ ...s, enabled: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t('credits.enableAutoRecharge') || 'Activar auto-recarga'}
+                </span>
+              </label>
+
+              {ar.enabled && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      {t('credits.threshold') || 'Recargar cuando baje de (USD)'}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">$</span>
+                      <input
+                        type="number" inputMode="decimal" min="0" step="1"
+                        value={ar.threshold}
+                        onChange={(e) => { setAr(s => ({ ...s, threshold: e.target.value })); setError(null) }}
+                        className="w-full pl-7 pr-3 py-2.5 rounded-lg bg-white dark:bg-dark-bg border border-gray-300 dark:border-dark-border text-gray-900 dark:text-white focus:outline-none focus:border-primary-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                      {t('credits.rechargeAmount') || 'Monto a recargar (USD)'}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">$</span>
+                      <input
+                        type="number" inputMode="decimal" min={ar.min} max={ar.max} step="1"
+                        value={ar.amount}
+                        onChange={(e) => { setAr(s => ({ ...s, amount: e.target.value })); setError(null) }}
+                        className="w-full pl-7 pr-3 py-2.5 rounded-lg bg-white dark:bg-dark-bg border border-gray-300 dark:border-dark-border text-gray-900 dark:text-white focus:outline-none focus:border-primary-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <button
+                  onClick={handleSaveAutoRecharge}
+                  disabled={arSaving}
+                  className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {arSaving ? (t('common.updating') || 'Guardando...') : (t('common.save') || 'Guardar')}
+                </button>
+                <button
+                  onClick={handleAddCard}
+                  disabled={setupLoading}
+                  className="px-4 py-2 border border-gray-300 dark:border-dark-border rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors disabled:opacity-50"
+                >
+                  {t('credits.changeCard') || 'Cambiar tarjeta'}
+                </button>
+              </div>
+
+              {/* 1-click manual recharge with the saved card */}
+              <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  {t('credits.rechargeNow') || 'Recargar ahora con tarjeta guardada'}
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1 max-w-[200px]">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">$</span>
+                    <input
+                      type="number" inputMode="decimal" min={ar.min} max={ar.max} step="1"
+                      value={rechargeAmount}
+                      onChange={(e) => { setRechargeAmount(e.target.value); setError(null) }}
+                      placeholder={String(ar.min)}
+                      className="w-full pl-7 pr-3 py-2.5 rounded-lg bg-white dark:bg-dark-bg border border-gray-300 dark:border-dark-border text-gray-900 dark:text-white focus:outline-none focus:border-primary-500"
+                    />
+                  </div>
+                  <button
+                    onClick={handleRechargeNow}
+                    disabled={rechargeLoading || !rechargeAmount}
+                    className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {rechargeLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
+                    {t('credits.rechargeNowBtn') || 'Recargar ahora'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -257,6 +475,17 @@ export default function Credits() {
           userEmail={user?.email}
           onComplete={handleCheckoutComplete}
           onClose={() => setCheckoutModal(null)}
+        />
+      )}
+
+      {/* Whop Setup (save card) Modal */}
+      {setupModal && (
+        <WhopCheckoutModal
+          sessionId={setupModal.sessionId}
+          userEmail={user?.email}
+          title={t('credits.addCard') || 'Agregar tarjeta'}
+          onComplete={handleSetupComplete}
+          onClose={() => setSetupModal(null)}
         />
       )}
 
