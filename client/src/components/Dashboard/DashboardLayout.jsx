@@ -728,6 +728,7 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
   const [arSaving, setArSaving] = useState(false)
   const [rechargeLoading, setRechargeLoading] = useState(false)
   const [arMsg, setArMsg] = useState('')
+  const [confirmRecharge, setConfirmRecharge] = useState(null) // amount pending confirmation
 
   const fetchAr = () => {
     creditsAPI.getAutoRecharge()
@@ -826,12 +827,20 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
     }
   }
 
-  const handleRechargeNow = async () => {
-    // Charge the "Monto a recargar" field (ar.amount), not the top buy field.
-    const amt = parseFloat(ar.amount)
-    if (!Number.isFinite(amt) || amt < ar.min || amt > ar.max) {
-      setError(`Ingresa un monto entre $${ar.min} y $${ar.max} en "Monto a recargar".`); return
+  // "Recharge now" uses the top amount field (same as Buy Credits) and asks for
+  // confirmation before charging the saved card off-session.
+  const requestRecharge = () => {
+    const amt = parseFloat(amount)
+    if (!Number.isFinite(amt) || amt < config.min || amt > config.max) {
+      setError(`Ingresa un monto entre $${config.min} y $${config.max}.`); return
     }
+    setError('')
+    setConfirmRecharge(amt)
+  }
+
+  const confirmRechargeNow = async () => {
+    const amt = confirmRecharge
+    setConfirmRecharge(null)
     setRechargeLoading(true)
     setError('')
     try {
@@ -871,6 +880,7 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
   }
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) closeModal() }}>
       <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
@@ -943,17 +953,31 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                   ))}
                 </div>
               )}
-              <button
-                onClick={handleBuy}
-                disabled={buyLoading || !amount}
-                className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {buyLoading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                ) : (
-                  <>{t('credits.buyCredits') || 'Buy Credits'}</>
+              {/* Buy (hosted checkout) + Recharge now (saved card) — both use the amount above */}
+              <div className={`flex gap-2 ${ar.hasCard ? '' : ''}`}>
+                <button
+                  onClick={handleBuy}
+                  disabled={buyLoading || !amount}
+                  className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {buyLoading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  ) : (
+                    <>{t('credits.buyCredits') || 'Buy Credits'}</>
+                  )}
+                </button>
+                {ar.hasCard && (
+                  <button
+                    onClick={requestRecharge}
+                    disabled={rechargeLoading || !amount}
+                    title={t('credits.rechargeNowHint') || 'Cobra el monto de arriba a tu tarjeta guardada'}
+                    className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {rechargeLoading && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>}
+                    {t('credits.rechargeNowBtn') || 'Recargar ahora'}
+                  </button>
                 )}
-              </button>
+              </div>
 
               {/* ── Auto-recharge / saved card ── */}
               <div className="mt-5 pt-5 border-t border-gray-200 dark:border-dark-border">
@@ -1031,24 +1055,13 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                       </div>
                     )}
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleSaveAr}
-                        disabled={arSaving}
-                        className="flex-1 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                      >
-                        {arSaving ? (t('common.updating') || 'Guardando...') : (t('common.save') || 'Guardar')}
-                      </button>
-                      <button
-                        onClick={handleRechargeNow}
-                        disabled={rechargeLoading || !ar.amount}
-                        title={t('credits.rechargeNowHint') || 'Cobra el "Monto a recargar" a tu tarjeta guardada'}
-                        className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {rechargeLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
-                        {t('credits.rechargeNowBtn') || 'Recargar ahora'}
-                      </button>
-                    </div>
+                    <button
+                      onClick={handleSaveAr}
+                      disabled={arSaving}
+                      className="w-full py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      {arSaving ? (t('common.updating') || 'Guardando...') : (t('common.save') || 'Guardar')}
+                    </button>
                     <button
                       onClick={handleAddCard}
                       disabled={setupLoading}
@@ -1064,5 +1077,34 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
         </div>
       </div>
     </div>
+
+    {/* Confirm off-session charge */}
+    {confirmRecharge != null && (
+      <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setConfirmRecharge(null) }}>
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+            {t('credits.confirmRechargeTitle') || 'Confirmar recarga'}
+          </h3>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">
+            {(t('credits.confirmRechargeBody') || 'Se cobrarán ${amount} a tu tarjeta guardada.').replace('{amount}', confirmRecharge)}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setConfirmRecharge(null)}
+              className="flex-1 py-2.5 border border-gray-300 dark:border-dark-border rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+            >
+              {t('common.cancel') || 'Cancelar'}
+            </button>
+            <button
+              onClick={confirmRechargeNow}
+              className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              {(t('credits.confirmRechargeBtn') || 'Cobrar ${amount}').replace('{amount}', confirmRecharge)}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
