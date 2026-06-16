@@ -636,7 +636,7 @@
     "rechargeAmountShort": "Recharge amount",
     "rechargeNow": "Recharge now with saved card",
     "rechargeNowBtn": "Recharge now",
-    "rechargeNowHint": "Charges the amount above to your saved card",
+    "rechargeNowHint": "Charges the \"Recharge amount\" to your saved card",
     "autoRechargeSaved": "Auto-recharge updated.",
     "rechargeProcessing": "Payment processing. Credits will appear shortly.",
     "creditAmount": "Amount (USD)",

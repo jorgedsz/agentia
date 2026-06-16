@@ -827,9 +827,10 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
   }
 
   const handleRechargeNow = async () => {
-    const amt = parseFloat(amount)
+    // Charge the "Monto a recargar" field (ar.amount), not the top buy field.
+    const amt = parseFloat(ar.amount)
     if (!Number.isFinite(amt) || amt < ar.min || amt > ar.max) {
-      setError(`Ingresa un monto entre $${ar.min} y $${ar.max}.`); return
+      setError(`Ingresa un monto entre $${ar.min} y $${ar.max} en "Monto a recargar".`); return
     }
     setRechargeLoading(true)
     setError('')
@@ -1040,8 +1041,8 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                       </button>
                       <button
                         onClick={handleRechargeNow}
-                        disabled={rechargeLoading || !amount}
-                        title={t('credits.rechargeNowHint') || 'Cobra el monto de arriba a tu tarjeta guardada'}
+                        disabled={rechargeLoading || !ar.amount}
+                        title={t('credits.rechargeNowHint') || 'Cobra el "Monto a recargar" a tu tarjeta guardada'}
                         className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {rechargeLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
