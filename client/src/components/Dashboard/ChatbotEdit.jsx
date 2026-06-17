@@ -93,8 +93,8 @@ export default function ChatbotEdit() {
     description: '',
     method: 'POST',
     url: '',
-    headers: '',
-    body: '',
+    httpHeaders: [],     // [{ key, value }]
+    httpBodyFields: [],  // [{ key, type, description }] — model extracts each value from the chat
     timeoutSeconds: 20
   })
 
@@ -1278,11 +1278,24 @@ export default function ChatbotEdit() {
       url: toolForm.url,
       timeoutSeconds: toolForm.timeoutSeconds
     }
-    if (toolForm.headers) {
-      try { newTool.headers = JSON.parse(toolForm.headers) } catch {}
+
+    // Body params → JSON Schema. n8n turns each property into a {placeholder}
+    // the model fills from the conversation, guided by the description.
+    const validBodyFields = (toolForm.httpBodyFields || []).filter(f => f.key.trim())
+    if (validBodyFields.length > 0) {
+      const props = {}
+      validBodyFields.forEach(f => {
+        props[f.key.trim()] = { type: f.type || 'string', ...(f.description ? { description: f.description } : {}) }
+      })
+      newTool.body = { type: 'object', properties: props }
     }
-    if (toolForm.body) {
-      try { newTool.body = JSON.parse(toolForm.body) } catch {}
+
+    // Headers → flat key/value object (n8n sends tool.headers directly as JSON headers).
+    const validHeaders = (toolForm.httpHeaders || []).filter(h => h.key.trim())
+    if (validHeaders.length > 0) {
+      const headers = {}
+      validHeaders.forEach(h => { headers[h.key.trim()] = String(h.value) })
+      newTool.headers = headers
     }
 
     if (editingToolIndex !== null) {
@@ -1294,19 +1307,35 @@ export default function ChatbotEdit() {
     }
     setShowToolEditModal(false)
     setEditingToolIndex(null)
-    setToolForm({ type: 'apiRequest', name: '', description: '', method: 'POST', url: '', headers: '', body: '', timeoutSeconds: 20 })
+    setToolForm({ type: 'apiRequest', name: '', description: '', method: 'POST', url: '', httpHeaders: [], httpBodyFields: [], timeoutSeconds: 20 })
   }
 
   const handleEditTool = (index) => {
     const tool = tools[index]
+    // Body JSON Schema → rows
+    const bodyFields = []
+    if (tool.body?.properties) {
+      Object.entries(tool.body.properties).forEach(([k, v]) => {
+        bodyFields.push({ key: k, type: v.type || 'string', description: v.description || '' })
+      })
+    }
+    // Headers → rows. Supports both the flat shape {key: value} and the legacy
+    // voice shape { type:'object', properties:{ key:{ value } } }.
+    const headerRows = []
+    if (tool.headers && typeof tool.headers === 'object') {
+      const src = (tool.headers.type === 'object' && tool.headers.properties) ? tool.headers.properties : tool.headers
+      Object.entries(src).forEach(([k, v]) => {
+        headerRows.push({ key: k, value: (v && typeof v === 'object') ? (v.value || '') : String(v) })
+      })
+    }
     setToolForm({
       type: tool.type || 'apiRequest',
       name: tool.name || '',
       description: tool.description || '',
       method: tool.method || 'POST',
       url: tool.url || '',
-      headers: tool.headers ? JSON.stringify(tool.headers, null, 2) : '',
-      body: tool.body ? JSON.stringify(tool.body, null, 2) : '',
+      httpHeaders: headerRows,
+      httpBodyFields: bodyFields,
       timeoutSeconds: tool.timeoutSeconds || 20
     })
     setEditingToolIndex(index)
@@ -3325,15 +3354,115 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
                   />
                 </div>
               </div>
+              {/* Headers — dynamic key/value rows */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.bodyJsonSchema')}</label>
-                <textarea
-                  value={toolForm.body}
-                  onChange={(e) => setToolForm({ ...toolForm, body: e.target.value })}
-                  placeholder='{"type":"object","properties":{"query":{"type":"string"}}}'
-                  rows={3}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm font-mono resize-none"
-                />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.headers')}</label>
+                <div className="space-y-2">
+                  {(toolForm.httpHeaders || []).map((header, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={header.key}
+                        onChange={(e) => {
+                          const updated = [...toolForm.httpHeaders]
+                          updated[idx] = { ...updated[idx], key: e.target.value }
+                          setToolForm({ ...toolForm, httpHeaders: updated })
+                        }}
+                        placeholder={t('chatbotEdit.headerKey')}
+                        className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                      <input
+                        type="text"
+                        value={header.value}
+                        onChange={(e) => {
+                          const updated = [...toolForm.httpHeaders]
+                          updated[idx] = { ...updated[idx], value: e.target.value }
+                          setToolForm({ ...toolForm, httpHeaders: updated })
+                        }}
+                        placeholder={t('chatbotEdit.headerValue')}
+                        className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setToolForm({ ...toolForm, httpHeaders: toolForm.httpHeaders.filter((_, i) => i !== idx) })}
+                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setToolForm({ ...toolForm, httpHeaders: [...(toolForm.httpHeaders || []), { key: '', value: '' }] })}
+                    className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center gap-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    {t('chatbotEdit.addHeader')}
+                  </button>
+                </div>
+              </div>
+
+              {/* Request Body Parameters — dynamic rows; the model extracts each value from the chat */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.requestBodyParams')}</label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t('chatbotEdit.paramsHint')}</p>
+                <div className="space-y-2">
+                  {(toolForm.httpBodyFields || []).map((field, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={field.key}
+                        onChange={(e) => {
+                          const updated = [...toolForm.httpBodyFields]
+                          updated[idx] = { ...updated[idx], key: e.target.value }
+                          setToolForm({ ...toolForm, httpBodyFields: updated })
+                        }}
+                        placeholder={t('chatbotEdit.paramName')}
+                        className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                      <select
+                        value={field.type}
+                        onChange={(e) => {
+                          const updated = [...toolForm.httpBodyFields]
+                          updated[idx] = { ...updated[idx], type: e.target.value }
+                          setToolForm({ ...toolForm, httpBodyFields: updated })
+                        }}
+                        className="w-28 px-2 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="string">string</option>
+                        <option value="number">number</option>
+                        <option value="integer">integer</option>
+                        <option value="boolean">boolean</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={field.description}
+                        onChange={(e) => {
+                          const updated = [...toolForm.httpBodyFields]
+                          updated[idx] = { ...updated[idx], description: e.target.value }
+                          setToolForm({ ...toolForm, httpBodyFields: updated })
+                        }}
+                        placeholder={t('chatbotEdit.paramDescription')}
+                        className="flex-[2] px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setToolForm({ ...toolForm, httpBodyFields: toolForm.httpBodyFields.filter((_, i) => i !== idx) })}
+                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setToolForm({ ...toolForm, httpBodyFields: [...(toolForm.httpBodyFields || []), { key: '', type: 'string', description: '' }] })}
+                    className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center gap-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    {t('chatbotEdit.addParameter')}
+                  </button>
+                </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button
