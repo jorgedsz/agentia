@@ -1285,7 +1285,15 @@ export default function ChatbotEdit() {
     if (validBodyFields.length > 0) {
       const props = {}
       validBodyFields.forEach(f => {
-        props[f.key.trim()] = { type: f.type || 'string', ...(f.description ? { description: f.description } : {}) }
+        const prop = { type: f.type || 'string' }
+        if ((f.source || 'ai') === 'variable' && (f.variable || '').trim()) {
+          // Bound to a webhook variable — n8n fills it from context, not the model.
+          prop.source = 'variable'
+          prop.variable = f.variable.trim()
+        } else if (f.description) {
+          prop.description = f.description
+        }
+        props[f.key.trim()] = prop
       })
       newTool.body = { type: 'object', properties: props }
     }
@@ -1316,7 +1324,13 @@ export default function ChatbotEdit() {
     const bodyFields = []
     if (tool.body?.properties) {
       Object.entries(tool.body.properties).forEach(([k, v]) => {
-        bodyFields.push({ key: k, type: v.type || 'string', description: v.description || '' })
+        bodyFields.push({
+          key: k,
+          type: v.type || 'string',
+          description: v.description || '',
+          source: v.source === 'variable' ? 'variable' : 'ai',
+          variable: v.variable || ''
+        })
       })
     }
     // Headers → rows. Supports both the flat shape {key: value} and the legacy
@@ -3407,56 +3421,81 @@ ${variables.map(v => `    "${v.name}": "${v.defaultValue || ''}"`).join(',\n')}`
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('chatbotEdit.requestBodyParams')}</label>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{t('chatbotEdit.paramsHint')}</p>
                 <div className="space-y-2">
-                  {(toolForm.httpBodyFields || []).map((field, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={field.key}
-                        onChange={(e) => {
-                          const updated = [...toolForm.httpBodyFields]
-                          updated[idx] = { ...updated[idx], key: e.target.value }
-                          setToolForm({ ...toolForm, httpBodyFields: updated })
-                        }}
-                        placeholder={t('chatbotEdit.paramName')}
-                        className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                      <select
-                        value={field.type}
-                        onChange={(e) => {
-                          const updated = [...toolForm.httpBodyFields]
-                          updated[idx] = { ...updated[idx], type: e.target.value }
-                          setToolForm({ ...toolForm, httpBodyFields: updated })
-                        }}
-                        className="w-28 px-2 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="string">string</option>
-                        <option value="number">number</option>
-                        <option value="integer">integer</option>
-                        <option value="boolean">boolean</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={field.description}
-                        onChange={(e) => {
-                          const updated = [...toolForm.httpBodyFields]
-                          updated[idx] = { ...updated[idx], description: e.target.value }
-                          setToolForm({ ...toolForm, httpBodyFields: updated })
-                        }}
-                        placeholder={t('chatbotEdit.paramDescription')}
-                        className="flex-[2] px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setToolForm({ ...toolForm, httpBodyFields: toolForm.httpBodyFields.filter((_, i) => i !== idx) })}
-                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
-                    </div>
-                  ))}
+                  {(toolForm.httpBodyFields || []).map((field, idx) => {
+                    const source = field.source || 'ai'
+                    const setField = (patch) => {
+                      const updated = [...toolForm.httpBodyFields]
+                      updated[idx] = { ...updated[idx], ...patch }
+                      setToolForm({ ...toolForm, httpBodyFields: updated })
+                    }
+                    return (
+                      <div key={idx} className="p-2.5 rounded-lg border border-gray-200 dark:border-dark-border space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={field.key}
+                            onChange={(e) => setField({ key: e.target.value })}
+                            placeholder={t('chatbotEdit.paramName')}
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          />
+                          <select
+                            value={field.type}
+                            onChange={(e) => setField({ type: e.target.value })}
+                            className="w-24 px-2 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          >
+                            <option value="string">string</option>
+                            <option value="number">number</option>
+                            <option value="integer">integer</option>
+                            <option value="boolean">boolean</option>
+                          </select>
+                          <select
+                            value={source}
+                            onChange={(e) => setField({ source: e.target.value })}
+                            className="w-40 px-2 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          >
+                            <option value="ai">{t('chatbotEdit.paramSourceAi')}</option>
+                            <option value="variable">{t('chatbotEdit.paramSourceVariable')}</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => setToolForm({ ...toolForm, httpBodyFields: toolForm.httpBodyFields.filter((_, i) => i !== idx) })}
+                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>
+                        </div>
+                        {source === 'variable' ? (
+                          <input
+                            type="text"
+                            list="chatbot-webhook-vars"
+                            value={field.variable || ''}
+                            onChange={(e) => setField({ variable: e.target.value })}
+                            placeholder={t('chatbotEdit.variableNamePlaceholder')}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={field.description || ''}
+                            onChange={(e) => setField({ description: e.target.value })}
+                            placeholder={t('chatbotEdit.paramDescription')}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+                  <datalist id="chatbot-webhook-vars">
+                    <option value="contactId" />
+                    <option value="contactName" />
+                    <option value="contactPhone" />
+                    <option value="contactEmail" />
+                    <option value="sessionId" />
+                    <option value="message" />
+                  </datalist>
                   <button
                     type="button"
-                    onClick={() => setToolForm({ ...toolForm, httpBodyFields: [...(toolForm.httpBodyFields || []), { key: '', type: 'string', description: '' }] })}
+                    onClick={() => setToolForm({ ...toolForm, httpBodyFields: [...(toolForm.httpBodyFields || []), { key: '', type: 'string', description: '', source: 'ai', variable: '' }] })}
                     className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center gap-1"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
