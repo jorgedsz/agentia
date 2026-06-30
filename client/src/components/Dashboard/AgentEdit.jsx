@@ -541,6 +541,7 @@ export default function AgentEdit() {
   const [voiceSettings, setVoiceSettings] = useState({
     model: 'eleven_multilingual_v2',
     cartesiaLanguage: '',
+    cartesiaSpeed: '',
     stability: 0.5,
     similarityBoost: 0.75,
     speed: 1,
@@ -1076,6 +1077,7 @@ export default function AgentEdit() {
             ? (agentData.config.cartesiaModel || 'sonic-2')
             : (agentData.config.elevenLabsModel || 'eleven_multilingual_v2'),
           cartesiaLanguage: agentData.config.cartesiaLanguage || '',
+          cartesiaSpeed: agentData.config.cartesiaSpeed || '',
           stability: agentData.config.stability ?? 0.5,
           similarityBoost: agentData.config.similarityBoost ?? 0.75,
           speed: agentData.config.speed ?? 1,
@@ -1940,6 +1942,7 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
           // ElevenLabs model id to Cartesia, which VAPI would reject).
           cartesiaModel: (voiceProvider === 'cartesia' && /^sonic/.test(voiceSettings.model || '')) ? voiceSettings.model : undefined,
           cartesiaLanguage: voiceProvider === 'cartesia' ? (voiceSettings.cartesiaLanguage || undefined) : undefined,
+          cartesiaSpeed: voiceProvider === 'cartesia' ? (voiceSettings.cartesiaSpeed || undefined) : undefined,
           stability: voiceSettings.stability,
           similarityBoost: voiceSettings.similarityBoost,
           speed: voiceSettings.speed,
@@ -5138,6 +5141,23 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                         ))}
                       </select>
                       <p className="text-xs text-gray-400 mt-1">Recomendado con Sonic Multilingual (ej. Español).</p>
+                    </div>
+                  )}
+                  {voiceProvider === 'cartesia' && (
+                    <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Velocidad (Cartesia)</label>
+                      <select
+                        value={voiceSettings.cartesiaSpeed}
+                        onChange={(e) => setVoiceSettings({ ...voiceSettings, cartesiaSpeed: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="">Normal (predeterminado)</option>
+                        <option value="slowest">Más lenta</option>
+                        <option value="slow">Lenta</option>
+                        <option value="fast">Rápida</option>
+                        <option value="fastest">Más rápida</option>
+                      </select>
+                      <p className="text-xs text-gray-400 mt-1">Control experimental de Cartesia (puede no aplicar en todas las voces).</p>
                     </div>
                   )}
                 </div>
