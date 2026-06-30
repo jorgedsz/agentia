@@ -244,7 +244,7 @@ const STT_LATENCY = {
   talkscriber: 1000,
   cartesia: 750,
 }
-const TTS_LATENCY = { '11labs': 500 }
+const TTS_LATENCY = { '11labs': 500, cartesia: 200 }
 
 // MODELS_BY_PROVIDER imported from constants/models.js
 
@@ -269,6 +269,7 @@ function getModelLatency(provider, model, voiceProv, sttProv) {
 
 const VOICE_PROVIDERS = [
   { id: '11labs', label: 'ElevenLabs', icon: '||' },
+  { id: 'cartesia', label: 'Cartesia', icon: '🌊' },
 ]
 
 
