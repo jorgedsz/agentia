@@ -1236,6 +1236,7 @@
     "msgDelayed": "Si tarda",
     "msgDelayedPh": "Sigo trabajando en ello, un segundo…",
     "msgDelayedAfter": "después de (seg)",
+    "addDelayed": "Agregar mensaje de espera",
     "msgComplete": "Al completar",
     "msgCompletePh": "Listo, ya lo tengo.",
     "msgFailed": "Si falla",
