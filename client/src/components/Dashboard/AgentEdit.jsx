@@ -565,7 +565,13 @@ export default function AgentEdit() {
     httpHeaders: [],
     httpBodyFields: [],
     async: false,
-    endCallMessage: ''
+    endCallMessage: '',
+    timeoutSeconds: 20,
+    msgStart: '',
+    msgDelayed: '',
+    msgDelayedSec: 10,
+    msgComplete: '',
+    msgFailed: ''
   })
   const [testRequestState, setTestRequestState] = useState({
     loading: false,
@@ -2146,7 +2152,13 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
       httpHeaders: [],
       httpBodyFields: [],
       async: false,
-      endCallMessage: ''
+      endCallMessage: '',
+      timeoutSeconds: 20,
+      msgStart: '',
+      msgDelayed: '',
+      msgDelayedSec: 10,
+      msgComplete: '',
+      msgFailed: ''
     })
     setTestRequestState({ loading: false, expanded: false, testFields: [], result: null, error: null })
   }
@@ -2178,6 +2190,10 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
           bodyFields.push({ key: k, type: v.type || 'string', description: v.description || '' })
         })
       }
+      // Parse VAPI tool messages (spoken while the tool runs) into form fields.
+      const msgs = Array.isArray(tool.messages) ? tool.messages : []
+      const msgOf = (tp) => msgs.find(m => m.type === tp)?.content || ''
+      const delayed = msgs.find(m => m.type === 'request-response-delayed')
       setToolForm({
         type: 'apiRequest',
         functionName: tool.name || '',
@@ -2187,7 +2203,13 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         httpHeaders: headersArr,
         httpBodyFields: bodyFields,
         async: tool.async || false,
-        endCallMessage: ''
+        endCallMessage: '',
+        timeoutSeconds: tool.timeoutSeconds || 20,
+        msgStart: msgOf('request-start'),
+        msgDelayed: msgOf('request-response-delayed'),
+        msgDelayedSec: delayed?.timingMilliseconds ? Math.round(delayed.timingMilliseconds / 1000) : 10,
+        msgComplete: msgOf('request-complete'),
+        msgFailed: msgOf('request-failed')
       })
     } else if (tool.type === 'function') {
       // Backward compat: load old function tools as apiRequest for editing
@@ -2207,7 +2229,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         httpHeaders: [],
         httpBodyFields: bodyFields,
         async: tool.async || false,
-        endCallMessage: ''
+        endCallMessage: '',
+        timeoutSeconds: tool.timeoutSeconds || 20,
+        msgStart: '', msgDelayed: '', msgDelayedSec: 10, msgComplete: '', msgFailed: ''
       })
     } else if (tool.type === 'endCall') {
       setToolForm({
@@ -2219,7 +2243,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         httpHeaders: [],
         httpBodyFields: [],
         async: false,
-        endCallMessage: tool.messages?.[0]?.content || ''
+        endCallMessage: tool.messages?.[0]?.content || '',
+        timeoutSeconds: 20,
+        msgStart: '', msgDelayed: '', msgDelayedSec: 10, msgComplete: '', msgFailed: ''
       })
     }
 
@@ -2260,6 +2286,16 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         headers = { type: 'object', properties }
       }
 
+      // Messages spoken while the tool runs (optional).
+      const messages = []
+      if (toolForm.msgStart?.trim()) messages.push({ type: 'request-start', content: toolForm.msgStart.trim() })
+      if (toolForm.msgDelayed?.trim()) messages.push({ type: 'request-response-delayed', content: toolForm.msgDelayed.trim(), timingMilliseconds: (parseInt(toolForm.msgDelayedSec) || 10) * 1000 })
+      if (toolForm.msgComplete?.trim()) messages.push({ type: 'request-complete', content: toolForm.msgComplete.trim() })
+      if (toolForm.msgFailed?.trim()) messages.push({ type: 'request-failed', content: toolForm.msgFailed.trim() })
+
+      // Clamp timeout to VAPI's allowed range (1–300s).
+      const timeoutSeconds = Math.min(300, Math.max(1, parseInt(toolForm.timeoutSeconds) || 20))
+
       newTool = {
         type: 'apiRequest',
         name: toolForm.functionName,
@@ -2268,8 +2304,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         url: toolForm.webhookUrl,
         ...(headers ? { headers } : {}),
         ...(body ? { body } : {}),
+        ...(messages.length ? { messages } : {}),
         async: toolForm.async,
-        timeoutSeconds: 20
+        timeoutSeconds
       }
     } else if (toolForm.type === 'endCall') {
       newTool = { type: 'endCall' }
@@ -3603,6 +3640,72 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${!toolForm.async ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
+                  </div>
+
+                  {/* Timeout */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('toolTimeout')}</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number" min={1} max={300} value={toolForm.timeoutSeconds}
+                        onChange={(e) => setToolForm({ ...toolForm, timeoutSeconds: e.target.value })}
+                        className="w-28 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">s</span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{ta('toolTimeoutDesc')}</p>
+                  </div>
+
+                  {/* Messages spoken while the tool runs */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{ta('toolMessages')}</label>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{ta('toolMessagesDesc')}</p>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ta('msgStart')}</label>
+                        <input
+                          type="text" value={toolForm.msgStart}
+                          onChange={(e) => setToolForm({ ...toolForm, msgStart: e.target.value })}
+                          placeholder={ta('msgStartPh')}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ta('msgDelayed')}</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text" value={toolForm.msgDelayed}
+                            onChange={(e) => setToolForm({ ...toolForm, msgDelayed: e.target.value })}
+                            placeholder={ta('msgDelayedPh')}
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          />
+                          <span className="text-xs text-gray-400 whitespace-nowrap">{ta('msgDelayedAfter')}</span>
+                          <input
+                            type="number" min={1} value={toolForm.msgDelayedSec}
+                            onChange={(e) => setToolForm({ ...toolForm, msgDelayedSec: e.target.value })}
+                            className="w-16 px-2 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ta('msgComplete')}</label>
+                        <input
+                          type="text" value={toolForm.msgComplete}
+                          onChange={(e) => setToolForm({ ...toolForm, msgComplete: e.target.value })}
+                          placeholder={ta('msgCompletePh')}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ta('msgFailed')}</label>
+                        <input
+                          type="text" value={toolForm.msgFailed}
+                          onChange={(e) => setToolForm({ ...toolForm, msgFailed: e.target.value })}
+                          placeholder={ta('msgFailedPh')}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Test Request Section */}

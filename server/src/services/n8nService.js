@@ -164,7 +164,7 @@ class N8nService {
       typeVersion: 2,
       position: [400, 300],
       parameters: {
-        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nconst now = new Date();\nresolved += '\\n\\nCurrent date and time: ' + now.toISOString() + ' (' + now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }) + ')';\nconst contactId = $json.body?.contactId || $json.body?.sessionId || "";\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: contactId, contactName: $json.body?.contactName || "", contactPhone: $json.body?.contactPhone || "", contactEmail: $json.body?.contactEmail || "", _testMode: $json.body?._testMode || false } }];`
+        jsCode: `const systemPromptTemplate = \`${systemPromptText}\`;\nconst variables = $json.body?.variables || {};\nlet resolved = systemPromptTemplate;\nfor (const [key, value] of Object.entries(variables)) {\n  resolved = resolved.replaceAll('{{' + key + '}}', value);\n}\nconst now = new Date();\nresolved += '\\n\\nCurrent date and time: ' + now.toISOString() + ' (' + now.toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' }) + ')';\nconst contactId = $json.body?.contactId || $json.body?.sessionId || "";\nreturn [{ json: { resolvedSystemPrompt: resolved, message: $json.body?.message || $json.body?.text || "", sessionId: $json.body?.sessionId || "default", contactId: contactId, contactName: $json.body?.contactName || "", contactPhone: $json.body?.contactPhone || "", contactEmail: $json.body?.contactEmail || "", vars: Object.assign({}, $json.body || {}, $json.body?.variables || {}), _testMode: $json.body?._testMode || false } }];`
       }
     };
     nodes.push(resolveVarsNode);
@@ -242,23 +242,31 @@ class N8nService {
         // Only required props become placeholders; the rest are dropped from the
         // schema and from the body template entirely (contactPhone/contactName for
         // GHL are still forwarded via the URL-level append in the tool URL).
+        // Properties split into two kinds:
+        //  - AI params: the model fills them ({placeholder} + placeholderDefinitions)
+        //  - bound vars: filled from the webhook context (propDef.source === 'variable')
         const placeholderBody = {};
         const placeholderDefs = [];
+        const boundEntries = []; // [{ key, varName }]
         if (bodyObj && bodyObj.type === 'object' && bodyObj.properties) {
           const requiredList = Array.isArray(bodyObj.required) ? bodyObj.required : Object.keys(bodyObj.properties);
           const requiredSet = new Set(requiredList);
           for (const [propName, propDef] of Object.entries(bodyObj.properties)) {
             if (!requiredSet.has(propName)) continue;
-            placeholderBody[propName] = `{${propName}}`;
-            placeholderDefs.push({
-              name: propName,
-              description: propDef.description || propName,
-              type: propDef.type || 'string'
-            });
+            if (propDef.source === 'variable' && propDef.variable) {
+              boundEntries.push({ key: propName, varName: String(propDef.variable) });
+            } else {
+              placeholderBody[propName] = `{${propName}}`;
+              placeholderDefs.push({
+                name: propName,
+                description: propDef.description || propName,
+                type: propDef.type || 'string'
+              });
+            }
           }
         }
 
-        const hasBody = placeholderDefs.length > 0 || !!(tool.body);
+        const hasBody = placeholderDefs.length > 0 || boundEntries.length > 0 || !!(tool.body);
 
         // For GHL book-appointment tools and GHL CRM tools, inject the inbound
         // contact details from the webhook into the URL. We pass contactPhone
@@ -294,9 +302,24 @@ class N8nService {
 
         if (hasBody) {
           toolNode.parameters.specifyBody = 'json';
-          toolNode.parameters.jsonBody = placeholderDefs.length > 0
-            ? JSON.stringify(placeholderBody)
-            : (typeof tool.body === 'string' ? tool.body : JSON.stringify(tool.body || {}));
+          if (boundEntries.length > 0) {
+            // Mixed body: bound vars pulled from the webhook context + AI
+            // placeholders. Built as an n8n expression so context values resolve
+            // at call time; the {placeholder} tokens are still replaced by the
+            // agent from placeholderDefinitions.
+            const parts = [];
+            for (const b of boundEntries) {
+              parts.push(`${JSON.stringify(b.key)}: ($('Resolve Variables').first().json.vars[${JSON.stringify(b.varName)}] ?? "")`);
+            }
+            for (const k of Object.keys(placeholderBody)) {
+              parts.push(`${JSON.stringify(k)}: ${JSON.stringify(placeholderBody[k])}`);
+            }
+            toolNode.parameters.jsonBody = `={{ JSON.stringify({ ${parts.join(', ')} }) }}`;
+          } else {
+            toolNode.parameters.jsonBody = placeholderDefs.length > 0
+              ? JSON.stringify(placeholderBody)
+              : (typeof tool.body === 'string' ? tool.body : JSON.stringify(tool.body || {}));
+          }
         }
 
         if (placeholderDefs.length > 0) {
