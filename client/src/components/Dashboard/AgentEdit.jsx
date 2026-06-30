@@ -1071,7 +1071,9 @@ export default function AgentEdit() {
       // Load voice settings
       if (agentData.config) {
         setVoiceSettings({
-          model: agentData.config.elevenLabsModel || 'eleven_multilingual_v2',
+          model: savedProvider === 'cartesia'
+            ? (agentData.config.cartesiaModel || 'sonic-2')
+            : (agentData.config.elevenLabsModel || 'eleven_multilingual_v2'),
           stability: agentData.config.stability ?? 0.5,
           similarityBoost: agentData.config.similarityBoost ?? 0.75,
           speed: agentData.config.speed ?? 1,
@@ -1932,6 +1934,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
           chatbotTriggerConfig,
           // Voice settings
           elevenLabsModel: voiceSettings.model,
+          // Cartesia model only when a Sonic model is selected (avoids sending an
+          // ElevenLabs model id to Cartesia, which VAPI would reject).
+          cartesiaModel: (voiceProvider === 'cartesia' && /^sonic/.test(voiceSettings.model || '')) ? voiceSettings.model : undefined,
           stability: voiceSettings.stability,
           similarityBoost: voiceSettings.similarityBoost,
           speed: voiceSettings.speed,
@@ -5090,13 +5095,18 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                   <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('tipVoiceModel')}</div>
                 )}
                 <div className="px-5 pb-5 space-y-3">
-                  {[
+                  {(voiceProvider === 'cartesia' ? [
+                    { value: 'sonic-2', label: 'Sonic 2', desc: 'Última · multilingüe · baja latencia' },
+                    { value: 'sonic-turbo', label: 'Sonic Turbo', desc: 'La más rápida' },
+                    { value: 'sonic-multilingual', label: 'Sonic Multilingual', desc: 'Multilingüe' },
+                    { value: 'sonic-english', label: 'Sonic English', desc: 'Solo inglés' },
+                  ] : [
                     { value: 'eleven_multilingual_v2', label: ta('voiceModelMultilingualV2'), desc: ta('voiceModelMultilingualV2Desc') },
                     { value: 'eleven_flash_v2_5', label: ta('voiceModelFlashV25'), desc: ta('voiceModelFlashV25Desc') },
                     { value: 'eleven_flash_v2', label: ta('voiceModelFlashV2'), desc: ta('voiceModelFlashV2Desc') },
                     { value: 'eleven_turbo_v2_5', label: ta('voiceModelTurboV25'), desc: ta('voiceModelTurboV25Desc') },
                     { value: 'eleven_turbo_v2', label: ta('voiceModelTurboV2'), desc: ta('voiceModelTurboV2Desc') }
-                  ].map(model => (
+                  ]).map(model => (
                     <button
                       key={model.value}
                       onClick={() => setVoiceSettings({ ...voiceSettings, model: model.value })}
