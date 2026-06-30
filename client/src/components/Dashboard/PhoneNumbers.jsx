@@ -24,6 +24,7 @@ export default function PhoneNumbers() {
   const [retrying, setRetrying] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [twilioBalance, setTwilioBalance] = useState(null)
   // Import by SIP trunk
   const [showSipModal, setShowSipModal] = useState(false)
   const [sipForm, setSipForm] = useState({ number: '', name: '', sipGateway: '', sipUsername: '', sipPassword: '' })
@@ -95,6 +96,10 @@ export default function PhoneNumbers() {
     } finally {
       setLoading(false)
     }
+    // Twilio balance (non-blocking) — shown when there's a Twilio number/credential.
+    telephonyAPI.getBalances()
+      .then(r => setTwilioBalance(typeof r.data?.twilio === 'number' ? r.data.twilio : null))
+      .catch(() => {})
   }
 
   const verifiedCreds = credentials.filter(c => c.isVerified)
@@ -376,6 +381,11 @@ export default function PhoneNumbers() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('phoneNumbers.title')}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('phoneNumbers.subtitle')}</p>
+            {twilioBalance !== null && phoneNumbers.some(n => n.provider === 'twilio') && (
+              <span className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">
+                Saldo Twilio: ${twilioBalance.toFixed(2)}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
