@@ -464,7 +464,7 @@ class VapiService {
       };
       if (config.cartesiaModel) voiceConfig.model = config.cartesiaModel;
       if (config.cartesiaLanguage) voiceConfig.language = config.cartesiaLanguage;
-      if (config.speed !== undefined) voiceConfig.speed = config.speed;
+      // Note: VAPI's Cartesia voice does not accept `speed` — omit it.
       console.log('Voice config being sent to VAPI:', JSON.stringify(voiceConfig, null, 2));
       return voiceConfig;
     }
