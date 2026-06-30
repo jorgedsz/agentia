@@ -244,7 +244,7 @@ const STT_LATENCY = {
   talkscriber: 1000,
   cartesia: 750,
 }
-const TTS_LATENCY = { '11labs': 500 }
+const TTS_LATENCY = { '11labs': 500, cartesia: 200 }
 
 // MODELS_BY_PROVIDER imported from constants/models.js
 
@@ -269,6 +269,7 @@ function getModelLatency(provider, model, voiceProv, sttProv) {
 
 const VOICE_PROVIDERS = [
   { id: '11labs', label: 'ElevenLabs', icon: '||' },
+  { id: 'cartesia', label: 'Cartesia', icon: '🌊' },
 ]
 
 
@@ -539,6 +540,7 @@ export default function AgentEdit() {
   // Voice settings (ElevenLabs)
   const [voiceSettings, setVoiceSettings] = useState({
     model: 'eleven_multilingual_v2',
+    cartesiaLanguage: '',
     stability: 0.5,
     similarityBoost: 0.75,
     speed: 1,
@@ -568,8 +570,7 @@ export default function AgentEdit() {
     endCallMessage: '',
     timeoutSeconds: 20,
     msgStart: '',
-    msgDelayed: '',
-    msgDelayedSec: 10,
+    delayedMsgs: [],
     msgComplete: '',
     msgFailed: ''
   })
@@ -1071,7 +1072,10 @@ export default function AgentEdit() {
       // Load voice settings
       if (agentData.config) {
         setVoiceSettings({
-          model: agentData.config.elevenLabsModel || 'eleven_multilingual_v2',
+          model: savedProvider === 'cartesia'
+            ? (agentData.config.cartesiaModel || 'sonic-2')
+            : (agentData.config.elevenLabsModel || 'eleven_multilingual_v2'),
+          cartesiaLanguage: agentData.config.cartesiaLanguage || '',
           stability: agentData.config.stability ?? 0.5,
           similarityBoost: agentData.config.similarityBoost ?? 0.75,
           speed: agentData.config.speed ?? 1,
@@ -1932,6 +1936,10 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
           chatbotTriggerConfig,
           // Voice settings
           elevenLabsModel: voiceSettings.model,
+          // Cartesia model only when a Sonic model is selected (avoids sending an
+          // ElevenLabs model id to Cartesia, which VAPI would reject).
+          cartesiaModel: (voiceProvider === 'cartesia' && /^sonic/.test(voiceSettings.model || '')) ? voiceSettings.model : undefined,
+          cartesiaLanguage: voiceProvider === 'cartesia' ? (voiceSettings.cartesiaLanguage || undefined) : undefined,
           stability: voiceSettings.stability,
           similarityBoost: voiceSettings.similarityBoost,
           speed: voiceSettings.speed,
@@ -2193,7 +2201,6 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
       // Parse VAPI tool messages (spoken while the tool runs) into form fields.
       const msgs = Array.isArray(tool.messages) ? tool.messages : []
       const msgOf = (tp) => msgs.find(m => m.type === tp)?.content || ''
-      const delayed = msgs.find(m => m.type === 'request-response-delayed')
       setToolForm({
         type: 'apiRequest',
         functionName: tool.name || '',
@@ -2206,8 +2213,7 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         endCallMessage: '',
         timeoutSeconds: tool.timeoutSeconds || 20,
         msgStart: msgOf('request-start'),
-        msgDelayed: msgOf('request-response-delayed'),
-        msgDelayedSec: delayed?.timingMilliseconds ? Math.round(delayed.timingMilliseconds / 1000) : 10,
+        delayedMsgs: msgs.filter(m => m.type === 'request-response-delayed').slice(0, 3).map(m => ({ content: m.content || '', sec: m.timingMilliseconds ? Math.round(m.timingMilliseconds / 1000) : 10 })),
         msgComplete: msgOf('request-complete'),
         msgFailed: msgOf('request-failed')
       })
@@ -2231,7 +2237,7 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         async: tool.async || false,
         endCallMessage: '',
         timeoutSeconds: tool.timeoutSeconds || 20,
-        msgStart: '', msgDelayed: '', msgDelayedSec: 10, msgComplete: '', msgFailed: ''
+        msgStart: '', delayedMsgs: [], msgComplete: '', msgFailed: ''
       })
     } else if (tool.type === 'endCall') {
       setToolForm({
@@ -2245,7 +2251,7 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         async: false,
         endCallMessage: tool.messages?.[0]?.content || '',
         timeoutSeconds: 20,
-        msgStart: '', msgDelayed: '', msgDelayedSec: 10, msgComplete: '', msgFailed: ''
+        msgStart: '', delayedMsgs: [], msgComplete: '', msgFailed: ''
       })
     }
 
@@ -2289,7 +2295,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
       // Messages spoken while the tool runs (optional).
       const messages = []
       if (toolForm.msgStart?.trim()) messages.push({ type: 'request-start', content: toolForm.msgStart.trim() })
-      if (toolForm.msgDelayed?.trim()) messages.push({ type: 'request-response-delayed', content: toolForm.msgDelayed.trim(), timingMilliseconds: (parseInt(toolForm.msgDelayedSec) || 10) * 1000 })
+      ;(toolForm.delayedMsgs || []).forEach(dm => {
+        if (dm.content?.trim()) messages.push({ type: 'request-response-delayed', content: dm.content.trim(), timingMilliseconds: (parseInt(dm.sec) || 10) * 1000 })
+      })
       if (toolForm.msgComplete?.trim()) messages.push({ type: 'request-complete', content: toolForm.msgComplete.trim() })
       if (toolForm.msgFailed?.trim()) messages.push({ type: 'request-failed', content: toolForm.msgFailed.trim() })
 
@@ -3672,19 +3680,40 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                       </div>
                       <div>
                         <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{ta('msgDelayed')}</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text" value={toolForm.msgDelayed}
-                            onChange={(e) => setToolForm({ ...toolForm, msgDelayed: e.target.value })}
-                            placeholder={ta('msgDelayedPh')}
-                            className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                          />
-                          <span className="text-xs text-gray-400 whitespace-nowrap">{ta('msgDelayedAfter')}</span>
-                          <input
-                            type="number" min={1} value={toolForm.msgDelayedSec}
-                            onChange={(e) => setToolForm({ ...toolForm, msgDelayedSec: e.target.value })}
-                            className="w-16 px-2 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                          />
+                        <div className="space-y-2">
+                          {(toolForm.delayedMsgs || []).map((dm, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <input
+                                type="text" value={dm.content}
+                                onChange={(e) => { const arr = [...toolForm.delayedMsgs]; arr[i] = { ...arr[i], content: e.target.value }; setToolForm({ ...toolForm, delayedMsgs: arr }) }}
+                                placeholder={ta('msgDelayedPh')}
+                                className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                              />
+                              <span className="text-xs text-gray-400 whitespace-nowrap">{ta('msgDelayedAfter')}</span>
+                              <input
+                                type="number" min={1} value={dm.sec}
+                                onChange={(e) => { const arr = [...toolForm.delayedMsgs]; arr[i] = { ...arr[i], sec: e.target.value }; setToolForm({ ...toolForm, delayedMsgs: arr }) }}
+                                className="w-16 px-2 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setToolForm({ ...toolForm, delayedMsgs: toolForm.delayedMsgs.filter((_, x) => x !== i) })}
+                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            </div>
+                          ))}
+                          {(toolForm.delayedMsgs || []).length < 3 && (
+                            <button
+                              type="button"
+                              onClick={() => setToolForm({ ...toolForm, delayedMsgs: [...(toolForm.delayedMsgs || []), { content: '', sec: 10 }] })}
+                              className="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium flex items-center gap-1"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                              {ta('addDelayed')}
+                            </button>
+                          )}
                         </div>
                       </div>
                       <div>
@@ -5069,13 +5098,18 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                   <div className="mx-5 mt-1 mb-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">{ta('tipVoiceModel')}</div>
                 )}
                 <div className="px-5 pb-5 space-y-3">
-                  {[
+                  {(voiceProvider === 'cartesia' ? [
+                    { value: 'sonic-2', label: 'Sonic 2', desc: 'Última · multilingüe · baja latencia' },
+                    { value: 'sonic-turbo', label: 'Sonic Turbo', desc: 'La más rápida' },
+                    { value: 'sonic-multilingual', label: 'Sonic Multilingual', desc: 'Multilingüe' },
+                    { value: 'sonic-english', label: 'Sonic English', desc: 'Solo inglés' },
+                  ] : [
                     { value: 'eleven_multilingual_v2', label: ta('voiceModelMultilingualV2'), desc: ta('voiceModelMultilingualV2Desc') },
                     { value: 'eleven_flash_v2_5', label: ta('voiceModelFlashV25'), desc: ta('voiceModelFlashV25Desc') },
                     { value: 'eleven_flash_v2', label: ta('voiceModelFlashV2'), desc: ta('voiceModelFlashV2Desc') },
                     { value: 'eleven_turbo_v2_5', label: ta('voiceModelTurboV25'), desc: ta('voiceModelTurboV25Desc') },
                     { value: 'eleven_turbo_v2', label: ta('voiceModelTurboV2'), desc: ta('voiceModelTurboV2Desc') }
-                  ].map(model => (
+                  ]).map(model => (
                     <button
                       key={model.value}
                       onClick={() => setVoiceSettings({ ...voiceSettings, model: model.value })}
@@ -5090,6 +5124,22 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                       )}
                     </button>
                   ))}
+                  {voiceProvider === 'cartesia' && (
+                    <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Idioma (Cartesia)</label>
+                      <select
+                        value={voiceSettings.cartesiaLanguage}
+                        onChange={(e) => setVoiceSettings({ ...voiceSettings, cartesiaLanguage: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="">Auto</option>
+                        {(TRANSCRIBER_LANGUAGES['cartesia'] || []).map(l => (
+                          <option key={l.id} value={l.id}>{l.label}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-400 mt-1">Recomendado con Sonic Multilingual (ej. Español).</p>
+                    </div>
+                  )}
                 </div>
               </>
             )}

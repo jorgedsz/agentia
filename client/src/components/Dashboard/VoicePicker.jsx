@@ -16,6 +16,7 @@ export default function VoicePicker({ open, onClose, onSelect, selectedVoiceId }
   const [languageFilter, setLanguageFilter] = useState('all')
   const [previewPlayingId, setPreviewPlayingId] = useState(null)
   const [customVoiceIdInput, setCustomVoiceIdInput] = useState('')
+  const [manualProvider, setManualProvider] = useState('11labs')
   const audioRef = useRef(null)
 
   // Fetch + reset when opening
@@ -27,6 +28,7 @@ export default function VoicePicker({ open, onClose, onSelect, selectedVoiceId }
     setAccentFilter('all')
     setLanguageFilter('all')
     setCustomVoiceIdInput('')
+    setManualProvider('11labs')
     if (voices.length === 0) {
       setLoading(true)
       voicesAPI.list()
@@ -231,6 +233,15 @@ export default function VoicePicker({ open, onClose, onSelect, selectedVoiceId }
                   <span className="text-sm font-medium text-gray-900 dark:text-white">{ta('addVoiceManually')}</span>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ta('pasteVoiceIdDesc')}</p>
                 </div>
+                <select
+                  value={manualProvider}
+                  onChange={(e) => setManualProvider(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full mb-1.5 px-2 py-1.5 rounded-md border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="11labs">ElevenLabs</option>
+                  <option value="cartesia">Cartesia</option>
+                </select>
                 <div className="flex items-center gap-1.5">
                   <input
                     type="text"
@@ -245,7 +256,7 @@ export default function VoicePicker({ open, onClose, onSelect, selectedVoiceId }
                     disabled={!customVoiceIdInput.trim()}
                     onClick={(e) => {
                       e.stopPropagation()
-                      onSelect({ provider: '11labs', voiceId: customVoiceIdInput.trim(), isCustom: true })
+                      onSelect({ provider: manualProvider, voiceId: customVoiceIdInput.trim(), isCustom: true })
                       onClose()
                     }}
                     className="px-2.5 py-1.5 rounded-md bg-primary-600 text-white text-xs font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"

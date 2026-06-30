@@ -1236,6 +1236,7 @@
     "msgDelayed": "If it's slow",
     "msgDelayedPh": "Still working on it, one sec…",
     "msgDelayedAfter": "after (sec)",
+    "addDelayed": "Add delay message",
     "msgComplete": "On complete",
     "msgCompletePh": "Done, got it.",
     "msgFailed": "On failure",
