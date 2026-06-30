@@ -290,8 +290,11 @@ model TelephonyCredential {
   // Telnyx fields (encrypted)
   telnyxApiKey      String?       // Encrypted Telnyx API Key (v2)
 
-  // VAPI credential ID (returned by VAPI for Vonage/Telnyx)
+  // VAPI credential ID (returned by VAPI for Vonage/Telnyx/SIP)
   vapiCredentialId  String?
+
+  // SIP trunk (provider = "sip"): the trunk host/IP for the byo-sip-trunk credential
+  sipGateway        String?
 
   isVerified        Boolean       @default(false)
   userId            Int

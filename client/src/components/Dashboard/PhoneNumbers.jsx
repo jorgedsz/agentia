@@ -24,6 +24,58 @@ export default function PhoneNumbers() {
   const [retrying, setRetrying] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [twilioBalance, setTwilioBalance] = useState(null)
+  // Import by SIP trunk
+  const [showSipModal, setShowSipModal] = useState(false)
+  const [sipForm, setSipForm] = useState({ number: '', name: '', sipGateway: '', sipUsername: '', sipPassword: '' })
+  const [sipImporting, setSipImporting] = useState(false)
+  // Direct Twilio import
+  const [showTwilioModal, setShowTwilioModal] = useState(false)
+  const [twForm, setTwForm] = useState({ number: '', name: '', accountSid: '', authToken: '' })
+  const [twImporting, setTwImporting] = useState(false)
+
+  const handleImportTwilio = async () => {
+    if (!twForm.number.trim() || !twForm.accountSid.trim() || !twForm.authToken.trim()) {
+      setError('Número, Account SID y Auth Token son requeridos.'); return
+    }
+    setTwImporting(true); setError('')
+    try {
+      await phoneNumbersAPI.importTwilio({
+        number: twForm.number.trim(),
+        name: twForm.name.trim() || undefined,
+        accountSid: twForm.accountSid.trim(),
+        authToken: twForm.authToken.trim(),
+      })
+      setSuccess(`Número de Twilio ${twForm.number} importado.`)
+      setShowTwilioModal(false)
+      setTwForm({ number: '', name: '', accountSid: '', authToken: '' })
+      fetchData()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al importar el número de Twilio')
+    } finally { setTwImporting(false) }
+  }
+
+  const handleImportSip = async () => {
+    if (!sipForm.number.trim() || !sipForm.sipGateway.trim()) {
+      setError('Número y gateway SIP son requeridos.'); return
+    }
+    setSipImporting(true); setError('')
+    try {
+      await phoneNumbersAPI.importSip({
+        number: sipForm.number.trim(),
+        name: sipForm.name.trim() || undefined,
+        sipGateway: sipForm.sipGateway.trim(),
+        sipUsername: sipForm.sipUsername.trim() || undefined,
+        sipPassword: sipForm.sipPassword || undefined,
+      })
+      setSuccess(`Número SIP ${sipForm.number} importado.`)
+      setShowSipModal(false)
+      setSipForm({ number: '', name: '', sipGateway: '', sipUsername: '', sipPassword: '' })
+      fetchData()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al importar el número SIP')
+    } finally { setSipImporting(false) }
+  }
 
   useEffect(() => { fetchData() }, [])
 
@@ -44,6 +96,10 @@ export default function PhoneNumbers() {
     } finally {
       setLoading(false)
     }
+    // Twilio balance (non-blocking) — shown when there's a Twilio number/credential.
+    telephonyAPI.getBalances()
+      .then(r => setTwilioBalance(typeof r.data?.twilio === 'number' ? r.data.twilio : null))
+      .catch(() => {})
   }
 
   const verifiedCreds = credentials.filter(c => c.isVerified)
@@ -166,9 +222,86 @@ export default function PhoneNumbers() {
     )
   }
 
+  // SIP import modal (rendered in both the empty state and the main view)
+  const fieldCls = "w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+  const sipModal = showSipModal && (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowSipModal(false) }}>
+      <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-200 dark:border-dark-border w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Importar por SIP</h3>
+          <button onClick={() => setShowSipModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none">&times;</button>
+        </div>
+        {error && <div className="mb-3 p-2.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-sm">{error}</div>}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Número (E.164)</label>
+            <input value={sipForm.number} onChange={(e) => setSipForm({ ...sipForm, number: e.target.value })} placeholder="+13055551234" className={fieldCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Gateway / host SIP</label>
+            <input value={sipForm.sipGateway} onChange={(e) => setSipForm({ ...sipForm, sipGateway: e.target.value })} placeholder="sip.tu-proveedor.com" className={fieldCls} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Usuario (opcional)</label>
+              <input value={sipForm.sipUsername} onChange={(e) => setSipForm({ ...sipForm, sipUsername: e.target.value })} className={fieldCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Contraseña (opcional)</label>
+              <input type="password" value={sipForm.sipPassword} onChange={(e) => setSipForm({ ...sipForm, sipPassword: e.target.value })} className={fieldCls} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Nombre (opcional)</label>
+            <input value={sipForm.name} onChange={(e) => setSipForm({ ...sipForm, name: e.target.value })} placeholder="Mi número SIP" className={fieldCls} />
+          </div>
+          <button onClick={handleImportSip} disabled={sipImporting} className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+            {sipImporting ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : 'Importar'}
+          </button>
+          <p className="text-xs text-gray-400">Se crea un trunk SIP en VAPI con este gateway (un trunk por cuenta).</p>
+        </div>
+      </div>
+    </div>
+  )
+
+  const twilioModal = showTwilioModal && (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowTwilioModal(false) }}>
+      <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-200 dark:border-dark-border w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Importar de Twilio</h3>
+          <button onClick={() => setShowTwilioModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none">&times;</button>
+        </div>
+        {error && <div className="mb-3 p-2.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg text-sm">{error}</div>}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Número (E.164)</label>
+            <input value={twForm.number} onChange={(e) => setTwForm({ ...twForm, number: e.target.value })} placeholder="+13055551234" className={fieldCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Account SID</label>
+            <input value={twForm.accountSid} onChange={(e) => setTwForm({ ...twForm, accountSid: e.target.value })} placeholder="ACxxxxxxxx" className={fieldCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Auth Token</label>
+            <input type="password" value={twForm.authToken} onChange={(e) => setTwForm({ ...twForm, authToken: e.target.value })} className={fieldCls} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Nombre (opcional)</label>
+            <input value={twForm.name} onChange={(e) => setTwForm({ ...twForm, name: e.target.value })} placeholder="Mi número Twilio" className={fieldCls} />
+          </div>
+          <button onClick={handleImportTwilio} disabled={twImporting} className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+            {twImporting ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> : 'Importar'}
+          </button>
+          <p className="text-xs text-gray-400">Validamos las credenciales con Twilio y lo importamos a VAPI.</p>
+        </div>
+      </div>
+    </div>
+  )
+
   // No credentials setup
   if (credentials.length === 0) {
     return (
+      <>
       <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-12 text-center">
         <div className="w-16 h-16 bg-gray-100 dark:bg-dark-hover rounded-full flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -177,7 +310,24 @@ export default function PhoneNumbers() {
         </div>
         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">{t('phoneNumbers.setupFirst')}</h3>
         <p className="text-gray-500 dark:text-gray-400 mb-4">{t('phoneNumbers.setupFirstDesc')}</p>
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => { setError(''); setShowTwilioModal(true) }}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+          >
+            Importar de Twilio
+          </button>
+          <button
+            onClick={() => { setError(''); setShowSipModal(true) }}
+            className="px-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-200 rounded-lg hover:border-primary-500/40 transition-colors text-sm font-medium"
+          >
+            Importar por SIP
+          </button>
+        </div>
       </div>
+      {sipModal}
+      {twilioModal}
+      </>
     )
   }
 
@@ -196,6 +346,9 @@ export default function PhoneNumbers() {
           <button onClick={() => setSuccess('')} className="text-green-400 hover:text-green-300 ml-2">&times;</button>
         </div>
       )}
+
+      {sipModal}
+      {twilioModal}
 
       {/* Filter tabs */}
       {activeProviders.length > 1 && (
@@ -228,18 +381,37 @@ export default function PhoneNumbers() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('phoneNumbers.title')}</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('phoneNumbers.subtitle')}</p>
+            {twilioBalance !== null && phoneNumbers.some(n => n.provider === 'twilio') && (
+              <span className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">
+                Saldo Twilio: ${twilioBalance.toFixed(2)}
+              </span>
+            )}
           </div>
-          {verifiedCreds.length > 0 && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={handleOpenImport}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+              onClick={() => { setError(''); setShowTwilioModal(true) }}
+              className="px-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-200 rounded-lg hover:border-primary-500/40 transition-colors text-sm font-medium"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              {t('phoneNumbers.importNumber')}
+              Importar de Twilio
             </button>
-          )}
+            <button
+              onClick={() => { setError(''); setShowSipModal(true) }}
+              className="px-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-200 rounded-lg hover:border-primary-500/40 transition-colors text-sm font-medium"
+            >
+              Importar por SIP
+            </button>
+            {verifiedCreds.length > 0 && (
+              <button
+                onClick={handleOpenImport}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                {t('phoneNumbers.importNumber')}
+              </button>
+            )}
+          </div>
         </div>
 
         {filtered.length === 0 ? (

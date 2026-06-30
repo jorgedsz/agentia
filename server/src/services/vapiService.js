@@ -745,6 +745,42 @@ class VapiService {
   }
 
   /**
+   * Create a BYO SIP trunk credential in VAPI.
+   * @param {Object} cfg - { name, gateway, authUsername?, authPassword? }
+   * @returns {Promise<Object>} VAPI credential ({ id, ... })
+   */
+  async addSipTrunkCredential(cfg) {
+    const payload = {
+      provider: 'byo-sip-trunk',
+      name: cfg.name || 'SIP Trunk',
+      gateways: [{ ip: cfg.gateway }],
+    };
+    if (cfg.authUsername) {
+      payload.outboundAuthenticationPlan = {
+        authUsername: cfg.authUsername,
+        authPassword: cfg.authPassword || '',
+      };
+    }
+    return this.makeRequest('/credential', 'POST', payload);
+  }
+
+  /**
+   * Import a number over a BYO SIP trunk into VAPI.
+   * @param {Object} phoneConfig - { number, credentialId, name? }
+   * @returns {Promise<Object>} VAPI phone number object with id
+   */
+  async importByoNumber(phoneConfig) {
+    const payload = {
+      provider: 'byo-phone-number',
+      number: phoneConfig.number,
+      credentialId: phoneConfig.credentialId,
+      numberE164CheckEnabled: false,
+    };
+    if (phoneConfig.name) payload.name = phoneConfig.name;
+    return this.makeRequest('/phone-number', 'POST', payload);
+  }
+
+  /**
    * Add a Vonage credential to VAPI
    */
   async addVonageCredential(apiKey, apiSecret) {
