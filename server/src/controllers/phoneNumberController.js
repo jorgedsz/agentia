@@ -352,11 +352,68 @@ const retryVapiImport = async (req, res) => {
   }
 };
 
+/**
+ * Import a phone number over a BYO SIP trunk.
+ * POST /api/phone-numbers/import-sip
+ * Body: { number, name?, sipGateway, sipUsername?, sipPassword? }
+ *
+ * Reuses the user's SIP trunk credential (provider "sip"), creating the VAPI
+ * byo-sip-trunk credential on the first import. One SIP trunk per user — to
+ * change it, remove its numbers and the credential first.
+ */
+const importSipNumber = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { number, name, sipGateway, sipUsername, sipPassword } = req.body;
+    if (!number || !sipGateway) {
+      return res.status(400).json({ error: 'number y sipGateway son requeridos' });
+    }
+
+    const vapiKey = await getVapiKeyForUser(req.prisma, userId);
+    if (!vapiKey) return res.status(400).json({ error: 'VAPI API key not configured' });
+    vapiService.setApiKey(vapiKey);
+
+    // Reuse the user's SIP credential or create it on first import.
+    let sipCred = await req.prisma.telephonyCredential.findFirst({ where: { userId, provider: 'sip' } });
+    if (!sipCred || !sipCred.vapiCredentialId) {
+      const vapiCred = await vapiService.addSipTrunkCredential({
+        name: `SIP ${sipGateway}`,
+        gateway: sipGateway,
+        authUsername: sipUsername,
+        authPassword: sipPassword,
+      });
+      sipCred = sipCred
+        ? await req.prisma.telephonyCredential.update({ where: { id: sipCred.id }, data: { vapiCredentialId: vapiCred.id, sipGateway, isVerified: true } })
+        : await req.prisma.telephonyCredential.create({ data: { provider: 'sip', userId, vapiCredentialId: vapiCred.id, sipGateway, isVerified: true } });
+    }
+
+    const vapiNum = await vapiService.importByoNumber({ number, credentialId: sipCred.vapiCredentialId, name });
+
+    const record = await req.prisma.phoneNumber.create({
+      data: {
+        phoneNumber: number,
+        friendlyName: name || null,
+        provider: 'sip',
+        providerPhoneId: null,
+        vapiPhoneNumberId: vapiNum?.id || null,
+        status: vapiNum?.id ? 'active' : 'error',
+        telephonyCredentialId: sipCred.id,
+      },
+    });
+
+    res.status(201).json({ message: 'Número SIP importado', phoneNumber: record });
+  } catch (error) {
+    console.error('Error importing SIP number:', error.response?.data || error.message);
+    res.status(500).json({ error: error.response?.data?.message || error.message || 'Failed to import SIP number' });
+  }
+};
+
 module.exports = {
   listPhoneNumbers,
   listAvailableNumbers,
   importPhoneNumber,
   assignToAgent,
   removePhoneNumber,
-  retryVapiImport
+  retryVapiImport,
+  importSipNumber
 };

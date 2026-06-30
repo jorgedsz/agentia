@@ -15,6 +15,9 @@ router.get('/available/:credentialId', phoneNumberController.listAvailableNumber
 // Import a phone number to VAPI
 router.post('/import', phoneNumberController.importPhoneNumber);
 
+// Import a phone number over a BYO SIP trunk
+router.post('/import-sip', phoneNumberController.importSipNumber);
+
 // Retry VAPI import for a phone number that failed
 router.post('/:id/retry-vapi', phoneNumberController.retryVapiImport);
 

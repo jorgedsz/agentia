@@ -139,6 +139,7 @@ export const phoneNumbersAPI = {
   list: () => api.get('/phone-numbers'),
   listAvailable: (credentialId) => api.get(`/phone-numbers/available/${credentialId}`),
   import: (data) => api.post('/phone-numbers/import', data),
+  importSip: (data) => api.post('/phone-numbers/import-sip', data),
   assignToAgent: (id, agentId) => api.patch(`/phone-numbers/${id}/assign`, { agentId }),
   unassign: (id) => api.patch(`/phone-numbers/${id}/assign`, { agentId: null }),
   remove: (id) => api.delete(`/phone-numbers/${id}`),
