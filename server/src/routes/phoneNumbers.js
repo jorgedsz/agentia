@@ -18,6 +18,9 @@ router.post('/import', phoneNumberController.importPhoneNumber);
 // Import a phone number over a BYO SIP trunk
 router.post('/import-sip', phoneNumberController.importSipNumber);
 
+// Direct Twilio import (paste credentials + number)
+router.post('/import-twilio', phoneNumberController.importTwilioDirect);
+
 // Retry VAPI import for a phone number that failed
 router.post('/:id/retry-vapi', phoneNumberController.retryVapiImport);
 

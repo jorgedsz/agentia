@@ -1,4 +1,4 @@
-const { decrypt } = require('../utils/encryption');
+const { decrypt, encrypt } = require('../utils/encryption');
 const twilioService = require('../services/twilioService');
 const vonageService = require('../services/vonageService');
 const telnyxService = require('../services/telnyxService');
@@ -408,6 +408,74 @@ const importSipNumber = async (req, res) => {
   }
 };
 
+/**
+ * Direct Twilio import: paste Account SID + Auth Token + number and import it
+ * to VAPI in one step (no separate "connect provider" page).
+ * POST /api/phone-numbers/import-twilio
+ * Body: { number, name?, accountSid, authToken }
+ */
+const importTwilioDirect = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { number, name, accountSid, authToken } = req.body;
+    if (!number || !accountSid || !authToken) {
+      return res.status(400).json({ error: 'number, accountSid y authToken son requeridos' });
+    }
+
+    // Validate the Twilio credentials before storing/importing.
+    try {
+      await twilioService.verifyCredentials(accountSid, authToken);
+    } catch (vErr) {
+      return res.status(400).json({ error: vErr.message || 'Credenciales de Twilio inválidas' });
+    }
+
+    // Store (or refresh) the user's Twilio credential.
+    let cred = await req.prisma.telephonyCredential.findFirst({ where: { userId, provider: 'twilio' } });
+    const credData = { accountSid: encrypt(accountSid), authToken: encrypt(authToken), isVerified: true };
+    cred = cred
+      ? await req.prisma.telephonyCredential.update({ where: { id: cred.id }, data: credData })
+      : await req.prisma.telephonyCredential.create({ data: { provider: 'twilio', userId, ...credData } });
+
+    // Import to VAPI.
+    const vapiKey = await getVapiKeyForUser(req.prisma, userId);
+    let vapiPhoneNumberId = null;
+    let status = 'pending';
+    if (vapiKey) {
+      vapiService.setApiKey(vapiKey);
+      try {
+        const existingVapi = await vapiService.findPhoneNumberByNumber(number);
+        if (existingVapi) {
+          vapiPhoneNumberId = existingVapi.id; status = 'active';
+        } else {
+          const vapiNum = await vapiService.importTwilioNumber({ number, twilioAccountSid: accountSid, twilioAuthToken: authToken, name });
+          vapiPhoneNumberId = vapiNum?.id || null;
+          status = vapiPhoneNumberId ? 'active' : 'error';
+        }
+      } catch (vapiErr) {
+        console.error('VAPI Twilio import failed:', vapiErr.message);
+        status = 'error';
+      }
+    }
+
+    const record = await req.prisma.phoneNumber.create({
+      data: {
+        phoneNumber: number,
+        friendlyName: name || null,
+        provider: 'twilio',
+        providerPhoneId: null,
+        vapiPhoneNumberId,
+        status,
+        telephonyCredentialId: cred.id,
+      },
+    });
+
+    res.status(201).json({ message: 'Número de Twilio importado', phoneNumber: record });
+  } catch (error) {
+    console.error('Error importing Twilio number:', error.response?.data || error.message);
+    res.status(500).json({ error: error.message || 'Failed to import Twilio number' });
+  }
+};
+
 module.exports = {
   listPhoneNumbers,
   listAvailableNumbers,
@@ -415,5 +483,6 @@ module.exports = {
   assignToAgent,
   removePhoneNumber,
   retryVapiImport,
-  importSipNumber
+  importSipNumber,
+  importTwilioDirect
 };

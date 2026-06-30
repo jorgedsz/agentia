@@ -140,6 +140,7 @@ export const phoneNumbersAPI = {
   listAvailable: (credentialId) => api.get(`/phone-numbers/available/${credentialId}`),
   import: (data) => api.post('/phone-numbers/import', data),
   importSip: (data) => api.post('/phone-numbers/import-sip', data),
+  importTwilio: (data) => api.post('/phone-numbers/import-twilio', data),
   assignToAgent: (id, agentId) => api.patch(`/phone-numbers/${id}/assign`, { agentId }),
   unassign: (id) => api.patch(`/phone-numbers/${id}/assign`, { agentId: null }),
   remove: (id) => api.delete(`/phone-numbers/${id}`),
