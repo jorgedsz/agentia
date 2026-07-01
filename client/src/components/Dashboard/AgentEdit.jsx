@@ -7245,6 +7245,18 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                 </div>
               )}
 
+              {/* Read-only for non-OWNER: the final charged rate set by the admin. */}
+              {!canPriceAgent && agent?.pricePerMinute != null && (
+                <div className="border-t border-gray-200 dark:border-dark-border pt-4 mt-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Tarifa de este agente</div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                    ${(agent.pricePerMinute * (1 + (agent.profitPercent || 0) / 100)).toFixed(4)}
+                    <span className="text-sm font-normal text-gray-400"> /min</span>
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">Precio fijado por el administrador.</p>
+                </div>
+              )}
+
               {/* OWNER-only: mirror this agent's call activity to an external dashboard. */}
               {user?.role === 'OWNER' && (
                 <div className="border-t border-gray-200 dark:border-dark-border pt-4 mt-2 space-y-3">
