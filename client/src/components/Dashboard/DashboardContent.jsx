@@ -1168,7 +1168,11 @@ function AgentCard({ agent, folders = [], modelRates, transcriberRates, onDelete
   const transcriberRate = agent.config?.transcriberProvider && transcriberRates
     ? transcriberRates[agent.config.transcriberProvider] : null
   const totalRate = (modelRate || 0) + (transcriberRate || 0)
-  const hasRate = modelRate != null || transcriberRate != null
+  const computedHasRate = modelRate != null || transcriberRate != null
+  // Manual per-agent price (set by OWNER) overrides the computed rate.
+  const hasManual = agent.pricePerMinute != null
+  const displayRate = hasManual ? agent.pricePerMinute * (1 + (agent.profitPercent || 0) / 100) : totalRate
+  const hasRate = hasManual || computedHasRate
 
   const displayId = agent.id
   const copyId = () => {
@@ -1192,12 +1196,12 @@ function AgentCard({ agent, folders = [], modelRates, transcriberRates, onDelete
             {hasRate && (
               <span
                 className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-amber-500/30 text-amber-400 bg-amber-500/10"
-                title={`Model: $${(modelRate || 0).toFixed(2)}/min${transcriberRate ? ` + Transcriber: $${transcriberRate.toFixed(2)}/min` : ''}`}
+                title={hasManual ? 'Precio fijado por el administrador' : `Model: $${(modelRate || 0).toFixed(2)}/min${transcriberRate ? ` + Transcriber: $${transcriberRate.toFixed(2)}/min` : ''}`}
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                ${totalRate.toFixed(2)}/min
+                ${displayRate.toFixed(2)}/min
               </span>
             )}
             <span className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border ${
