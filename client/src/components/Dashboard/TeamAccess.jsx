@@ -7,6 +7,24 @@ const TEAM_ROLES = {
   USER: 'user'
 }
 
+// Menu items that can be hidden per team member (ids match DashboardLayout).
+const MANAGEABLE_ITEMS = [
+  { id: 'overview', label: 'Inicio' },
+  { id: 'analytics', label: 'Analítica' },
+  { id: 'agents', label: 'Agentes' },
+  { id: 'voice-library', label: 'Biblioteca de voces' },
+  { id: 'chatbots', label: 'Chatbots' },
+  { id: 'reports', label: 'Reportes' },
+  { id: 'twilio-setup', label: 'Configurar telefonía' },
+  { id: 'phone-numbers', label: 'Números de teléfono' },
+  { id: 'call-logs', label: 'Registro de llamadas' },
+  { id: 'message-logs', label: 'Registro de mensajes' },
+  { id: 'scheduled-calls', label: 'Llamadas programadas' },
+  { id: 'settings', label: 'Ajustes' },
+  { id: 'credentials', label: 'Credenciales' },
+  { id: 'support', label: 'Soporte' },
+]
+
 export default function TeamAccess() {
   const { isTeamMember, teamMember } = useAuth()
   const [members, setMembers] = useState([])
@@ -17,7 +35,8 @@ export default function TeamAccess() {
     email: '',
     password: '',
     name: '',
-    teamRole: TEAM_ROLES.USER
+    teamRole: TEAM_ROLES.USER,
+    hiddenSections: []
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -47,7 +66,7 @@ export default function TeamAccess() {
 
     try {
       if (editingMember) {
-        const updateData = { name: formData.name, teamRole: formData.teamRole }
+        const updateData = { name: formData.name, teamRole: formData.teamRole, hiddenSections: formData.hiddenSections }
         if (formData.password) {
           updateData.password = formData.password
         }
@@ -59,7 +78,7 @@ export default function TeamAccess() {
       }
       setShowModal(false)
       setEditingMember(null)
-      setFormData({ email: '', password: '', name: '', teamRole: TEAM_ROLES.USER })
+      setFormData({ email: '', password: '', name: '', teamRole: TEAM_ROLES.USER, hiddenSections: [] })
       await fetchMembers()
     } catch (err) {
       setError(err.response?.data?.error || 'Operation failed')
@@ -74,7 +93,8 @@ export default function TeamAccess() {
       email: member.email,
       password: '',
       name: member.name || '',
-      teamRole: member.teamRole
+      teamRole: member.teamRole,
+      hiddenSections: (() => { try { const a = JSON.parse(member.hiddenSections || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } })()
     })
     setError('')
     setShowModal(true)
@@ -168,7 +188,7 @@ export default function TeamAccess() {
           <button
             onClick={() => {
               setEditingMember(null)
-              setFormData({ email: '', password: '', name: '', teamRole: TEAM_ROLES.USER })
+              setFormData({ email: '', password: '', name: '', teamRole: TEAM_ROLES.USER, hiddenSections: [] })
               setError('')
               setShowModal(true)
             }}
@@ -222,7 +242,7 @@ export default function TeamAccess() {
             <button
               onClick={() => {
                 setEditingMember(null)
-                setFormData({ email: '', password: '', name: '', teamRole: TEAM_ROLES.USER })
+                setFormData({ email: '', password: '', name: '', teamRole: TEAM_ROLES.USER, hiddenSections: [] })
                 setError('')
                 setShowModal(true)
               }}
@@ -377,6 +397,31 @@ export default function TeamAccess() {
                   <option value={TEAM_ROLES.USER}>User - Limited access</option>
                   <option value={TEAM_ROLES.ADMIN}>Admin - Full access</option>
                 </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Secciones visibles</label>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Desmarca para ocultar la sección a este miembro (no aparece en su menú ni puede entrar por URL).</p>
+                <div className="grid grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
+                  {MANAGEABLE_ITEMS.map(item => {
+                    const hidden = (formData.hiddenSections || []).includes(item.id)
+                    return (
+                      <label key={item.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer py-0.5">
+                        <input
+                          type="checkbox"
+                          checked={!hidden}
+                          onChange={(e) => {
+                            const cur = formData.hiddenSections || []
+                            const next = e.target.checked ? cur.filter(x => x !== item.id) : [...cur, item.id]
+                            setFormData({ ...formData, hiddenSections: next })
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        {item.label}
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">

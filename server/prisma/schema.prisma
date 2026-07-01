@@ -142,6 +142,7 @@ model TeamMember {
   password    String
   name        String?
   teamRole    String   @default("user") // "admin" or "user"
+  hiddenSections String? // JSON array of menu item ids hidden for this team member
   accountId   Int      // The parent account this team member belongs to
   account     User     @relation("AccountTeamMembers", fields: [accountId], references: [id], onDelete: Cascade)
   isActive    Boolean  @default(true)

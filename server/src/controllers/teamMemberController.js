@@ -28,6 +28,7 @@ const getTeamMembers = async (req, res) => {
         email: true,
         name: true,
         teamRole: true,
+        hiddenSections: true,
         isActive: true,
         createdAt: true,
         updatedAt: true
@@ -51,7 +52,7 @@ const createTeamMember = async (req, res) => {
     if (!canManageTeam(req)) {
       return res.status(403).json({ error: 'Only account owners and admin team members can manage team members' });
     }
-    const { email, password, name, teamRole } = req.body;
+    const { email, password, name, teamRole, hiddenSections } = req.body;
     const accountId = req.user.id;
 
     if (!email || !password) {
@@ -83,6 +84,7 @@ const createTeamMember = async (req, res) => {
         password: hashedPassword,
         name,
         teamRole: teamRole || TEAM_ROLES.USER,
+        hiddenSections: Array.isArray(hiddenSections) ? JSON.stringify(hiddenSections.filter(s => typeof s === 'string')) : (hiddenSections || null),
         accountId
       },
       select: {
@@ -90,6 +92,7 @@ const createTeamMember = async (req, res) => {
         email: true,
         name: true,
         teamRole: true,
+        hiddenSections: true,
         isActive: true,
         createdAt: true
       }
@@ -127,7 +130,7 @@ const updateTeamMember = async (req, res) => {
       return res.status(403).json({ error: 'Only account owners and admin team members can manage team members' });
     }
     const { id } = req.params;
-    const { name, teamRole, isActive, password } = req.body;
+    const { name, teamRole, isActive, password, hiddenSections } = req.body;
     const accountId = req.user.id;
 
     // Verify team member belongs to this account
@@ -147,6 +150,11 @@ const updateTeamMember = async (req, res) => {
     if (name !== undefined) updateData.name = name;
     if (teamRole !== undefined) updateData.teamRole = teamRole;
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (hiddenSections !== undefined) {
+      updateData.hiddenSections = Array.isArray(hiddenSections)
+        ? JSON.stringify(hiddenSections.filter(s => typeof s === 'string'))
+        : (hiddenSections || null);
+    }
     if (password) {
       if (password.length < 6) {
         return res.status(400).json({ error: 'Password must be at least 6 characters' });
@@ -162,6 +170,7 @@ const updateTeamMember = async (req, res) => {
         email: true,
         name: true,
         teamRole: true,
+        hiddenSections: true,
         isActive: true,
         updatedAt: true
       }
@@ -300,6 +309,7 @@ const teamMemberLogin = async (req, res) => {
         email: teamMember.email,
         name: teamMember.name,
         teamRole: teamMember.teamRole,
+        hiddenSections: teamMember.hiddenSections,
         isTeamMember: true,
         account: teamMember.account
       }

@@ -351,10 +351,13 @@ export default function DashboardLayout() {
     return true
   }
 
-  // Admin-controlled per-user hidden menu items (JSON array of ids on the user).
+  // Admin-controlled hidden menu items: the account's own hidden set, plus (for
+  // team members) the per-team-member hidden set — union of both.
   const hiddenSet = (() => {
-    try { const a = JSON.parse(user?.hiddenSections || '[]'); return new Set(Array.isArray(a) ? a : []) }
-    catch { return new Set() }
+    const parse = (s) => { try { const a = JSON.parse(s || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } }
+    const ids = [...parse(user?.hiddenSections)]
+    if (isTeamMember) ids.push(...parse(teamMember?.hiddenSections))
+    return new Set(ids)
   })()
 
   const menuSections = allMenuSections
