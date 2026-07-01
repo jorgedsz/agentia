@@ -351,13 +351,33 @@ export default function DashboardLayout() {
     return true
   }
 
+  // Admin-controlled per-user hidden menu items (JSON array of ids on the user).
+  const hiddenSet = (() => {
+    try { const a = JSON.parse(user?.hiddenSections || '[]'); return new Set(Array.isArray(a) ? a : []) }
+    catch { return new Set() }
+  })()
+
   const menuSections = allMenuSections
     .filter(section => passesFeatureKey(section.featureKey))
     .map(section => ({
       ...section,
-      items: section.items.filter(item => passesFeatureKey(item.featureKey))
+      items: section.items.filter(item => passesFeatureKey(item.featureKey) && !hiddenSet.has(item.id))
     }))
     .filter(section => section.items.length > 0)
+
+  // Block direct URL access to hidden sections: if the current path belongs to a
+  // hidden item, redirect to the dashboard home.
+  useEffect(() => {
+    if (hiddenSet.size === 0) return
+    const hiddenPaths = allMenuSections
+      .flatMap(s => s.items)
+      .filter(it => it.path && hiddenSet.has(it.id))
+      .map(it => it.path)
+    const p = location.pathname
+    const blocked = hiddenPaths.some(hp => p === hp || p.startsWith(hp + '/'))
+    if (blocked) navigate('/dashboard', { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, user?.hiddenSections])
 
   return (
     <div className={`flex h-screen ${darkMode ? 'dark' : ''}`}>

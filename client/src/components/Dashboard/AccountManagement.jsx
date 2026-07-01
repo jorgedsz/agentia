@@ -10,6 +10,26 @@ const ROLES = {
   CLIENT: 'CLIENT'
 }
 
+// Menu items an admin can hide per user (ids match DashboardLayout menu items).
+const MANAGEABLE_ITEMS = [
+  { id: 'overview', label: 'Inicio' },
+  { id: 'analytics', label: 'Analítica' },
+  { id: 'agents', label: 'Agentes' },
+  { id: 'voice-library', label: 'Biblioteca de voces' },
+  { id: 'chatbots', label: 'Chatbots' },
+  { id: 'reports', label: 'Reportes' },
+  { id: 'twilio-setup', label: 'Configurar telefonía' },
+  { id: 'phone-numbers', label: 'Números de teléfono' },
+  { id: 'call-logs', label: 'Registro de llamadas' },
+  { id: 'message-logs', label: 'Registro de mensajes' },
+  { id: 'scheduled-calls', label: 'Llamadas programadas' },
+  { id: 'settings', label: 'Ajustes' },
+  { id: 'credentials', label: 'Credenciales' },
+  { id: 'support', label: 'Soporte' },
+  { id: 'tutorials/en', label: 'Tutoriales (EN)' },
+  { id: 'tutorials/es', label: 'Tutoriales (ES)' },
+]
+
 export default function AccountManagement() {
   const { user, switchAccount, isImpersonating } = useAuth()
   const { t } = useLanguage()
@@ -32,6 +52,7 @@ export default function AccountManagement() {
     agentGeneratorEnabled: false,
     callsPaused: false,
     messagesPaused: false,
+    hiddenSections: [],
     planType: '',
     planPrice: '',
     chatbotMessagePrice: '',
@@ -167,6 +188,7 @@ export default function AccountManagement() {
       agentGeneratorEnabled: targetUser.agentGeneratorEnabled || false,
       callsPaused: targetUser.callsPaused || false,
       messagesPaused: targetUser.messagesPaused || false,
+      hiddenSections: (() => { try { const a = JSON.parse(targetUser.hiddenSections || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } })(),
       planType: targetUser.planType || '',
       planPrice: targetUser.planPrice != null ? String(targetUser.planPrice) : '',
       chatbotMessagePrice: targetUser.chatbotMessagePrice != null ? String(targetUser.chatbotMessagePrice) : '',
@@ -177,7 +199,7 @@ export default function AccountManagement() {
 
   const closeBillingModal = () => {
     setEditingUser(null)
-    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, callsPaused: false, messagesPaused: false, planType: '', planPrice: '', chatbotMessagePrice: '' })
+    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', chatbotMessagePrice: '' })
   }
 
   const handleBillingSubmit = async (e) => {
@@ -200,6 +222,7 @@ export default function AccountManagement() {
       data.agentGeneratorEnabled = billingForm.agentGeneratorEnabled
       data.callsPaused = billingForm.callsPaused
       data.messagesPaused = billingForm.messagesPaused
+      data.hiddenSections = billingForm.hiddenSections
       if (editingUser.role === ROLES.CLIENT) {
         data.planType = billingForm.planType || null
       }
@@ -756,6 +779,33 @@ export default function AccountManagement() {
                       <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.messagesPaused ? 'translate-x-5' : 'translate-x-0'}`} />
                     </button>
                   </div>
+                </div>
+              </div>
+
+              {/* Visible sections (per-user menu access) */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Secciones visibles</label>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Desmarca para ocultar la sección a este usuario (no aparece en el menú y no puede entrar por URL).</p>
+                <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                  {MANAGEABLE_ITEMS.map(item => {
+                    const hidden = billingForm.hiddenSections.includes(item.id)
+                    return (
+                      <label key={item.id} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer py-0.5">
+                        <input
+                          type="checkbox"
+                          checked={!hidden}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? billingForm.hiddenSections.filter(x => x !== item.id)
+                              : [...billingForm.hiddenSections, item.id]
+                            setBillingForm({ ...billingForm, hiddenSections: next })
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        {item.label}
+                      </label>
+                    )
+                  })}
                 </div>
               </div>
 

@@ -33,6 +33,7 @@ model User {
   agentGeneratorEnabled Boolean        @default(false)
   callsPaused        Boolean           @default(false)
   messagesPaused     Boolean           @default(false)
+  hiddenSections     String?            // JSON array of menu item ids hidden for this user (admin-controlled)
   planType           String?            // CLIENT only: "DIY", "DFY", "Partnership"
   planPrice          Float?             // Monthly plan price for any account type
   portalToken        String?           @unique // Shareable read-only portal token

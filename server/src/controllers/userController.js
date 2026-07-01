@@ -56,6 +56,7 @@ const getAllUsers = async (req, res) => {
         agentGeneratorEnabled: true,
         callsPaused: true,
         messagesPaused: true,
+        hiddenSections: true,
         agencyId: true,
         whitelabelId: true,
         planType: true,
@@ -529,7 +530,7 @@ const deleteUser = async (req, res) => {
 const updateUserBilling = async (req, res) => {
   try {
     const { id } = req.params;
-    const { credits, creditOperation, outboundRate, inboundRate, chatbotMessagePrice, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, callsPaused, messagesPaused, planType, planPrice } = req.body;
+    const { credits, creditOperation, outboundRate, inboundRate, chatbotMessagePrice, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, callsPaused, messagesPaused, hiddenSections, planType, planPrice } = req.body;
 
     const targetUser = await req.prisma.user.findUnique({
       where: { id: parseInt(id) }
@@ -625,6 +626,12 @@ const updateUserBilling = async (req, res) => {
     if (messagesPaused !== undefined) {
       updateData.messagesPaused = Boolean(messagesPaused);
     }
+    // Hidden menu sections (admin-controlled visibility). Store as JSON array of ids.
+    if (hiddenSections !== undefined) {
+      updateData.hiddenSections = Array.isArray(hiddenSections)
+        ? JSON.stringify(hiddenSections.filter(s => typeof s === 'string'))
+        : (hiddenSections || null);
+    }
 
     // Handle plan type (CLIENT only) and plan price (all types)
     if (planType !== undefined) {
@@ -656,6 +663,7 @@ const updateUserBilling = async (req, res) => {
         agentGeneratorEnabled: true,
         callsPaused: true,
         messagesPaused: true,
+        hiddenSections: true,
         planType: true,
         planPrice: true
       }
