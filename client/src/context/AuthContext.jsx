@@ -172,7 +172,8 @@ export function AuthProvider({ children }) {
             id: user.id,
             email: user.email,
             name: user.name,
-            teamRole: user.teamRole
+            teamRole: user.teamRole,
+            hiddenSections: user.hiddenSections
           })
           setIsImpersonating(false)
           setOriginalUser(null)
