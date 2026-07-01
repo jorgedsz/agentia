@@ -25,6 +25,9 @@ router.put('/:id', agentController.updateAgent);
 // PATCH /api/agents/:id/folder - Move agent into a folder (or null = Uncategorized)
 router.patch('/:id/folder', agentController.moveAgentToFolder);
 
+// OWNER-only: set per-agent price + profit percentage
+router.patch('/:id/pricing', agentController.setAgentPricing);
+
 // POST /api/agents/:id/duplicate - Duplicate agent
 router.post('/:id/duplicate', agentController.duplicateAgent);
 

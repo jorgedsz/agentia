@@ -47,6 +47,23 @@ async function getEffectiveRates(prisma, userId) {
  * Returns { modelRate, transcriberRate, totalRate } or null if no dynamic pricing.
  */
 async function getAgentRate(prisma, agent, userId) {
+  // OWNER-set manual price overrides the computed model+transcriber rate.
+  // The full agent object may not include these columns (some callers select a
+  // subset), so fetch them by id when absent.
+  let price = agent.pricePerMinute;
+  let profit = agent.profitPercent;
+  if (price === undefined && agent.id) {
+    try {
+      const a = await prisma.agent.findUnique({ where: { id: agent.id }, select: { pricePerMinute: true, profitPercent: true } });
+      price = a?.pricePerMinute;
+      profit = a?.profitPercent;
+    } catch { /* fall through to computed rate */ }
+  }
+  if (price != null) {
+    const totalRate = price * (1 + (profit || 0) / 100);
+    return { modelRate: price, transcriberRate: 0, totalRate, manual: true };
+  }
+
   let config;
   try {
     config = typeof agent.config === 'string' ? JSON.parse(agent.config) : agent.config;
