@@ -346,7 +346,25 @@ const DEFAULT_SERVER_MESSAGES = [
 export default function AgentEdit() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, isImpersonating, originalUser } = useAuth()
+  const canPriceAgent = user?.role === 'OWNER' || (isImpersonating && originalUser?.role === 'OWNER')
+  const [agentPrice, setAgentPrice] = useState('')
+  const [agentProfit, setAgentProfit] = useState('')
+  const [savingPricing, setSavingPricing] = useState(false)
+  const [pricingMsg, setPricingMsg] = useState('')
+
+  const handleSavePricing = async () => {
+    setSavingPricing(true); setPricingMsg('')
+    try {
+      await agentsAPI.setPricing(id, {
+        pricePerMinute: agentPrice === '' ? null : parseFloat(agentPrice),
+        profitPercent: agentProfit === '' ? null : parseFloat(agentProfit),
+      })
+      setPricingMsg('Precio guardado.')
+    } catch (err) {
+      setPricingMsg(err.response?.data?.error || 'Error al guardar el precio')
+    } finally { setSavingPricing(false) }
+  }
   const { t, language: uiLanguage } = useLanguage()
   const ta = (key) => t('agentEdit.' + key)
 
@@ -996,6 +1014,8 @@ export default function AgentEdit() {
       // sees them as undefined and the inputs stay hidden anyway.
       setDashboardForwardUrl(agentData.dashboardForwardUrl || '')
       setDashboardForwardSecret(agentData.dashboardForwardSecret || '')
+      setAgentPrice(agentData.pricePerMinute != null ? String(agentData.pricePerMinute) : '')
+      setAgentProfit(agentData.profitPercent != null ? String(agentData.profitPercent) : '')
       setShareEnabled(!!agentData.publicShareEnabled)
       setShareToken(agentData.publicShareToken || '')
       setShareDailyLimit(agentData.publicShareDailyLimit || 20)
@@ -7184,6 +7204,47 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                   placeholder={ta('agentDescPlaceholder')}
                 />
               </div>
+              {/* OWNER-only: per-agent price ($/min) + profit percentage. */}
+              {canPriceAgent && (
+                <div className="border-t border-gray-200 dark:border-dark-border pt-4 mt-2 space-y-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                      Owner · Precio del agente
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Precio por minuto + % de ganancia. La llamada se cobra a este agente a
+                      <strong> precio × (1 + %/100)</strong>. Deja el precio en blanco para usar la tarifa automática.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Precio ($/min)</label>
+                      <input type="number" min="0" step="0.01" value={agentPrice}
+                        onChange={(e) => setAgentPrice(e.target.value)} placeholder="0.10"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Ganancia (%)</label>
+                      <input type="number" min="0" step="1" value={agentProfit}
+                        onChange={(e) => setAgentProfit(e.target.value)} placeholder="30"
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                    </div>
+                  </div>
+                  {agentPrice !== '' && parseFloat(agentPrice) >= 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Tarifa cobrada: <strong>${(parseFloat(agentPrice) * (1 + (parseFloat(agentProfit) || 0) / 100)).toFixed(4)}/min</strong>
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={handleSavePricing} disabled={savingPricing}
+                      className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                      {savingPricing ? 'Guardando…' : 'Guardar precio'}
+                    </button>
+                    {pricingMsg && <span className="text-xs text-gray-500 dark:text-gray-400">{pricingMsg}</span>}
+                  </div>
+                </div>
+              )}
+
               {/* OWNER-only: mirror this agent's call activity to an external dashboard. */}
               {user?.role === 'OWNER' && (
                 <div className="border-t border-gray-200 dark:border-dark-border pt-4 mt-2 space-y-3">

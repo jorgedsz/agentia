@@ -49,6 +49,7 @@ export const agentsAPI = {
   create: (data) => api.post('/agents', data),
   update: (id, data) => api.put(`/agents/${id}`, data),
   moveToFolder: (id, folderId) => api.patch(`/agents/${id}/folder`, { folderId }),
+  setPricing: (id, data) => api.patch(`/agents/${id}/pricing`, data),
   duplicate: (id) => api.post(`/agents/${id}/duplicate`),
   import: (agentId) => api.post('/agents/import', { agentId }),
   enableShare: (id) => api.post(`/agents/${id}/share/enable`),

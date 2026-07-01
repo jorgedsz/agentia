@@ -33,6 +33,7 @@ model User {
   agentGeneratorEnabled Boolean        @default(false)
   callsPaused        Boolean           @default(false)
   messagesPaused     Boolean           @default(false)
+  hiddenSections     String?            // JSON array of menu item ids hidden for this user (admin-controlled)
   planType           String?            // CLIENT only: "DIY", "DFY", "Partnership"
   planPrice          Float?             // Monthly plan price for any account type
   portalToken        String?           @unique // Shareable read-only portal token
@@ -156,6 +157,11 @@ model Agent {
   vapiId       String?
   vapiStructuredOutputId String? // ID of the VAPI Structured Output linked via artifactPlan.structuredOutputIds. Null when the agent has no structured data extraction configured.
   config       String?
+  // OWNER-set per-agent pricing. When pricePerMinute is set, billing charges
+  // pricePerMinute * (1 + profitPercent/100) $/min for this agent (overrides the
+  // computed model+transcriber rate).
+  pricePerMinute Float?
+  profitPercent  Float?
   publicShareToken              String?  @unique  // Token used in /voice/<id>/<token>; null when disabled
   publicShareEnabled            Boolean  @default(false)
   publicShareDailyLimit         Int      @default(20)   // Total shared calls per day

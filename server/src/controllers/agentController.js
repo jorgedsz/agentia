@@ -981,11 +981,45 @@ const postPublicAgentCallStart = async (req, res) => {
   }
 };
 
+/**
+ * OWNER-only: set a per-agent price ($/min) + profit percentage on ANY account's
+ * agent. Billing then charges pricePerMinute * (1 + profitPercent/100) $/min.
+ * PATCH /api/agents/:id/pricing  { pricePerMinute, profitPercent }
+ */
+const setAgentPricing = async (req, res) => {
+  try {
+    const isOwner = req.user.role === 'OWNER' || req.originalUserRole === 'OWNER';
+    if (!isOwner) return res.status(403).json({ error: 'Solo OWNER puede fijar el precio del agente.' });
+
+    const { id } = req.params;
+    const { pricePerMinute, profitPercent } = req.body;
+
+    const agent = await req.prisma.agent.findUnique({ where: { id } });
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+    const price = (pricePerMinute === '' || pricePerMinute == null) ? null : parseFloat(pricePerMinute);
+    const profit = (profitPercent === '' || profitPercent == null) ? null : parseFloat(profitPercent);
+    if (price !== null && (!Number.isFinite(price) || price < 0)) return res.status(400).json({ error: 'Precio inválido' });
+    if (profit !== null && (!Number.isFinite(profit) || profit < 0)) return res.status(400).json({ error: 'Porcentaje inválido' });
+
+    const updated = await req.prisma.agent.update({
+      where: { id },
+      data: { pricePerMinute: price, profitPercent: profit },
+      select: { id: true, pricePerMinute: true, profitPercent: true },
+    });
+    res.json({ message: 'Precio actualizado', agent: updated });
+  } catch (error) {
+    console.error('Error setting agent pricing:', error.message);
+    res.status(500).json({ error: 'Failed to set agent pricing' });
+  }
+};
+
 module.exports = {
   getAgents,
   getAgent,
   createAgent,
   updateAgent,
+  setAgentPricing,
   moveAgentToFolder,
   duplicateAgent,
   importAgent,
