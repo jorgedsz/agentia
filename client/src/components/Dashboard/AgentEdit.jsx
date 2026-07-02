@@ -2477,12 +2477,11 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
               {agent.vapiId ? ta('connected') : ta('local')}
             </span>
             {(() => {
-              const mRate = modelRates[`${modelProvider}::${modelName}`]
-              const tRate = transcriberRates[transcriberProvider]
-              if (mRate == null && tRate == null) return null
-              const total = (mRate || 0) + (tRate || 0)
+              // Flat $0.15/min unless the OWNER set a manual price on this agent.
+              const hasManual = agent.pricePerMinute != null
+              const total = hasManual ? agent.pricePerMinute * (1 + (agent.profitPercent || 0) / 100) : 0.15
               return (
-                <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" title={`Model: $${(mRate || 0).toFixed(2)}/min + Transcriber: $${(tRate || 0).toFixed(2)}/min`}>
+                <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" title={hasManual ? 'Precio fijado por el administrador' : 'Tarifa estándar'}>
                   ${total.toFixed(2)}/min
                 </span>
               )
@@ -2602,11 +2601,10 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                 >
                   {(MODELS_BY_PROVIDER[modelProvider] || []).map(m => {
                     const lat = getModelLatency(modelProvider, m.model, voiceProvider, transcriberProvider)
-                    const mRate = modelRates[`${modelProvider}::${m.model}`]
                     const speed = getSpeedTag(m.llmLatency)
                     return (
                       <option key={m.model} value={m.model}>
-                        {m.label} · {speed}{lat ? ` · ~${lat.total}ms` : ''}{mRate != null ? ` · $${mRate.toFixed(2)}/min` : ''}
+                        {m.label} · {speed}{lat ? ` · ~${lat.total}ms` : ''}
                       </option>
                     )
                   })}
@@ -2710,10 +2708,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer"
                 >
                   {TRANSCRIBER_PROVIDERS.map(provider => {
-                    const tRate = transcriberRates[provider.id]
                     return (
                       <option key={provider.id} value={provider.id}>
-                        {provider.label} · {STT_LATENCY[provider.id] || 800}ms{tRate != null ? ` · $${tRate.toFixed(2)}/min` : ''}
+                        {provider.label} · {STT_LATENCY[provider.id] || 800}ms
                       </option>
                     )
                   })}
@@ -7213,14 +7210,14 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       Precio por minuto + % de ganancia. La llamada se cobra a este agente a
-                      <strong> precio × (1 + %/100)</strong>. Deja el precio en blanco para usar la tarifa automática.
+                      <strong> precio × (1 + %/100)</strong>. Deja el precio en blanco para usar la tarifa estándar de <strong>$0.15/min</strong>.
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Precio ($/min)</label>
                       <input type="number" min="0" step="0.01" value={agentPrice}
-                        onChange={(e) => setAgentPrice(e.target.value)} placeholder="0.10"
+                        onChange={(e) => setAgentPrice(e.target.value)} placeholder="0.15"
                         className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
                     </div>
                     <div>
@@ -7245,15 +7242,17 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                 </div>
               )}
 
-              {/* Read-only for non-OWNER: the final charged rate set by the admin. */}
-              {!canPriceAgent && agent?.pricePerMinute != null && (
+              {/* Read-only for non-OWNER: the final charged rate (flat $0.15 unless the admin set a manual price). */}
+              {!canPriceAgent && (
                 <div className="border-t border-gray-200 dark:border-dark-border pt-4 mt-2">
                   <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Tarifa de este agente</div>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                    ${(agent.pricePerMinute * (1 + (agent.profitPercent || 0) / 100)).toFixed(4)}
+                    ${(agent?.pricePerMinute != null ? agent.pricePerMinute * (1 + (agent.profitPercent || 0) / 100) : 0.15).toFixed(4)}
                     <span className="text-sm font-normal text-gray-400"> /min</span>
                   </p>
-                  <p className="text-xs text-gray-400 mt-0.5">Precio fijado por el administrador.</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {agent?.pricePerMinute != null ? 'Precio fijado por el administrador.' : 'Tarifa estándar.'}
+                  </p>
                 </div>
               )}
 

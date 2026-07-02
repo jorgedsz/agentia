@@ -8,6 +8,10 @@
 const DEFAULT_MODEL_RATE = 0.08;      // $/min
 const DEFAULT_TRANSCRIBER_RATE = 0.02; // $/min
 
+// Flat per-minute price charged for every agent unless the OWNER sets a
+// manual price on that specific agent. No more model+transcriber dynamic pricing.
+const DEFAULT_AGENT_RATE = 0.15;      // $/min
+
 /**
  * Get effective model & transcriber rates for a user.
  * Resolution: per-account rates (setById=userId) > global defaults (setById=0).
@@ -42,12 +46,13 @@ async function getEffectiveRates(prisma, userId) {
 }
 
 /**
- * Get the combined rate/min for a specific agent.
- * Parses agent.config to find modelProvider, model name, and transcriberProvider.
- * Returns { modelRate, transcriberRate, totalRate } or null if no dynamic pricing.
+ * Get the per-minute rate for a specific agent.
+ * Every agent is charged a flat DEFAULT_AGENT_RATE ($0.15/min) unless the OWNER
+ * set a manual price on that agent (pricePerMinute, optionally with profitPercent).
+ * Returns { modelRate, transcriberRate, totalRate, manual|default }.
  */
 async function getAgentRate(prisma, agent, userId) {
-  // OWNER-set manual price overrides the computed model+transcriber rate.
+  // OWNER-set manual price overrides the flat default.
   // The full agent object may not include these columns (some callers select a
   // subset), so fetch them by id when absent.
   let price = agent.pricePerMinute;
@@ -57,42 +62,15 @@ async function getAgentRate(prisma, agent, userId) {
       const a = await prisma.agent.findUnique({ where: { id: agent.id }, select: { pricePerMinute: true, profitPercent: true } });
       price = a?.pricePerMinute;
       profit = a?.profitPercent;
-    } catch { /* fall through to computed rate */ }
+    } catch { /* fall through to flat default */ }
   }
   if (price != null) {
     const totalRate = price * (1 + (profit || 0) / 100);
     return { modelRate: price, transcriberRate: 0, totalRate, manual: true };
   }
 
-  let config;
-  try {
-    config = typeof agent.config === 'string' ? JSON.parse(agent.config) : agent.config;
-  } catch {
-    return null;
-  }
-
-  if (!config) return null;
-
-  const modelProvider = config.modelProvider;
-  const modelName = config.modelName;
-  const transcriberProvider = config.transcriberProvider || 'deepgram';
-
-  if (!modelProvider || !modelName) return null;
-
-  const { modelRates, transcriberRates } = await getEffectiveRates(prisma, userId);
-
-  const modelKey = `${modelProvider}::${modelName}`;
-  const modelRate = modelRates[modelKey];
-  const transcriberRate = transcriberRates[transcriberProvider];
-
-  // Only use dynamic pricing if at least one rate exists in the DB
-  if (modelRate === undefined && transcriberRate === undefined) return null;
-
-  return {
-    modelRate: modelRate ?? DEFAULT_MODEL_RATE,
-    transcriberRate: transcriberRate ?? DEFAULT_TRANSCRIBER_RATE,
-    totalRate: (modelRate ?? DEFAULT_MODEL_RATE) + (transcriberRate ?? DEFAULT_TRANSCRIBER_RATE)
-  };
+  // Flat default for every agent — no more dynamic model+transcriber pricing.
+  return { modelRate: DEFAULT_AGENT_RATE, transcriberRate: 0, totalRate: DEFAULT_AGENT_RATE, default: true };
 }
 
 /**
@@ -165,5 +143,6 @@ module.exports = {
   getAgentRate,
   seedDefaultRates,
   DEFAULT_MODEL_RATE,
-  DEFAULT_TRANSCRIBER_RATE
+  DEFAULT_TRANSCRIBER_RATE,
+  DEFAULT_AGENT_RATE
 };

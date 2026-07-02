@@ -478,13 +478,9 @@ function AgentCard({ agent, pricingRates, onDelete, onDuplicate, onEdit, onTest 
   const directionLabel = type === 'inbound' ? 'Inbound' : hasPhone ? 'Inbound & Outbound' : 'Outbound'
   const directionColor = type === 'inbound' ? 'bg-blue-500/20 text-blue-400' : hasPhone ? 'bg-purple-500/20 text-purple-400' : 'bg-green-500/20 text-green-400'
 
-  // Calculate agent price from config
-  const modelProvider = agent.config?.modelProvider
-  const modelName = agent.config?.modelName
-  const transcriberProvider = agent.config?.transcriberProvider || 'deepgram'
-  const modelRate = pricingRates?.models?.[`${modelProvider}::${modelName}`]
-  const transcriberRate = pricingRates?.transcribers?.[transcriberProvider]
-  const totalRate = modelRate != null || transcriberRate != null ? (modelRate || 0) + (transcriberRate || 0) : null
+  // Flat $0.15/min for every agent unless the OWNER set a manual price.
+  const hasManual = agent.pricePerMinute != null
+  const totalRate = hasManual ? agent.pricePerMinute * (1 + (agent.profitPercent || 0) / 100) : 0.15
 
   return (
     <div className="bg-gray-50 dark:bg-dark-hover rounded-lg p-5 border border-gray-200 dark:border-dark-border">
@@ -501,11 +497,9 @@ function AgentCard({ agent, pricingRates, onDelete, onDuplicate, onEdit, onTest 
         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${directionColor}`}>
           {directionLabel}
         </span>
-        {totalRate != null && (
-          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-500/20 text-amber-400" title={`Model: $${(modelRate || 0).toFixed(2)}/min + Transcriber: $${(transcriberRate || 0).toFixed(2)}/min`}>
-            ${totalRate.toFixed(2)}/min
-          </span>
-        )}
+        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-500/20 text-amber-400" title={hasManual ? 'Precio fijado por el administrador' : 'Tarifa estándar'}>
+          ${totalRate.toFixed(2)}/min
+        </span>
       </div>
       {agent.description && (
         <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{agent.description}</p>
