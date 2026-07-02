@@ -346,8 +346,13 @@ const DEFAULT_SERVER_MESSAGES = [
 export default function AgentEdit() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user, isImpersonating, originalUser } = useAuth()
+  const { user, isImpersonating, originalUser, isTeamMember, teamMember } = useAuth()
   const canPriceAgent = user?.role === 'OWNER' || (isImpersonating && originalUser?.role === 'OWNER')
+  // Advanced noise-suppression (Fourier) is dev-team only: the OWNER, admin team
+  // members inside the OWNER account, or an OWNER impersonating another account.
+  const canAdvancedDenoise =
+    (user?.role === 'OWNER' && (!isTeamMember || teamMember?.teamRole === 'admin')) ||
+    (isImpersonating && originalUser?.role === 'OWNER')
   const [agentPrice, setAgentPrice] = useState('')
   const [agentProfit, setAgentProfit] = useState('')
   const [savingPricing, setSavingPricing] = useState(false)
@@ -568,7 +573,15 @@ export default function AgentEdit() {
     optimizeLatency: 0,
     inputMinCharacters: 30,
     backgroundSound: 'off',
-    backgroundSoundVolume: 0.5
+    backgroundSoundVolume: 0.5,
+    // Noise suppression (VAPI backgroundSpeechDenoisingPlan)
+    noiseSuppression: false,        // Smart Denoising (Krisp) — visible to all
+    fourierDenoising: false,        // advanced (dev-team only)
+    fourierMediaDetection: true,
+    fourierStaticThreshold: -35,
+    fourierBaselineOffsetDb: -15,
+    fourierWindowSizeMs: 3000,
+    fourierBaselinePercentile: 85
   })
 
 
@@ -1106,7 +1119,14 @@ export default function AgentEdit() {
           optimizeLatency: agentData.config.optimizeLatency ?? 0,
           inputMinCharacters: agentData.config.inputMinCharacters ?? 30,
           backgroundSound: agentData.config.backgroundSound || 'off',
-          backgroundSoundVolume: agentData.config.backgroundSoundVolume ?? 0.5
+          backgroundSoundVolume: agentData.config.backgroundSoundVolume ?? 0.5,
+          noiseSuppression: agentData.config.noiseSuppression ?? false,
+          fourierDenoising: agentData.config.fourierDenoising ?? false,
+          fourierMediaDetection: agentData.config.fourierMediaDetection ?? true,
+          fourierStaticThreshold: agentData.config.fourierStaticThreshold ?? -35,
+          fourierBaselineOffsetDb: agentData.config.fourierBaselineOffsetDb ?? -15,
+          fourierWindowSizeMs: agentData.config.fourierWindowSizeMs ?? 3000,
+          fourierBaselinePercentile: agentData.config.fourierBaselinePercentile ?? 85
         })
       }
 
@@ -1972,6 +1992,13 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
           inputMinCharacters: voiceSettings.inputMinCharacters,
           backgroundSound: voiceSettings.backgroundSound,
           backgroundSoundVolume: voiceSettings.backgroundSoundVolume,
+          noiseSuppression: voiceSettings.noiseSuppression,
+          fourierDenoising: voiceSettings.fourierDenoising,
+          fourierMediaDetection: voiceSettings.fourierMediaDetection,
+          fourierStaticThreshold: voiceSettings.fourierStaticThreshold,
+          fourierBaselineOffsetDb: voiceSettings.fourierBaselineOffsetDb,
+          fourierWindowSizeMs: voiceSettings.fourierWindowSizeMs,
+          fourierBaselinePercentile: voiceSettings.fourierBaselinePercentile,
           tools: allTools,
           variables,
           summaryPrompt: serverConfig.summaryPrompt,
@@ -5277,6 +5304,86 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                       )}
                     </button>
                   ))}
+                </div>
+
+                {/* Noise suppression (VAPI backgroundSpeechDenoisingPlan) */}
+                <div className="px-5 pb-5 space-y-3 border-t border-gray-100 dark:border-dark-border pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Supresión de ruido de fondo</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Smart Denoising (Krisp): elimina la mayoría del ruido ambiental.</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={voiceSettings.noiseSuppression}
+                      onClick={() => setVoiceSettings({ ...voiceSettings, noiseSuppression: !voiceSettings.noiseSuppression })}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${voiceSettings.noiseSuppression ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${voiceSettings.noiseSuppression ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+
+                  {/* Advanced (Fourier) — dev team only: OWNER + admins of the OWNER account */}
+                  {canAdvancedDenoise && (
+                    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10 p-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Dev · Fourier Denoising (avanzado)</span>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Experimental. Se aplica después de Smart Denoising; filtra media de fondo constante (TV/música).</p>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={voiceSettings.fourierDenoising}
+                          onClick={() => setVoiceSettings({ ...voiceSettings, fourierDenoising: !voiceSettings.fourierDenoising })}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${voiceSettings.fourierDenoising ? 'bg-amber-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${voiceSettings.fourierDenoising ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                      </div>
+
+                      {voiceSettings.fourierDenoising && (
+                        <div className="space-y-3 pt-1">
+                          <label className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={voiceSettings.fourierMediaDetection}
+                              onChange={(e) => setVoiceSettings({ ...voiceSettings, fourierMediaDetection: e.target.checked })}
+                              className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                            />
+                            Detectar y filtrar media de fondo (TV/música/radio)
+                          </label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Static threshold (dB, -80..0)</label>
+                              <input type="number" min="-80" max="0" step="1" value={voiceSettings.fourierStaticThreshold}
+                                onChange={(e) => setVoiceSettings({ ...voiceSettings, fourierStaticThreshold: parseFloat(e.target.value) })}
+                                className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Baseline offset (dB, -30..-5)</label>
+                              <input type="number" min="-30" max="-5" step="1" value={voiceSettings.fourierBaselineOffsetDb}
+                                onChange={(e) => setVoiceSettings({ ...voiceSettings, fourierBaselineOffsetDb: parseFloat(e.target.value) })}
+                                className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Window size (ms, 1000..30000)</label>
+                              <input type="number" min="1000" max="30000" step="500" value={voiceSettings.fourierWindowSizeMs}
+                                onChange={(e) => setVoiceSettings({ ...voiceSettings, fourierWindowSizeMs: parseFloat(e.target.value) })}
+                                className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Baseline percentile (1..99)</label>
+                              <input type="number" min="1" max="99" step="1" value={voiceSettings.fourierBaselinePercentile}
+                                onChange={(e) => setVoiceSettings({ ...voiceSettings, fourierBaselinePercentile: parseFloat(e.target.value) })}
+                                className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             )}
