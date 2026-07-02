@@ -292,6 +292,10 @@ class VapiService {
       agentConfig.backgroundSound = config.backgroundSound;
     }
 
+    // Noise suppression (Smart / Fourier denoising)
+    const denoisingPlan = this.buildDenoisingPlan(config);
+    if (denoisingPlan) agentConfig.backgroundSpeechDenoisingPlan = denoisingPlan;
+
     // Always route VAPI events to our server (we forward to user's webhook)
     const ourServerUrl = this.getOurServerUrl();
     if (ourServerUrl) {
@@ -433,6 +437,34 @@ class VapiService {
 
     console.log('Transcriber config being sent to VAPI:', JSON.stringify(transcriberConfig, null, 2));
     return transcriberConfig;
+  }
+
+  /**
+   * Build VAPI's backgroundSpeechDenoisingPlan from agent config.
+   * Smart Denoising (Krisp) is the everyday toggle; Fourier is the advanced,
+   * dev-team-only complement that runs after Smart. Returns null when both off.
+   */
+  buildDenoisingPlan(config) {
+    const smart = !!config.noiseSuppression;
+    const fourier = !!config.fourierDenoising;
+    if (!smart && !fourier) return null;
+
+    const plan = { smartDenoisingPlan: { enabled: smart } };
+    if (fourier) {
+      const clamp = (v, min, max, fallback) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+      };
+      plan.fourierDenoisingPlan = {
+        enabled: true,
+        mediaDetectionEnabled: config.fourierMediaDetection !== false,
+        staticThreshold: clamp(config.fourierStaticThreshold, -80, 0, -35),
+        baselineOffsetDb: clamp(config.fourierBaselineOffsetDb, -30, -5, -15),
+        windowSizeMs: clamp(config.fourierWindowSizeMs, 1000, 30000, 3000),
+        baselinePercentile: clamp(config.fourierBaselinePercentile, 1, 99, 85)
+      };
+    }
+    return plan;
   }
 
   buildVoiceConfig(config) {
@@ -590,6 +622,11 @@ class VapiService {
     } else if (config.backgroundSound && validBackgroundSounds.includes(config.backgroundSound)) {
       updateData.backgroundSound = config.backgroundSound;
     }
+
+    // Noise suppression (Smart / Fourier denoising). Always send so toggling
+    // it off clears the plan on VAPI (empty smartDenoisingPlan disables it).
+    updateData.backgroundSpeechDenoisingPlan =
+      this.buildDenoisingPlan(config) || { smartDenoisingPlan: { enabled: false } };
 
     // Always route VAPI events to our server (we forward to user's webhook)
     const ourServerUrl = this.getOurServerUrl();
