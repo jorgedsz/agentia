@@ -600,6 +600,8 @@ export default function AgentEdit() {
     httpBodyFields: [],
     async: false,
     endCallMessage: '',
+    endCallMsgOption: 'default',      // 'default' | 'none' | 'custom' (VAPI Request Start)
+    endCallVariants: [''],            // custom message variants (VAPI picks one at random)
     timeoutSeconds: 20,
     msgStart: '',
     delayedMsgs: [],
@@ -2211,6 +2213,8 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
       httpBodyFields: [],
       async: false,
       endCallMessage: '',
+      endCallMsgOption: 'default',
+      endCallVariants: [''],
       timeoutSeconds: 20,
       msgStart: '',
       msgDelayed: '',
@@ -2261,6 +2265,8 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         httpBodyFields: bodyFields,
         async: tool.async || false,
         endCallMessage: '',
+        endCallMsgOption: 'default',
+        endCallVariants: [''],
         timeoutSeconds: tool.timeoutSeconds || 20,
         msgStart: msgOf('request-start'),
         delayedMsgs: msgs.filter(m => m.type === 'request-response-delayed').slice(0, 3).map(m => ({ content: m.content || '', sec: m.timingMilliseconds ? Math.round(m.timingMilliseconds / 1000) : 10 })),
@@ -2286,10 +2292,25 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         httpBodyFields: bodyFields,
         async: tool.async || false,
         endCallMessage: '',
+        endCallMsgOption: 'default',
+        endCallVariants: [''],
         timeoutSeconds: tool.timeoutSeconds || 20,
         msgStart: '', delayedMsgs: [], msgComplete: '', msgFailed: ''
       })
     } else if (tool.type === 'endCall') {
+      // Parse VAPI Request Start messages into the Default/None/Custom option.
+      // Accept request-start (VAPI) or legacy request-complete from older saves.
+      const ecMsgs = (Array.isArray(tool.messages) ? tool.messages : [])
+        .filter(m => m.type === 'request-start' || m.type === 'request-complete')
+      const ecNonEmpty = ecMsgs.map(m => m.content || '').filter(s => s.trim())
+      let endCallMsgOption = 'default'
+      let endCallVariants = ['']
+      if (ecMsgs.length > 0 && ecNonEmpty.length === 0) {
+        endCallMsgOption = 'none'
+      } else if (ecNonEmpty.length > 0) {
+        endCallMsgOption = 'custom'
+        endCallVariants = ecNonEmpty
+      }
       setToolForm({
         type: 'endCall',
         functionName: '',
@@ -2299,7 +2320,9 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         httpHeaders: [],
         httpBodyFields: [],
         async: false,
-        endCallMessage: tool.messages?.[0]?.content || '',
+        endCallMessage: '',
+        endCallMsgOption,
+        endCallVariants,
         timeoutSeconds: 20,
         msgStart: '', delayedMsgs: [], msgComplete: '', msgFailed: ''
       })
@@ -2367,9 +2390,18 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         timeoutSeconds
       }
     } else if (toolForm.type === 'endCall') {
+      // Map the VAPI Request Start option to the tool's messages:
+      //  default → no messages (VAPI uses its default)
+      //  none    → a single empty-content request-start (nothing spoken)
+      //  custom  → one request-start per variant (VAPI picks one at random)
       newTool = { type: 'endCall' }
-      if (toolForm.endCallMessage) {
-        newTool.messages = [{ type: 'request-complete', content: toolForm.endCallMessage }]
+      if (toolForm.endCallMsgOption === 'none') {
+        newTool.messages = [{ type: 'request-start', content: '' }]
+      } else if (toolForm.endCallMsgOption === 'custom') {
+        const variants = (toolForm.endCallVariants || []).map(v => (v || '').trim()).filter(Boolean)
+        if (variants.length) {
+          newTool.messages = variants.map(content => ({ type: 'request-start', content }))
+        }
       }
     }
 
@@ -3913,15 +3945,75 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
               )}
 
               {toolForm.type === 'endCall' && (
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">{ta('endMessage')}</label>
-                  <input
-                    type="text"
-                    value={toolForm.endCallMessage}
-                    onChange={(e) => setToolForm({ ...toolForm, endCallMessage: e.target.value })}
-                    placeholder={ta('endCallMessagePlaceholder')}
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
-                  />
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Mensajes</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Mensaje hablado al iniciar el fin de la llamada (Request Start).</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 dark:border-dark-border p-4 space-y-3">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">Request Start</div>
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Opción de mensaje</div>
+                      <div className="space-y-2">
+                        {[
+                          { value: 'default', label: 'Default (el servidor usa el mensaje por defecto)' },
+                          { value: 'none', label: 'None (no se hablará ningún mensaje)' },
+                          { value: 'custom', label: 'Custom (personalizado)' },
+                        ].map(opt => (
+                          <label key={opt.value} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="endCallMsgOption"
+                              checked={toolForm.endCallMsgOption === opt.value}
+                              onChange={() => setToolForm({ ...toolForm, endCallMsgOption: opt.value })}
+                              className="text-primary-600 focus:ring-primary-500"
+                            />
+                            {opt.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    {toolForm.endCallMsgOption === 'custom' && (
+                      <div className="space-y-2 pt-1">
+                        {(toolForm.endCallVariants?.length ? toolForm.endCallVariants : ['']).map((v, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={v}
+                              onChange={(e) => {
+                                const next = [...(toolForm.endCallVariants?.length ? toolForm.endCallVariants : [''])]
+                                next[i] = e.target.value
+                                setToolForm({ ...toolForm, endCallVariants: next })
+                              }}
+                              placeholder={ta('endCallMessagePlaceholder')}
+                              className="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                            />
+                            {(toolForm.endCallVariants?.length || 0) > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = toolForm.endCallVariants.filter((_, idx) => idx !== i)
+                                  setToolForm({ ...toolForm, endCallVariants: next.length ? next : [''] })
+                                }}
+                                className="p-2 text-gray-400 hover:text-red-500"
+                                title="Eliminar variante"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setToolForm({ ...toolForm, endCallVariants: [...(toolForm.endCallVariants?.length ? toolForm.endCallVariants : ['']), ''] })}
+                          className="text-xs font-medium text-primary-600 hover:text-primary-700"
+                        >
+                          + Agregar variante
+                        </button>
+                        <p className="text-[11px] text-gray-400">Si agregas varias, VAPI elige una al azar.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
