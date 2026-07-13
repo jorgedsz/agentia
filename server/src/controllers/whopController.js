@@ -268,7 +268,11 @@ async function handlePaymentSucceeded(prisma, data, metadata) {
       });
       // Backfill whopCustomerId so future events resolve faster, and clear the
       // auto-recharge fail counter — a successful charge means the saved card works.
-      const buyerUpdate = { autoRechargeFailCount: 0 };
+      const buyerUpdate = {
+        autoRechargeFailCount: 0,
+        autoRechargeLastError: null,
+        autoRechargeLastErrorAt: null,
+      };
       if (data.user?.id) buyerUpdate.whopCustomerId = data.user.id;
       await prisma.user.update({
         where: { id: pending.userId },
@@ -503,7 +507,10 @@ async function handleSetupIntentSucceeded(prisma, data, metadata) {
     if (u) userId = u.id;
   }
 
-  if (!userId || !paymentMethodId || !memberId) {
+  // memberId is NOT required: a setup-mode checkout vaults a card without a
+  // purchase, so Whop may not create a member. The payment method alone is enough
+  // to charge off-session — store it and keep the member id only when present.
+  if (!userId || !paymentMethodId) {
     console.error(`[Whop Webhook] setup_intent.succeeded FAILED to store card. userId=${userId}, paymentMethodId=${paymentMethodId}, memberId=${memberId}, metadata=${JSON.stringify(metadata)}`);
     return;
   }
@@ -512,12 +519,14 @@ async function handleSetupIntentSucceeded(prisma, data, metadata) {
     where: { id: userId },
     data: {
       whopPaymentMethodId: paymentMethodId,
-      whopMemberId: memberId,
+      ...(memberId ? { whopMemberId: memberId } : {}),
       autoRechargeFailCount: 0, // fresh card → clear any prior failures
+      autoRechargeLastError: null,
+      autoRechargeLastErrorAt: null,
       ...(data.user?.id ? { whopCustomerId: data.user.id } : {}),
     },
   });
-  console.log(`[Whop Webhook] Saved payment method ${paymentMethodId} (member ${memberId}) for user ${userId}`);
+  console.log(`[Whop Webhook] Saved payment method ${paymentMethodId} for user ${userId}${memberId ? ` (member ${memberId})` : ' (no member — setup-mode checkout)'}`);
 }
 
 // Fired when an off-session charge (auto-recharge or 1-click manual) is
@@ -525,7 +534,7 @@ async function handleSetupIntentSucceeded(prisma, data, metadata) {
 // counter and disables auto-recharge after too many consecutive failures so we
 // stop hammering a dead card. Resolved via the unique plan id we created for the
 // charge — no reliance on Whop propagating our metadata.
-const AUTO_RECHARGE_MAX_FAILS = 3;
+const { AUTO_RECHARGE_MAX_FAILS, extractDeclineReason, recordAutoRechargeFailure } = require('../utils/autoRecharge');
 
 async function handleAutoRechargeFailed(prisma, data, metadata) {
   const planId = data.plan?.id || data.membership?.plan_id || null;
@@ -539,25 +548,26 @@ async function handleAutoRechargeFailed(prisma, data, metadata) {
   if (!pending || (pending.kind !== 'auto_recharge' && pending.kind !== 'manual_card')) return;
   if (pending.status === 'failed' || pending.status === 'completed') return;
 
-  // Release the lock so a future attempt isn't blocked by this dead one.
+  const reason = extractDeclineReason(data);
+
+  // Release the lock so a future attempt isn't blocked by this dead one, and
+  // keep the decline reason on the purchase so it shows in the credits history.
   await prisma.creditPurchase.update({
     where: { id: pending.id },
-    data: { status: 'failed', rawPayload: JSON.stringify(data) },
+    data: { status: 'failed', errorMessage: reason, rawPayload: JSON.stringify(data) },
   }).catch(() => {});
 
-  if (pending.kind !== 'auto_recharge') return; // manual failures don't disable auto-recharge
+  if (pending.kind !== 'auto_recharge') {
+    // A failed 1-click charge doesn't disable auto-recharge, but the customer
+    // still needs to see why it was declined.
+    await prisma.user.update({
+      where: { id: pending.userId },
+      data: { autoRechargeLastError: reason, autoRechargeLastErrorAt: new Date() },
+    }).catch(() => {});
+    return;
+  }
 
-  const user = await prisma.user.findUnique({ where: { id: pending.userId }, select: { autoRechargeFailCount: true } });
-  const fails = (user?.autoRechargeFailCount || 0) + 1;
-  const disable = fails >= AUTO_RECHARGE_MAX_FAILS;
-  await prisma.user.update({
-    where: { id: pending.userId },
-    data: {
-      autoRechargeFailCount: fails,
-      ...(disable ? { autoRechargeEnabled: false } : {}),
-    },
-  });
-  console.warn(`[Whop Webhook] Auto-recharge charge failed for user ${pending.userId} (fail #${fails})${disable ? ' — auto-recharge DISABLED' : ''}`);
+  await recordAutoRechargeFailure(prisma, pending.userId, reason);
 }
 
 async function handleMembershipActivated(prisma, data, metadata) {

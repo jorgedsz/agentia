@@ -152,6 +152,11 @@ export default function Credits() {
         threshold: data.threshold ?? '',
         amount: data.amount ?? '',
         hasCard: !!data.hasCard,
+        lastError: data.lastError || null,
+        lastErrorAt: data.lastErrorAt || null,
+        failCount: data.failCount || 0,
+        maxFails: data.maxFails || 3,
+        disabledByFailures: !!data.disabledByFailures,
         min: data.min || 1,
         max: data.max || 10000,
       })
@@ -292,6 +297,32 @@ export default function Credits() {
               {ar.hasCard ? (t('credits.cardOnFile') || 'Tarjeta guardada') : (t('credits.noCard') || 'Sin tarjeta')}
             </span>
           </div>
+
+          {/* Last decline — tells the customer why the card failed instead of
+              auto-recharge going quiet after N silent failures. */}
+          {ar.lastError && (
+            <div className="mb-4 p-3 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+                </svg>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                    {ar.disabledByFailures
+                      ? 'Auto-recarga desactivada: tu tarjeta fue rechazada'
+                      : 'Tu tarjeta fue rechazada'}
+                  </p>
+                  <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{ar.lastError}</p>
+                  <p className="text-xs text-red-600 dark:text-red-500 mt-1">
+                    {ar.disabledByFailures
+                      ? `Se intentó ${ar.failCount} ${ar.failCount === 1 ? 'vez' : 'veces'}. Agrega otra tarjeta y vuelve a activar la auto-recarga.`
+                      : `Intento ${ar.failCount} de ${ar.maxFails}. Tras ${ar.maxFails} fallos la auto-recarga se desactiva sola.`}
+                    {ar.lastErrorAt ? ` · ${new Date(ar.lastErrorAt).toLocaleString()}` : ''}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {!ar.hasCard ? (
             <button

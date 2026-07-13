@@ -1,3 +1,5 @@
+const { AUTO_RECHARGE_MAX_FAILS } = require('../utils/autoRecharge');
+
 /**
  * Get credits for a user
  * GET /api/credits/:userId?
@@ -311,7 +313,9 @@ const AUTO_RECHARGE_DAILY_CAP = 5;               // max auto charges per 24h (sa
  * Returns the Whop payment object. Throws if the user has no saved card.
  */
 async function performOffSessionCharge(prisma, user, amount, kind) {
-  if (!user.whopMemberId || !user.whopPaymentMethodId) {
+  // Only the saved card is required. whopMemberId is optional — a setup-mode
+  // checkout vaults a card without creating a member.
+  if (!user.whopPaymentMethodId) {
     const err = new Error('No saved payment method');
     err.code = 'NO_CARD';
     throw err;
@@ -319,7 +323,8 @@ async function performOffSessionCharge(prisma, user, amount, kind) {
 
   const whopService = require('../services/whopService');
   const payment = await whopService.chargeOffSession({
-    memberId: user.whopMemberId,
+    memberId: user.whopMemberId || null,
+    userId: user.whopCustomerId || null,
     paymentMethodId: user.whopPaymentMethodId,
     amount,
     metadata: { userId: String(user.id), type: 'credits', kind, credits: String(amount) },
@@ -350,7 +355,7 @@ async function triggerAutoRecharge(prisma, userId) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return;
     if (!user.autoRechargeEnabled) return;
-    if (!user.whopMemberId || !user.whopPaymentMethodId) return;
+    if (!user.whopPaymentMethodId) return; // no saved card (member id is optional)
     const threshold = user.autoRechargeThreshold;
     const amount = user.autoRechargeAmount;
     if (!(threshold > 0) || !(amount > 0)) return;
@@ -383,7 +388,12 @@ async function triggerAutoRecharge(prisma, userId) {
     await performOffSessionCharge(prisma, user, amount, 'auto_recharge');
     console.log(`[Auto-Recharge] Charged user ${userId} $${amount} (balance was $${user.vapiCredits.toFixed(2)} < $${threshold})`);
   } catch (err) {
+    // Whop rejected the charge outright (bad card, no funds, API error). The
+    // async decline path lives in the payment.failed webhook; this is the
+    // synchronous one — record it the same way so it isn't a silent failure.
     console.error(`[Auto-Recharge] Failed for user ${userId}:`, err.response?.data || err.message);
+    const { recordAutoRechargeFailure } = require('../utils/autoRecharge');
+    await recordAutoRechargeFailure(prisma, userId, err);
   }
 }
 
@@ -423,13 +433,24 @@ const getAutoRecharge = async (req, res) => {
         autoRechargeThreshold: true,
         autoRechargeAmount: true,
         whopPaymentMethodId: true,
+        autoRechargeFailCount: true,
+        autoRechargeLastError: true,
+        autoRechargeLastErrorAt: true,
       },
     });
+    const failCount = user?.autoRechargeFailCount || 0;
     res.json({
       enabled: !!user?.autoRechargeEnabled,
       threshold: user?.autoRechargeThreshold ?? null,
       amount: user?.autoRechargeAmount ?? null,
       hasCard: !!user?.whopPaymentMethodId,
+      // Surface the last decline so the customer knows why the card failed
+      // instead of auto-recharge going quiet after 3 silent failures.
+      lastError: user?.autoRechargeLastError || null,
+      lastErrorAt: user?.autoRechargeLastErrorAt || null,
+      failCount,
+      maxFails: AUTO_RECHARGE_MAX_FAILS,
+      disabledByFailures: failCount >= AUTO_RECHARGE_MAX_FAILS && !user?.autoRechargeEnabled,
       min: CREDITS_MIN_AMOUNT,
       max: CREDITS_MAX_AMOUNT,
     });

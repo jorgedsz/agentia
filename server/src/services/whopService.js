@@ -85,10 +85,14 @@ async function createSetupCheckout({ metadata, redirectUrl }) {
 // payment.failed webhooks. An inline one-time plan keeps each charge keyed by a
 // unique plan id, so the existing webhook attribution (CreditPurchase pending
 // row → vapiCredits increment) works unchanged.
-async function chargeOffSession({ memberId, paymentMethodId, amount, metadata }) {
+async function chargeOffSession({ memberId, userId, paymentMethodId, amount, metadata }) {
+  // member_id is optional: a setup-mode checkout vaults a card without creating a
+  // member, so we may only have the payment method (and the Whop user id). Send
+  // whichever identifiers we have and let Whop resolve the payer from the card.
   const body = {
     company_id: process.env.WHOP_COMPANY_ID,
-    member_id: memberId,
+    ...(memberId ? { member_id: memberId } : {}),
+    ...(!memberId && userId ? { user_id: userId } : {}),
     payment_method_id: paymentMethodId,
     plan: {
       initial_price: amount,
