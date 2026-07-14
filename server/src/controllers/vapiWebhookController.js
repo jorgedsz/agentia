@@ -153,14 +153,18 @@ const categorizeOutcome = (call, overrideReason, message) => {
   return 'unknown';
 };
 
-// Download a file from URL to local path
-const downloadFile = (url, destPath) => {
+// Download a file from URL to local path.
+// `headers` is sent on the initial request only — VAPI's authenticated recording
+// endpoints 302-redirect to a short-lived *signed* URL, and forwarding an
+// Authorization header to that signed URL makes the storage provider reject it
+// ("only one auth mechanism allowed"). So we drop the headers when redirecting.
+const downloadFile = (url, destPath, headers = {}) => {
   return new Promise((resolve, reject) => {
     const proto = url.startsWith('https') ? https : http;
     const file = fs.createWriteStream(destPath);
 
-    proto.get(url, (response) => {
-      // Follow redirects
+    proto.get(url, { headers }, (response) => {
+      // Follow redirects (without the auth header — the target is pre-signed)
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         file.close();
         fs.unlinkSync(destPath);
@@ -184,6 +188,52 @@ const downloadFile = (url, destPath) => {
       reject(err);
     });
   });
+};
+
+/**
+ * Fetch a call recording from VAPI.
+ *
+ * From 2026-07-15 VAPI requires an authenticated API call to download recordings:
+ * the `recordingUrl` in the webhook payload is no longer publicly downloadable.
+ * The supported path is GET /call/{id}/mono-recording with a Bearer key, which
+ * 302-redirects to a short-lived signed URL (downloadFile follows it).
+ *
+ * We use the account's own VAPI key — the same key that owns the call — and fall
+ * back to the legacy public URL if the authenticated call fails, so recordings
+ * keep working on both sides of the cutover.
+ */
+const downloadVapiRecording = async (prisma, userId, vapiCallId, legacyUrl, destPath) => {
+  const { getVapiKeyForUser } = require('../utils/getApiKeys');
+
+  let apiKey = null;
+  try {
+    apiKey = await getVapiKeyForUser(prisma, userId);
+  } catch (err) {
+    console.error(`[VAPI Webhook] Could not resolve VAPI key for user ${userId}: ${err.message}`);
+  }
+
+  if (apiKey && vapiCallId) {
+    try {
+      await downloadFile(
+        `https://api.vapi.ai/call/${vapiCallId}/mono-recording`,
+        destPath,
+        { Authorization: `Bearer ${apiKey}` }
+      );
+      return 'authenticated';
+    } catch (err) {
+      console.warn(`[VAPI Webhook] Authenticated recording download failed for call ${vapiCallId}: ${err.message} — falling back to the legacy URL`);
+    }
+  } else if (!apiKey) {
+    console.warn(`[VAPI Webhook] No VAPI API key for user ${userId} — cannot use the authenticated recording endpoint`);
+  }
+
+  // Legacy public URL. VAPI locks this down on 2026-07-15; kept only as a fallback.
+  if (legacyUrl) {
+    await downloadFile(legacyUrl, destPath);
+    return 'legacy';
+  }
+
+  throw new Error('No recording source available (no API key and no recordingUrl)');
 };
 
 // Build the public URL for our server
@@ -599,7 +649,8 @@ const handleEvent = async (req, res) => {
         const tempFilename = `${vapiCallId}${ext}`;
         const tempPath = path.join(recordingsDir, tempFilename);
 
-        await downloadFile(vapiRecordingUrl, tempPath);
+        const via = await downloadVapiRecording(prisma, userId, vapiCallId, vapiRecordingUrl, tempPath);
+        console.log(`[VAPI Webhook] Recording downloaded for call ${vapiCallId} via ${via} endpoint`);
 
         // Encrypt the recording file on disk
         const encFilename = `${vapiCallId}${ext}.enc`;
