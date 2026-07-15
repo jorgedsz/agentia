@@ -1,4 +1,5 @@
 const { AUTO_RECHARGE_MAX_FAILS } = require('../utils/autoRecharge');
+const { getWhopConfigForUser } = require('../utils/whopConfig');
 
 /**
  * Get credits for a user
@@ -228,39 +229,52 @@ const purchaseCredits = async (req, res) => {
       return res.status(400).json({ error: `Amount must be between $${CREDITS_MIN_AMOUNT} and $${CREDITS_MAX_AMOUNT}.` });
     }
 
-    if (!process.env.WHOP_API_KEY) {
+    // Route to the user's partner Whop (LM Consulting, etc.) when configured, so
+    // the money lands in the partner's account; otherwise the platform's global Whop.
+    const whop = await getWhopConfigForUser(req.prisma, req.user.id);
+    if (!whop.isConfigured) {
       return res.status(400).json({ error: 'Payment processing is not configured' });
     }
 
     const whopService = require('../services/whopService');
 
-    // Ensure the credits Product row + linked Whop product exist.
-    let creditsProduct = await req.prisma.product.findUnique({ where: { slug: 'credits' } });
-    if (!creditsProduct) {
-      creditsProduct = await req.prisma.product.create({
-        data: {
-          name: 'Credits',
-          slug: 'credits',
-          description: 'VAPI call credits',
-          isActive: true,
-          sortOrder: 999,
-        },
-      });
-    }
-    if (!creditsProduct.whopProductId) {
-      const whopProduct = await whopService.createProduct('Credits', 'VAPI call credits');
-      creditsProduct = await req.prisma.product.update({
-        where: { id: creditsProduct.id },
-        data: { whopProductId: whopProduct.id },
-      });
+    // Resolve the "Credits" product for this billing account. Partners keep their
+    // own credits product in their own Whop company (cached on the partner user);
+    // the platform uses the shared Product row.
+    let creditsProductId;
+    if (whop.source === 'partner') {
+      creditsProductId = whop.partner.whopCreditsProductId;
+      if (!creditsProductId) {
+        const whopProduct = await whopService.createProduct('Credits', 'VAPI call credits', whop.config);
+        creditsProductId = whopProduct.id;
+        await req.prisma.user.update({
+          where: { id: whop.partner.id },
+          data: { whopCreditsProductId: creditsProductId },
+        });
+      }
+    } else {
+      let creditsProduct = await req.prisma.product.findUnique({ where: { slug: 'credits' } });
+      if (!creditsProduct) {
+        creditsProduct = await req.prisma.product.create({
+          data: { name: 'Credits', slug: 'credits', description: 'VAPI call credits', isActive: true, sortOrder: 999 },
+        });
+      }
+      if (!creditsProduct.whopProductId) {
+        const whopProduct = await whopService.createProduct('Credits', 'VAPI call credits', whop.config);
+        creditsProduct = await req.prisma.product.update({
+          where: { id: creditsProduct.id },
+          data: { whopProductId: whopProduct.id },
+        });
+      }
+      creditsProductId = creditsProduct.whopProductId;
     }
 
     // Create a one-time Whop plan for this exact amount, then the checkout.
-    const plan = await whopService.createPlan(creditsProduct.whopProductId, {
+    const plan = await whopService.createPlan(creditsProductId, {
       price: amount,
       billingCycle: 'lifetime',
       name: `Credits ($${amount})`,
-    });
+    }, whop.config);
 
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const session = await whopService.createCheckoutSession({
@@ -271,7 +285,7 @@ const purchaseCredits = async (req, res) => {
         credits: String(amount),
       },
       redirectUrl: `${clientUrl}/credits?checkout=success`,
-    });
+    }, whop.config);
 
     // Record a PENDING purchase keyed by the unique one-time plan id. This is the
     // reliable link back to the buyer: Whop doesn't propagate checkout metadata to
@@ -322,13 +336,16 @@ async function performOffSessionCharge(prisma, user, amount, kind) {
   }
 
   const whopService = require('../services/whopService');
+  // Route the charge through the user's partner Whop (if any) so the money lands
+  // in the partner's account; the saved card was vaulted in that same company.
+  const whop = await getWhopConfigForUser(prisma, user.id);
   const payment = await whopService.chargeOffSession({
     memberId: user.whopMemberId || null,
     userId: user.whopCustomerId || null,
     paymentMethodId: user.whopPaymentMethodId,
     amount,
     metadata: { userId: String(user.id), type: 'credits', kind, credits: String(amount) },
-  });
+  }, whop.config);
 
   const planId = payment.plan?.id || payment.plan_id || null;
   await prisma.creditPurchase.create({
@@ -404,7 +421,8 @@ async function triggerAutoRecharge(prisma, userId) {
  */
 const setupCard = async (req, res) => {
   try {
-    if (!process.env.WHOP_API_KEY) {
+    const whop = await getWhopConfigForUser(req.prisma, req.user.id);
+    if (!whop.isConfigured) {
       return res.status(400).json({ error: 'Payment processing is not configured' });
     }
     const whopService = require('../services/whopService');
@@ -412,7 +430,7 @@ const setupCard = async (req, res) => {
     const session = await whopService.createSetupCheckout({
       metadata: { userId: String(req.user.id), type: 'setup' },
       redirectUrl: `${clientUrl}/credits?setup=success`,
-    });
+    }, whop.config);
     res.json({ sessionId: session.id, purchaseUrl: session.purchase_url });
   } catch (error) {
     console.error('Error creating setup checkout:', error.response?.data || error.message);
@@ -516,7 +534,8 @@ const updateAutoRecharge = async (req, res) => {
  */
 const rechargeNow = async (req, res) => {
   try {
-    if (!process.env.WHOP_API_KEY) {
+    const whop = await getWhopConfigForUser(req.prisma, req.user.id);
+    if (!whop.isConfigured) {
       return res.status(400).json({ error: 'Payment processing is not configured' });
     }
     const amount = Math.round(parseFloat(req.body?.amount) * 100) / 100;
@@ -525,7 +544,7 @@ const rechargeNow = async (req, res) => {
     }
 
     const user = await req.prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!user?.whopMemberId || !user?.whopPaymentMethodId) {
+    if (!user?.whopPaymentMethodId) { // member id is optional (setup-mode checkout)
       return res.status(400).json({ error: 'No saved payment method. Add a card first.' });
     }
 

@@ -48,6 +48,16 @@ model User {
   autoRechargeFailCount Int            @default(0) // Consecutive failed charges; auto-disables after N
   autoRechargeLastError String?        // Why the last charge was declined (shown to the customer)
   autoRechargeLastErrorAt DateTime?    // When that decline happened
+  // ── Partner Whop billing (WHITELABEL only) ──
+  // When a WHITELABEL has its own Whop configured, credit purchases + auto-recharge
+  // for that partner and every account under it are created in the partner's own
+  // Whop company, so the money lands in the partner's account. Accounts without a
+  // configured partner fall back to the platform's global Whop (env vars).
+  whopApiKey            String?        // Encrypted — partner's Whop API key
+  whopCompanyId         String?        // Partner's Whop company id (biz_xxx)
+  whopWebhookSecret     String?        // Encrypted — partner's Whop webhook signing secret
+  whopCreditsProductId  String?        // Cached "Credits" product id created in the partner's company
+  whopWebhookToken      String? @unique // Random token for the partner's webhook path (/api/whop/webhook/:token)
   whitelabelId      Int?               // If AGENCY, belongs to this whitelabel
   whitelabel        User?              @relation("WhitelabelAgencies", fields: [whitelabelId], references: [id])
   agencies          User[]             @relation("WhitelabelAgencies") // If WHITELABEL, these are their agencies

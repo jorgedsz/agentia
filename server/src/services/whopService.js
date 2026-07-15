@@ -3,22 +3,33 @@ const { Webhook } = require('standardwebhooks');
 
 const WHOP_API_BASE = 'https://api.whop.com/api/v1';
 
-function getHeaders() {
+// Per-call Whop credentials. `config` may carry a partner's own { apiKey,
+// companyId }; when absent we use the platform's global env vars. This lets a
+// WHITELABEL partner route credit purchases + auto-recharge into its own Whop
+// company so the money lands in the partner's account.
+function apiKeyOf(config) {
+  return config?.apiKey || process.env.WHOP_API_KEY;
+}
+function companyIdOf(config) {
+  return config?.companyId || process.env.WHOP_COMPANY_ID;
+}
+
+function getHeaders(config) {
   return {
-    Authorization: `Bearer ${process.env.WHOP_API_KEY}`,
+    Authorization: `Bearer ${apiKeyOf(config)}`,
     'Content-Type': 'application/json',
   };
 }
 
 // ── Products ──
 
-async function createProduct(name, description) {
+async function createProduct(name, description, config) {
   const { data } = await axios.post(`${WHOP_API_BASE}/products`, {
-    company_id: process.env.WHOP_COMPANY_ID,
+    company_id: companyIdOf(config),
     title: name,
     description: description || undefined,
     visibility: 'hidden', // managed internally, not on Whop storefront
-  }, { headers: getHeaders() });
+  }, { headers: getHeaders(config) });
   return data;
 }
 
@@ -30,10 +41,10 @@ const BILLING_PERIOD_DAYS = {
   annual: 365,
 };
 
-async function createPlan(whopProductId, { price, billingCycle, name }) {
+async function createPlan(whopProductId, { price, billingCycle, name }, config) {
   const isLifetime = billingCycle === 'lifetime';
   const body = {
-    company_id: process.env.WHOP_COMPANY_ID,
+    company_id: companyIdOf(config),
     product_id: whopProductId,
     initial_price: price,
     renewal_price: isLifetime ? undefined : price,
@@ -41,20 +52,20 @@ async function createPlan(whopProductId, { price, billingCycle, name }) {
     plan_type: isLifetime ? 'one_time' : 'renewal',
   };
 
-  const { data } = await axios.post(`${WHOP_API_BASE}/plans`, body, { headers: getHeaders() });
+  const { data } = await axios.post(`${WHOP_API_BASE}/plans`, body, { headers: getHeaders(config) });
   return data;
 }
 
 // ── Checkout Sessions ──
 
-async function createCheckoutSession({ planId, metadata, redirectUrl }) {
+async function createCheckoutSession({ planId, metadata, redirectUrl }, config) {
   const body = {
     plan_id: planId,
     metadata: metadata || {},
     redirect_url: redirectUrl || undefined,
   };
 
-  const { data } = await axios.post(`${WHOP_API_BASE}/checkout_configurations`, body, { headers: getHeaders() });
+  const { data } = await axios.post(`${WHOP_API_BASE}/checkout_configurations`, body, { headers: getHeaders(config) });
   return data;
 }
 
@@ -65,15 +76,15 @@ async function createCheckoutSession({ planId, metadata, redirectUrl }) {
 // the saved payment_method.id and member.id, which we store for off-session
 // charges. Returns the configuration ({ id, purchase_url, ... }); id is passed
 // to the WhopCheckoutEmbed as `sessionId`.
-async function createSetupCheckout({ metadata, redirectUrl }) {
+async function createSetupCheckout({ metadata, redirectUrl }, config) {
   const body = {
-    company_id: process.env.WHOP_COMPANY_ID,
+    company_id: companyIdOf(config),
     mode: 'setup',
     metadata: metadata || {},
     redirect_url: redirectUrl || undefined,
   };
 
-  const { data } = await axios.post(`${WHOP_API_BASE}/checkout_configurations`, body, { headers: getHeaders() });
+  const { data } = await axios.post(`${WHOP_API_BASE}/checkout_configurations`, body, { headers: getHeaders(config) });
   return data;
 }
 
@@ -85,12 +96,12 @@ async function createSetupCheckout({ metadata, redirectUrl }) {
 // payment.failed webhooks. An inline one-time plan keeps each charge keyed by a
 // unique plan id, so the existing webhook attribution (CreditPurchase pending
 // row → vapiCredits increment) works unchanged.
-async function chargeOffSession({ memberId, userId, paymentMethodId, amount, metadata }) {
+async function chargeOffSession({ memberId, userId, paymentMethodId, amount, metadata }, config) {
   // member_id is optional: a setup-mode checkout vaults a card without creating a
   // member, so we may only have the payment method (and the Whop user id). Send
   // whichever identifiers we have and let Whop resolve the payer from the card.
   const body = {
-    company_id: process.env.WHOP_COMPANY_ID,
+    company_id: companyIdOf(config),
     ...(memberId ? { member_id: memberId } : {}),
     ...(!memberId && userId ? { user_id: userId } : {}),
     payment_method_id: paymentMethodId,
@@ -102,7 +113,7 @@ async function chargeOffSession({ memberId, userId, paymentMethodId, amount, met
     metadata: metadata || {},
   };
 
-  const { data } = await axios.post(`${WHOP_API_BASE}/payments`, body, { headers: getHeaders() });
+  const { data } = await axios.post(`${WHOP_API_BASE}/payments`, body, { headers: getHeaders(config) });
   return data;
 }
 
@@ -122,8 +133,10 @@ async function cancelMembership(membershipId, mode = 'at_period_end') {
 
 // ── Webhook Verification ──
 
-function verifyWebhook(rawBody, headers) {
-  const secret = process.env.WHOP_WEBHOOK_SECRET;
+function verifyWebhook(rawBody, headers, secretOverride) {
+  // secretOverride is the partner's own webhook signing secret; without it we use
+  // the platform's global secret.
+  const secret = secretOverride || process.env.WHOP_WEBHOOK_SECRET;
   if (!secret) throw new Error('WHOP_WEBHOOK_SECRET is not configured');
 
   // Whop's webhook secret is a raw "ws_..." string. The standardwebhooks lib

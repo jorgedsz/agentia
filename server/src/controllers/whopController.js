@@ -159,9 +159,22 @@ const handleWebhook = async (req, res) => {
       'webhook-signature': req.headers['webhook-signature'],
     };
 
+    // A partner webhook (/api/whop/webhook/:token) is verified with that
+    // partner's own signing secret; the plain /webhook uses the global secret.
+    let partnerSecret;
+    if (req.params.token) {
+      const { getPartnerByWebhookToken } = require('../utils/whopConfig');
+      const resolved = await getPartnerByWebhookToken(req.prisma, req.params.token).catch(() => null);
+      if (!resolved) {
+        console.error(`[Whop Webhook] Unknown partner webhook token: ${req.params.token}`);
+        return res.status(404).json({ error: 'Unknown webhook' });
+      }
+      partnerSecret = resolved.webhookSecret;
+    }
+
     let event;
     try {
-      event = whopService.verifyWebhook(rawBody, headers);
+      event = whopService.verifyWebhook(rawBody, headers, partnerSecret);
     } catch (err) {
       console.error('Webhook verification failed:', err.message);
       return res.status(400).json({ error: 'Invalid webhook signature' });
@@ -776,10 +789,108 @@ const getCreditTiers = async (_req, res) => {
   });
 };
 
+// ── Partner Whop credentials (OWNER only) ──
+// Lets the OWNER give a WHITELABEL partner its own Whop so credit purchases and
+// auto-recharge for that partner (and all accounts under it) collect money in the
+// partner's own account. Secrets are encrypted at rest and never returned.
+
+const { encrypt } = require('../utils/encryption');
+const { generateWebhookToken } = require('../utils/whopConfig');
+
+function partnerWebhookUrl(token) {
+  if (!token) return null;
+  const base = (process.env.APP_URL || process.env.SERVER_URL || '').replace(/\/+$/, '');
+  return `${base}/api/whop/webhook/${token}`;
+}
+
+// GET /api/whop/partner/:userId/config
+const getPartnerWhopConfig = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const partner = await req.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, name: true, email: true, whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
+    });
+    if (!partner) return res.status(404).json({ error: 'User not found' });
+    res.json({
+      userId: partner.id,
+      role: partner.role,
+      isWhitelabel: partner.role === 'WHITELABEL',
+      companyId: partner.whopCompanyId || '',
+      hasApiKey: !!partner.whopApiKey,
+      hasWebhookSecret: !!partner.whopWebhookSecret,
+      webhookUrl: partnerWebhookUrl(partner.whopWebhookToken),
+      configured: !!(partner.whopApiKey && partner.whopCompanyId),
+    });
+  } catch (err) {
+    console.error('getPartnerWhopConfig error:', err.message);
+    res.status(500).json({ error: 'Failed to load partner Whop config' });
+  }
+};
+
+// PUT /api/whop/partner/:userId/config
+// Body: { apiKey?, companyId?, webhookSecret?, clear? }
+// Empty/omitted apiKey/webhookSecret keep the existing stored value; `clear: true`
+// wipes the whole partner Whop config.
+const setPartnerWhopConfig = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const partner = await req.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, whopWebhookToken: true },
+    });
+    if (!partner) return res.status(404).json({ error: 'User not found' });
+    if (partner.role !== 'WHITELABEL') {
+      return res.status(400).json({ error: 'Partner Whop can only be set on a WHITELABEL account' });
+    }
+
+    if (req.body?.clear) {
+      await req.prisma.user.update({
+        where: { id: userId },
+        data: {
+          whopApiKey: null, whopCompanyId: null, whopWebhookSecret: null,
+          whopCreditsProductId: null, whopWebhookToken: null,
+        },
+      });
+      return res.json({ cleared: true });
+    }
+
+    const { apiKey, companyId, webhookSecret } = req.body || {};
+    const data = {};
+    if (typeof companyId === 'string') data.whopCompanyId = companyId.trim() || null;
+    if (apiKey && apiKey.trim()) data.whopApiKey = encrypt(apiKey.trim());
+    if (webhookSecret && webhookSecret.trim()) data.whopWebhookSecret = encrypt(webhookSecret.trim());
+    // Mint a webhook token on first configuration so the partner has a URL to paste
+    // into their Whop dashboard.
+    if (!partner.whopWebhookToken) data.whopWebhookToken = generateWebhookToken();
+    // Changing the company means the cached credits product no longer exists there.
+    if (data.whopCompanyId !== undefined) data.whopCreditsProductId = null;
+
+    const updated = await req.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: { whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
+    });
+
+    res.json({
+      configured: !!(updated.whopApiKey && updated.whopCompanyId),
+      companyId: updated.whopCompanyId || '',
+      hasApiKey: !!updated.whopApiKey,
+      hasWebhookSecret: !!updated.whopWebhookSecret,
+      webhookUrl: partnerWebhookUrl(updated.whopWebhookToken),
+    });
+  } catch (err) {
+    console.error('setPartnerWhopConfig error:', err.message);
+    res.status(500).json({ error: 'Failed to save partner Whop config' });
+  }
+};
+
 module.exports = {
   createCheckout,
   handleWebhook,
   syncProducts,
   getMembershipStatus,
   getCreditTiers,
+  getPartnerWhopConfig,
+  setPartnerWhopConfig,
 };
