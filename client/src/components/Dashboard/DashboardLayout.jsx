@@ -760,6 +760,11 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
         threshold: data.threshold ?? '',
         amount: data.amount ?? '',
         hasCard: !!data.hasCard,
+        lastError: data.lastError || null,
+        disabledByFailures: !!data.disabledByFailures,
+        failCount: data.failCount || 0,
+        maxFails: data.maxFails || 3,
+        pending: data.pending || null,
         min: data.min || 1,
         max: data.max || 10000,
       }))
@@ -1019,6 +1024,31 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                 {arMsg && (
                   <div className="mb-3 p-2.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400 text-xs">
                     {arMsg}
+                  </div>
+                )}
+
+                {/* Last decline — why the card failed */}
+                {ar.lastError && (
+                  <div className="mb-3 p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-xs">
+                    <p className="font-semibold text-red-800 dark:text-red-300">
+                      {ar.disabledByFailures ? 'Auto-recarga desactivada: tarjeta rechazada' : 'Tu tarjeta fue rechazada'}
+                    </p>
+                    <p className="text-red-700 dark:text-red-400 mt-0.5">{ar.lastError}</p>
+                    <p className="text-red-600 dark:text-red-500 mt-0.5">
+                      {ar.disabledByFailures
+                        ? `Se intentó ${ar.failCount} veces. Cambia la tarjeta y vuelve a activar.`
+                        : `Intento ${ar.failCount} de ${ar.maxFails}.`}
+                    </p>
+                  </div>
+                )}
+
+                {/* Charge stuck in "pending" — Whop accepted it but no webhook came back */}
+                {ar.pending && (
+                  <div className="mb-3 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-xs">
+                    <p className="font-semibold text-amber-800 dark:text-amber-300">Cobro en proceso sin confirmar</p>
+                    <p className="text-amber-700 dark:text-amber-400 mt-0.5">
+                      ${ar.pending.amount} lleva {ar.pending.ageMinutes} min sin respuesta de Whop. Si supera 30 min, revisa que el webhook de Whop esté configurado.
+                    </p>
                   </div>
                 )}
 

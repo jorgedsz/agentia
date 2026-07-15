@@ -407,11 +407,25 @@ async function triggerAutoRecharge(prisma, userId) {
       return;
     }
 
-    // Lock — don't fire if a previous auto charge is still pending.
+    // Lock — don't fire while a recent auto charge is still settling. Whop settles
+    // off-session charges in seconds, so anything still "pending" after 30 minutes
+    // is a lost webhook, not an in-flight charge; it must not block forever (that
+    // silently freezes auto-recharge). Mark stale pendings failed so they release
+    // the lock, and surface why.
+    const PENDING_STALE_MS = 30 * 60 * 1000;
     const pending = await prisma.creditPurchase.findFirst({
       where: { userId, kind: 'auto_recharge', status: 'pending' },
+      orderBy: { createdAt: 'desc' },
     });
-    if (pending) return;
+    if (pending) {
+      const ageMs = Date.now() - new Date(pending.createdAt).getTime();
+      if (ageMs < PENDING_STALE_MS) return; // genuinely in flight — wait for its webhook
+      await prisma.creditPurchase.update({
+        where: { id: pending.id },
+        data: { status: 'failed', errorMessage: 'Whop nunca confirmó este cobro (webhook no recibido). Revisa la configuración del webhook.' },
+      }).catch(() => {});
+      console.warn(`[Auto-Recharge] Released stale pending charge #${pending.id} for user ${userId} (age ${Math.round(ageMs / 60000)}m)`);
+    }
 
     // Daily cap — bound the number of auto charges in any 24h window.
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -557,6 +571,19 @@ const getAutoRecharge = async (req, res) => {
       },
     });
     const failCount = user?.autoRechargeFailCount || 0;
+
+    // Diagnostics: a pending off-session charge that never settled (webhook lost)
+    // would block every future auto-recharge via the pending lock. Surface it, plus
+    // the last few attempts, so a stuck/declined state is visible instead of silent.
+    const recent = await req.prisma.creditPurchase.findMany({
+      where: { userId: req.user.id, kind: { in: ['auto_recharge', 'manual_card'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: { amount: true, status: true, kind: true, errorMessage: true, createdAt: true },
+    });
+    const pending = recent.find(p => p.status === 'pending') || null;
+    const pendingAgeMin = pending ? Math.round((Date.now() - new Date(pending.createdAt).getTime()) / 60000) : null;
+
     res.json({
       enabled: !!user?.autoRechargeEnabled,
       threshold: user?.autoRechargeThreshold ?? null,
@@ -570,6 +597,8 @@ const getAutoRecharge = async (req, res) => {
       failCount,
       maxFails: AUTO_RECHARGE_MAX_FAILS,
       disabledByFailures: failCount >= AUTO_RECHARGE_MAX_FAILS && !user?.autoRechargeEnabled,
+      pending: pending ? { amount: pending.amount, ageMinutes: pendingAgeMin } : null,
+      recentAttempts: recent.map(p => ({ amount: p.amount, status: p.status, kind: p.kind, error: p.errorMessage || null, at: p.createdAt })),
       min: CREDITS_MIN_AMOUNT,
       max: CREDITS_MAX_AMOUNT,
     });
