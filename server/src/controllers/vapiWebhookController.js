@@ -180,7 +180,8 @@ const downloadFile = (url, destPath, headers = {}) => {
       response.pipe(file);
       file.on('finish', () => {
         file.close();
-        resolve();
+        // Resolve with metadata so the caller can validate the body is real audio.
+        resolve({ contentType: (response.headers['content-type'] || '').toLowerCase(), size: fs.statSync(destPath).size });
       });
     }).on('error', (err) => {
       file.close();
@@ -189,6 +190,39 @@ const downloadFile = (url, destPath, headers = {}) => {
     });
   });
 };
+
+// A downloaded recording is valid only if it's actually audio. VAPI's
+// authenticated endpoint can return a 200 whose body is JSON/text (an error, or a
+// { url } envelope), which we'd otherwise encrypt and serve as a broken "recording"
+// — the player shows up but nothing plays. Reject anything that isn't audio.
+const validateAudioFile = (meta, filePath) => {
+  const ct = meta?.contentType || '';
+  if (ct && !ct.startsWith('audio/') && !ct.includes('octet-stream') && !ct.includes('mpeg') && !ct.includes('wav')) {
+    throw new Error(`Downloaded recording is not audio (content-type: ${ct || 'none'})`);
+  }
+  const size = meta?.size ?? (fs.existsSync(filePath) ? fs.statSync(filePath).size : 0);
+  if (size < 1024) throw new Error(`Downloaded recording is too small (${size} bytes) — likely an error body`);
+  // Magic-byte sniff: WAV="RIFF", MP3="ID3" or frame sync 0xFFEx/0xFFFx, OGG="OggS".
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(4);
+    fs.readSync(fd, buf, 0, 4, 0);
+    fs.closeSync(fd);
+    const head = buf.toString('ascii', 0, 4);
+    const looksAudio = head === 'RIFF' || head.startsWith('ID3') || head === 'OggS' ||
+      (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0); // MP3 frame sync
+    // If the body starts with JSON/HTML, it's definitely not audio.
+    const looksTexty = head[0] === '{' || head[0] === '<' || head.startsWith('http');
+    if (looksTexty || (!looksAudio && !ct.startsWith('audio/'))) {
+      throw new Error(`Downloaded recording does not look like audio (starts with "${head}")`);
+    }
+  } catch (e) {
+    if (/does not look like audio|too small|not audio/.test(e.message)) throw e;
+    // sniff failure (e.g. read error) — don't block on it
+  }
+};
+
+const CT_EXT = { 'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/wave': '.wav' };
 
 /**
  * Fetch a call recording from VAPI.
@@ -214,14 +248,16 @@ const downloadVapiRecording = async (prisma, userId, vapiCallId, legacyUrl, dest
 
   if (apiKey && vapiCallId) {
     try {
-      await downloadFile(
+      const meta = await downloadFile(
         `https://api.vapi.ai/call/${vapiCallId}/mono-recording`,
         destPath,
         { Authorization: `Bearer ${apiKey}` }
       );
-      return 'authenticated';
+      validateAudioFile(meta, destPath); // throws (and we fall back) if it isn't audio
+      return { via: 'authenticated', ext: CT_EXT[meta.contentType] || null };
     } catch (err) {
-      console.warn(`[VAPI Webhook] Authenticated recording download failed for call ${vapiCallId}: ${err.message} — falling back to the legacy URL`);
+      console.warn(`[VAPI Webhook] Authenticated recording download failed/invalid for call ${vapiCallId}: ${err.message} — falling back to the legacy URL`);
+      if (fs.existsSync(destPath)) { try { fs.unlinkSync(destPath); } catch {} }
     }
   } else if (!apiKey) {
     console.warn(`[VAPI Webhook] No VAPI API key for user ${userId} — cannot use the authenticated recording endpoint`);
@@ -229,8 +265,9 @@ const downloadVapiRecording = async (prisma, userId, vapiCallId, legacyUrl, dest
 
   // Legacy public URL. VAPI locks this down on 2026-07-15; kept only as a fallback.
   if (legacyUrl) {
-    await downloadFile(legacyUrl, destPath);
-    return 'legacy';
+    const meta = await downloadFile(legacyUrl, destPath);
+    validateAudioFile(meta, destPath);
+    return { via: 'legacy', ext: CT_EXT[meta.contentType] || null };
   }
 
   throw new Error('No recording source available (no API key and no recordingUrl)');
@@ -645,12 +682,14 @@ const handleEvent = async (req, res) => {
 
     if (vapiRecordingUrl) {
       try {
-        const ext = vapiRecordingUrl.includes('.mp3') ? '.mp3' : '.wav';
-        const tempFilename = `${vapiCallId}${ext}`;
-        const tempPath = path.join(recordingsDir, tempFilename);
+        // Download to a neutral temp path first; the real extension is decided by
+        // the response content-type (the authenticated endpoint may return a
+        // different format than the legacy URL suggested).
+        const tempPath = path.join(recordingsDir, `${vapiCallId}.download.tmp`);
 
-        const via = await downloadVapiRecording(prisma, userId, vapiCallId, vapiRecordingUrl, tempPath);
-        console.log(`[VAPI Webhook] Recording downloaded for call ${vapiCallId} via ${via} endpoint`);
+        const dl = await downloadVapiRecording(prisma, userId, vapiCallId, vapiRecordingUrl, tempPath);
+        const ext = dl.ext || (vapiRecordingUrl.includes('.mp3') ? '.mp3' : '.wav');
+        console.log(`[VAPI Webhook] Recording downloaded for call ${vapiCallId} via ${dl.via} endpoint (ext ${ext})`);
 
         // Encrypt the recording file on disk
         const encFilename = `${vapiCallId}${ext}.enc`;
