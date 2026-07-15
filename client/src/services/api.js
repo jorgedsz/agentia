@@ -330,6 +330,9 @@ export const whopAPI = {
   getMembershipStatus: () => api.get('/whop/membership-status'),
   getCreditTiers: () => api.get('/whop/credit-tiers'),
   syncProducts: () => api.post('/whop/sync-products'),
+  // Partner Whop credentials (OWNER)
+  getPartnerConfig: (userId) => api.get(`/whop/partner/${userId}/config`),
+  setPartnerConfig: (userId, data) => api.put(`/whop/partner/${userId}/config`, data),
 }
 
 // Payments API

@@ -159,9 +159,22 @@ const handleWebhook = async (req, res) => {
       'webhook-signature': req.headers['webhook-signature'],
     };
 
+    // A partner webhook (/api/whop/webhook/:token) is verified with that
+    // partner's own signing secret; the plain /webhook uses the global secret.
+    let partnerSecret;
+    if (req.params.token) {
+      const { getPartnerByWebhookToken } = require('../utils/whopConfig');
+      const resolved = await getPartnerByWebhookToken(req.prisma, req.params.token).catch(() => null);
+      if (!resolved) {
+        console.error(`[Whop Webhook] Unknown partner webhook token: ${req.params.token}`);
+        return res.status(404).json({ error: 'Unknown webhook' });
+      }
+      partnerSecret = resolved.webhookSecret;
+    }
+
     let event;
     try {
-      event = whopService.verifyWebhook(rawBody, headers);
+      event = whopService.verifyWebhook(rawBody, headers, partnerSecret);
     } catch (err) {
       console.error('Webhook verification failed:', err.message);
       return res.status(400).json({ error: 'Invalid webhook signature' });
@@ -268,7 +281,11 @@ async function handlePaymentSucceeded(prisma, data, metadata) {
       });
       // Backfill whopCustomerId so future events resolve faster, and clear the
       // auto-recharge fail counter — a successful charge means the saved card works.
-      const buyerUpdate = { autoRechargeFailCount: 0 };
+      const buyerUpdate = {
+        autoRechargeFailCount: 0,
+        autoRechargeLastError: null,
+        autoRechargeLastErrorAt: null,
+      };
       if (data.user?.id) buyerUpdate.whopCustomerId = data.user.id;
       await prisma.user.update({
         where: { id: pending.userId },
@@ -503,7 +520,10 @@ async function handleSetupIntentSucceeded(prisma, data, metadata) {
     if (u) userId = u.id;
   }
 
-  if (!userId || !paymentMethodId || !memberId) {
+  // memberId is NOT required: a setup-mode checkout vaults a card without a
+  // purchase, so Whop may not create a member. The payment method alone is enough
+  // to charge off-session — store it and keep the member id only when present.
+  if (!userId || !paymentMethodId) {
     console.error(`[Whop Webhook] setup_intent.succeeded FAILED to store card. userId=${userId}, paymentMethodId=${paymentMethodId}, memberId=${memberId}, metadata=${JSON.stringify(metadata)}`);
     return;
   }
@@ -512,12 +532,14 @@ async function handleSetupIntentSucceeded(prisma, data, metadata) {
     where: { id: userId },
     data: {
       whopPaymentMethodId: paymentMethodId,
-      whopMemberId: memberId,
+      ...(memberId ? { whopMemberId: memberId } : {}),
       autoRechargeFailCount: 0, // fresh card → clear any prior failures
+      autoRechargeLastError: null,
+      autoRechargeLastErrorAt: null,
       ...(data.user?.id ? { whopCustomerId: data.user.id } : {}),
     },
   });
-  console.log(`[Whop Webhook] Saved payment method ${paymentMethodId} (member ${memberId}) for user ${userId}`);
+  console.log(`[Whop Webhook] Saved payment method ${paymentMethodId} for user ${userId}${memberId ? ` (member ${memberId})` : ' (no member — setup-mode checkout)'}`);
 }
 
 // Fired when an off-session charge (auto-recharge or 1-click manual) is
@@ -525,7 +547,7 @@ async function handleSetupIntentSucceeded(prisma, data, metadata) {
 // counter and disables auto-recharge after too many consecutive failures so we
 // stop hammering a dead card. Resolved via the unique plan id we created for the
 // charge — no reliance on Whop propagating our metadata.
-const AUTO_RECHARGE_MAX_FAILS = 3;
+const { AUTO_RECHARGE_MAX_FAILS, extractDeclineReason, recordAutoRechargeFailure } = require('../utils/autoRecharge');
 
 async function handleAutoRechargeFailed(prisma, data, metadata) {
   const planId = data.plan?.id || data.membership?.plan_id || null;
@@ -539,25 +561,26 @@ async function handleAutoRechargeFailed(prisma, data, metadata) {
   if (!pending || (pending.kind !== 'auto_recharge' && pending.kind !== 'manual_card')) return;
   if (pending.status === 'failed' || pending.status === 'completed') return;
 
-  // Release the lock so a future attempt isn't blocked by this dead one.
+  const reason = extractDeclineReason(data);
+
+  // Release the lock so a future attempt isn't blocked by this dead one, and
+  // keep the decline reason on the purchase so it shows in the credits history.
   await prisma.creditPurchase.update({
     where: { id: pending.id },
-    data: { status: 'failed', rawPayload: JSON.stringify(data) },
+    data: { status: 'failed', errorMessage: reason, rawPayload: JSON.stringify(data) },
   }).catch(() => {});
 
-  if (pending.kind !== 'auto_recharge') return; // manual failures don't disable auto-recharge
+  if (pending.kind !== 'auto_recharge') {
+    // A failed 1-click charge doesn't disable auto-recharge, but the customer
+    // still needs to see why it was declined.
+    await prisma.user.update({
+      where: { id: pending.userId },
+      data: { autoRechargeLastError: reason, autoRechargeLastErrorAt: new Date() },
+    }).catch(() => {});
+    return;
+  }
 
-  const user = await prisma.user.findUnique({ where: { id: pending.userId }, select: { autoRechargeFailCount: true } });
-  const fails = (user?.autoRechargeFailCount || 0) + 1;
-  const disable = fails >= AUTO_RECHARGE_MAX_FAILS;
-  await prisma.user.update({
-    where: { id: pending.userId },
-    data: {
-      autoRechargeFailCount: fails,
-      ...(disable ? { autoRechargeEnabled: false } : {}),
-    },
-  });
-  console.warn(`[Whop Webhook] Auto-recharge charge failed for user ${pending.userId} (fail #${fails})${disable ? ' — auto-recharge DISABLED' : ''}`);
+  await recordAutoRechargeFailure(prisma, pending.userId, reason);
 }
 
 async function handleMembershipActivated(prisma, data, metadata) {
@@ -766,10 +789,108 @@ const getCreditTiers = async (_req, res) => {
   });
 };
 
+// ── Partner Whop credentials (OWNER only) ──
+// Lets the OWNER give a WHITELABEL partner its own Whop so credit purchases and
+// auto-recharge for that partner (and all accounts under it) collect money in the
+// partner's own account. Secrets are encrypted at rest and never returned.
+
+const { encrypt } = require('../utils/encryption');
+const { generateWebhookToken } = require('../utils/whopConfig');
+
+function partnerWebhookUrl(token) {
+  if (!token) return null;
+  const base = (process.env.APP_URL || process.env.SERVER_URL || '').replace(/\/+$/, '');
+  return `${base}/api/whop/webhook/${token}`;
+}
+
+// GET /api/whop/partner/:userId/config
+const getPartnerWhopConfig = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const partner = await req.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, name: true, email: true, whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
+    });
+    if (!partner) return res.status(404).json({ error: 'User not found' });
+    res.json({
+      userId: partner.id,
+      role: partner.role,
+      isWhitelabel: partner.role === 'WHITELABEL',
+      companyId: partner.whopCompanyId || '',
+      hasApiKey: !!partner.whopApiKey,
+      hasWebhookSecret: !!partner.whopWebhookSecret,
+      webhookUrl: partnerWebhookUrl(partner.whopWebhookToken),
+      configured: !!(partner.whopApiKey && partner.whopCompanyId),
+    });
+  } catch (err) {
+    console.error('getPartnerWhopConfig error:', err.message);
+    res.status(500).json({ error: 'Failed to load partner Whop config' });
+  }
+};
+
+// PUT /api/whop/partner/:userId/config
+// Body: { apiKey?, companyId?, webhookSecret?, clear? }
+// Empty/omitted apiKey/webhookSecret keep the existing stored value; `clear: true`
+// wipes the whole partner Whop config.
+const setPartnerWhopConfig = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const partner = await req.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, whopWebhookToken: true },
+    });
+    if (!partner) return res.status(404).json({ error: 'User not found' });
+    if (partner.role !== 'WHITELABEL') {
+      return res.status(400).json({ error: 'Partner Whop can only be set on a WHITELABEL account' });
+    }
+
+    if (req.body?.clear) {
+      await req.prisma.user.update({
+        where: { id: userId },
+        data: {
+          whopApiKey: null, whopCompanyId: null, whopWebhookSecret: null,
+          whopCreditsProductId: null, whopWebhookToken: null,
+        },
+      });
+      return res.json({ cleared: true });
+    }
+
+    const { apiKey, companyId, webhookSecret } = req.body || {};
+    const data = {};
+    if (typeof companyId === 'string') data.whopCompanyId = companyId.trim() || null;
+    if (apiKey && apiKey.trim()) data.whopApiKey = encrypt(apiKey.trim());
+    if (webhookSecret && webhookSecret.trim()) data.whopWebhookSecret = encrypt(webhookSecret.trim());
+    // Mint a webhook token on first configuration so the partner has a URL to paste
+    // into their Whop dashboard.
+    if (!partner.whopWebhookToken) data.whopWebhookToken = generateWebhookToken();
+    // Changing the company means the cached credits product no longer exists there.
+    if (data.whopCompanyId !== undefined) data.whopCreditsProductId = null;
+
+    const updated = await req.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: { whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
+    });
+
+    res.json({
+      configured: !!(updated.whopApiKey && updated.whopCompanyId),
+      companyId: updated.whopCompanyId || '',
+      hasApiKey: !!updated.whopApiKey,
+      hasWebhookSecret: !!updated.whopWebhookSecret,
+      webhookUrl: partnerWebhookUrl(updated.whopWebhookToken),
+    });
+  } catch (err) {
+    console.error('setPartnerWhopConfig error:', err.message);
+    res.status(500).json({ error: 'Failed to save partner Whop config' });
+  }
+};
+
 module.exports = {
   createCheckout,
   handleWebhook,
   syncProducts,
   getMembershipStatus,
   getCreditTiers,
+  getPartnerWhopConfig,
+  setPartnerWhopConfig,
 };

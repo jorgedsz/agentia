@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { authAPI, usersAPI } from '../../services/api'
+import { authAPI, usersAPI, whopAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -68,6 +68,63 @@ export default function AccountManagement() {
   const [roleTarget, setRoleTarget] = useState(null) // the account being edited
   const [newRole, setNewRole] = useState('')
   const [roleSaving, setRoleSaving] = useState(false)
+
+  // Partner Whop modal state
+  const [whopTarget, setWhopTarget] = useState(null)
+  const [whopForm, setWhopForm] = useState({ companyId: '', apiKey: '', webhookSecret: '' })
+  const [whopStatus, setWhopStatus] = useState(null)
+  const [whopSaving, setWhopSaving] = useState(false)
+  const [whopMsg, setWhopMsg] = useState('')
+
+  const openWhopModal = async (account) => {
+    setWhopTarget(account)
+    setWhopForm({ companyId: '', apiKey: '', webhookSecret: '' })
+    setWhopStatus(null)
+    setWhopMsg('')
+    try {
+      const { data } = await whopAPI.getPartnerConfig(account.id)
+      setWhopStatus(data)
+      setWhopForm(f => ({ ...f, companyId: data.companyId || '' }))
+    } catch {
+      setWhopMsg('No se pudo cargar la configuración de Whop.')
+    }
+  }
+
+  const saveWhop = async () => {
+    if (!whopTarget) return
+    setWhopSaving(true)
+    setWhopMsg('')
+    try {
+      const { data } = await whopAPI.setPartnerConfig(whopTarget.id, {
+        companyId: whopForm.companyId,
+        apiKey: whopForm.apiKey,           // blank keeps existing
+        webhookSecret: whopForm.webhookSecret, // blank keeps existing
+      })
+      setWhopStatus(data)
+      setWhopForm(f => ({ ...f, apiKey: '', webhookSecret: '' }))
+      setWhopMsg('Guardado.')
+    } catch (e) {
+      setWhopMsg(e.response?.data?.error || 'Error al guardar.')
+    } finally {
+      setWhopSaving(false)
+    }
+  }
+
+  const clearWhop = async () => {
+    if (!whopTarget) return
+    if (!window.confirm('¿Borrar la configuración de Whop de este partner? Sus cobros volverán a la cuenta global.')) return
+    setWhopSaving(true)
+    try {
+      await whopAPI.setPartnerConfig(whopTarget.id, { clear: true })
+      setWhopStatus({ configured: false, companyId: '', hasApiKey: false, hasWebhookSecret: false, webhookUrl: null })
+      setWhopForm({ companyId: '', apiKey: '', webhookSecret: '' })
+      setWhopMsg('Configuración borrada.')
+    } catch (e) {
+      setWhopMsg(e.response?.data?.error || 'Error al borrar.')
+    } finally {
+      setWhopSaving(false)
+    }
+  }
 
   // Roles this actor is allowed to assign. Mirrors server-side ROLE_TRANSITIONS.
   const allowedTargetRoles = (() => {
@@ -521,6 +578,15 @@ export default function AccountManagement() {
                             title="Cambiar rol del usuario"
                           >
                             Cambiar rol
+                          </button>
+                        )}
+                        {user?.role === ROLES.OWNER && account.role === ROLES.WHITELABEL && (
+                          <button
+                            onClick={() => openWhopModal(account)}
+                            className="px-3 py-1.5 text-sm rounded-lg border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                            title="Configurar el Whop propio de este partner (cobros directos)"
+                          >
+                            Whop
                           </button>
                         )}
                         {account.id !== user?.id && (user?.role === ROLES.OWNER || user?.role === ROLES.WHITELABEL || (user?.role === ROLES.AGENCY && account.agencyId === user?.id)) && (
@@ -1178,6 +1244,81 @@ export default function AccountManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Partner Whop config modal (OWNER → WHITELABEL) */}
+      {whopTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setWhopTarget(null)}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Whop del partner</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{whopTarget.email}</p>
+              </div>
+              <button onClick={() => setWhopTarget(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Con estas credenciales, las <strong>recargas de crédito y la auto-recarga</strong> de este partner y de todas las cuentas bajo él se cobran en <strong>su propio Whop</strong>, así el dinero le llega directo.
+              </p>
+
+              <div className={`px-3 py-2 rounded-lg text-xs font-medium ${whopStatus?.configured ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}>
+                {whopStatus?.configured ? '✓ Whop del partner configurado — cobros van a su cuenta' : 'Sin configurar — los cobros usan la cuenta global'}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Company ID (biz_...)</label>
+                <input type="text" value={whopForm.companyId} onChange={(e) => setWhopForm(f => ({ ...f, companyId: e.target.value }))}
+                  placeholder="biz_XXXXXXXX"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                  API Key {whopStatus?.hasApiKey && <span className="text-green-600 dark:text-green-400 normal-case">· ya guardada (deja en blanco para conservarla)</span>}
+                </label>
+                <input type="password" value={whopForm.apiKey} onChange={(e) => setWhopForm(f => ({ ...f, apiKey: e.target.value }))}
+                  placeholder={whopStatus?.hasApiKey ? '•••••••• (sin cambios)' : 'Whop API key'} autoComplete="new-password"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                  Webhook Secret {whopStatus?.hasWebhookSecret && <span className="text-green-600 dark:text-green-400 normal-case">· ya guardado</span>}
+                </label>
+                <input type="password" value={whopForm.webhookSecret} onChange={(e) => setWhopForm(f => ({ ...f, webhookSecret: e.target.value }))}
+                  placeholder={whopStatus?.hasWebhookSecret ? '•••••••• (sin cambios)' : 'ws_... webhook signing secret'} autoComplete="new-password"
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+              </div>
+
+              {whopStatus?.webhookUrl && (
+                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                  <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">URL de webhook para el panel de Whop de este partner:</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs break-all text-blue-700 dark:text-blue-300">{whopStatus.webhookUrl}</code>
+                    <button onClick={() => navigator.clipboard.writeText(whopStatus.webhookUrl)} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex-shrink-0">Copiar</button>
+                  </div>
+                  <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-1">Pégala en Whop → Developer → Webhooks, y suscribe payment.succeeded, payment.failed y setup_intent.succeeded.</p>
+                </div>
+              )}
+
+              {whopMsg && <p className="text-sm text-gray-600 dark:text-gray-400">{whopMsg}</p>}
+            </div>
+            <div className="flex items-center justify-between gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
+              <button onClick={clearWhop} disabled={whopSaving || !whopStatus?.configured}
+                className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg disabled:opacity-40">
+                Borrar config
+              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setWhopTarget(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">Cerrar</button>
+                <button onClick={saveWhop} disabled={whopSaving}
+                  className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50">
+                  {whopSaving ? 'Guardando…' : 'Guardar'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
