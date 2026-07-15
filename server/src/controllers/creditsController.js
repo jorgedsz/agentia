@@ -452,6 +452,46 @@ async function triggerAutoRecharge(prisma, userId) {
   }
 }
 
+// ── Auto-recharge background scheduler ──
+// triggerAutoRecharge only runs right after a voice call is billed. That misses
+// balances that drop via chatbot messages, manual adjustments, or that simply sit
+// below the threshold with no new calls. This scheduler periodically scans every
+// enabled account and tops up any whose balance is under its threshold. All the
+// guardrails (cooldown, pending lock, daily cap, card, amount) live inside
+// triggerAutoRecharge, so this just finds candidates and calls it.
+const AUTO_RECHARGE_SCAN_INTERVAL_MS = 2 * 60 * 1000; // every 2 minutes
+let autoRechargeScannerInterval = null;
+
+async function processAutoRecharges(prisma) {
+  try {
+    const candidates = await prisma.user.findMany({
+      where: {
+        autoRechargeEnabled: true,
+        whopPaymentMethodId: { not: null },
+        autoRechargeThreshold: { not: null },
+        autoRechargeAmount: { not: null },
+      },
+      select: { id: true, vapiCredits: true, autoRechargeThreshold: true },
+    });
+    const due = candidates.filter(u => u.vapiCredits < u.autoRechargeThreshold);
+    if (due.length) {
+      console.log(`[Auto-Recharge] Scanner: ${due.length} account(s) below threshold`);
+    }
+    for (const u of due) {
+      await triggerAutoRecharge(prisma, u.id); // guardrails inside; never throws
+    }
+  } catch (err) {
+    console.error('[Auto-Recharge] Scanner error:', err.message);
+  }
+}
+
+function startAutoRechargeScheduler(prisma) {
+  if (autoRechargeScannerInterval) return;
+  console.log('[Auto-Recharge] Scheduler started (every 2 min)');
+  processAutoRecharges(prisma);
+  autoRechargeScannerInterval = setInterval(() => processAutoRecharges(prisma), AUTO_RECHARGE_SCAN_INTERVAL_MS);
+}
+
 /**
  * Create a setup-mode Whop checkout so the customer can vault a card without
  * being charged. Returns { sessionId } for the WhopCheckoutEmbed.
@@ -631,4 +671,6 @@ module.exports = {
   triggerAutoRecharge,
   performOffSessionCharge,
   chargeNextCard,
+  startAutoRechargeScheduler,
+  processAutoRecharges,
 };
