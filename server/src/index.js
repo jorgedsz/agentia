@@ -60,6 +60,7 @@ const whopRoutes = require('./routes/whop');
 const recurringPaymentRoutes = require('./routes/recurringPayments');
 const messageLogRoutes = require('./routes/messages');
 const recurringPaymentController = require('./controllers/recurringPaymentController');
+const { startAutoRechargeScheduler } = require('./controllers/creditsController');
 const { startCalendarMetaRefresher } = require('./services/calendarMetaRefresher');
 const { generalLimiter, authLimiter } = require('./middleware/rateLimiter');
 
@@ -464,5 +465,6 @@ server.listen(PORT, () => {
   followUpController.startScheduler(prisma);
   chatbotFollowUpController.startScheduler(prisma);
   recurringPaymentController.startScheduler(prisma);
+  startAutoRechargeScheduler(prisma);
   startCalendarMetaRefresher(prisma);
 });

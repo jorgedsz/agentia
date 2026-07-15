@@ -7,6 +7,7 @@ const {
   listCredits,
   purchaseCredits,
   setupCard,
+  removeCard,
   getAutoRecharge,
   updateAutoRecharge,
   rechargeNow,
@@ -24,6 +25,7 @@ router.post('/purchase', purchaseCredits);
 // ── Auto-recharge / saved card (self-service) ──
 // NOTE: declared before the '/:userId' routes so these literal paths match first.
 router.post('/setup-card', setupCard);
+router.delete('/card', removeCard);
 router.get('/auto-recharge', getAutoRecharge);
 router.put('/auto-recharge', updateAutoRecharge);
 router.post('/recharge-now', rechargeNow);

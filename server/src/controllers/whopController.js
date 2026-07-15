@@ -528,18 +528,23 @@ async function handleSetupIntentSucceeded(prisma, data, metadata) {
     return;
   }
 
+  // Store in the requested slot: 'backup' → the fallback card, else the primary.
+  const slot = metadata.slot === 'backup' ? 'backup' : 'primary';
+  const slotData = slot === 'backup'
+    ? { whopPaymentMethodIdBackup: paymentMethodId, ...(memberId ? { whopMemberIdBackup: memberId } : {}) }
+    : { whopPaymentMethodId: paymentMethodId, ...(memberId ? { whopMemberId: memberId } : {}) };
+
   await prisma.user.update({
     where: { id: userId },
     data: {
-      whopPaymentMethodId: paymentMethodId,
-      ...(memberId ? { whopMemberId: memberId } : {}),
+      ...slotData,
       autoRechargeFailCount: 0, // fresh card → clear any prior failures
       autoRechargeLastError: null,
       autoRechargeLastErrorAt: null,
       ...(data.user?.id ? { whopCustomerId: data.user.id } : {}),
     },
   });
-  console.log(`[Whop Webhook] Saved payment method ${paymentMethodId} for user ${userId}${memberId ? ` (member ${memberId})` : ' (no member — setup-mode checkout)'}`);
+  console.log(`[Whop Webhook] Saved ${slot} payment method ${paymentMethodId} for user ${userId}${memberId ? ` (member ${memberId})` : ' (no member — setup-mode checkout)'}`);
 }
 
 // Fired when an off-session charge (auto-recharge or 1-click manual) is
@@ -578,6 +583,23 @@ async function handleAutoRechargeFailed(prisma, data, metadata) {
       data: { autoRechargeLastError: reason, autoRechargeLastErrorAt: new Date() },
     }).catch(() => {});
     return;
+  }
+
+  // Backup-card fallback: if this charge was on a card that has another saved card
+  // after it, try the next one before counting a failure. Only when there's no
+  // further card do we bump the fail counter / disable auto-recharge.
+  if (pending.paymentMethodId) {
+    try {
+      const { chargeNextCard } = require('./creditsController');
+      const retried = await chargeNextCard(prisma, pending.userId, pending.amount, 'auto_recharge', pending.paymentMethodId);
+      if (retried) {
+        console.log(`[Whop Webhook] Primary card declined for user ${pending.userId} — trying backup card`);
+        return; // backup charge is now pending; its own webhook decides the outcome
+      }
+    } catch (err) {
+      // The backup charge was rejected synchronously — fall through to record failure.
+      console.warn(`[Whop Webhook] Backup card charge failed synchronously for user ${pending.userId}: ${err.response?.data || err.message}`);
+    }
   }
 
   await recordAutoRechargeFailure(prisma, pending.userId, reason);

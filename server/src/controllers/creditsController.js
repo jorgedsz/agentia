@@ -326,10 +326,13 @@ const AUTO_RECHARGE_DAILY_CAP = 5;               // max auto charges per 24h (sa
  * credits the balance via that plan id (no reliance on Whop metadata).
  * Returns the Whop payment object. Throws if the user has no saved card.
  */
-async function performOffSessionCharge(prisma, user, amount, kind) {
-  // Only the saved card is required. whopMemberId is optional — a setup-mode
-  // checkout vaults a card without creating a member.
-  if (!user.whopPaymentMethodId) {
+async function performOffSessionCharge(prisma, user, amount, kind, card) {
+  // Charge a specific saved card. `card` = { paymentMethodId, memberId }; defaults
+  // to the user's primary card. whopMemberId is optional — a setup-mode checkout
+  // vaults a card without creating a member.
+  const paymentMethodId = card?.paymentMethodId || user.whopPaymentMethodId;
+  const memberId = (card ? card.memberId : user.whopMemberId) || null;
+  if (!paymentMethodId) {
     const err = new Error('No saved payment method');
     err.code = 'NO_CARD';
     throw err;
@@ -340,9 +343,9 @@ async function performOffSessionCharge(prisma, user, amount, kind) {
   // in the partner's account; the saved card was vaulted in that same company.
   const whop = await getWhopConfigForUser(prisma, user.id);
   const payment = await whopService.chargeOffSession({
-    memberId: user.whopMemberId || null,
+    memberId,
     userId: user.whopCustomerId || null,
-    paymentMethodId: user.whopPaymentMethodId,
+    paymentMethodId,
     amount,
     metadata: { userId: String(user.id), type: 'credits', kind, credits: String(amount) },
   }, whop.config);
@@ -356,10 +359,31 @@ async function performOffSessionCharge(prisma, user, amount, kind) {
       status: 'pending',
       kind,
       whopPlanId: planId,
+      paymentMethodId, // so the webhook can fall back to the next card on decline
     },
   }).catch((e) => console.error('[Credits] Failed to record pending off-session purchase:', e.message));
 
   return payment;
+}
+
+/**
+ * After a card declines, charge the NEXT saved card (backup fallback). Called from
+ * the payment.failed webhook. `failedPaymentMethodId` is the card that just failed;
+ * we charge the next one in priority order. Returns true if a next card was
+ * charged, false if there's no further card to try. Throws only if the Whop call
+ * itself is rejected synchronously.
+ */
+async function chargeNextCard(prisma, userId, amount, kind, failedPaymentMethodId) {
+  const { getSavedCards } = require('../utils/autoRecharge');
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return false;
+  const cards = getSavedCards(user);
+  const idx = cards.findIndex((c) => c.paymentMethodId === failedPaymentMethodId);
+  const next = idx >= 0 ? cards[idx + 1] : null;
+  if (!next) return false; // no backup card left to try
+  await performOffSessionCharge(prisma, user, amount, kind, next);
+  console.log(`[Auto-Recharge] Retried $${amount} for user ${userId} on backup card after ${failedPaymentMethodId} declined`);
+  return true;
 }
 
 /**
@@ -402,16 +426,70 @@ async function triggerAutoRecharge(prisma, userId) {
     // Stamp the attempt time first so the cooldown/lock holds even if the call is slow.
     await prisma.user.update({ where: { id: userId }, data: { autoRechargeLastAt: new Date() } });
 
-    await performOffSessionCharge(prisma, user, amount, 'auto_recharge');
-    console.log(`[Auto-Recharge] Charged user ${userId} $${amount} (balance was $${user.vapiCredits.toFixed(2)} < $${threshold})`);
+    // Try each saved card in priority order. A card that Whop ACCEPTS (returns
+    // "processing") settles async — its real success/failure arrives via webhook,
+    // and the payment.failed handler falls back to the next card there. Here we
+    // only walk to the next card when Whop rejects the API call synchronously.
+    const { getSavedCards, recordAutoRechargeFailure } = require('../utils/autoRecharge');
+    const cards = getSavedCards(user);
+    let lastErr = null;
+    for (const card of cards) {
+      try {
+        await performOffSessionCharge(prisma, user, amount, 'auto_recharge', card);
+        console.log(`[Auto-Recharge] Charged user ${userId} $${amount} on ${card.slot} card (balance was $${user.vapiCredits.toFixed(2)} < $${threshold})`);
+        return; // accepted for processing — stop; webhook decides the rest
+      } catch (err) {
+        lastErr = err;
+        console.error(`[Auto-Recharge] ${card.slot} card rejected for user ${userId}:`, err.response?.data || err.message);
+      }
+    }
+    // Every card was rejected synchronously — record the failure.
+    await recordAutoRechargeFailure(prisma, userId, lastErr);
   } catch (err) {
-    // Whop rejected the charge outright (bad card, no funds, API error). The
-    // async decline path lives in the payment.failed webhook; this is the
-    // synchronous one — record it the same way so it isn't a silent failure.
     console.error(`[Auto-Recharge] Failed for user ${userId}:`, err.response?.data || err.message);
     const { recordAutoRechargeFailure } = require('../utils/autoRecharge');
     await recordAutoRechargeFailure(prisma, userId, err);
   }
+}
+
+// ── Auto-recharge background scheduler ──
+// triggerAutoRecharge only runs right after a voice call is billed. That misses
+// balances that drop via chatbot messages, manual adjustments, or that simply sit
+// below the threshold with no new calls. This scheduler periodically scans every
+// enabled account and tops up any whose balance is under its threshold. All the
+// guardrails (cooldown, pending lock, daily cap, card, amount) live inside
+// triggerAutoRecharge, so this just finds candidates and calls it.
+const AUTO_RECHARGE_SCAN_INTERVAL_MS = 2 * 60 * 1000; // every 2 minutes
+let autoRechargeScannerInterval = null;
+
+async function processAutoRecharges(prisma) {
+  try {
+    const candidates = await prisma.user.findMany({
+      where: {
+        autoRechargeEnabled: true,
+        whopPaymentMethodId: { not: null },
+        autoRechargeThreshold: { not: null },
+        autoRechargeAmount: { not: null },
+      },
+      select: { id: true, vapiCredits: true, autoRechargeThreshold: true },
+    });
+    const due = candidates.filter(u => u.vapiCredits < u.autoRechargeThreshold);
+    if (due.length) {
+      console.log(`[Auto-Recharge] Scanner: ${due.length} account(s) below threshold`);
+    }
+    for (const u of due) {
+      await triggerAutoRecharge(prisma, u.id); // guardrails inside; never throws
+    }
+  } catch (err) {
+    console.error('[Auto-Recharge] Scanner error:', err.message);
+  }
+}
+
+function startAutoRechargeScheduler(prisma) {
+  if (autoRechargeScannerInterval) return;
+  console.log('[Auto-Recharge] Scheduler started (every 2 min)');
+  processAutoRecharges(prisma);
+  autoRechargeScannerInterval = setInterval(() => processAutoRecharges(prisma), AUTO_RECHARGE_SCAN_INTERVAL_MS);
 }
 
 /**
@@ -425,16 +503,37 @@ const setupCard = async (req, res) => {
     if (!whop.isConfigured) {
       return res.status(400).json({ error: 'Payment processing is not configured' });
     }
+    // Which slot this card fills: 'primary' (default) or 'backup'. The
+    // setup_intent webhook reads this to store the card in the right slot.
+    const slot = req.body?.slot === 'backup' ? 'backup' : 'primary';
     const whopService = require('../services/whopService');
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const session = await whopService.createSetupCheckout({
-      metadata: { userId: String(req.user.id), type: 'setup' },
+      metadata: { userId: String(req.user.id), type: 'setup', slot },
       redirectUrl: `${clientUrl}/credits?setup=success`,
     }, whop.config);
     res.json({ sessionId: session.id, purchaseUrl: session.purchase_url });
   } catch (error) {
     console.error('Error creating setup checkout:', error.response?.data || error.message);
     res.status(500).json({ error: 'Failed to start card setup' });
+  }
+};
+
+/**
+ * Remove a saved card. Body/query: { slot: 'primary' | 'backup' }.
+ * DELETE /api/credits/card
+ */
+const removeCard = async (req, res) => {
+  try {
+    const slot = (req.body?.slot || req.query?.slot) === 'backup' ? 'backup' : 'primary';
+    const data = slot === 'backup'
+      ? { whopPaymentMethodIdBackup: null, whopMemberIdBackup: null }
+      : { whopPaymentMethodId: null, whopMemberId: null };
+    await req.prisma.user.update({ where: { id: req.user.id }, data });
+    res.json({ success: true, slot });
+  } catch (error) {
+    console.error('Error removing card:', error.message);
+    res.status(500).json({ error: 'Failed to remove card' });
   }
 };
 
@@ -451,6 +550,7 @@ const getAutoRecharge = async (req, res) => {
         autoRechargeThreshold: true,
         autoRechargeAmount: true,
         whopPaymentMethodId: true,
+        whopPaymentMethodIdBackup: true,
         autoRechargeFailCount: true,
         autoRechargeLastError: true,
         autoRechargeLastErrorAt: true,
@@ -462,6 +562,7 @@ const getAutoRecharge = async (req, res) => {
       threshold: user?.autoRechargeThreshold ?? null,
       amount: user?.autoRechargeAmount ?? null,
       hasCard: !!user?.whopPaymentMethodId,
+      hasBackupCard: !!user?.whopPaymentMethodIdBackup,
       // Surface the last decline so the customer knows why the card failed
       // instead of auto-recharge going quiet after 3 silent failures.
       lastError: user?.autoRechargeLastError || null,
@@ -566,6 +667,10 @@ module.exports = {
   getAutoRecharge,
   updateAutoRecharge,
   rechargeNow,
+  removeCard,
   triggerAutoRecharge,
   performOffSessionCharge,
+  chargeNextCard,
+  startAutoRechargeScheduler,
+  processAutoRecharges,
 };
