@@ -9,6 +9,22 @@
 const AUTO_RECHARGE_MAX_FAILS = 3; // consecutive failures before auto-recharge turns itself off
 
 /**
+ * Saved cards in priority order: primary first, then backup. Off-session charges
+ * try them in this order — if the primary declines, the backup is tried next.
+ * Returns [{ paymentMethodId, memberId, slot }].
+ */
+function getSavedCards(user) {
+  const cards = [];
+  if (user?.whopPaymentMethodId) {
+    cards.push({ paymentMethodId: user.whopPaymentMethodId, memberId: user.whopMemberId || null, slot: 'primary' });
+  }
+  if (user?.whopPaymentMethodIdBackup) {
+    cards.push({ paymentMethodId: user.whopPaymentMethodIdBackup, memberId: user.whopMemberIdBackup || null, slot: 'backup' });
+  }
+  return cards;
+}
+
+/**
  * Pull a human-readable decline reason out of a Whop error or webhook payload.
  * Falls back to a generic message so the customer never sees an empty reason.
  */
@@ -73,6 +89,7 @@ async function recordAutoRechargeFailure(prisma, userId, reasonSource) {
 
 module.exports = {
   AUTO_RECHARGE_MAX_FAILS,
+  getSavedCards,
   extractDeclineReason,
   recordAutoRechargeFailure,
 };

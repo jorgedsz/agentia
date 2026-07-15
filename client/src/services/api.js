@@ -202,7 +202,8 @@ export const creditsAPI = {
   update: (userId, data) => api.post(`/credits/${userId}`, data),
   purchase: (amount) => api.post('/credits/purchase', { amount }),
   // Saved card + auto-recharge (self-service)
-  setupCard: () => api.post('/credits/setup-card'),
+  setupCard: (slot) => api.post('/credits/setup-card', slot ? { slot } : {}),
+  removeCard: (slot) => api.delete('/credits/card', { data: { slot } }),
   getAutoRecharge: () => api.get('/credits/auto-recharge'),
   updateAutoRecharge: (data) => api.put('/credits/auto-recharge', data),
   rechargeNow: (amount) => api.post('/credits/recharge-now', { amount }),

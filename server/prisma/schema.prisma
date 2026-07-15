@@ -40,7 +40,9 @@ model User {
   whopCustomerId    String?            // Whop customer/user ID
   // ── Auto-recharge (Whop off-session charges) ──
   whopMemberId          String?        // Whop member id (mber_xxx). Optional — setup-mode checkout may not create a member.
-  whopPaymentMethodId   String?        // Whop saved payment method id (payt_xxx) for off-session charges
+  whopPaymentMethodId   String?        // Primary saved card (payt_xxx) for off-session charges
+  whopPaymentMethodIdBackup String?    // Backup card — tried automatically if the primary declines
+  whopMemberIdBackup    String?        // Whop member id for the backup card (optional)
   autoRechargeEnabled   Boolean        @default(false) // Auto top-up when balance drops below threshold
   autoRechargeThreshold Float?         // Trigger when vapiCredits < this value
   autoRechargeAmount    Float?         // Dollars to charge per auto top-up
@@ -621,6 +623,7 @@ model CreditPurchase {
   credits             Float    // Credits added (equal to amount)
   status              String   // "completed", "pending", "failed"
   kind                String   @default("manual") // "manual" (hosted checkout), "manual_card" (off-session 1-click), "auto_recharge"
+  paymentMethodId     String?  // Which saved card this off-session charge used (for backup-card fallback)
   errorMessage        String?  // Decline reason when status = "failed"
   rawPayload          String?
   whopPaymentId       String?  // Whop payment ID for this credit purchase

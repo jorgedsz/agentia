@@ -152,6 +152,7 @@ export default function Credits() {
         threshold: data.threshold ?? '',
         amount: data.amount ?? '',
         hasCard: !!data.hasCard,
+        hasBackupCard: !!data.hasBackupCard,
         lastError: data.lastError || null,
         lastErrorAt: data.lastErrorAt || null,
         failCount: data.failCount || 0,
@@ -165,16 +166,26 @@ export default function Credits() {
     }
   }
 
-  const handleAddCard = async () => {
+  const handleAddCard = async (slot = 'primary') => {
     setSetupLoading(true)
     setError(null)
     try {
-      const { data } = await creditsAPI.setupCard()
+      const { data } = await creditsAPI.setupCard(slot)
       if (data.sessionId) setSetupModal({ sessionId: data.sessionId })
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to start card setup')
     } finally {
       setSetupLoading(false)
+    }
+  }
+
+  const handleRemoveCard = async (slot) => {
+    if (!window.confirm(slot === 'backup' ? '¿Quitar la tarjeta de respaldo?' : '¿Quitar la tarjeta principal?')) return
+    try {
+      await creditsAPI.removeCard(slot)
+      fetchAutoRecharge()
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo quitar la tarjeta')
     }
   }
 
@@ -324,16 +335,51 @@ export default function Credits() {
             </div>
           )}
 
-          {!ar.hasCard ? (
-            <button
-              onClick={handleAddCard}
-              disabled={setupLoading}
-              className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              {setupLoading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
-              {t('credits.addCard') || 'Agregar tarjeta'}
-            </button>
-          ) : (
+          {/* Saved cards — primary + optional backup. If the primary declines,
+              auto-recharge automatically retries the backup. */}
+          <div className="space-y-2 mb-5">
+            {/* Primary */}
+            <div className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-dark-border">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                <div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Tarjeta principal</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{ar.hasCard ? 'Guardada' : 'Sin tarjeta'}</p>
+                </div>
+              </div>
+              {ar.hasCard ? (
+                <button onClick={() => handleRemoveCard('primary')} className="text-xs text-red-500 hover:text-red-600 px-2 py-1">Quitar</button>
+              ) : (
+                <button onClick={() => handleAddCard('primary')} disabled={setupLoading}
+                  className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-medium disabled:opacity-50 flex items-center gap-2">
+                  {setupLoading && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>}
+                  Agregar tarjeta
+                </button>
+              )}
+            </div>
+            {/* Backup */}
+            <div className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-dark-border">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                <div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Tarjeta de respaldo</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{ar.hasBackupCard ? 'Guardada — se usa si la principal falla' : 'Opcional — se intenta si la principal es rechazada'}</p>
+                </div>
+              </div>
+              {ar.hasBackupCard ? (
+                <button onClick={() => handleRemoveCard('backup')} className="text-xs text-red-500 hover:text-red-600 px-2 py-1">Quitar</button>
+              ) : (
+                <button onClick={() => handleAddCard('backup')} disabled={setupLoading || !ar.hasCard}
+                  title={!ar.hasCard ? 'Agrega primero la tarjeta principal' : ''}
+                  className="px-3 py-1.5 border border-primary-300 dark:border-primary-700 text-primary-700 dark:text-primary-300 rounded-lg text-xs font-medium disabled:opacity-40 flex items-center gap-2">
+                  {setupLoading && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary-500"></div>}
+                  Agregar respaldo
+                </button>
+              )}
+            </div>
+          </div>
+
+          {ar.hasCard && (
             <div className="space-y-5">
               {/* Toggle */}
               <label className="flex items-center gap-3 cursor-pointer select-none">
