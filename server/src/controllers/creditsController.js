@@ -1,5 +1,7 @@
 const { AUTO_RECHARGE_MAX_FAILS } = require('../utils/autoRecharge');
-const { getWhopConfigForUser } = require('../utils/whopConfig');
+const { getWhopConfigForUser, getEffectiveBilling } = require('../utils/whopConfig');
+
+const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contáctalo para recargar créditos.';
 
 /**
  * Get credits for a user
@@ -232,6 +234,9 @@ const purchaseCredits = async (req, res) => {
     // Route to the user's partner Whop (LM Consulting, etc.) when configured, so
     // the money lands in the partner's account; otherwise the platform's global Whop.
     const whop = await getWhopConfigForUser(req.prisma, req.user.id);
+    if (whop.mode === 'manual') {
+      return res.status(403).json({ error: MANUAL_BILLING_MSG });
+    }
     if (!whop.isConfigured) {
       return res.status(400).json({ error: 'Payment processing is not configured' });
     }
@@ -397,6 +402,9 @@ async function triggerAutoRecharge(prisma, userId) {
     if (!user) return;
     if (!user.autoRechargeEnabled) return;
     if (!user.whopPaymentMethodId) return; // no saved card (member id is optional)
+    // Manual-billing accounts never self-charge — their provider loads credit.
+    const billing = await getEffectiveBilling(prisma, userId).catch(() => ({ mode: 'platform' }));
+    if (billing.mode === 'manual') return;
     const threshold = user.autoRechargeThreshold;
     const amount = user.autoRechargeAmount;
     if (!(threshold > 0) || !(amount > 0)) return;
@@ -514,6 +522,9 @@ function startAutoRechargeScheduler(prisma) {
 const setupCard = async (req, res) => {
   try {
     const whop = await getWhopConfigForUser(req.prisma, req.user.id);
+    if (whop.mode === 'manual') {
+      return res.status(403).json({ error: MANUAL_BILLING_MSG });
+    }
     if (!whop.isConfigured) {
       return res.status(400).json({ error: 'Payment processing is not configured' });
     }
@@ -571,6 +582,8 @@ const getAutoRecharge = async (req, res) => {
       },
     });
     const failCount = user?.autoRechargeFailCount || 0;
+    // Effective billing mode governs whether this account can self-purchase credits.
+    const billing = await getEffectiveBilling(req.prisma, req.user.id).catch(() => ({ mode: 'platform' }));
 
     // Diagnostics: a pending off-session charge that never settled (webhook lost)
     // would block every future auto-recharge via the pending lock. Surface it, plus
@@ -599,6 +612,9 @@ const getAutoRecharge = async (req, res) => {
       disabledByFailures: failCount >= AUTO_RECHARGE_MAX_FAILS && !user?.autoRechargeEnabled,
       pending: pending ? { amount: pending.amount, ageMinutes: pendingAgeMin } : null,
       recentAttempts: recent.map(p => ({ amount: p.amount, status: p.status, kind: p.kind, error: p.errorMessage || null, at: p.createdAt })),
+      // When manual, the client can't self-purchase — their provider loads credit.
+      billingMode: billing.mode,
+      selfServiceDisabled: billing.mode === 'manual',
       min: CREDITS_MIN_AMOUNT,
       max: CREDITS_MAX_AMOUNT,
     });
@@ -665,6 +681,9 @@ const updateAutoRecharge = async (req, res) => {
 const rechargeNow = async (req, res) => {
   try {
     const whop = await getWhopConfigForUser(req.prisma, req.user.id);
+    if (whop.mode === 'manual') {
+      return res.status(403).json({ error: MANUAL_BILLING_MSG });
+    }
     if (!whop.isConfigured) {
       return res.status(400).json({ error: 'Payment processing is not configured' });
     }

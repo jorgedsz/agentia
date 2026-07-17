@@ -760,6 +760,7 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
         threshold: data.threshold ?? '',
         amount: data.amount ?? '',
         hasCard: !!data.hasCard,
+        selfServiceDisabled: !!data.selfServiceDisabled,
         lastError: data.lastError || null,
         disabledByFailures: !!data.disabledByFailures,
         failCount: data.failCount || 0,
@@ -939,6 +940,10 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="text-sm text-gray-600 dark:text-gray-400">{t('settings.contactAdminCredits')}</p>
+            </div>
+          ) : ar.selfServiceDisabled ? (
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-800 dark:text-blue-300">
+              Tu proveedor gestiona el saldo de tu cuenta. Para recargar créditos, contáctalo directamente.
             </div>
           ) : (
             <>

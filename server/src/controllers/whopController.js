@@ -831,13 +831,14 @@ const getPartnerWhopConfig = async (req, res) => {
     const userId = parseInt(req.params.userId);
     const partner = await req.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, role: true, name: true, email: true, whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
+      select: { id: true, role: true, name: true, email: true, billingMode: true, whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
     });
     if (!partner) return res.status(404).json({ error: 'User not found' });
     res.json({
       userId: partner.id,
       role: partner.role,
-      isWhitelabel: partner.role === 'WHITELABEL',
+      isPartner: partner.role === 'WHITELABEL' || partner.role === 'AGENCY',
+      billingMode: partner.billingMode || 'platform',
       companyId: partner.whopCompanyId || '',
       hasApiKey: !!partner.whopApiKey,
       hasWebhookSecret: !!partner.whopWebhookSecret,
@@ -862,14 +863,15 @@ const setPartnerWhopConfig = async (req, res) => {
       select: { id: true, role: true, whopWebhookToken: true },
     });
     if (!partner) return res.status(404).json({ error: 'User not found' });
-    if (partner.role !== 'WHITELABEL') {
-      return res.status(400).json({ error: 'Partner Whop can only be set on a WHITELABEL account' });
+    if (partner.role !== 'WHITELABEL' && partner.role !== 'AGENCY') {
+      return res.status(400).json({ error: 'Billing mode can only be set on an AGENCY or WHITELABEL account' });
     }
 
     if (req.body?.clear) {
       await req.prisma.user.update({
         where: { id: userId },
         data: {
+          billingMode: 'platform',
           whopApiKey: null, whopCompanyId: null, whopWebhookSecret: null,
           whopCreditsProductId: null, whopWebhookToken: null,
         },
@@ -877,8 +879,9 @@ const setPartnerWhopConfig = async (req, res) => {
       return res.json({ cleared: true });
     }
 
-    const { apiKey, companyId, webhookSecret } = req.body || {};
+    const { apiKey, companyId, webhookSecret, billingMode } = req.body || {};
     const data = {};
+    if (['platform', 'own_whop', 'manual'].includes(billingMode)) data.billingMode = billingMode;
     if (typeof companyId === 'string') data.whopCompanyId = companyId.trim() || null;
     if (apiKey && apiKey.trim()) data.whopApiKey = encrypt(apiKey.trim());
     if (webhookSecret && webhookSecret.trim()) data.whopWebhookSecret = encrypt(webhookSecret.trim());
@@ -891,10 +894,11 @@ const setPartnerWhopConfig = async (req, res) => {
     const updated = await req.prisma.user.update({
       where: { id: userId },
       data,
-      select: { whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
+      select: { billingMode: true, whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
     });
 
     res.json({
+      billingMode: updated.billingMode,
       configured: !!(updated.whopApiKey && updated.whopCompanyId),
       companyId: updated.whopCompanyId || '',
       hasApiKey: !!updated.whopApiKey,
