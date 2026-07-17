@@ -153,6 +153,8 @@ export default function Credits() {
         amount: data.amount ?? '',
         hasCard: !!data.hasCard,
         hasBackupCard: !!data.hasBackupCard,
+        selfServiceDisabled: !!data.selfServiceDisabled,
+        billingMode: data.billingMode || 'platform',
         lastError: data.lastError || null,
         lastErrorAt: data.lastErrorAt || null,
         failCount: data.failCount || 0,
@@ -269,7 +271,7 @@ export default function Credits() {
             {t('credits.subtitle')}
           </p>
         </div>
-        {creditConfig.enabled && (
+        {creditConfig.enabled && !ar.selfServiceDisabled && (
           <button
             onClick={() => setBuyModalOpen(true)}
             className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors"
@@ -278,6 +280,13 @@ export default function Credits() {
           </button>
         )}
       </div>
+
+      {/* Manual-billing accounts don't self-purchase — their provider loads credit. */}
+      {ar.selfServiceDisabled && (
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-800 dark:text-blue-300">
+          Tu proveedor gestiona el saldo de tu cuenta. Para recargar créditos, contáctalo directamente.
+        </div>
+      )}
 
       {success && (
         <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400">
@@ -292,8 +301,8 @@ export default function Credits() {
         </div>
       )}
 
-      {/* Auto-recharge / saved card (self-service) */}
-      {creditConfig.enabled && (
+      {/* Auto-recharge / saved card (self-service) — hidden for manual billing */}
+      {creditConfig.enabled && !ar.selfServiceDisabled && (
         <div className="mb-6 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5">
           <div className="flex items-start justify-between mb-4">
             <div>

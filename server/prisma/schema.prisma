@@ -50,12 +50,17 @@ model User {
   autoRechargeFailCount Int            @default(0) // Consecutive failed charges; auto-disables after N
   autoRechargeLastError String?        // Why the last charge was declined (shown to the customer)
   autoRechargeLastErrorAt DateTime?    // When that decline happened
-  // ── Partner Whop billing (WHITELABEL only) ──
-  // When a WHITELABEL has its own Whop configured, credit purchases + auto-recharge
-  // for that partner and every account under it are created in the partner's own
-  // Whop company, so the money lands in the partner's account. Accounts without a
-  // configured partner fall back to the platform's global Whop (env vars).
-  whopApiKey            String?        // Encrypted — partner's Whop API key
+  // ── Partner billing (AGENCY / WHITELABEL) ──
+  // billingMode, set by the OWNER on an agency or whitelabel, governs how that
+  // partner and every account under it pays:
+  //   "platform" (default) — clients pay through the platform's global Whop.
+  //   "own_whop"           — clients pay through the partner's OWN Whop (money
+  //                          lands in the partner's account; needs whop* below).
+  //   "manual"             — no self-service purchase; the partner loads credit to
+  //                          its clients from Manage Billing and settles payment
+  //                          with them off-platform.
+  billingMode           String         @default("platform") // platform | own_whop | manual
+  whopApiKey            String?        // Encrypted — partner's Whop API key (own_whop)
   whopCompanyId         String?        // Partner's Whop company id (biz_xxx)
   whopWebhookSecret     String?        // Encrypted — partner's Whop webhook signing secret
   whopCreditsProductId  String?        // Cached "Credits" product id created in the partner's company
