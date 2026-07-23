@@ -14,23 +14,29 @@ const PARTNER_SELECT = {
 };
 
 /**
- * Resolve the billing mode that governs a user, by walking up the ownership chain
- * (self → agency → whitelabel). The nearest ancestor whose billingMode is
- * 'own_whop' or 'manual' governs; if none set one, the mode is 'platform'.
+ * Resolve the billing mode that governs a user.
+ *
+ * A partner's billingMode governs the accounts DIRECTLY under it (its clients),
+ * NOT the partner itself: agencies and whitelabels always buy their own credits
+ * from the platform's global Whop (they pay the OWNER). Only a CLIENT is
+ * governed — by its direct parent partner (the account referenced by agencyId,
+ * which may be an AGENCY or a WHITELABEL acting as the client's provider).
+ *
  * Returns { mode, partner } where partner is the governing agency/whitelabel row
  * (null for platform).
  */
 async function getEffectiveBilling(prisma, userId) {
-  let current = await prisma.user.findUnique({ where: { id: userId }, select: PARTNER_SELECT });
-  const seen = new Set();
-  while (current && !seen.has(current.id)) {
-    seen.add(current.id);
-    if (current.billingMode === 'own_whop' || current.billingMode === 'manual') {
-      return { mode: current.billingMode, partner: current };
-    }
-    const parentId = current.agencyId || current.whitelabelId;
-    if (!parentId) break;
-    current = await prisma.user.findUnique({ where: { id: parentId }, select: PARTNER_SELECT });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: PARTNER_SELECT });
+  if (!user) return { mode: 'platform', partner: null };
+
+  // Partners (AGENCY / WHITELABEL) and the OWNER always self-serve on the platform.
+  if (user.role !== 'CLIENT') return { mode: 'platform', partner: null };
+
+  const parentId = user.agencyId; // the client's direct provider
+  if (!parentId) return { mode: 'platform', partner: null };
+  const partner = await prisma.user.findUnique({ where: { id: parentId }, select: PARTNER_SELECT });
+  if (partner && (partner.billingMode === 'own_whop' || partner.billingMode === 'manual')) {
+    return { mode: partner.billingMode, partner };
   }
   return { mode: 'platform', partner: null };
 }

@@ -51,13 +51,36 @@ function extractDeclineReason(source) {
   return reason ? reason.trim().slice(0, 500) : 'The card was declined.';
 }
 
+// A "stale card" error means the saved card / member doesn't exist in the Whop
+// company we're charging — almost always because the card was vaulted in a
+// different company (e.g. before the partner's own Whop was set up, or in the
+// global company). It's NOT a bank decline: the fix is to re-add the card, not to
+// retry it, so we don't count it toward the 3-strike auto-disable.
+const STALE_CARD_MSG = 'Tu tarjeta guardada no es válida con el proveedor de pago actual. Quítala y agrégala de nuevo para que la auto-recarga funcione.';
+function isStaleCardError(reasonSource) {
+  const r = (typeof reasonSource === 'string' ? reasonSource : extractDeclineReason(reasonSource)).toLowerCase();
+  return /member (was )?not found|member.*doesn'?t exist|payment ?method (was )?not found|no such (member|payment)|not found.*(member|payment)/.test(r);
+}
+
 /**
  * Record a failed auto-recharge charge: bump the consecutive-failure counter,
  * store the reason for the UI, and disable auto-recharge once it hits the cap.
+ * A stale-card error is handled separately (clear, actionable, non-counting).
  * Returns { fails, disabled }. Never throws.
  */
 async function recordAutoRechargeFailure(prisma, userId, reasonSource) {
   try {
+    // Stale saved card (wrong Whop company): tell the user to re-add it and don't
+    // disable auto-recharge — retrying the same card will never work.
+    if (isStaleCardError(reasonSource)) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { autoRechargeLastError: STALE_CARD_MSG, autoRechargeLastErrorAt: new Date() },
+      });
+      console.warn(`[Auto-Recharge] Stale saved card for user ${userId} (wrong Whop company) — asking to re-add: ${extractDeclineReason(reasonSource)}`);
+      return { fails: 0, disabled: false, reason: STALE_CARD_MSG, staleCard: true };
+    }
+
     const reason = extractDeclineReason(reasonSource);
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -91,5 +114,6 @@ module.exports = {
   AUTO_RECHARGE_MAX_FAILS,
   getSavedCards,
   extractDeclineReason,
+  isStaleCardError,
   recordAutoRechargeFailure,
 };

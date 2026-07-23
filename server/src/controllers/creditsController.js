@@ -486,6 +486,15 @@ let autoRechargeScannerInterval = null;
 
 async function processAutoRecharges(prisma) {
   try {
+    // Release stale off-session pendings (any kind) — Whop settles in seconds, so
+    // anything still "pending" after 30 min is a lost webhook. Clears the "cobro en
+    // proceso sin confirmar" banner and unblocks future auto charges.
+    const staleBefore = new Date(Date.now() - 30 * 60 * 1000);
+    await prisma.creditPurchase.updateMany({
+      where: { kind: { in: ['auto_recharge', 'manual_card'] }, status: 'pending', createdAt: { lt: staleBefore } },
+      data: { status: 'failed', errorMessage: 'Whop nunca confirmó este cobro (webhook no recibido).' },
+    }).catch(() => {});
+
     const candidates = await prisma.user.findMany({
       where: {
         autoRechargeEnabled: true,

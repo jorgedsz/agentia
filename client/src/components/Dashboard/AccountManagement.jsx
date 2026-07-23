@@ -1264,15 +1264,15 @@ export default function AccountManagement() {
             </div>
             <div className="p-5 space-y-4">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Cómo cobran este partner y todas las cuentas bajo él.
+                Cómo pagan <strong>los clientes de este partner</strong>. El partner siempre te compra sus créditos a ti (tu Whop global); esto define cómo le pagan a él sus cuentas.
               </p>
 
               {/* Mode selector */}
               <div className="space-y-2">
                 {[
-                  { value: 'platform', title: 'Whop de la plataforma', desc: 'Los clientes pagan por tu Whop global (tú recibes el dinero).' },
-                  { value: 'own_whop', title: 'Su propio Whop', desc: 'Los clientes pagan por el Whop del partner — el dinero le llega directo a él.' },
-                  { value: 'manual', title: 'Carga manual de saldo', desc: 'Sin autocompra: tú/ellos cargan crédito desde "Gestionar" y arreglan el pago con sus clientes por fuera.' },
+                  { value: 'platform', title: 'Whop de la plataforma', desc: 'Los clientes del partner pagan por tu Whop global (tú recibes el dinero).' },
+                  { value: 'own_whop', title: 'Su propio Whop', desc: 'Los clientes del partner pagan por el Whop del partner — el dinero le llega directo a él.' },
+                  { value: 'manual', title: 'Carga manual de saldo', desc: 'Los clientes del partner no compran solos: el partner les carga crédito desde "Gestionar" y arregla el pago con ellos por fuera.' },
                 ].map(opt => (
                   <label key={opt.value} className={`flex gap-2 p-3 rounded-xl border cursor-pointer transition-colors ${whopForm.billingMode === opt.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}>
                     <input type="radio" name="billingMode" checked={whopForm.billingMode === opt.value}
