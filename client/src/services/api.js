@@ -336,6 +336,12 @@ export const whopAPI = {
   setPartnerConfig: (userId, data) => api.put(`/whop/partner/${userId}/config`, data),
 }
 
+// Phone-switch (OWNER curates which agents an account's number can switch between)
+export const phoneSwitchAPI = {
+  adminGetAgents: (userId) => api.get(`/phone-switch/admin/${userId}/agents`),
+  adminSetAgents: (userId, agentIds) => api.put(`/phone-switch/admin/${userId}/agents`, { agentIds }),
+}
+
 // Payments API
 export const paymentsAPI = {
   // Products

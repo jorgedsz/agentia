@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { authAPI, usersAPI, whopAPI } from '../../services/api'
+import { authAPI, usersAPI, whopAPI, phoneSwitchAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -108,6 +108,45 @@ export default function AccountManagement() {
       setWhopMsg(e.response?.data?.error || 'Error al guardar.')
     } finally {
       setWhopSaving(false)
+    }
+  }
+
+  // Phone-switch: OWNER curates which of an account's agents its number can switch to
+  const [psTarget, setPsTarget] = useState(null)
+  const [psData, setPsData] = useState(null)
+  const [psSelected, setPsSelected] = useState([])
+  const [psSaving, setPsSaving] = useState(false)
+  const [psMsg, setPsMsg] = useState('')
+
+  const openPhoneSwitchModal = async (account) => {
+    setPsTarget(account)
+    setPsData(null)
+    setPsSelected([])
+    setPsMsg('')
+    try {
+      const { data } = await phoneSwitchAPI.adminGetAgents(account.id)
+      setPsData(data)
+      setPsSelected((data.agents || []).filter(a => a.phoneSwitchEnabled).map(a => a.id))
+    } catch (e) {
+      setPsMsg('No se pudieron cargar los agentes.')
+    }
+  }
+
+  const togglePsAgent = (id) => {
+    setPsSelected(sel => sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id])
+  }
+
+  const savePhoneSwitch = async () => {
+    if (!psTarget) return
+    setPsSaving(true)
+    setPsMsg('')
+    try {
+      await phoneSwitchAPI.adminSetAgents(psTarget.id, psSelected)
+      setPsMsg(`Guardado. ${psSelected.length} agente(s) habilitado(s).`)
+    } catch (e) {
+      setPsMsg(e.response?.data?.error || 'Error al guardar.')
+    } finally {
+      setPsSaving(false)
     }
   }
 
@@ -588,6 +627,15 @@ export default function AccountManagement() {
                             title="Modo de facturación de este partner (Whop propio / carga manual)"
                           >
                             Facturación
+                          </button>
+                        )}
+                        {user?.role === ROLES.OWNER && (
+                          <button
+                            onClick={() => openPhoneSwitchModal(account)}
+                            className="px-3 py-1.5 text-sm rounded-lg border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors"
+                            title="Elegir qué agentes puede usar el endpoint de cambio de número"
+                          >
+                            Cambio de número
                           </button>
                         )}
                         {account.id !== user?.id && (user?.role === ROLES.OWNER || user?.role === ROLES.WHITELABEL || (user?.role === ROLES.AGENCY && account.agencyId === user?.id)) && (
@@ -1347,6 +1395,62 @@ export default function AccountManagement() {
                   {whopSaving ? 'Guardando…' : 'Guardar'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phone-switch: pick which agents the account's number can switch between */}
+      {psTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPsTarget(null)}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Cambio de número — agentes</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{psTarget.email}</p>
+              </div>
+              <button onClick={() => setPsTarget(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Elige los agentes que el endpoint externo <code>/api/phone-switch</code> puede usar para mover el número de teléfono de esta cuenta. Solo los marcados aquí serán seleccionables.
+              </p>
+
+              {psData?.phoneNumbers?.length > 0 && (
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  Números: {psData.phoneNumbers.map(n => `${n.phoneNumber}${n.currentAgentName ? ` → ${n.currentAgentName}` : ''}`).join(', ')}
+                </div>
+              )}
+
+              {!psData ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Cargando…</p>
+              ) : psData.agents.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Esta cuenta no tiene agentes.</p>
+              ) : (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {psData.agents.map(a => (
+                    <label key={a.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${psSelected.includes(a.id) ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}>
+                      <input type="checkbox" checked={psSelected.includes(a.id)} onChange={() => togglePsAgent(a.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">{a.name}</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{a.agentType}{!a.vapiId ? ' · sin conectar a VAPI' : ''}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {psMsg && <p className="text-sm text-gray-600 dark:text-gray-400">{psMsg}</p>}
+            </div>
+            <div className="flex items-center justify-end gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
+              <button onClick={() => setPsTarget(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">Cerrar</button>
+              <button onClick={savePhoneSwitch} disabled={psSaving || !psData}
+                className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50">
+                {psSaving ? 'Guardando…' : 'Guardar'}
+              </button>
             </div>
           </div>
         </div>

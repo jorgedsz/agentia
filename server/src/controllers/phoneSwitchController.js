@@ -178,4 +178,65 @@ const switchPhoneAgent = async (req, res) => {
   }
 };
 
-module.exports = { listSwitchableAgents, switchPhoneAgent };
+// ── OWNER admin: curate which of an account's agents are switchable ──
+
+/**
+ * GET /api/phone-switch/admin/:userId/agents  (OWNER)
+ * All of the account's agents (with the switchable flag) + its phone numbers, so
+ * the OWNER can pick the specific agents the phone-switch API may use.
+ */
+const adminListAccountAgents = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const account = await req.prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true } });
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+
+    const agents = await req.prisma.agent.findMany({
+      where: { userId },
+      select: { id: true, name: true, agentType: true, vapiId: true, phoneSwitchEnabled: true },
+      orderBy: { name: 'asc' },
+    });
+    const numbers = await getAccountPhoneNumbers(req.prisma, userId);
+
+    res.json({
+      account: { id: account.id, name: account.name, email: account.email },
+      agents,
+      phoneNumbers: numbers.map(n => ({ id: n.id, phoneNumber: n.phoneNumber, currentAgentName: n.agent?.name || null })),
+    });
+  } catch (error) {
+    console.error('[PhoneSwitch] admin list error:', error.message);
+    res.status(500).json({ error: 'Failed to load account agents' });
+  }
+};
+
+/**
+ * PUT /api/phone-switch/admin/:userId/agents  (OWNER)
+ * Body: { agentIds: string[] }
+ * Sets exactly these agents (which must belong to the account) as switchable and
+ * turns the flag off on all the account's other agents.
+ */
+const adminSetSwitchableAgents = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    const requested = Array.isArray(req.body?.agentIds) ? req.body.agentIds.map(String) : [];
+
+    // Only allow ids that actually belong to this account.
+    const owned = await req.prisma.agent.findMany({ where: { userId }, select: { id: true } });
+    const ownedIds = new Set(owned.map(a => a.id));
+    const enableIds = requested.filter(id => ownedIds.has(id));
+
+    await req.prisma.$transaction([
+      req.prisma.agent.updateMany({ where: { userId }, data: { phoneSwitchEnabled: false } }),
+      ...(enableIds.length
+        ? [req.prisma.agent.updateMany({ where: { userId, id: { in: enableIds } }, data: { phoneSwitchEnabled: true } })]
+        : []),
+    ]);
+
+    res.json({ success: true, enabledAgentIds: enableIds });
+  } catch (error) {
+    console.error('[PhoneSwitch] admin set error:', error.message);
+    res.status(500).json({ error: 'Failed to update switchable agents' });
+  }
+};
+
+module.exports = { listSwitchableAgents, switchPhoneAgent, adminListAccountAgents, adminSetSwitchableAgents };
