@@ -196,6 +196,10 @@ model Agent {
   // them in API responses for non-OWNER users.
   dashboardForwardUrl    String?
   dashboardForwardSecret String?
+  // When true, this agent can be picked by the external phone-switch API
+  // (GET/POST /api/phone-switch) so the client can move a phone number between
+  // its own agents without touching the dashboard.
+  phoneSwitchEnabled Boolean @default(false)
   userId       Int
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   folderId     String?       // Per-account folder for organization. Null = Uncategorized.
