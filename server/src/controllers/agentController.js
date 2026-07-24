@@ -381,10 +381,6 @@ const updateAgent = async (req, res) => {
     const savedConfig = rewriteToolUrls(config) || config;
     const updateData = { name, description: description || null, config: savedConfig ? JSON.stringify(savedConfig) : null };
     if (agentType) updateData.agentType = agentType;
-    // Whether this agent can be targeted by the external phone-switch API.
-    if (req.body.phoneSwitchEnabled !== undefined) {
-      updateData.phoneSwitchEnabled = !!req.body.phoneSwitchEnabled;
-    }
     // OWNER-only mirror config. undefined = leave alone, '' = unset.
     if (isOwnerReq) {
       if (dashboardForwardUrl !== undefined) {
