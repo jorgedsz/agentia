@@ -599,7 +599,14 @@ export default function ChatbotEdit() {
         const checkUrl = `${apiBaseUrl}/calendar/check-availability?${queryParams}`
         const bookUrl = `${apiBaseUrl}/calendar/book-appointment?${queryParams}`
 
-        const toolSuffix = isMultiCalendar ? `${safeName}_${idx + 1}` : safeName
+        // Function names must survive n8n wrapping ("Tool_<name>_Import") within
+        // OpenAI's 64-char limit. If the name is too long, n8n truncates it and the
+        // disambiguating _1/_2 at the end gets cut off, so two calendars collide.
+        // Cap the name — leaving room for the wrapper AND the index — so the index
+        // always survives. Budget: 64 - len("Tool_") - len("_Import") = 52.
+        const idxPart = isMultiCalendar ? `_${idx + 1}` : ''
+        const nameCap = Math.max(4, 52 - 'check_calendar_availability_'.length - idxPart.length)
+        const toolSuffix = `${safeName.slice(0, nameCap)}${idxPart}`
         const descPrefix = isMultiCalendar && cal.name ? `[${cal.name}] ` : ''
 
         calendarTools.push({
