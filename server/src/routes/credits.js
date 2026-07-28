@@ -11,9 +11,14 @@ const {
   getAutoRecharge,
   updateAutoRecharge,
   rechargeNow,
+  getBalanceExternal,
 } = require('../controllers/creditsController');
 
-// All routes require authentication
+// Public, API-key-authenticated (clientId + apiKey) balance lookup for external
+// systems. Declared before authMiddleware and before the '/:userId' param route.
+router.get('/balance', getBalanceExternal);
+
+// All routes below require authentication
 router.use(authMiddleware);
 
 // List all users with credits (filtered by role)
