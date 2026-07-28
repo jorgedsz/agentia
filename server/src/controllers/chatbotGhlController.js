@@ -8,8 +8,12 @@ const { findGhlConnection, ghlRequest } = require('./ghlController');
 async function createNote(req, res) {
   try {
     const { userId } = req.query;
-    const { body } = req.body || {};
-    const contactId = req.query.contactId || req.body?.contactId;
+    // The AI param is `noteContent` (renamed off `body`, which collides with n8n's
+    // HTTP-node body section and left the literal "{body}" unsubstituted). Accept
+    // the old keys too for any workflow not yet regenerated.
+    const b = req.body || {};
+    const body = b.noteContent ?? b.note ?? b.content ?? b.body;
+    const contactId = req.query.contactId || b.contactId;
 
     if (!userId) {
       return res.json({ success: false, message: 'Missing required query param: userId' });
@@ -17,8 +21,9 @@ async function createNote(req, res) {
     if (!contactId) {
       return res.json({ success: false, message: 'Missing required parameter: contactId' });
     }
-    if (!body) {
-      return res.json({ success: false, message: 'Missing required parameter: body (note content)' });
+    // Guard against the unsubstituted placeholder ever reaching GHL as the note body.
+    if (!body || /^\{\s*(body|noteContent|note|content)\s*\}$/.test(String(body).trim())) {
+      return res.json({ success: false, message: 'Missing required parameter: noteContent (note text)' });
     }
 
     const conn = await findGhlConnection(parseInt(userId), req.prisma);

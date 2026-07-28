@@ -857,8 +857,8 @@ export default function ChatbotEdit() {
         name: 'ghl_create_note',
         description: 'Create a note on a GHL contact. Use this to log important information about a conversation or interaction.',
         body: { type: 'object', properties: {
-          body: { type: 'string', description: 'The note content/text' }
-        }, required: ['body'] },
+          noteContent: { type: 'string', description: 'The full note text to log on the contact (write the actual content here).' }
+        }, required: ['noteContent'] },
         timeoutSeconds: 30
       })
     }
