@@ -4,6 +4,30 @@ const { decrypt } = require('../utils/encryption');
 
 const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contáctalo para recargar créditos.';
 
+// Shared clientId + apiKey auth for the external credit endpoints. Returns the
+// user row (selected fields) or sends the error response and returns null.
+async function authClientApiKey(req, res, select) {
+  const clientId = req.query.clientId ?? req.body?.clientId;
+  const apiKey = req.query.apiKey ?? req.body?.apiKey;
+  if (!clientId || !apiKey) {
+    res.status(401).json({ success: false, error: 'clientId and apiKey are required' });
+    return null;
+  }
+  const user = await req.prisma.user.findUnique({
+    where: { id: parseInt(clientId) },
+    select: { id: true, triggerApiKey: true, ...(select || {}) },
+  });
+  if (!user) { res.status(404).json({ success: false, error: `Client not found (id ${clientId})` }); return null; }
+  if (!user.triggerApiKey) {
+    res.status(401).json({ success: false, error: 'No API key configured for this account. Generate one in Account Settings.' });
+    return null;
+  }
+  let storedKey = null;
+  try { storedKey = decrypt(user.triggerApiKey); } catch { /* invalid */ }
+  if (apiKey !== storedKey) { res.status(401).json({ success: false, error: 'Invalid API key' }); return null; }
+  return user;
+}
+
 /**
  * External balance lookup for an account, authenticated by its own trigger API key
  * (same credential as /api/call/trigger). Lets an outside system read a client's
@@ -12,25 +36,10 @@ const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contác
  */
 const getBalanceExternal = async (req, res) => {
   try {
-    const clientId = req.query.clientId ?? req.body?.clientId;
-    const apiKey = req.query.apiKey ?? req.body?.apiKey;
-
-    if (!clientId || !apiKey) {
-      return res.status(401).json({ success: false, error: 'clientId and apiKey are required' });
-    }
-    const user = await req.prisma.user.findUnique({
-      where: { id: parseInt(clientId) },
-      select: { id: true, email: true, name: true, vapiCredits: true, triggerApiKey: true, autoRechargeEnabled: true, autoRechargeThreshold: true },
+    const user = await authClientApiKey(req, res, {
+      email: true, name: true, vapiCredits: true, autoRechargeEnabled: true, autoRechargeThreshold: true,
     });
-    if (!user) return res.status(404).json({ success: false, error: `Client not found (id ${clientId})` });
-    if (!user.triggerApiKey) {
-      return res.status(401).json({ success: false, error: 'No API key configured for this account. Generate one in Account Settings.' });
-    }
-    let storedKey = null;
-    try { storedKey = decrypt(user.triggerApiKey); } catch { /* invalid */ }
-    if (apiKey !== storedKey) {
-      return res.status(401).json({ success: false, error: 'Invalid API key' });
-    }
+    if (!user) return;
 
     const credits = Math.round((user.vapiCredits || 0) * 100) / 100;
     res.json({
@@ -47,6 +56,77 @@ const getBalanceExternal = async (req, res) => {
   } catch (error) {
     console.error('Error getting external balance:', error.message);
     res.status(500).json({ success: false, error: 'Failed to get balance' });
+  }
+};
+
+/**
+ * Per-agent consumption for an account (voice agents + chatbots), authenticated by
+ * the account's trigger API key. Optional date range via ?since & ?until (ISO).
+ * GET /api/credits/usage-by-agent?clientId=..&apiKey=..&since=..&until=..
+ */
+const getUsageByAgentExternal = async (req, res) => {
+  try {
+    const user = await authClientApiKey(req, res);
+    if (!user) return;
+
+    // Optional date window.
+    const parseDate = (v) => { if (!v) return null; const d = new Date(v); return isNaN(d.getTime()) ? null : d; };
+    const since = parseDate(req.query.since);
+    const until = parseDate(req.query.until);
+    const createdAt = (since || until) ? { ...(since ? { gte: since } : {}), ...(until ? { lte: until } : {}) } : undefined;
+
+    // Voice: sum call cost + minutes per agent.
+    const callGroups = await req.prisma.callLog.groupBy({
+      by: ['agentId'],
+      where: { userId: user.id, ...(createdAt ? { createdAt } : {}) },
+      _sum: { costCharged: true, durationSeconds: true },
+      _count: { _all: true },
+    });
+    const agentIds = callGroups.map(g => g.agentId).filter(Boolean);
+    const agents = agentIds.length
+      ? await req.prisma.agent.findMany({ where: { id: { in: agentIds } }, select: { id: true, name: true, agentType: true } })
+      : [];
+    const agentById = Object.fromEntries(agents.map(a => [a.id, a]));
+
+    const voiceAgents = callGroups.map(g => ({
+      agentId: g.agentId,
+      name: g.agentId ? (agentById[g.agentId]?.name || '(agente eliminado)') : '(sin agente)',
+      agentType: g.agentId ? (agentById[g.agentId]?.agentType || null) : null,
+      calls: g._count._all,
+      minutes: Math.round(((g._sum.durationSeconds || 0) / 60) * 100) / 100,
+      cost: Math.round((g._sum.costCharged || 0) * 100) / 100,
+    })).sort((a, b) => b.cost - a.cost);
+
+    // Chatbots: sum message cost per chatbot (name is stored on the message).
+    const msgGroups = await req.prisma.chatbotMessage.groupBy({
+      by: ['chatbotId', 'chatbotName'],
+      where: { userId: user.id, ...(createdAt ? { createdAt } : {}) },
+      _sum: { costCharged: true },
+      _count: { _all: true },
+    });
+    const chatbots = msgGroups.map(g => ({
+      chatbotId: g.chatbotId,
+      name: g.chatbotName || g.chatbotId,
+      messages: g._count._all,
+      cost: Math.round((g._sum.costCharged || 0) * 100) / 100,
+    })).sort((a, b) => b.cost - a.cost);
+
+    const totalCost = Math.round(
+      ([...voiceAgents, ...chatbots].reduce((s, x) => s + (x.cost || 0), 0)) * 100
+    ) / 100;
+
+    res.json({
+      success: true,
+      clientId: user.id,
+      period: { since: since ? since.toISOString() : null, until: until ? until.toISOString() : null },
+      voiceAgents,
+      chatbots,
+      totalCost,
+      currency: 'USD',
+    });
+  } catch (error) {
+    console.error('Error getting usage by agent:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to get usage by agent' });
   }
 };
 
@@ -773,6 +853,7 @@ module.exports = {
   rechargeNow,
   removeCard,
   getBalanceExternal,
+  getUsageByAgentExternal,
   triggerAutoRecharge,
   performOffSessionCharge,
   chargeNextCard,
