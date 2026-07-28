@@ -345,16 +345,49 @@ class GHLCalendarProvider extends CalendarProvider {
       body: JSON.stringify(appointmentBody)
     });
 
+    // On rotation / round-robin calendars GHL picks the team member and returns
+    // their id. Resolve the name so the bot can confirm "con el asesor X".
+    const evt = appointmentResponse.event || appointmentResponse;
+    const assignedUserId = evt.assignedUserId || appointmentResponse.assignedUserId || null;
+    let assignedUser = null;
+    if (assignedUserId) {
+      const advisorName = await this._getUserName(assignedUserId, token);
+      assignedUser = { id: assignedUserId, name: advisorName };
+    }
+
     return {
       success: true,
-      message: `Appointment booked successfully for ${contactName || contactEmail} on ${new Date(startTime).toLocaleString()}`,
+      message: `Appointment booked successfully for ${contactName || contactEmail} on ${new Date(startTime).toLocaleString()}`
+        + (assignedUser?.name ? ` with ${assignedUser.name}` : ''),
       appointment: {
         id: appointmentResponse.id || appointmentResponse.event?.id,
         startTime,
         endTime: appointmentEndTime,
-        contactName: contactName || contactEmail
+        contactName: contactName || contactEmail,
+        ...(assignedUser ? { assignedUser, advisorName: assignedUser.name || null } : {}),
       }
     };
+  }
+
+  // Resolve a GHL user's display name from their id. Tolerant: any failure just
+  // returns null so booking never breaks over a name lookup. Cached per instance.
+  async _getUserName(userId, token) {
+    if (!userId) return null;
+    this._userNameCache = this._userNameCache || {};
+    if (this._userNameCache[userId] !== undefined) return this._userNameCache[userId];
+    let name = null;
+    try {
+      const u = await this._ghlRequest(`/users/${userId}`, token);
+      const user = u.user || u;
+      name = user.name
+        || [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+        || user.email
+        || null;
+    } catch (e) {
+      console.warn(`[GHL] Could not resolve advisor name for user ${userId}: ${e.message}`);
+    }
+    this._userNameCache[userId] = name;
+    return name;
   }
 }
 

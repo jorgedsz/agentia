@@ -789,7 +789,8 @@ const oauthAuthorize = async (req, res) => {
       'opportunities.readonly',
       'opportunities.write',
       'locations/tags.readonly',
-      'locations/customFields.readonly'
+      'locations/customFields.readonly',
+      'users.readonly' // resolve the rotation-calendar advisor's name after booking
     ];
 
     const authorizationUrl = `${GHL_AUTH_BASE}/oauth/chooselocation?response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&client_id=${clientId}&scope=${encodeURIComponent(scopes.join(' '))}&state=${state}`;
