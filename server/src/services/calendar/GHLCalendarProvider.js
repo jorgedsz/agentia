@@ -348,6 +348,7 @@ class GHLCalendarProvider extends CalendarProvider {
     // On rotation / round-robin calendars GHL picks the team member and returns
     // their id. Resolve the name so the bot can confirm "con el asesor X".
     const evt = appointmentResponse.event || appointmentResponse;
+    const appointmentId = appointmentResponse.id || evt.id || null;
     const assignedUserId = evt.assignedUserId || appointmentResponse.assignedUserId || null;
     let assignedUser = null;
     if (assignedUserId) {
@@ -355,16 +356,36 @@ class GHLCalendarProvider extends CalendarProvider {
       assignedUser = { id: assignedUserId, name: advisorName };
     }
 
+    // Meeting location (address / Zoom link / etc.). GHL usually returns it on the
+    // create response; if not, fetch the appointment once to read it.
+    let meetingLocation = evt.address || appointmentResponse.address || null;
+    let meetingLocationType = evt.meetingLocationType || appointmentResponse.meetingLocationType || null;
+    if (!meetingLocation && appointmentId) {
+      try {
+        const full = await this._ghlRequest(`/calendars/events/appointments/${appointmentId}`, token);
+        const a = full.appointment || full.event || full;
+        meetingLocation = a.address || meetingLocation;
+        meetingLocationType = a.meetingLocationType || meetingLocationType;
+      } catch (e) {
+        console.warn(`[GHL] Could not fetch appointment ${appointmentId} for meeting location: ${e.message}`);
+      }
+    }
+
+    console.log(`[GHL] Booked ${appointmentId || '?'} — advisor=${assignedUser?.name || assignedUserId || 'none'} location=${meetingLocation || 'none'} (type=${meetingLocationType || 'none'})`);
+
     return {
       success: true,
       message: `Appointment booked successfully for ${contactName || contactEmail} on ${new Date(startTime).toLocaleString()}`
-        + (assignedUser?.name ? ` with ${assignedUser.name}` : ''),
+        + (assignedUser?.name ? ` with ${assignedUser.name}` : '')
+        + (meetingLocation ? ` at ${meetingLocation}` : ''),
       appointment: {
-        id: appointmentResponse.id || appointmentResponse.event?.id,
+        id: appointmentId,
         startTime,
         endTime: appointmentEndTime,
         contactName: contactName || contactEmail,
         ...(assignedUser ? { assignedUser, advisorName: assignedUser.name || null } : {}),
+        ...(meetingLocation ? { meetingLocation, location: meetingLocation } : {}),
+        ...(meetingLocationType ? { meetingLocationType } : {}),
       }
     };
   }
