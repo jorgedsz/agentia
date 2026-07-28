@@ -8,6 +8,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Serialize deploys: Lightsail rejects a new deployment while one is in progress
+# (InvalidInputException "deployment N is in progress"). Queue runs instead of
+# letting rapid pushes overlap. Don't cancel an in-flight run — a half-applied
+# deploy is worse than a queued one.
+concurrency:
+  group: lightsail-deploy
+  cancel-in-progress: false
+
 env:
   AWS_REGION: us-east-1
   LIGHTSAIL_SERVICE_NAME: container-service-1
@@ -189,6 +197,21 @@ jobs:
 
           echo "=== deployment containers payload (env values redacted) ==="
           jq 'walk(if type == "object" and has("environment") then .environment |= map_values("<redacted>") else . end)' containers.json
+
+          # Wait out any deployment still in progress before creating a new one —
+          # Lightsail rejects concurrent CreateContainerServiceDeployment calls.
+          echo "Checking for an in-progress deployment before deploying…"
+          for i in $(seq 1 60); do
+            NEXT=$(aws lightsail get-container-services \
+              --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
+              --query 'containerServices[0].nextDeployment.state' --output text 2>/dev/null || echo "None")
+            if [ "$NEXT" = "None" ] || [ -z "$NEXT" ]; then
+              echo "No deployment in progress — proceeding."
+              break
+            fi
+            echo "A deployment is in progress (state: $NEXT). Waiting 15s… ($i/60)"
+            sleep 15
+          done
 
           aws lightsail create-container-service-deployment \
             --service-name ${{ env.LIGHTSAIL_SERVICE_NAME }} \
