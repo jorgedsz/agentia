@@ -250,7 +250,7 @@ const connect = async (req, res) => {
         const errorMsg = validationError.message || '';
         if (errorMsg.includes('Invalid JWT') || errorMsg.includes('401')) {
           return res.status(400).json({
-            error: 'Invalid token. Please make sure you are using the correct Private Integration Token and it has the required scopes (calendars.readonly, calendars.write).'
+            error: 'Invalid token. Please make sure you are using the correct Private Integration Token and it has the required scopes (calendars.readonly, calendars.write, contacts.readonly, contacts.write, and users.readonly to name the assigned advisor on rotation calendars).'
           });
         }
         return res.status(400).json({
