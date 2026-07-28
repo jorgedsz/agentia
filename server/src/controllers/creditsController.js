@@ -1,7 +1,54 @@
 const { AUTO_RECHARGE_MAX_FAILS } = require('../utils/autoRecharge');
 const { getWhopConfigForUser, getEffectiveBilling } = require('../utils/whopConfig');
+const { decrypt } = require('../utils/encryption');
 
 const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contáctalo para recargar créditos.';
+
+/**
+ * External balance lookup for an account, authenticated by its own trigger API key
+ * (same credential as /api/call/trigger). Lets an outside system read a client's
+ * credit balance without a dashboard login.
+ * GET /api/credits/balance?clientId=..&apiKey=..   (also accepts them in the body)
+ */
+const getBalanceExternal = async (req, res) => {
+  try {
+    const clientId = req.query.clientId ?? req.body?.clientId;
+    const apiKey = req.query.apiKey ?? req.body?.apiKey;
+
+    if (!clientId || !apiKey) {
+      return res.status(401).json({ success: false, error: 'clientId and apiKey are required' });
+    }
+    const user = await req.prisma.user.findUnique({
+      where: { id: parseInt(clientId) },
+      select: { id: true, email: true, name: true, vapiCredits: true, triggerApiKey: true, autoRechargeEnabled: true, autoRechargeThreshold: true },
+    });
+    if (!user) return res.status(404).json({ success: false, error: `Client not found (id ${clientId})` });
+    if (!user.triggerApiKey) {
+      return res.status(401).json({ success: false, error: 'No API key configured for this account. Generate one in Account Settings.' });
+    }
+    let storedKey = null;
+    try { storedKey = decrypt(user.triggerApiKey); } catch { /* invalid */ }
+    if (apiKey !== storedKey) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+
+    const credits = Math.round((user.vapiCredits || 0) * 100) / 100;
+    res.json({
+      success: true,
+      clientId: user.id,
+      email: user.email,
+      name: user.name,
+      credits,
+      balance: credits,
+      currency: 'USD',
+      autoRechargeEnabled: !!user.autoRechargeEnabled,
+      autoRechargeThreshold: user.autoRechargeThreshold ?? null,
+    });
+  } catch (error) {
+    console.error('Error getting external balance:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to get balance' });
+  }
+};
 
 /**
  * Get credits for a user
@@ -725,6 +772,7 @@ module.exports = {
   updateAutoRecharge,
   rechargeNow,
   removeCard,
+  getBalanceExternal,
   triggerAutoRecharge,
   performOffSessionCharge,
   chargeNextCard,
