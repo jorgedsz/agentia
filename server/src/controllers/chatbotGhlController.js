@@ -14,6 +14,7 @@ async function createNote(req, res) {
     const b = req.body || {};
     const body = b.noteContent ?? b.note ?? b.content ?? b.body;
     const contactId = req.query.contactId || b.contactId;
+    console.log(`[Chatbot GHL] createNote received: keys=${JSON.stringify(Object.keys(b))} body=${JSON.stringify(body)}`);
 
     if (!userId) {
       return res.json({ success: false, message: 'Missing required query param: userId' });
@@ -21,9 +22,11 @@ async function createNote(req, res) {
     if (!contactId) {
       return res.json({ success: false, message: 'Missing required parameter: contactId' });
     }
-    // Guard against the unsubstituted placeholder ever reaching GHL as the note body.
-    if (!body || /^\{\s*(body|noteContent|note|content)\s*\}$/.test(String(body).trim())) {
-      return res.json({ success: false, message: 'Missing required parameter: noteContent (note text)' });
+    // Guard against an unsubstituted placeholder ({noteContent}, {body}, …) ever
+    // being written to GHL as the literal note text.
+    if (!body || /^\{\s*[\w]+\s*\}$/.test(String(body).trim())) {
+      console.warn(`[Chatbot GHL] createNote rejected — body looks like an unsubstituted placeholder: ${JSON.stringify(body)}. Re-save the chatbot to regenerate the n8n workflow.`);
+      return res.json({ success: false, message: 'Missing required parameter: noteContent (the actual note text). If this keeps happening, re-save the chatbot.' });
     }
 
     const conn = await findGhlConnection(parseInt(userId), req.prisma);
