@@ -375,17 +375,34 @@ class GHLCalendarProvider extends CalendarProvider {
     if (!userId) return null;
     this._userNameCache = this._userNameCache || {};
     if (this._userNameCache[userId] !== undefined) return this._userNameCache[userId];
+
+    const nameOf = (user) => user && (
+      user.name
+      || [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+      || user.email
+      || null
+    );
+
     let name = null;
+    // 1) Direct lookup.
     try {
       const u = await this._ghlRequest(`/users/${userId}`, token);
-      const user = u.user || u;
-      name = user.name
-        || [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
-        || user.email
-        || null;
+      name = nameOf(u.user || u);
     } catch (e) {
-      console.warn(`[GHL] Could not resolve advisor name for user ${userId}: ${e.message}`);
+      console.warn(`[GHL] /users/${userId} failed (${e.message}) — trying location users list`);
     }
+    // 2) Fallback: list the location's users and match the id (PIT tokens are
+    //    location-scoped and this endpoint is often the one they're allowed to hit).
+    if (!name && this.locationId) {
+      try {
+        const list = await this._ghlRequest(`/users/?locationId=${this.locationId}`, token);
+        const users = list.users || list.data || [];
+        name = nameOf(users.find(u => u.id === userId || u._id === userId));
+      } catch (e) {
+        console.warn(`[GHL] Could not resolve advisor name for user ${userId}: ${e.message}`);
+      }
+    }
+
     this._userNameCache[userId] = name;
     return name;
   }
