@@ -234,7 +234,10 @@ const updateAgent = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, config, agentType, dashboardForwardUrl, dashboardForwardSecret } = req.body;
-    const isOwnerReq = req.user.role === 'OWNER';
+    // Count an OWNER who is impersonating a client as OWNER for owner-only fields,
+    // matching the pricing endpoint — otherwise phoneSwitchEnabled / mirror config
+    // silently no-op while impersonating.
+    const isOwnerReq = req.user.role === 'OWNER' || req.originalUserRole === 'OWNER';
     console.log('=== UPDATE AGENT REQUEST ===');
     console.log('Agent ID:', id, '| Name:', name, '| Type:', agentType);
     console.log('Tools count:', config?.tools?.length || 0);
