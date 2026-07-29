@@ -239,4 +239,24 @@ const adminSetSwitchableAgents = async (req, res) => {
   }
 };
 
-module.exports = { listSwitchableAgents, switchPhoneAgent, adminListAccountAgents, adminSetSwitchableAgents };
+/**
+ * PATCH /api/phone-switch/agent/:agentId  (OWNER, incl. impersonating)
+ * Body: { enabled } — toggle one agent's phone-switch flag immediately.
+ */
+const setAgentSwitchable = async (req, res) => {
+  try {
+    const isOwner = req.user.role === 'OWNER' || req.originalUserRole === 'OWNER';
+    if (!isOwner) return res.status(403).json({ error: 'Solo OWNER puede cambiar esto.' });
+    const { agentId } = req.params;
+    const enabled = !!req.body?.enabled;
+    const agent = await req.prisma.agent.findUnique({ where: { id: String(agentId) }, select: { id: true } });
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    await req.prisma.agent.update({ where: { id: String(agentId) }, data: { phoneSwitchEnabled: enabled } });
+    res.json({ success: true, agentId: agent.id, phoneSwitchEnabled: enabled });
+  } catch (error) {
+    console.error('[PhoneSwitch] setAgentSwitchable error:', error.message);
+    res.status(500).json({ error: 'Failed to update agent' });
+  }
+};
+
+module.exports = { listSwitchableAgents, switchPhoneAgent, adminListAccountAgents, adminSetSwitchableAgents, setAgentSwitchable };

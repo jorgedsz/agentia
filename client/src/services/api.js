@@ -340,6 +340,7 @@ export const whopAPI = {
 export const phoneSwitchAPI = {
   adminGetAgents: (userId) => api.get(`/phone-switch/admin/${userId}/agents`),
   adminSetAgents: (userId, agentIds) => api.put(`/phone-switch/admin/${userId}/agents`, { agentIds }),
+  setAgentSwitchable: (agentId, enabled) => api.patch(`/phone-switch/agent/${agentId}`, { enabled }),
 }
 
 // Payments API
