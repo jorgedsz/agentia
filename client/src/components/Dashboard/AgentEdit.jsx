@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, accountSettingsAPI, voicesAPI, pricingAPI, toolsAPI, chatbotsAPI } from '../../services/api'
+import { agentsAPI, phoneNumbersAPI, callsAPI, creditsAPI, ghlAPI, calendarAPI, promptGeneratorAPI, accountSettingsAPI, voicesAPI, pricingAPI, toolsAPI, chatbotsAPI, phoneSwitchAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { TRANSCRIBER_PROVIDERS, MODELS_BY_PROVIDER } from '../../constants/models'
@@ -387,6 +387,7 @@ export default function AgentEdit() {
   // OWNER-only fields. Mirrored to an external dashboard via the
   // sword-ai vapi webhook controller; not visible to any other role.
   const [phoneSwitchEnabled, setPhoneSwitchEnabled] = useState(false)
+  const [phoneSwitchMsg, setPhoneSwitchMsg] = useState('')
   const [dashboardForwardUrl, setDashboardForwardUrl] = useState('')
   const [dashboardForwardSecret, setDashboardForwardSecret] = useState('')
   const [language, setLanguage] = useState('en')
@@ -7452,13 +7453,24 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                     <input
                       type="checkbox"
                       checked={phoneSwitchEnabled}
-                      onChange={(e) => setPhoneSwitchEnabled(e.target.checked)}
+                      onChange={async (e) => {
+                        const next = e.target.checked
+                        setPhoneSwitchEnabled(next) // optimistic
+                        try {
+                          await phoneSwitchAPI.setAgentSwitchable(id, next)
+                          setPhoneSwitchMsg(next ? 'Guardado ✓' : 'Quitado ✓')
+                        } catch (err) {
+                          setPhoneSwitchEnabled(!next) // revert on failure
+                          setPhoneSwitchMsg(err.response?.data?.error || 'No se pudo guardar')
+                        }
+                        setTimeout(() => setPhoneSwitchMsg(''), 2500)
+                      }}
                       className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
                     <div>
-                      <span className="text-sm font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Owner · Seleccionable por API de cambio de número</span>
+                      <span className="text-sm font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Owner · Seleccionable por API de cambio de número {phoneSwitchMsg && <span className="normal-case font-normal text-gray-400">· {phoneSwitchMsg}</span>}</span>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Permite que el endpoint <code>/api/phone-switch</code> asigne un número a este agente. Guarda el agente para aplicar. (También puedes gestionarlo desde Account Management → "⋯" → Cambio de número.)
+                        Permite que el endpoint <code>/api/phone-switch</code> asigne un número a este agente. Se guarda al instante al marcarlo. (También desde Account Management → "⋯" → Cambio de número.)
                       </p>
                     </div>
                   </label>
