@@ -391,6 +391,11 @@ const updateAgent = async (req, res) => {
         const v = typeof dashboardForwardSecret === 'string' ? dashboardForwardSecret.trim() : '';
         updateData.dashboardForwardSecret = v || null;
       }
+      // Whether the external phone-switch API may target this agent (OWNER-only,
+      // so a client can't make its own agent switchable).
+      if (req.body.phoneSwitchEnabled !== undefined) {
+        updateData.phoneSwitchEnabled = !!req.body.phoneSwitchEnabled;
+      }
     }
 
     const agent = await req.prisma.agent.update({
