@@ -386,6 +386,7 @@ export default function AgentEdit() {
   const [showAgentInfoModal, setShowAgentInfoModal] = useState(false)
   // OWNER-only fields. Mirrored to an external dashboard via the
   // sword-ai vapi webhook controller; not visible to any other role.
+  const [phoneSwitchEnabled, setPhoneSwitchEnabled] = useState(false)
   const [dashboardForwardUrl, setDashboardForwardUrl] = useState('')
   const [dashboardForwardSecret, setDashboardForwardSecret] = useState('')
   const [language, setLanguage] = useState('en')
@@ -1027,6 +1028,7 @@ export default function AgentEdit() {
       setDescription(agentData.description || '')
       // Server only includes these fields for OWNER callers; non-OWNER
       // sees them as undefined and the inputs stay hidden anyway.
+      setPhoneSwitchEnabled(!!agentData.phoneSwitchEnabled)
       setDashboardForwardUrl(agentData.dashboardForwardUrl || '')
       setDashboardForwardSecret(agentData.dashboardForwardSecret || '')
       setAgentPrice(agentData.pricePerMinute != null ? String(agentData.pricePerMinute) : '')
@@ -1939,6 +1941,7 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
         // so non-OWNER state stays at '' and just no-ops on the server.
         dashboardForwardUrl,
         dashboardForwardSecret,
+        phoneSwitchEnabled,
         config: {
           agentType,
           systemPrompt: finalSystemPrompt,
@@ -7439,6 +7442,26 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                     </button>
                     {pricingMsg && <span className="text-xs text-gray-500 dark:text-gray-400">{pricingMsg}</span>}
                   </div>
+                </div>
+              )}
+
+              {/* OWNER-only: allow the external phone-switch API to target this agent. */}
+              {canPriceAgent && (
+                <div className="border-t border-gray-200 dark:border-dark-border pt-4 mt-2">
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={phoneSwitchEnabled}
+                      onChange={(e) => setPhoneSwitchEnabled(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <div>
+                      <span className="text-sm font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Owner · Seleccionable por API de cambio de número</span>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Permite que el endpoint <code>/api/phone-switch</code> asigne un número a este agente. Guarda el agente para aplicar. (También puedes gestionarlo desde Account Management → "⋯" → Cambio de número.)
+                      </p>
+                    </div>
+                  </label>
                 </div>
               )}
 
