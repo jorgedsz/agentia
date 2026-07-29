@@ -111,6 +111,9 @@ export default function AccountManagement() {
     }
   }
 
+  // Per-row overflow menu (keeps the actions column from overflowing off-screen)
+  const [rowMenu, setRowMenu] = useState(null)
+
   // Phone-switch: OWNER curates which of an account's agents its number can switch to
   const [psTarget, setPsTarget] = useState(null)
   const [psData, setPsData] = useState(null)
@@ -611,44 +614,56 @@ export default function AccountManagement() {
                             {t('common.manageBilling')}
                           </button>
                         )}
-                        {canChangeRoleOf(account) && (
-                          <button
-                            onClick={() => openRoleModal(account)}
-                            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
-                            title="Cambiar rol del usuario"
-                          >
-                            Cambiar rol
-                          </button>
-                        )}
-                        {user?.role === ROLES.OWNER && (account.role === ROLES.WHITELABEL || account.role === ROLES.AGENCY) && (
-                          <button
-                            onClick={() => openWhopModal(account)}
-                            className="px-3 py-1.5 text-sm rounded-lg border border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
-                            title="Modo de facturación de este partner (Whop propio / carga manual)"
-                          >
-                            Facturación
-                          </button>
-                        )}
-                        {user?.role === ROLES.OWNER && (
-                          <button
-                            onClick={() => openPhoneSwitchModal(account)}
-                            className="px-3 py-1.5 text-sm rounded-lg border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors"
-                            title="Elegir qué agentes puede usar el endpoint de cambio de número"
-                          >
-                            Cambio de número
-                          </button>
-                        )}
-                        {account.id !== user?.id && (user?.role === ROLES.OWNER || user?.role === ROLES.WHITELABEL || (user?.role === ROLES.AGENCY && account.agencyId === user?.id)) && (
-                          <button
-                            onClick={() => handleDeleteUser(account)}
-                            className="px-3 py-1.5 text-red-500 text-sm rounded-lg hover:bg-red-500/10 transition-colors"
-                            title="Delete user"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        )}
+                        {(() => {
+                          const canRole = canChangeRoleOf(account)
+                          const canBilling = user?.role === ROLES.OWNER && (account.role === ROLES.WHITELABEL || account.role === ROLES.AGENCY)
+                          const canPhoneSwitch = user?.role === ROLES.OWNER
+                          const canDelete = account.id !== user?.id && (user?.role === ROLES.OWNER || user?.role === ROLES.WHITELABEL || (user?.role === ROLES.AGENCY && account.agencyId === user?.id))
+                          if (!canRole && !canBilling && !canPhoneSwitch && !canDelete) return null
+                          const open = rowMenu === account.id
+                          return (
+                            <div className="relative" data-row-menu>
+                              <button
+                                onClick={() => setRowMenu(open ? null : account.id)}
+                                className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+                                title="Más acciones"
+                              >
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4z" /></svg>
+                              </button>
+                              {open && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setRowMenu(null)} />
+                                  <div className="absolute right-0 mt-1 w-52 z-50 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl shadow-lg py-1 text-left">
+                                    {canRole && (
+                                      <button onClick={() => { setRowMenu(null); openRoleModal(account) }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-hover">
+                                        Cambiar rol
+                                      </button>
+                                    )}
+                                    {canBilling && (
+                                      <button onClick={() => { setRowMenu(null); openWhopModal(account) }}
+                                        className="w-full text-left px-4 py-2 text-sm text-purple-700 dark:text-purple-300 hover:bg-gray-50 dark:hover:bg-dark-hover">
+                                        Facturación
+                                      </button>
+                                    )}
+                                    {canPhoneSwitch && (
+                                      <button onClick={() => { setRowMenu(null); openPhoneSwitchModal(account) }}
+                                        className="w-full text-left px-4 py-2 text-sm text-teal-700 dark:text-teal-300 hover:bg-gray-50 dark:hover:bg-dark-hover">
+                                        Cambio de número (agentes API)
+                                      </button>
+                                    )}
+                                    {canDelete && (
+                                      <button onClick={() => { setRowMenu(null); handleDeleteUser(account) }}
+                                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 border-t border-gray-100 dark:border-dark-border">
+                                        Eliminar cuenta
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                     </td>
                   </tr>
