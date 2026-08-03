@@ -145,7 +145,8 @@ export const phoneNumbersAPI = {
   assignToAgent: (id, agentId) => api.patch(`/phone-numbers/${id}/assign`, { agentId }),
   unassign: (id) => api.patch(`/phone-numbers/${id}/assign`, { agentId: null }),
   remove: (id) => api.delete(`/phone-numbers/${id}`),
-  retryVapi: (id) => api.post(`/phone-numbers/${id}/retry-vapi`)
+  retryVapi: (id) => api.post(`/phone-numbers/${id}/retry-vapi`),
+  setVapiId: (id, vapiPhoneNumberId) => api.patch(`/phone-numbers/${id}/vapi-id`, { vapiPhoneNumberId })
 }
 
 // Team Members API

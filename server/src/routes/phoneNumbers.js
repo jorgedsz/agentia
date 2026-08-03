@@ -27,6 +27,9 @@ router.post('/:id/retry-vapi', phoneNumberController.retryVapiImport);
 // Assign/unassign phone number to agent
 router.patch('/:id/assign', phoneNumberController.assignToAgent);
 
+// Manually link an existing VAPI phone number id (OWNER only, checked in controller)
+router.patch('/:id/vapi-id', phoneNumberController.setVapiPhoneId);
+
 // Remove a phone number
 router.delete('/:id', phoneNumberController.removePhoneNumber);
 

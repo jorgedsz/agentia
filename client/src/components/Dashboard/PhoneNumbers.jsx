@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { phoneNumbersAPI, agentsAPI, telephonyAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
+import { useAuth } from '../../context/AuthContext'
 
 const PROVIDER_COLORS = {
   twilio: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/30', hex: '#F22F46' },
@@ -10,6 +11,8 @@ const PROVIDER_COLORS = {
 
 export default function PhoneNumbers() {
   const { t } = useLanguage()
+  const { user, isImpersonating, originalUser } = useAuth()
+  const isOwner = user?.role === 'OWNER' || (isImpersonating && originalUser?.role === 'OWNER')
   const [phoneNumbers, setPhoneNumbers] = useState([])
   const [credentials, setCredentials] = useState([])
   const [agents, setAgents] = useState([])
@@ -182,6 +185,29 @@ export default function PhoneNumbers() {
       setError(err.response?.data?.error || 'Failed to import to VAPI')
     } finally {
       setRetrying(null)
+    }
+  }
+
+  // OWNER-only: manually pin an existing VAPI phoneNumberId to this record
+  const handleSetVapiId = async (phoneNumber) => {
+    const current = phoneNumber.vapiPhoneNumberId || ''
+    const input = window.prompt(
+      `Pega el phoneNumberId de VAPI para ${phoneNumber.phoneNumber}.\n\nLo encuentras en el panel de VAPI (Phone Numbers → el número → ID).`,
+      current
+    )
+    if (input === null) return // cancelled
+    const value = input.trim()
+    if (!value) { setError('El phoneNumberId no puede estar vacío.'); return }
+    if (value === current) return
+    setError(''); setSuccess('')
+    try {
+      const { data } = await phoneNumbersAPI.setVapiId(phoneNumber.id, value)
+      setSuccess(data?.verified
+        ? `ID de VAPI vinculado y verificado para ${phoneNumber.phoneNumber}`
+        : `ID de VAPI vinculado para ${phoneNumber.phoneNumber}`)
+      await fetchData()
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo vincular el ID de VAPI')
     }
   }
 
@@ -481,6 +507,15 @@ export default function PhoneNumbers() {
                     ) : (
                       <button onClick={() => setShowAssignModal(number)} className="text-primary-500 hover:text-primary-600 text-sm">
                         {t('common.assign')}
+                      </button>
+                    )}
+                    {isOwner && (
+                      <button
+                        onClick={() => handleSetVapiId(number)}
+                        title={number.vapiPhoneNumberId ? `VAPI ID: ${number.vapiPhoneNumberId}` : 'Vincular un phoneNumberId de VAPI a mano'}
+                        className="text-indigo-500 hover:text-indigo-600 text-sm"
+                      >
+                        {number.vapiPhoneNumberId ? 'VAPI ID' : 'Vincular VAPI ID'}
                       </button>
                     )}
                     <button onClick={() => handleRemove(number)} className="text-red-500 hover:text-red-600 text-sm ml-3">

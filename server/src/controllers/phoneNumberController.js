@@ -476,6 +476,70 @@ const importTwilioDirect = async (req, res) => {
   }
 };
 
+/**
+ * Manually link an existing VAPI phone number id to a local PhoneNumber record.
+ * OWNER only (incl. OWNER while impersonating). Useful when the number was
+ * imported directly in the VAPI dashboard, or got out of sync, so we can pin
+ * the phoneNumberId without re-importing. Verifies the id against VAPI when a
+ * key is available, but stores it either way.
+ * PATCH /api/phone-numbers/:id/vapi-id
+ */
+const setVapiPhoneId = async (req, res) => {
+  try {
+    const isOwnerReq = req.user.role === 'OWNER' || req.originalUserRole === 'OWNER';
+    if (!isOwnerReq) return res.status(403).json({ error: 'Solo el OWNER puede vincular el ID de VAPI a mano' });
+
+    const { id } = req.params;
+    const userId = req.user.id;
+    const raw = (req.body?.vapiPhoneNumberId ?? '').toString().trim();
+    if (!raw) return res.status(400).json({ error: 'vapiPhoneNumberId es requerido' });
+
+    const phoneNumber = await req.prisma.phoneNumber.findUnique({
+      where: { id: parseInt(id) },
+      include: { telephonyCredential: true }
+    });
+    if (!phoneNumber) return res.status(404).json({ error: 'Phone number not found' });
+    if (phoneNumber.telephonyCredential.userId !== userId) return res.status(403).json({ error: 'Access denied' });
+
+    // Best-effort validation against VAPI: if we can reach it and the id does
+    // not exist, reject with a clear message; if we can't reach it, store anyway.
+    let verified = false;
+    const vapiKey = await getVapiKeyForUser(req.prisma, userId);
+    if (vapiKey) {
+      vapiService.setApiKey(vapiKey);
+      try {
+        const vapiNum = await vapiService.getPhoneNumber(raw);
+        if (!vapiNum || !vapiNum.id) {
+          return res.status(400).json({ error: 'Ese phoneNumberId no existe en VAPI para esta cuenta' });
+        }
+        verified = true;
+      } catch (err) {
+        // 404 from VAPI → id doesn't belong to this account; other errors → skip verify
+        const status = err?.response?.status;
+        if (status === 404 || status === 400) {
+          return res.status(400).json({ error: 'Ese phoneNumberId no existe en VAPI para esta cuenta' });
+        }
+        console.warn('setVapiPhoneId: could not verify against VAPI, storing anyway:', err.message);
+      }
+    }
+
+    const updated = await req.prisma.phoneNumber.update({
+      where: { id: parseInt(id) },
+      data: { vapiPhoneNumberId: raw, status: 'active' },
+      include: { agent: { select: { id: true, name: true, vapiId: true } } }
+    });
+
+    res.json({
+      message: verified ? 'VAPI phone id vinculado y verificado' : 'VAPI phone id vinculado',
+      verified,
+      phoneNumber: updated
+    });
+  } catch (error) {
+    console.error('Error setting VAPI phone id:', error);
+    res.status(500).json({ error: 'Failed to set VAPI phone id' });
+  }
+};
+
 module.exports = {
   listPhoneNumbers,
   listAvailableNumbers,
@@ -484,5 +548,6 @@ module.exports = {
   removePhoneNumber,
   retryVapiImport,
   importSipNumber,
-  importTwilioDirect
+  importTwilioDirect,
+  setVapiPhoneId
 };
