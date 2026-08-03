@@ -13,7 +13,8 @@ export function AuthProvider({ children }) {
   const [branding, setBranding] = useState({
     companyName: null,
     companyLogo: null,
-    companyTagline: null
+    companyTagline: null,
+    creditsLabel: null
   })
 
   useEffect(() => {
@@ -75,7 +76,8 @@ export function AuthProvider({ children }) {
           setBranding({
             companyName: hostData.branding.companyName,
             companyLogo: hostData.branding.companyLogo,
-            companyTagline: hostData.branding.companyTagline
+            companyTagline: hostData.branding.companyTagline,
+            creditsLabel: hostData.branding.creditsLabel || null
           })
           return
         }
@@ -85,7 +87,8 @@ export function AuthProvider({ children }) {
       setBranding({
         companyName: data.companyName,
         companyLogo: data.companyLogo,
-        companyTagline: data.companyTagline
+        companyTagline: data.companyTagline,
+        creditsLabel: data.creditsLabel || null
       })
     } catch (err) {
       console.error('Failed to fetch branding:', err)
@@ -108,7 +111,8 @@ export function AuthProvider({ children }) {
           setBranding({
             companyName: hostData.branding.companyName,
             companyLogo: hostData.branding.companyLogo,
-            companyTagline: hostData.branding.companyTagline
+            companyTagline: hostData.branding.companyTagline,
+            creditsLabel: hostData.branding.creditsLabel || null
           })
         }
       } catch { /* keep defaults */ }

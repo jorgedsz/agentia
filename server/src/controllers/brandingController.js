@@ -1,6 +1,28 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Resolve the effective "Credits" label for a user by walking up the ownership
+// chain (self → agency → whitelabel). Returns null if nobody set a custom one, so
+// the client falls back to the default word.
+async function resolveCreditsLabel(userId) {
+  const seen = new Set();
+  let current = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, creditsLabel: true, agencyId: true, whitelabelId: true },
+  });
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    if (current.creditsLabel) return current.creditsLabel;
+    const parentId = current.agencyId || current.whitelabelId;
+    if (!parentId) break;
+    current = await prisma.user.findUnique({
+      where: { id: parentId },
+      select: { id: true, creditsLabel: true, agencyId: true, whitelabelId: true },
+    });
+  }
+  return null;
+}
+
 // Public — resolve whitelabel branding from the request's Host header so
 // custom domains (e.g. lmconsultingai.com) can show the right logo/name on
 // the login page before the user is authenticated. Returns null fields when
@@ -15,7 +37,7 @@ exports.getBrandingByHost = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { loginDomain: host },
-      select: { companyName: true, companyLogo: true, companyTagline: true }
+      select: { companyName: true, companyLogo: true, companyTagline: true, creditsLabel: true }
     });
 
     if (!user) return res.json({ branding: null });
@@ -24,7 +46,8 @@ exports.getBrandingByHost = async (req, res) => {
       branding: {
         companyName: user.companyName,
         companyLogo: user.companyLogo,
-        companyTagline: user.companyTagline
+        companyTagline: user.companyTagline,
+        creditsLabel: user.creditsLabel || null
       }
     });
   } catch (err) {
@@ -58,6 +81,7 @@ exports.getBranding = async (req, res) => {
       companyName: user.companyName,
       companyLogo: user.companyLogo,
       companyTagline: user.companyTagline,
+      creditsLabel: await resolveCreditsLabel(userId),
       canEdit: user.role === 'OWNER' || user.role === 'WHITELABEL' || user.role === 'AGENCY'
     };
 
@@ -140,16 +164,17 @@ exports.setBrandingForUser = async (req, res) => {
       return res.status(403).json({ error: 'Cannot set branding for another owner' });
     }
 
-    const { companyName, companyLogo, companyTagline } = req.body;
+    const { companyName, companyLogo, companyTagline, creditsLabel } = req.body;
 
     const updated = await prisma.user.update({
       where: { id: targetId },
       data: {
         companyName: companyName || null,
         companyLogo: companyLogo || null,
-        companyTagline: companyTagline || null
+        companyTagline: companyTagline || null,
+        ...(creditsLabel !== undefined ? { creditsLabel: (creditsLabel || '').trim() || null } : {})
       },
-      select: { companyName: true, companyLogo: true, companyTagline: true }
+      select: { companyName: true, companyLogo: true, companyTagline: true, creditsLabel: true }
     });
 
     res.json({ ...updated, userId: targetId });
@@ -176,19 +201,21 @@ exports.updateBranding = async (req, res) => {
       return res.status(403).json({ error: 'Only owners, whitelabels, and agencies can update branding' });
     }
 
-    const { companyName, companyLogo, companyTagline } = req.body;
+    const { companyName, companyLogo, companyTagline, creditsLabel } = req.body;
 
     const updated = await prisma.user.update({
       where: { id: userId },
       data: {
         companyName: companyName || null,
         companyLogo: companyLogo || null,
-        companyTagline: companyTagline || null
+        companyTagline: companyTagline || null,
+        ...(creditsLabel !== undefined ? { creditsLabel: (creditsLabel || '').trim() || null } : {})
       },
       select: {
         companyName: true,
         companyLogo: true,
-        companyTagline: true
+        companyTagline: true,
+        creditsLabel: true
       }
     });
 

@@ -6,7 +6,7 @@ import { useLanguage } from '../../context/LanguageContext'
 import WhopCheckoutModal from './WhopCheckoutModal'
 
 export default function Credits() {
-  const { user } = useAuth()
+  const { user, branding } = useAuth()
   const { t } = useLanguage()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -266,7 +266,7 @@ export default function Credits() {
     <div className="p-6">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('credits.title')}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{branding?.creditsLabel || t('credits.title')}</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
             {t('credits.subtitle')}
           </p>
