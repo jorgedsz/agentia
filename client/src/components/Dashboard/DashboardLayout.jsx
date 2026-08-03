@@ -738,6 +738,7 @@ export default function DashboardLayout() {
 }
 
 function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) {
+  const { branding } = useAuth()
   const [config, setConfig] = useState({ enabled: false, min: 1, max: 10000, presets: [] })
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(true)
