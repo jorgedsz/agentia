@@ -418,7 +418,7 @@ export default function DashboardLayout() {
             <div className="space-y-1">
               {userCredits !== null && (
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600 dark:text-gray-400">Credits</span>
+                  <span className="text-gray-600 dark:text-gray-400">{branding.creditsLabel || 'Credits'}</span>
                   <div className="flex items-center gap-1.5">
                     <span className={`font-medium ${userCredits <= 0 ? 'text-red-500' : 'text-green-500'}`}>
                       ${userCredits?.toFixed(2) || '0.00'}
@@ -914,7 +914,7 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
       <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-dark-border">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('sidebar.addCredits') || 'Add Credits'}</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{branding.creditsLabel ? `+ ${branding.creditsLabel}` : (t('sidebar.addCredits') || 'Add Credits')}</h2>
           <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

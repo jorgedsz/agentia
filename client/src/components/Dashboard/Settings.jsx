@@ -802,7 +802,8 @@ function BrandingTab() {
   const [branding, setBranding] = useState({
     companyName: '',
     companyLogo: '',
-    companyTagline: ''
+    companyTagline: '',
+    creditsLabel: ''
   })
   const [canEdit, setCanEdit] = useState(false)
   const [inheritedFrom, setInheritedFrom] = useState(null)
@@ -818,7 +819,8 @@ function BrandingTab() {
       setBranding({
         companyName: data.companyName || '',
         companyLogo: data.companyLogo || '',
-        companyTagline: data.companyTagline || ''
+        companyTagline: data.companyTagline || '',
+        creditsLabel: data.creditsLabel || ''
       })
       setCanEdit(data.canEdit)
       setInheritedFrom(data.inheritedFrom || null)
@@ -840,7 +842,8 @@ function BrandingTab() {
       setBranding({
         companyName: data.companyName || '',
         companyLogo: data.companyLogo || '',
-        companyTagline: data.companyTagline || ''
+        companyTagline: data.companyTagline || '',
+        creditsLabel: data.creditsLabel || ''
       })
       setSuccess('Branding updated successfully')
       if (refreshUser) refreshUser()
@@ -959,6 +962,23 @@ function BrandingTab() {
               placeholder="AI Voice Platform"
               className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Nombre de los créditos
+            </label>
+            <input
+              type="text"
+              value={branding.creditsLabel}
+              onChange={(e) => setBranding({ ...branding, creditsLabel: e.target.value })}
+              disabled={!canEdit}
+              placeholder="Créditos"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Cómo se llaman los créditos en toda tu marca y las cuentas bajo ti (ej. "Nebos"). En blanco = "Créditos".
+            </p>
           </div>
 
           <div>
