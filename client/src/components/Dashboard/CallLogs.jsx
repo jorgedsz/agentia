@@ -52,6 +52,7 @@ export default function CallLogs() {
   const [cursorStack, setCursorStack] = useState([])
   const [currentCursor, setCurrentCursor] = useState(null)
   const [pageSize, setPageSize] = useState(_callsCache?.pageSize || 25)
+  const [serverSummary, setServerSummary] = useState(null)
 
   // Filters
   const [filters, setFilters] = useState({
@@ -79,6 +80,27 @@ export default function CallLogs() {
     setCurrentCursor(null)
     fetchCalls()
   }, [filters.agentId, filters.dateFrom, filters.dateTo])
+
+  // Global KPI totals across ALL matching calls (not just the loaded page).
+  // Re-fetched on mount and whenever a server-computable filter changes.
+  useEffect(() => {
+    fetchSummary()
+  }, [filters.agentId, filters.dateFrom, filters.dateTo, filters.outcome, filters.endReason])
+
+  const fetchSummary = async () => {
+    try {
+      const params = {}
+      if (filters.agentId) params.assistantId = filters.agentId
+      if (filters.dateFrom) params.createdAtGt = new Date(filters.dateFrom + 'T00:00:00.000Z').toISOString()
+      if (filters.dateTo) params.createdAtLt = new Date(filters.dateTo + 'T23:59:59.999Z').toISOString()
+      if (filters.outcome) params.outcome = filters.outcome
+      if (filters.endReason) params.endReason = filters.endReason
+      const { data } = await callsAPI.summary(params)
+      setServerSummary(data.summary || null)
+    } catch {
+      setServerSummary(null)
+    }
+  }
 
   const fetchCalls = async (createdAtLt, sizeOverride) => {
     try {
@@ -182,6 +204,12 @@ export default function CallLogs() {
     return acc
   }, { total: 0, answered: 0, booked: 0, durationSum: 0, costSum: 0 })
   summary.avg = summary.answered ? summary.durationSum / summary.answered : 0
+
+  // Prefer the server-computed global totals. The phone filter is client-only
+  // (customer numbers are encrypted at rest), so fall back to the page-level
+  // summary whenever a phone search is active to avoid mismatched numbers.
+  const usingGlobalSummary = !!serverSummary && !filters.phone
+  const stats = usingGlobalSummary ? serverSummary : summary
 
   const formatDuration = (seconds) => {
     if (!seconds) return '-'
@@ -300,33 +328,34 @@ export default function CallLogs() {
         </div>
       )}
 
-      {/* Summary tiles — reflect the calls loaded on the current page */}
+      {/* Summary tiles — global totals over all matching calls (falls back to
+          the current page for the phone filter, which is client-only) */}
       {calls.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('callLogs.totalCalls') || 'Total calls'}</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{summary.total}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t('callLogs.thisPage') || 'on this page'}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stats.total}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{usingGlobalSummary ? (t('callLogs.filteredTotal') || 'filtered total') : (t('callLogs.thisPage') || 'on this page')}</p>
           </div>
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('callLogs.answered') || 'Answered'}</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{summary.answered}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{summary.total ? Math.round((summary.answered / summary.total) * 100) : 0}%</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.answered}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{stats.total ? Math.round((stats.answered / stats.total) * 100) : 0}%</p>
           </div>
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('callLogs.booked') || 'Booked'}</p>
-            <p className="text-2xl font-bold text-violet-600 dark:text-violet-400 mt-1">{summary.booked}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{summary.total ? Math.round((summary.booked / summary.total) * 100) : 0}%</p>
+            <p className="text-2xl font-bold text-violet-600 dark:text-violet-400 mt-1">{stats.booked}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{stats.total ? Math.round((stats.booked / stats.total) * 100) : 0}%</p>
           </div>
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('callLogs.totalDuration') || 'Total duration'}</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{formatLongDuration(summary.durationSum)}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t('callLogs.avgDuration') || 'Average'}: {formatDuration(summary.avg)}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{formatLongDuration(stats.durationSum)}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t('callLogs.avgDuration') || 'Average'}: {formatDuration(stats.avg)}</p>
           </div>
           <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('callLogs.totalCost') || 'Total cost'}</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">${summary.costSum.toFixed(2)}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t('callLogs.thisPage') || 'on this page'}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">${stats.costSum.toFixed(2)}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{usingGlobalSummary ? (t('callLogs.filteredTotal') || 'filtered total') : (t('callLogs.thisPage') || 'on this page')}</p>
           </div>
         </div>
       )}

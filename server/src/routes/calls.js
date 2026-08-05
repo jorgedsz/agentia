@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
-const { createCall, getCall, listCalls, getAnalytics, getAdvancedAnalytics, updateOutcome } = require('../controllers/callController');
+const { createCall, getCall, listCalls, getAnalytics, getAdvancedAnalytics, updateOutcome, getCallsSummary } = require('../controllers/callController');
 
 // All routes require authentication
 router.use(authMiddleware);
@@ -14,6 +14,9 @@ router.get('/analytics/advanced', getAdvancedAnalytics);
 
 // GET /api/calls/analytics - Analytics data (BEFORE /:id to avoid conflict)
 router.get('/analytics', getAnalytics);
+
+// GET /api/calls/summary - Aggregate KPI totals over all matching calls (BEFORE /:id)
+router.get('/summary', getCallsSummary);
 
 // GET /api/calls - List all calls
 router.get('/', listCalls);

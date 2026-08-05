@@ -347,7 +347,8 @@
     "avgDuration": "Average",
     "totalCost": "Total cost",
     "thisPage": "on this page",
-    "perPage": "per page"
+    "perPage": "per page",
+    "filteredTotal": "filtered total"
   },
   "messageLogs": {
     "title": "Message Logs",
