@@ -347,7 +347,8 @@
     "avgDuration": "Promedio",
     "totalCost": "Costo total",
     "thisPage": "en esta página",
-    "perPage": "por página"
+    "perPage": "por página",
+    "filteredTotal": "total filtrado"
   },
   "messageLogs": {
     "title": "Registro de Mensajes",

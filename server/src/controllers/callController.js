@@ -1191,11 +1191,68 @@ const getAdvancedAnalytics = async (req, res) => {
   }
 };
 
+// Aggregate summary over ALL calls matching the current filters (not just the
+// loaded page). Powers the KPI tiles on the Call Logs page so applying a date
+// range shows the general total, not the per-page total.
+// GET /api/calls/summary?assistantId=&createdAtGt=&createdAtLt=&outcome=&endReason=
+const getCallsSummary = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { assistantId, createdAtGt, createdAtLt, outcome, endReason } = req.query;
+
+    const where = { userId };
+
+    // The list page filters by VAPI assistantId; CallLog stores the LOCAL agent
+    // id, so map it. If no local agent matches, force an empty result set.
+    if (assistantId) {
+      const agent = await req.prisma.agent.findFirst({
+        where: { userId, vapiId: assistantId },
+        select: { id: true }
+      });
+      where.agentId = agent ? agent.id : '__no_match__';
+    }
+
+    if (createdAtGt || createdAtLt) {
+      where.createdAt = {};
+      if (createdAtGt) where.createdAt.gte = new Date(createdAtGt);
+      if (createdAtLt) where.createdAt.lte = new Date(createdAtLt);
+    }
+    if (outcome) where.outcome = outcome;
+    if (endReason) where.endedReason = endReason;
+
+    const [total, answered, sums] = await Promise.all([
+      req.prisma.callLog.count({ where }),
+      req.prisma.callLog.count({ where: { ...where, durationSeconds: { gt: 0 } } }),
+      req.prisma.callLog.aggregate({ where, _sum: { durationSeconds: true, costCharged: true } }),
+    ]);
+
+    // "Booked" respects an active outcome filter: if the user already filtered a
+    // specific outcome, booked is either everything (when that outcome is booked)
+    // or zero; otherwise count booked within the filtered set.
+    let booked;
+    if (outcome) {
+      booked = outcome === 'booked' ? total : 0;
+    } else {
+      booked = await req.prisma.callLog.count({ where: { ...where, outcome: 'booked' } });
+    }
+
+    const durationSum = sums._sum.durationSeconds || 0;
+    const costSum = sums._sum.costCharged || 0;
+    const avg = answered > 0 ? durationSum / answered : 0;
+
+    res.json({ summary: { total, answered, booked, durationSum, costSum, avg } });
+  } catch (error) {
+    console.error('Get calls summary error:', error);
+    res.status(500).json({ error: 'Failed to get calls summary' });
+  }
+};
+
 module.exports = {
   createCall,
   getCall,
   listCalls,
   getAnalytics,
   getAdvancedAnalytics,
-  updateOutcome
+  updateOutcome,
+  getCallsSummary
 };
