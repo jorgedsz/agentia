@@ -1,6 +1,7 @@
 const { AUTO_RECHARGE_MAX_FAILS } = require('../utils/autoRecharge');
 const { getWhopConfigForUser, getEffectiveBilling } = require('../utils/whopConfig');
 const { decrypt } = require('../utils/encryption');
+const { decryptPHI } = require('../utils/phiEncryption');
 
 const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contáctalo para recargar créditos.';
 
@@ -127,6 +128,187 @@ const getUsageByAgentExternal = async (req, res) => {
   } catch (error) {
     console.error('Error getting usage by agent:', error.message);
     res.status(500).json({ success: false, error: 'Failed to get usage by agent' });
+  }
+};
+
+// Shared date-window + pagination parsing for the external list endpoints.
+function parseListParams(req) {
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 25, 1), 100);
+  const parseDate = (v) => { if (!v) return null; const d = new Date(v); return isNaN(d.getTime()) ? null : d; };
+  const since = parseDate(req.query.since);   // inclusive lower bound
+  const until = parseDate(req.query.until);   // inclusive upper bound
+  const cursor = parseDate(req.query.cursor); // paginate: fetch strictly older than this
+  return { limit, since, until, cursor };
+}
+
+/**
+ * External list of voice calls for an account, authenticated by its trigger API
+ * key — same data shown on the Call Logs page. Cursor-paginated (newest first).
+ * GET /api/credits/calls?clientId=..&apiKey=..&limit=..&since=..&until=..&cursor=..
+ *     &agentId=..&assistantId=..&outcome=..&endReason=..&phone=..&includeTranscript=1
+ */
+const getCallsExternal = async (req, res) => {
+  try {
+    const user = await authClientApiKey(req, res);
+    if (!user) return;
+
+    const { limit, since, until, cursor } = parseListParams(req);
+    const { outcome, endReason, phone } = req.query;
+    const includeTranscript = ['1', 'true', 'yes'].includes(String(req.query.includeTranscript).toLowerCase());
+
+    const where = { userId: user.id };
+
+    // Filter by local agentId directly, or by VAPI assistantId (mapped to local).
+    if (req.query.agentId) {
+      where.agentId = req.query.agentId;
+    } else if (req.query.assistantId) {
+      const agent = await req.prisma.agent.findFirst({
+        where: { userId: user.id, vapiId: req.query.assistantId },
+        select: { id: true },
+      });
+      where.agentId = agent ? agent.id : '__no_match__';
+    }
+
+    if (since || until || cursor) {
+      where.createdAt = {};
+      if (since) where.createdAt.gte = since;
+      // cursor (older-than) takes precedence over the until upper bound
+      if (cursor) where.createdAt.lt = cursor;
+      else if (until) where.createdAt.lte = until;
+    }
+    if (outcome) where.outcome = outcome;
+    if (endReason) where.endedReason = endReason;
+
+    const rowsRaw = await req.prisma.callLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+    });
+
+    // Resolve agent names
+    const agentIds = [...new Set(rowsRaw.map(r => r.agentId).filter(Boolean))];
+    const agents = agentIds.length
+      ? await req.prisma.agent.findMany({ where: { id: { in: agentIds } }, select: { id: true, name: true, agentType: true } })
+      : [];
+    const agentById = Object.fromEntries(agents.map(a => [a.id, a]));
+
+    const phoneSearch = (phone || '').toLowerCase();
+    const fmtDuration = (s) => {
+      if (!s) return '0:00';
+      const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+      return `${m}:${sec.toString().padStart(2, '0')}`;
+    };
+
+    const decoded = [];
+    for (const row of rowsRaw) {
+      const d = decryptPHI(row);
+      const cust = d.customerNumber || '';
+      if (phoneSearch && !cust.toLowerCase().includes(phoneSearch)) continue;
+      const call = {
+        id: row.vapiCallId,
+        date: row.createdAt.toISOString(),
+        type: row.type || null,
+        agentId: row.agentId || null,
+        agentName: row.agentId ? (agentById[row.agentId]?.name || null) : null,
+        agentType: row.agentId ? (agentById[row.agentId]?.agentType || null) : null,
+        customer: cust || null,
+        durationSeconds: Math.round((d.durationSeconds || 0) * 100) / 100,
+        duration: fmtDuration(d.durationSeconds || 0),
+        outcome: d.outcome || 'unknown',
+        endedReason: row.endedReason || null,
+        cost: Math.round((d.costCharged || 0) * 10000) / 10000,
+        summary: d.summary || null,
+        recordingUrl: d.recordingUrl || null,
+      };
+      if (includeTranscript) call.transcript = d.transcript || null;
+      decoded.push(call);
+    }
+
+    // Pagination note: phone is filtered post-decrypt, so a page may return
+    // fewer than `limit` even when more matches exist; hasMore is based on the
+    // raw fetch so consumers keep paging with the cursor until it's false.
+    const hasMore = rowsRaw.length > limit;
+    const pageRows = hasMore ? decoded.slice(0, limit) : decoded;
+    const lastRaw = hasMore ? rowsRaw[limit - 1] : rowsRaw[rowsRaw.length - 1];
+    const nextCursor = hasMore && lastRaw ? lastRaw.createdAt.toISOString() : null;
+
+    res.json({
+      success: true,
+      clientId: user.id,
+      calls: pageRows,
+      pagination: { limit, hasMore, nextCursor },
+    });
+  } catch (error) {
+    console.error('Error listing calls (external):', error.message);
+    res.status(500).json({ success: false, error: 'Failed to list calls' });
+  }
+};
+
+/**
+ * External list of chatbot messages for an account, authenticated by its trigger
+ * API key — same data shown on the Message Logs page. Cursor-paginated (newest first).
+ * GET /api/credits/messages?clientId=..&apiKey=..&limit=..&since=..&until=..&cursor=..
+ *     &chatbotId=..&search=..
+ */
+const getMessagesExternal = async (req, res) => {
+  try {
+    const user = await authClientApiKey(req, res);
+    if (!user) return;
+
+    const { limit, since, until, cursor } = parseListParams(req);
+    const { chatbotId, search } = req.query;
+
+    const where = { userId: user.id };
+    if (chatbotId) where.chatbotId = chatbotId;
+    if (since || until || cursor) {
+      where.createdAt = {};
+      if (since) where.createdAt.gte = since;
+      if (cursor) where.createdAt.lt = cursor;
+      else if (until) where.createdAt.lte = until;
+    }
+    if (search) {
+      where.OR = [
+        { sessionId: { contains: search, mode: 'insensitive' } },
+        { inputMessage: { contains: search, mode: 'insensitive' } },
+        { contactName: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const rows = await req.prisma.chatbotMessage.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+    });
+
+    const hasMore = rows.length > limit;
+    if (hasMore) rows.pop();
+    const nextCursor = hasMore && rows.length > 0 ? rows[rows.length - 1].createdAt.toISOString() : null;
+
+    const messages = rows.map(m => ({
+      id: m.id,
+      date: m.createdAt.toISOString(),
+      chatbotId: m.chatbotId,
+      chatbotName: m.chatbotName || null,
+      sessionId: m.sessionId,
+      contactId: m.contactId || null,
+      contactName: m.contactName || null,
+      input: m.inputMessage,
+      output: m.outputMessage || null,
+      cost: Math.round((m.costCharged || 0) * 10000) / 10000,
+      status: m.status,
+      errorMessage: m.errorMessage || null,
+      isTest: !!m.isTest,
+    }));
+
+    res.json({
+      success: true,
+      clientId: user.id,
+      messages,
+      pagination: { limit, hasMore, nextCursor },
+    });
+  } catch (error) {
+    console.error('Error listing messages (external):', error.message);
+    res.status(500).json({ success: false, error: 'Failed to list messages' });
   }
 };
 
@@ -854,6 +1036,8 @@ module.exports = {
   removeCard,
   getBalanceExternal,
   getUsageByAgentExternal,
+  getCallsExternal,
+  getMessagesExternal,
   triggerAutoRecharge,
   performOffSessionCharge,
   chargeNextCard,
