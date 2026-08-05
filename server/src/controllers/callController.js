@@ -1247,6 +1247,102 @@ const getCallsSummary = async (req, res) => {
   }
 };
 
+// Export ALL calls matching the current filters as a CSV (not just the loaded
+// page). Uses the local CallLog table so it can decrypt PHI (customer number,
+// summary) and honor the phone search server-side too.
+// GET /api/calls/export?assistantId=&createdAtGt=&createdAtLt=&outcome=&endReason=&phone=
+const getCallsExport = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { assistantId, createdAtGt, createdAtLt, outcome, endReason, phone } = req.query;
+
+    const where = { userId };
+    if (assistantId) {
+      const agent = await req.prisma.agent.findFirst({
+        where: { userId, vapiId: assistantId },
+        select: { id: true }
+      });
+      where.agentId = agent ? agent.id : '__no_match__';
+    }
+    if (createdAtGt || createdAtLt) {
+      where.createdAt = {};
+      if (createdAtGt) where.createdAt.gte = new Date(createdAtGt);
+      if (createdAtLt) where.createdAt.lte = new Date(createdAtLt);
+    }
+    if (outcome) where.outcome = outcome;
+    if (endReason) where.endedReason = endReason;
+
+    const logs = await req.prisma.callLog.findMany({ where, orderBy: { createdAt: 'desc' } });
+
+    // Resolve agent names
+    const agentIds = [...new Set(logs.map(l => l.agentId).filter(Boolean))];
+    const agents = agentIds.length
+      ? await req.prisma.agent.findMany({ where: { id: { in: agentIds } }, select: { id: true, name: true } })
+      : [];
+    const agentName = {};
+    for (const a of agents) agentName[a.id] = a.name;
+
+    const phoneSearch = (phone || '').toLowerCase();
+
+    const fmtDuration = (s) => {
+      if (!s) return '0:00';
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return `${m}:${sec.toString().padStart(2, '0')}`;
+    };
+
+    const rows = [];
+    const accessed = [];
+    for (const log of logs) {
+      const d = decryptPHI(log);
+      const cust = d.customerNumber || '';
+      if (phoneSearch && !cust.toLowerCase().includes(phoneSearch)) continue;
+      accessed.push(log.id);
+      rows.push([
+        log.createdAt.toISOString(),
+        agentName[log.agentId] || '',
+        cust,
+        log.type || '',
+        fmtDuration(d.durationSeconds || 0),
+        d.outcome || 'unknown',
+        log.endedReason || '',
+        (d.costCharged || 0).toFixed(4),
+        (d.summary || '').replace(/\s+/g, ' ').trim()
+      ]);
+    }
+
+    // Audit log: PHI access via export (fire-and-forget)
+    if (accessed.length > 0) {
+      logAudit(req.prisma, {
+        userId: req.user.id,
+        actorId: req.user.id,
+        actorType: 'user',
+        action: 'phi.export',
+        resourceType: 'call_log',
+        details: { count: accessed.length },
+        req
+      });
+    }
+
+    const headers = ['Fecha', 'Agente', 'Cliente', 'Tipo', 'Duración', 'Resultado', 'Razón de fin', 'Costo', 'Resumen'];
+    const esc = (v) => {
+      const s = (v === null || v === undefined) ? '' : String(v);
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [headers.map(esc).join(',')];
+    for (const r of rows) lines.push(r.map(esc).join(','));
+    const csv = '﻿' + lines.join('\r\n'); // BOM so Excel reads UTF-8 correctly
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="call-logs-${stamp}.csv"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Export calls error:', error);
+    res.status(500).json({ error: 'Failed to export calls' });
+  }
+};
+
 module.exports = {
   createCall,
   getCall,
@@ -1254,5 +1350,6 @@ module.exports = {
   getAnalytics,
   getAdvancedAnalytics,
   updateOutcome,
-  getCallsSummary
+  getCallsSummary,
+  getCallsExport
 };

@@ -348,7 +348,9 @@
     "totalCost": "Costo total",
     "thisPage": "en esta página",
     "perPage": "por página",
-    "filteredTotal": "total filtrado"
+    "filteredTotal": "total filtrado",
+    "exportCsv": "Exportar CSV",
+    "exporting": "Exportando..."
   },
   "messageLogs": {
     "title": "Registro de Mensajes",
