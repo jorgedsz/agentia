@@ -35,7 +35,7 @@ function OutcomeBadge({ outcome }) {
   )
 }
 
-const PAGE_SIZE = 25
+const PAGE_SIZE_OPTIONS = [25, 50, 75, 100]
 
 // Module-level cache so navigating back shows data instantly
 let _callsCache = null
@@ -51,6 +51,7 @@ export default function CallLogs() {
   const [updatingOutcome, setUpdatingOutcome] = useState(false)
   const [cursorStack, setCursorStack] = useState([])
   const [currentCursor, setCurrentCursor] = useState(null)
+  const [pageSize, setPageSize] = useState(_callsCache?.pageSize || 25)
 
   // Filters
   const [filters, setFilters] = useState({
@@ -79,10 +80,11 @@ export default function CallLogs() {
     fetchCalls()
   }, [filters.agentId, filters.dateFrom, filters.dateTo])
 
-  const fetchCalls = async (createdAtLt) => {
+  const fetchCalls = async (createdAtLt, sizeOverride) => {
     try {
       setLoading(true)
-      const params = { limit: PAGE_SIZE }
+      const limit = sizeOverride || pageSize
+      const params = { limit }
       // Pagination cursor takes precedence over dateTo filter
       if (createdAtLt) {
         params.createdAtLt = createdAtLt
@@ -99,7 +101,7 @@ export default function CallLogs() {
       setCalls(data)
       setPagination(pag)
       if (agentsList.length > 0) setAgents(agentsList)
-      _callsCache = { calls: data, pagination: pag, agents: agentsList.length > 0 ? agentsList : (_callsCache?.agents || []) }
+      _callsCache = { calls: data, pagination: pag, agents: agentsList.length > 0 ? agentsList : (_callsCache?.agents || []), pageSize: sizeOverride || pageSize }
       window.dispatchEvent(new CustomEvent('creditsUpdated'))
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load call logs')
@@ -121,6 +123,13 @@ export default function CallLogs() {
     setCursorStack(prev)
     setCurrentCursor(cursor)
     fetchCalls(cursor || undefined)
+  }
+
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(newSize)
+    setCursorStack([])
+    setCurrentCursor(null)
+    fetchCalls(undefined, newSize)
   }
 
   const handleOutcomeChange = async (callLogId, newOutcome) => {
@@ -163,11 +172,33 @@ export default function CallLogs() {
 
   const activeFilterCount = Object.values(filters).filter(v => v !== '').length
 
+  // Summary over the calls loaded on the current page (respects client-side filters)
+  const summary = filteredCalls.reduce((acc, c) => {
+    const d = c.duration || 0
+    acc.total += 1
+    if (d > 0) { acc.answered += 1; acc.durationSum += d }
+    if ((c.outcome || '') === 'booked') acc.booked += 1
+    acc.costSum += (c.costCharged ?? c.cost ?? 0)
+    return acc
+  }, { total: 0, answered: 0, booked: 0, durationSum: 0, costSum: 0 })
+  summary.avg = summary.answered ? summary.durationSum / summary.answered : 0
+
   const formatDuration = (seconds) => {
     if (!seconds) return '-'
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
     return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  // Longer durations (totals) render as h:mm:ss when past an hour
+  const formatLongDuration = (seconds) => {
+    if (!seconds) return '0:00'
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    const s = Math.floor(seconds % 60)
+    return h > 0
+      ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+      : `${m}:${s.toString().padStart(2, '0')}`
   }
 
   const formatDate = (dateString) => {
@@ -266,6 +297,37 @@ export default function CallLogs() {
         <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
           {error}
           <button onClick={() => setError(null)} className="ml-2 underline">{t('common.dismiss')}</button>
+        </div>
+      )}
+
+      {/* Summary tiles — reflect the calls loaded on the current page */}
+      {calls.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('callLogs.totalCalls') || 'Total calls'}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{summary.total}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t('callLogs.thisPage') || 'on this page'}</p>
+          </div>
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('callLogs.answered') || 'Answered'}</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{summary.answered}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{summary.total ? Math.round((summary.answered / summary.total) * 100) : 0}%</p>
+          </div>
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('callLogs.booked') || 'Booked'}</p>
+            <p className="text-2xl font-bold text-violet-600 dark:text-violet-400 mt-1">{summary.booked}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{summary.total ? Math.round((summary.booked / summary.total) * 100) : 0}%</p>
+          </div>
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('callLogs.totalDuration') || 'Total duration'}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{formatLongDuration(summary.durationSum)}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t('callLogs.avgDuration') || 'Average'}: {formatDuration(summary.avg)}</p>
+          </div>
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t('callLogs.totalCost') || 'Total cost'}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">${summary.costSum.toFixed(2)}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{t('callLogs.thisPage') || 'on this page'}</p>
+          </div>
         </div>
       )}
 
@@ -619,10 +681,25 @@ export default function CallLogs() {
       {/* Pagination */}
       {calls.length > 0 && (
         <div className="flex items-center justify-between mt-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {t('callLogs.showing') || 'Showing'} {filteredCalls.length}
-            {filteredCalls.length !== calls.length ? ` of ${calls.length}` : ''} {t('callLogs.calls') || 'calls'}
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {t('callLogs.showing') || 'Showing'} {filteredCalls.length}
+              {filteredCalls.length !== calls.length ? ` of ${calls.length}` : ''} {t('callLogs.calls') || 'calls'}
+            </p>
+            <div className="flex items-center gap-2">
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                disabled={loading}
+                className="px-2 py-1.5 text-sm bg-white dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 disabled:opacity-50"
+              >
+                {PAGE_SIZE_OPTIONS.map(n => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{t('callLogs.perPage') || 'per page'}</span>
+            </div>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={handlePrevPage}

@@ -338,7 +338,16 @@
     "clearFilters": "Clear all filters",
     "noMatchingCalls": "No calls match your filters",
     "showing": "Showing",
-    "calls": "calls"
+    "calls": "calls",
+    "summary": "Summary",
+    "totalCalls": "Total calls",
+    "answered": "Answered",
+    "booked": "Booked",
+    "totalDuration": "Total duration",
+    "avgDuration": "Average",
+    "totalCost": "Total cost",
+    "thisPage": "on this page",
+    "perPage": "per page"
   },
   "messageLogs": {
     "title": "Message Logs",
@@ -1640,20 +1649,17 @@
     "of": "of",
     "discardDraft": "Discard draft",
     "draftRestored": "Draft restored",
-
     "stepBasicsTitle": "Basics",
     "stepBasicsDesc": "Give your agent a name and pick the language it will speak.",
     "fieldName": "Agent name",
     "fieldNamePlaceholder": "e.g., Acme Booking Bot",
     "fieldLanguage": "Language",
-
     "stepBusinessTitle": "Business context",
     "stepBusinessDesc": "Tell us about the business this agent represents.",
     "fieldCompanyName": "Company name",
     "fieldIndustry": "Industry",
     "fieldIndustryPlaceholder": "e.g., Dental clinic, real estate, e-commerce",
     "fieldDescription": "Brief description (optional)",
-
     "stepGoalToneTitle": "Goal & tone",
     "stepGoalToneDesc": "What should the agent accomplish, and how should it sound?",
     "fieldGoals": "Goal",
@@ -1663,7 +1669,6 @@
     "toneProfessional": "Professional",
     "toneCasual": "Casual",
     "toneEnergetic": "Energetic",
-
     "stepTypeConfigTitle": "Configuration",
     "voiceDirection": "Direction",
     "directionOutbound": "Outbound (we call them)",
@@ -1676,11 +1681,9 @@
     "channelSms": "SMS",
     "fieldHandoff": "When should it hand off to a human?",
     "fieldHandoffPlaceholder": "e.g., If the user asks for a refund or sounds upset",
-
     "stepVoiceTitle": "Voice",
     "stepVoiceDesc": "Pick the voice your agent will use.",
     "openVoicePicker": "Choose a voice",
-
     "stepReviewTitle": "Review & generate",
     "stepReviewDesc": "We'll generate a system prompt and a first message from your answers.",
     "summaryName": "Name",
@@ -1699,12 +1702,10 @@
     "regenerateWarningTitle": "Overwrite current prompt?",
     "regenerateWarning": "Regenerating will replace the current system prompt and first message. Changes accepted from past training calls will be lost. Voice and other settings are preserved.",
     "regenerateConfirm": "Yes, regenerate",
-
     "stepDoneTitle": "Create your agent",
     "stepDoneDesc": "We'll save the agent and take you to its training home.",
     "createBtn": "Create agent",
     "creating": "Creating…",
-
     "homeCreatedFromTitle": "Created from",
     "homeCreatedFromEmpty": "This agent wasn't created with the builder.",
     "homeCreatedFromEmptyCta": "Run the wizard to fill in context",
@@ -1729,7 +1730,6 @@
     "homeHistoryStatusReverted": "Reverted",
     "homeHistoryRevert": "Revert",
     "homeHistoryRevertConfirm": "Revert this training? The agent will return to its previous configuration.",
-
     "errorGenerateFailed": "Could not generate prompt. Try again or write it manually.",
     "errorCreateFailed": "Could not create the agent. Please try again.",
     "errorUpdateFailed": "Could not save changes. Please try again."
