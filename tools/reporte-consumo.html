@@ -1,0 +1,2499 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Generador de reportes de consumo</title>
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Tokens. Light + dark; el reporte impreso siempre sale claro.
+   ───────────────────────────────────────────────────────────── */
+:root {
+  color-scheme: light;
+  --surface-1: #fcfcfb;
+  --plane: #f9f9f7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;   /* llamadas */
+  --series-2: #eb6834;   /* mensajes */
+  --good: #0ca30c;
+  --critical: #d03b3b;
+  --warning: #fab219;
+  --input-bg: #ffffff;
+  --shadow: 0 1px 2px rgba(11,11,11,.05), 0 8px 24px rgba(11,11,11,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --plane: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --input-bg: #212120;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1: #1a1a19;
+  --plane: #0d0d0d;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --input-bg: #212120;
+  --shadow: none;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--plane);
+  color: var(--text-primary);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
+
+h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+h2 { font-size: 15px; margin: 0 0 12px; letter-spacing: -.01em; }
+h3 { font-size: 13px; margin: 0 0 8px; color: var(--text-secondary); font-weight: 600; }
+.sub { color: var(--text-secondary); font-size: 13px; margin: 4px 0 0; }
+
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
+input, select, button, textarea { font: inherit; color: inherit; }
+input[type=text], input[type=date], input[type=number], select {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  outline: none;
+}
+input:focus, select:focus { border-color: var(--series-1); box-shadow: 0 0 0 3px color-mix(in srgb, var(--series-1) 18%, transparent); }
+input[type=number] { font-variant-numeric: tabular-nums; }
+
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+@media (max-width: 720px) { .g2, .g3, .g4 { grid-template-columns: 1fr; } }
+
+button.btn {
+  background: var(--series-1); color: #fff; border: none; border-radius: 8px;
+  padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 13px;
+}
+button.btn:hover { filter: brightness(1.07); }
+button.ghost {
+  background: transparent; color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 14px; cursor: pointer; font-size: 13px;
+}
+button.ghost:hover { background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
+button.icon {
+  background: transparent; border: 1px solid var(--border); border-radius: 6px;
+  width: 28px; height: 28px; cursor: pointer; color: var(--text-secondary);
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+}
+button.icon:hover { color: var(--critical); border-color: var(--critical); }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--grid); }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: none; }
+tfoot td { font-weight: 700; border-top: 2px solid var(--axis); border-bottom: none; }
+
+/* KPI tiles */
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+@media (max-width: 860px) { .tiles { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.tile { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: var(--surface-1); }
+.tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); font-weight: 600; }
+.tile .v { font-size: 26px; font-weight: 650; letter-spacing: -.02em; margin-top: 4px; }
+.tile .n { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.tile.accent { border-color: color-mix(in srgb, var(--series-1) 40%, transparent); }
+
+.meter { height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; margin-top: 10px; }
+.meter > i { display: block; height: 100%; border-radius: 4px; background: var(--series-1); }
+
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.legend b { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+.chartbox { position: relative; }
+.tip {
+  position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.16);
+  white-space: nowrap; z-index: 5; color: var(--text-primary);
+}
+.tip .t { font-weight: 650; margin-bottom: 4px; }
+.tip .r { display: flex; justify-content: space-between; gap: 14px; }
+.tip .r span:last-child { font-variant-numeric: tabular-nums; }
+.tip b { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+
+.warn {
+  border-left: 3px solid var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  padding: 8px 12px; border-radius: 0 8px 8px 0; font-size: 12.5px; margin-top: 10px;
+}
+.err { border-left-color: var(--critical); background: color-mix(in srgb, var(--critical) 10%, transparent); }
+
+.empty { color: var(--text-secondary); text-align: center; padding: 40px 20px; font-size: 13px; }
+
+/* Selector de vista */
+.vistas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 720px) { .vistas { grid-template-columns: 1fr; } }
+.vistaBtn {
+  text-align: left; background: var(--surface-1); cursor: pointer;
+  border: 1.5px solid var(--border); border-radius: 10px; padding: 12px 14px;
+  display: block; width: 100%; color: var(--text-primary);
+}
+.vistaBtn:hover { border-color: color-mix(in srgb, var(--series-1) 50%, transparent); }
+.vistaBtn b { display: block; font-size: 14px; margin-bottom: 3px; }
+.vistaBtn span { display: block; font-size: 12px; color: var(--text-secondary); line-height: 1.45; }
+.vistaBtn[aria-pressed="true"] {
+  border-color: var(--series-1);
+  background: color-mix(in srgb, var(--series-1) 8%, var(--surface-1));
+}
+.vistaBtn[aria-pressed="true"] b::after { content: ' ✓'; color: var(--series-1); }
+
+/* Sello de vista interna en el reporte: que no se confunda con uno de cliente */
+.selloInterna {
+  display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 60%, transparent);
+  color: var(--text-primary); vertical-align: middle; margin-left: 10px;
+}
+
+.repHead { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 14px; border-bottom: 2px solid var(--axis); margin-bottom: 18px; }
+.repHead .cli { font-size: 22px; font-weight: 650; letter-spacing: -.02em; }
+.repHead .meta { font-size: 12px; color: var(--text-secondary); text-align: right; }
+
+.sec { margin-top: 26px; }
+.sec:first-child { margin-top: 0; }
+
+.pill { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-secondary); }
+.pos { color: var(--good); font-weight: 600; }
+.neg { color: var(--critical); font-weight: 600; }
+
+/* Los SVG llevan viewBox, así que escalan si el contenedor se estrecha antes
+   de que el redibujado por resize entre (y al imprimir). */
+.chartbox svg { max-width: 100%; height: auto; display: block; }
+
+/* ── Impresión ── */
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+  /* El reporte impreso siempre sale claro, aunque la pantalla esté en oscuro */
+  :root, :root[data-theme="dark"] {
+    color-scheme: light;
+    --surface-1: #fff; --plane: #fff;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #6b6a66;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.18);
+    --series-1: #2a78d6; --series-2: #eb6834; --good: #0a7d0a; --critical: #c23434;
+  }
+  body { background: #fff; color: #0b0b0b; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .noprint { display: none !important; }
+  .wrap { max-width: none; padding: 0; }
+  .card { border: none; box-shadow: none; padding: 0; margin: 0; background: #fff; }
+  .sec { break-inside: avoid; margin-top: 16px; }
+  .tiles { grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
+  .tile { break-inside: avoid; padding: 10px 11px; }
+  .tile .v { font-size: 19px; }
+  .tile .n, .tile .k { font-size: 10px; }
+  table { font-size: 11px; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  th, td { padding: 4px 6px; }
+  .tip { display: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar noprint">
+    <div>
+      <h1>Generador de reportes de consumo</h1>
+      <p class="sub">Elegí la cuenta, anotá las recargas de saldo y obtené el reporte para el cliente. Los datos se leen en vivo de las bases.</p>
+    </div>
+    <button class="ghost" id="themeBtn" title="Cambiar tema">◐</button>
+  </div>
+
+  <!-- ══════════ CONFIGURACIÓN ══════════ -->
+  <div class="card noprint">
+    <h2>1. Datos del reporte</h2>
+    <div class="grid g4">
+      <div>
+        <label for="cliente">Cliente</label>
+        <input type="text" id="cliente" placeholder="Nombre del cliente">
+      </div>
+      <div>
+        <label for="desde">Período desde</label>
+        <input type="date" id="desde">
+      </div>
+      <div>
+        <label for="hasta">Período hasta</label>
+        <input type="date" id="hasta">
+      </div>
+      <div>
+        <label for="saldoInicial">Saldo inicial (antes del período)</label>
+        <input type="number" id="saldoInicial" step="0.01" value="0">
+      </div>
+    </div>
+    <div class="grid g4" style="margin-top:12px">
+      <div>
+        <label for="moneda">Símbolo de moneda</label>
+        <input type="text" id="moneda" value="$" maxlength="4">
+      </div>
+      <div>
+        <label for="fmt">Formato de números</label>
+        <select id="fmt">
+          <option value="es">1.234,56</option>
+          <option value="en">1,234.56</option>
+        </select>
+      </div>
+      <div>
+        <label for="margen">Margen en llamadas (%)</label>
+        <input type="number" id="margen" step="0.1" value="15">
+      </div>
+      <div>
+        <label for="notas">Nota al pie (opcional)</label>
+        <input type="text" id="notas" placeholder="Ej: valores en USD, impuestos no incluidos">
+      </div>
+    </div>
+    <p class="sub" style="margin-top:8px">El costo de una llamada es su precio menos ese porcentaje. En los mensajes el costo sale de la columna <code>cost_usd</code> de la base de WhatsApp, no se calcula.</p>
+    <p class="sub" style="margin-top:10px">Si dejás el período vacío se trae todo el historial de la cuenta.</p>
+  </div>
+
+  <!-- ══════════ CONEXIÓN A LA BASE (solo con el servidor local) ══════════ -->
+  <div class="card noprint" id="dbCard" hidden>
+    <h2>2. Datos desde la base <span class="pill">en vivo</span></h2>
+    <div class="grid g2">
+      <div>
+        <label for="dbClient">Cuenta / cliente</label>
+        <select id="dbClient"></select>
+      </div>
+      <div style="display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap">
+        <button class="btn" id="dbLoad" type="button">⟳ Cargar desde la base</button>
+      </div>
+    </div>
+    <p class="sub" id="dbStatus" style="margin-top:12px"></p>
+    <p class="sub" style="margin-top:6px">Usa el período de arriba; vacío = todo el historial. Trae llamadas (<code>CallLog</code>), mensajes (<code>ChatbotMessage</code>) y las recargas cobradas en Whop (<code>CreditPurchase</code>) — todo valorado por lo que se le descontó del saldo.</p>
+    <div id="fileWarn"></div>
+  </div>
+
+  <!-- ══════════ ENVÍO POR CORREO ══════════ -->
+  <div class="card noprint" id="mailCard" hidden>
+    <h2>4. Enviar por correo <span class="pill" id="mailPill">Gmail</span></h2>
+    <div class="grid g3">
+      <div>
+        <label for="mailTo">Correo del cliente</label>
+        <input type="text" id="mailTo" placeholder="cliente@empresa.com">
+      </div>
+      <div>
+        <label for="mailCc">Copia a (opcional)</label>
+        <input type="text" id="mailCc" placeholder="copia@empresa.com">
+      </div>
+      <div>
+        <label for="mailAsunto">Asunto</label>
+        <input type="text" id="mailAsunto" placeholder="Reporte de consumo">
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <label for="mailTexto">Mensaje</label>
+      <textarea id="mailTexto" rows="4" style="width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:8px 9px;outline:none;resize:vertical;font:inherit"></textarea>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px; margin-top:12px; flex-wrap:wrap">
+      <button class="btn" id="mailSend" type="button">✉ Enviar reporte</button>
+      <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:13px;color:var(--text-primary)">
+        <input type="checkbox" id="mailExcel" checked style="width:auto"> Adjuntar Excel de detalle
+      </label>
+      <span class="sub" id="mailStatus"></span>
+    </div>
+    <p class="sub" style="margin-top:10px">Va el PDF del reporte adjunto (el mismo que ves abajo) y, si lo marcás, el Excel con las dos hojas. El correo del cliente queda guardado para esa cuenta.</p>
+  </div>
+
+  <div class="card noprint" id="dbHint" hidden>
+    <h2>Servidor local requerido</h2>
+    <p class="sub">Esta herramienta lee las bases en vivo, así que hay que abrirla servida:
+      <code>cd server &amp;&amp; node scripts/reporte-consumo-server.js</code> y entrar por
+      <b>http://localhost:5055</b>.</p>
+  </div>
+
+  <!-- ══════════ RECARGAS ══════════ -->
+  <div class="card noprint">
+    <h2>3. Recargas de saldo</h2>
+    <table id="rechTable">
+      <thead>
+        <tr>
+          <th style="width:150px">Fecha</th>
+          <th>Concepto</th>
+          <th class="num" style="width:150px">Importe</th>
+          <th style="width:44px"></th>
+        </tr>
+      </thead>
+      <tbody id="rechBody"></tbody>
+    </table>
+    <div style="margin-top:12px; display:flex; gap:8px; align-items:center">
+      <button class="ghost" id="addRech">+ Agregar recarga</button>
+      <span class="sub" id="rechTotal"></span>
+    </div>
+  </div>
+
+  <!-- ══════════ VISTA ══════════ -->
+  <div class="card noprint" id="vistaCard" hidden>
+    <h2>Vista del reporte</h2>
+    <div class="vistas">
+      <button type="button" class="vistaBtn" data-vista="cliente">
+        <b>Para el cliente</b>
+        <span>Mensajes de <code>ChatbotMessage</code> — lo que descuenta saldo. Cuadra con el panel del cliente. Sin costos ni márgenes.</span>
+      </button>
+      <button type="button" class="vistaBtn" data-vista="interna">
+        <b>Interna</b>
+        <span>Mensajes de la base de WhatsApp, con el costo real por mensaje. Muestra costo y margen. No cuadra con el saldo del panel.</span>
+      </button>
+    </div>
+    <p class="sub" id="vistaNota" style="margin-top:10px"></p>
+  </div>
+
+  <!-- ══════════ ACCIONES ══════════ -->
+  <div class="noprint" style="display:flex; gap:8px; flex-wrap:wrap; margin: 4px 0 20px">
+    <button class="btn" id="printBtn">🖨 Imprimir / Guardar PDF</button>
+    <button class="ghost" id="detalleBtn">⬇ Excel: llamadas y mensajes</button>
+    <button class="ghost" id="csvBtn">⬇ Resumen</button>
+    <button class="ghost" id="resetBtn">Limpiar todo</button>
+  </div>
+
+  <!-- ══════════ REPORTE ══════════ -->
+  <div class="card" id="report">
+    <div class="empty" id="emptyState">Elegí la cuenta y tocá “Cargar desde la base” para generar el reporte.</div>
+    <div id="reportBody" hidden></div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+/* ════════════════════════════════════════════════════════════
+   Utilidades: números, fechas
+   ════════════════════════════════════════════════════════════ */
+
+// Número tolerante: "$1.234,56" · "1,234.56" · "0.0142" · "12,5" · "(3,20)"
+function num(v) {
+  if (v === null || v === undefined) return 0;
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  let s = String(v).trim();
+  if (!s) return 0;
+  let neg = false;
+  if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
+  s = s.replace(/[^0-9.,\-]/g, '');
+  if (!s) return 0;
+  if (s.startsWith('-')) { neg = true; s = s.slice(1); }
+  const lastC = s.lastIndexOf(','), lastD = s.lastIndexOf('.');
+  if (lastC > -1 && lastD > -1) {
+    // El separador decimal es el que aparece más a la derecha
+    if (lastC > lastD) s = s.replace(/\./g, '').replace(',', '.');
+    else s = s.replace(/,/g, '');
+  } else if (lastC > -1) {
+    // Solo comas: decimal salvo que parezca separador de miles (grupos de 3)
+    const parts = s.split(',');
+    const isThousands = parts.length > 1 && parts.slice(1).every(p => p.length === 3);
+    s = isThousands ? parts.join('') : s.replace(',', '.');
+  } else if (lastD > -1) {
+    const parts = s.split('.');
+    const isThousands = parts.length > 2 && parts.slice(1).every(p => p.length === 3);
+    if (isThousands) s = parts.join('');
+  }
+  const n = parseFloat(s);
+  if (!isFinite(n)) return 0;
+  return neg ? -n : n;
+}
+
+// Fecha tolerante: ISO, "YYYY-MM-DD HH:mm:ss(+tz)", "DD/MM/YYYY", "MM/DD/YYYY"
+function parseDate(v) {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  const s = String(v).trim();
+  if (!s) return null;
+  // Postgres exporta el offset como "+00", "+0000" o "+00:00"; los tres se
+  // normalizan a "+00:00" porque Date() solo acepta esa forma.
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?\s*(Z|[+-]\d{2}(?::?\d{2})?)?/);
+  if (m) {
+    let tz = m[7] || '';
+    if (tz && tz !== 'Z') {
+      tz = tz.replace(':', '');
+      tz = tz.length === 3 ? tz + ':00' : tz.slice(0, 3) + ':' + tz.slice(3);
+    }
+    const iso = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6] || '00'}` + tz;
+    const d = new Date(iso);
+    if (!isNaN(d)) return d;
+  }
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) {
+    let a = +m[1], b = +m[2];
+    // >12 en la primera posición ⇒ día/mes; si no, se asume día/mes (formato local)
+    let day = a, mon = b;
+    if (a <= 12 && b > 12) { mon = a; day = b; }
+    return new Date(+m[3], mon - 1, day, +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+  }
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+
+// Duración: "m:ss", "h:mm:ss", "125" (segundos), "2,5" (minutos si trae "min")
+function parseDuration(v) {
+  if (v === null || v === undefined) return 0;
+  const s = String(v).trim();
+  if (!s) return 0;
+  if (s.includes(':')) {
+    const p = s.split(':').map(x => num(x));
+    if (p.length === 3) return p[0] * 3600 + p[1] * 60 + p[2];
+    if (p.length === 2) return p[0] * 60 + p[1];
+  }
+  const n = num(s);
+  if (/min/i.test(s)) return n * 60;
+  return n;
+}
+
+/* ── Formato ── */
+const CFG = { sym: '$', fmt: 'es' };
+function fmtNum(n, dec) {
+  dec = dec === undefined ? 2 : dec;
+  if (!isFinite(n)) n = 0;
+  const neg = n < 0;
+  const s = Math.abs(n).toFixed(dec);
+  let [i, f] = s.split('.');
+  const g = CFG.fmt === 'es' ? '.' : ',';
+  const dp = CFG.fmt === 'es' ? ',' : '.';
+  i = i.replace(/\B(?=(\d{3})+(?!\d))/g, g);
+  return (neg ? '-' : '') + i + (f ? dp + f : '');
+}
+function money(n, dec) { return CFG.sym + fmtNum(n, dec === undefined ? 2 : dec); }
+function pct(n) { return fmtNum(n * 100, 1) + '%'; }
+function fmtMinutes(sec) {
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+const MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function dayKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function keyToDate(k) { const p = k.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+function fmtDay(k) { const d = keyToDate(k); return d.getDate() + ' ' + MES[d.getMonth()]; }
+function fmtDayLong(k) { const d = keyToDate(k); return d.getDate() + ' ' + MES[d.getMonth()] + ' ' + d.getFullYear(); }
+// Etiqueta de un bucket del gráfico: un día suelto o un rango "1 – 7 jul".
+function bucketLabel(b) {
+  return (!b.kEnd || b.kEnd === b.k) ? fmtDayLong(b.k) : fmtDay(b.k) + ' – ' + fmtDayLong(b.kEnd);
+}
+function esc(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ════════════════════════════════════════════════════════════
+   Mapeo de columnas
+
+   Ya no hay CSV de por medio: las dos fuentes son endpoints propios con
+   columnas conocidas, así que el mapeo se declara en vez de adivinarse. Se
+   busca por NOMBRE de columna (no por posición) para que agregar campos en el
+   servidor no descoloque nada.
+   ════════════════════════════════════════════════════════════ */
+
+/* Dos orígenes y dos importes por línea:
+     · PRECIO — lo que se le cobra al cliente
+     · COSTO  — lo que cuesta prestarlo
+   En llamadas (CallLog) el precio es `costCharged` y el costo se deriva
+   restándole el margen configurado. En mensajes (base de WhatsApp) las dos
+   cifras vienen medidas: `charged_usd` es el precio y `cost_usd` el costo. */
+
+// Mensajes de WhatsApp: filas agregadas por día × dirección × modelo, donde
+// `n` es cuántos mensajes representa la fila.
+function mapaMensajes(headers) {
+  const i = n => headers.indexOf(n);
+  return {
+    fecha: i('dia'),
+    costo: i('charged_usd'),      // precio al cliente
+    costoReal: i('cost_usd'),     // costo del proveedor
+    direccion: i('direction'),
+    modelo: i('model'),
+    cantidad: i('n'),
+    contacto: -1
+  };
+}
+
+/* ════════════════════════════════════════════════════════════
+   Estado
+   ════════════════════════════════════════════════════════════ */
+
+const S = {
+  calls: null,   // {name, headers, rows, map}
+  msgs: null,
+  rech: [],      // [{fecha, concepto, importe}]
+  cliente: '', desde: '', hasta: '', saldoInicial: 0, notas: '',
+  margen: 15,    // % que se le resta al precio de una llamada para su costo
+  vista: 'cliente'
+};
+
+// Las dos fuentes de mensajes se cargan juntas y se intercambian sin volver a
+// consultar. Cada una responde a una pregunta distinta:
+//   cliente  → qué se le descontó del saldo (cuadra con su panel)
+//   interna  → qué se facturó y qué costó (para ver el margen)
+let MSGS = { cliente: null, interna: null };
+
+const LS_KEY = 'reporte-consumo:v1';
+function save() {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      rech: S.rech, cliente: S.cliente, desde: S.desde, hasta: S.hasta,
+      saldoInicial: S.saldoInicial, notas: S.notas, margen: S.margen,
+      vista: S.vista, sym: CFG.sym, fmt: CFG.fmt,
+      theme: document.documentElement.getAttribute('data-theme') || ''
+    }));
+  } catch (e) { /* file:// sin storage: se ignora */ }
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const o = JSON.parse(raw);
+    S.rech = Array.isArray(o.rech) ? o.rech : [];
+    S.cliente = o.cliente || ''; S.desde = o.desde || ''; S.hasta = o.hasta || '';
+    S.saldoInicial = +o.saldoInicial || 0; S.notas = o.notas || '';
+    S.margen = o.margen === undefined ? 15 : (+o.margen || 0);
+    S.vista = o.vista === 'interna' ? 'interna' : 'cliente';
+    CFG.sym = o.sym || '$'; CFG.fmt = o.fmt || 'es';
+    if (o.theme) document.documentElement.setAttribute('data-theme', o.theme);
+  } catch (e) { /* ignorar */ }
+}
+
+/* ════════════════════════════════════════════════════════════
+   Carga de datos
+   ════════════════════════════════════════════════════════════ */
+
+// Vuelca las llamadas de /api/report/data al estado interno (filas + mapa de
+// columnas), la misma forma que usan los mensajes de WhatsApp.
+function loadFromDB(payload) {
+  const calls = payload.calls || [];
+  if (calls.length) {
+    S.calls = {
+      name: 'Base de datos · Call Logs',
+      headers: ['Fecha', 'Costo', 'Agente', 'Duración (s)', 'Tipo', 'Resultado', 'Nº cliente'],
+      rows: calls.map(c => [c.fecha, c.costo, c.agente, c.seg, c.tipo, c.resultado, c.cliente]),
+      map: { fecha: 0, costo: 1, agente: 2, duracion: 3, tipo: 4, resultado: 5, cliente: 6 },
+      fromDb: true
+    };
+  } else S.calls = null;
+  // Los mensajes NO salen de aquí: vienen de la base de WhatsApp, que es la
+  // única con el costo real por mensaje (cost_usd) además del precio.
+}
+
+/* ════════════════════════════════════════════════════════════
+   Cálculo del reporte
+   ════════════════════════════════════════════════════════════ */
+
+function cell(row, idx) { return idx > -1 && idx < row.length ? row[idx] : ''; }
+
+// Devuelve { llamadas:[], mensajes:[], warn:[] } normalizados y ya filtrados por período.
+function extract() {
+  const warn = [];
+  const from = S.desde ? new Date(S.desde + 'T00:00:00') : null;
+  const to = S.hasta ? new Date(S.hasta + 'T23:59:59.999') : null;
+  const inRange = d => (!from || d >= from) && (!to || d <= to);
+
+  // Costo de una llamada = precio − margen%. Se acota a [0,100] para que un
+  // valor absurdo no produzca costos negativos o mayores que el precio.
+  const pctMargen = Math.min(100, Math.max(0, +S.margen || 0));
+  const factorCosto = 1 - pctMargen / 100;
+
+  const llamadas = [];
+  let callsOut = 0, callsBad = 0;
+  if (S.calls) {
+    const m = S.calls.map;
+    if (m.fecha < 0) warn.push('Llamadas: falta mapear la columna de <b>fecha</b>.');
+    if (m.costo < 0) warn.push('Llamadas: falta mapear la columna de <b>costo</b>.');
+    for (const r of S.calls.rows) {
+      const d = parseDate(cell(r, m.fecha));
+      if (!d) { callsBad++; continue; }
+      if (!inRange(d)) { callsOut++; continue; }
+      const precio = num(cell(r, m.costo));
+      llamadas.push({
+        d,
+        costo: precio,                       // precio al cliente
+        costoReal: precio * factorCosto,     // precio menos el margen configurado
+        agente: String(cell(r, m.agente) || '').trim() || '(sin agente)',
+        seg: parseDuration(cell(r, m.duracion)),
+        tipo: String(cell(r, m.tipo) || '').trim(),
+        resultado: String(cell(r, m.resultado) || '').trim(),
+        contacto: String(cell(r, m.cliente) || '').trim()
+      });
+    }
+    if (callsBad) warn.push(`Llamadas: ${callsBad} fila(s) sin fecha reconocible, se ignoraron.`);
+    if (callsOut) warn.push(`Llamadas: ${callsOut} fila(s) fuera del período seleccionado.`);
+  }
+
+  const mensajes = [];
+  let msgsOut = 0, msgsBad = 0;
+  if (S.msgs) {
+    const m = S.msgs.map;
+    if (m.fecha < 0) warn.push('Mensajes: falta mapear la columna de <b>fecha</b>.');
+    if (m.costo < 0) warn.push('Mensajes: falta mapear la columna de <b>costo</b>.');
+    for (const r of S.msgs.rows) {
+      const d = parseDate(cell(r, m.fecha));
+      if (!d) { msgsBad++; continue; }
+      if (!inRange(d)) { msgsOut++; continue; }
+      const dir = String(cell(r, m.direccion) || '').trim().toLowerCase();
+      const dirN = dir.startsWith('out') || dir.startsWith('sal') ? 'out'
+                 : dir.startsWith('in') || dir.startsWith('ent') ? 'in' : '';
+      const mod = String(cell(r, m.modelo) || '').trim();
+      mensajes.push({
+        d,
+        costo: num(cell(r, m.costo)),                 // charged_usd: precio
+        // El costo de los mensajes viene medido, no se deriva del margen
+        costoReal: m.costoReal > -1 ? num(cell(r, m.costoReal)) : 0,
+        dir: dirN,
+        // 1 salvo que la fila venga agrupada (datos de la base)
+        n: m.cantidad > -1 ? Math.max(0, Math.round(num(cell(r, m.cantidad)))) : 1,
+        // Los entrantes no pasan por el modelo, así que no ensucian el desglose
+        modelo: mod || (dirN === 'in' ? 'Entrantes (sin costo de IA)' : '(sin modelo)'),
+        contacto: String(cell(r, m.contacto) || '').trim()
+      });
+    }
+    if (msgsBad) warn.push(`Mensajes: ${msgsBad} fila(s) sin fecha reconocible, se ignoraron.`);
+    if (msgsOut) warn.push(`Mensajes: ${msgsOut} fila(s) fuera del período seleccionado.`);
+  }
+
+  return { llamadas, mensajes, warn, from, to, pctMargen };
+}
+
+// Rellena los días sin movimiento y, si el rango es largo, agrupa en buckets
+// para que el gráfico no acabe con 300 barras de 1px.
+function buildSeries(days, from, to, saldoIni) {
+  if (!days.length) return [];
+  const d0 = keyToDate(days[0].k), d1 = keyToDate(days[days.length - 1].k);
+  const start = from && from < d0 ? new Date(from.getFullYear(), from.getMonth(), from.getDate()) : d0;
+  const end = to && to > d1 ? new Date(to.getFullYear(), to.getMonth(), to.getDate()) : d1;
+  const span = Math.round((end - start) / 86400000) + 1;
+  const step = span <= 92 ? 1 : span <= 730 ? 7 : 30;
+
+  const src = new Map(days.map(d => [d.k, d]));
+  const out = [];
+  let cur = null;
+  for (let i = 0; i < span; i++) {
+    const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const k = dayKey(day);
+    if (i % step === 0) {
+      cur = { k, kEnd: k, span: step, calls: 0, msgs: 0, nCalls: 0, nMsgs: 0, rech: 0, seg: 0,
+              callsReal: 0, msgsReal: 0, nOut: 0, nIn: 0 };
+      out.push(cur);
+    }
+    cur.kEnd = k;
+    const d = src.get(k);
+    if (d) {
+      cur.calls += d.calls; cur.msgs += d.msgs; cur.rech += d.rech;
+      cur.nCalls += d.nCalls; cur.nMsgs += d.nMsgs; cur.seg += d.seg;
+      cur.callsReal += d.callsReal; cur.msgsReal += d.msgsReal;
+      cur.nOut += d.nOut; cur.nIn += d.nIn;
+    }
+  }
+  let run = saldoIni;
+  for (const b of out) { run += b.rech; b.saldoTrasRecarga = run; run -= (b.calls + b.msgs); b.saldo = run; }
+  return out;
+}
+
+function compute() {
+  const { llamadas, mensajes, warn, from, to, pctMargen } = extract();
+
+  const costCalls = llamadas.reduce((a, x) => a + x.costo, 0);
+  const costMsgs = mensajes.reduce((a, x) => a + x.costo, 0);
+  const consumo = costCalls + costMsgs;
+  const segTot = llamadas.reduce((a, x) => a + x.seg, 0);
+
+  // Lo que cuesta prestarlo, y lo que queda de margen
+  const realCalls = llamadas.reduce((a, x) => a + (x.costoReal || 0), 0);
+  const realMsgs = mensajes.reduce((a, x) => a + (x.costoReal || 0), 0);
+  const costoTotal = realCalls + realMsgs;
+  const margenTotal = consumo - costoTotal;
+
+  // Recargas dentro del período
+  const rech = S.rech
+    .map(r => ({ d: parseDate(r.fecha), concepto: r.concepto || 'Recarga de saldo', importe: +r.importe || 0, raw: r }))
+    .filter(r => r.d && r.importe !== 0)
+    .filter(r => (!from || r.d >= from) && (!to || r.d <= to))
+    .sort((a, b) => a.d - b.d);
+  const cargado = rech.reduce((a, x) => a + x.importe, 0);
+
+  const saldoIni = S.saldoInicial || 0;
+  const disponible = saldoIni + cargado;
+  const saldoFinal = disponible - consumo;
+
+  // ── Series diarias ──
+  const byDay = new Map();
+  const touch = k => {
+    if (!byDay.has(k)) byDay.set(k, {
+      k, calls: 0, msgs: 0, nCalls: 0, nMsgs: 0, rech: 0, seg: 0,
+      callsReal: 0, msgsReal: 0, nOut: 0, nIn: 0
+    });
+    return byDay.get(k);
+  };
+  for (const x of llamadas) {
+    const b = touch(dayKey(x.d));
+    b.calls += x.costo; b.callsReal += (x.costoReal || 0); b.nCalls++; b.seg += x.seg;
+  }
+  for (const x of mensajes) {
+    const b = touch(dayKey(x.d));
+    b.msgs += x.costo; b.msgsReal += (x.costoReal || 0); b.nMsgs += x.n;
+    if (x.dir === 'out') b.nOut += x.n; else if (x.dir === 'in') b.nIn += x.n;
+  }
+  for (const x of rech) { const b = touch(dayKey(x.d)); b.rech += x.importe; }
+
+  const days = [...byDay.values()].sort((a, b) => a.k < b.k ? -1 : 1);
+  // Saldo corriente: recarga primero, consumo después, dentro del mismo día
+  let run = saldoIni;
+  for (const d of days) { run += d.rech; d.saldoTrasRecarga = run; run -= (d.calls + d.msgs); d.saldo = run; }
+
+  // Serie continua para los gráficos: incluye los días sin actividad para que
+  // el eje X sea proporcional al tiempo. En rangos largos agrupa por semana/mes.
+  const series = buildSeries(days, from, to, saldoIni);
+
+  // ── Agrupaciones ──
+  const byAgente = new Map();
+  for (const x of llamadas) {
+    if (!byAgente.has(x.agente)) byAgente.set(x.agente, { name: x.agente, n: 0, seg: 0, costo: 0, real: 0, cont: 0 });
+    const a = byAgente.get(x.agente);
+    a.n++; a.seg += x.seg; a.costo += x.costo; a.real += (x.costoReal || 0);
+    if (x.seg > 0) a.cont++;
+  }
+  const agentes = [...byAgente.values()].sort((a, b) => b.costo - a.costo);
+
+  const byModelo = new Map();
+  for (const x of mensajes) {
+    if (!byModelo.has(x.modelo)) byModelo.set(x.modelo, { name: x.modelo, n: 0, costo: 0, real: 0 });
+    const m = byModelo.get(x.modelo);
+    m.n += x.n; m.costo += x.costo; m.real += (x.costoReal || 0);
+  }
+  const modelos = [...byModelo.values()].sort((a, b) => b.costo - a.costo);
+
+  // Los mensajes pueden venir agrupados, así que se cuentan por `n`, no por filas
+  const msgCount = mensajes.reduce((a, x) => a + x.n, 0);
+  const msgOut = mensajes.reduce((a, x) => a + (x.dir === 'out' ? x.n : 0), 0);
+  const msgIn = mensajes.reduce((a, x) => a + (x.dir === 'in' ? x.n : 0), 0);
+
+  // Rango efectivo
+  let minD = null, maxD = null;
+  for (const x of llamadas.concat(mensajes)) {
+    if (!minD || x.d < minD) minD = x.d;
+    if (!maxD || x.d > maxD) maxD = x.d;
+  }
+  for (const r of rech) {
+    if (!minD || r.d < minD) minD = r.d;
+    if (!maxD || r.d > maxD) maxD = r.d;
+  }
+
+  return {
+    warn, llamadas, mensajes, rech, days, series, agentes, modelos,
+    costCalls, costMsgs, consumo, segTot, cargado, saldoIni, disponible, saldoFinal,
+    realCalls, realMsgs, costoTotal, margenTotal, pctMargen,
+    msgCount, msgOut, msgIn, minD, maxD,
+    periodDesde: from || minD, periodHasta: to || maxD
+  };
+}
+
+/* ════════════════════════════════════════════════════════════
+   Gráficos (SVG inline, sin librerías)
+   ════════════════════════════════════════════════════════════ */
+
+// Marcas para un eje que no arranca en cero: se ancla a múltiplos del paso, no
+// al mínimo de los datos, para que salgan 0/50/100 y no −1/49/99.
+function niceTicksRango(min, max, count) {
+  if (!(max > min)) max = min + 1;
+  const bruto = (max - min) / (count || 4);
+  const mag = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const n = bruto / mag;
+  const paso = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+  const ini = Math.floor(min / paso) * paso;
+  const fin = Math.ceil(max / paso) * paso;
+  const t = [];
+  for (let v = ini; v <= fin + paso * 1e-9; v += paso) t.push(+v.toFixed(10));
+  return t.length > 1 ? t : [ini, ini + paso];
+}
+
+function niceTicks(max, count) {
+  if (max <= 0) return [0, 1];
+  const raw = max / (count || 4);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+  const ticks = [];
+  for (let v = 0; v <= max + step * 0.0001; v += step) ticks.push(+v.toFixed(10));
+  if (ticks[ticks.length - 1] < max) ticks.push(+(ticks[ticks.length - 1] + step).toFixed(10));
+  return ticks;
+}
+
+// Barra con extremo de datos redondeado 4px; el otro extremo queda a escuadra
+// sobre la línea base (o sobre el segmento inferior de la pila).
+function barPath(x, y, w, h, roundTop) {
+  const r = Math.min(4, w / 2, h);
+  if (!roundTop || h <= 0.5) return `M${x},${y}h${w}v${h}h${-w}z`;
+  return `M${x},${y + r}a${r},${r} 0 0 1 ${r},${-r}h${w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h - r}h${-w}z`;
+}
+
+function svgEl(tag, attrs, text) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+// ── Gráfico 1: consumo por día, barras apiladas (llamadas + mensajes) ──
+function drawConsumo(container, days) {
+  container.innerHTML = '';
+  const W = Math.max(320, container.clientWidth || 640);
+  const H = 220;
+  const M = { t: 14, r: 12, b: 30, l: 62 };
+  const iw = W - M.l - M.r, ih = H - M.t - M.b;
+
+  const maxV = Math.max(0.000001, ...days.map(d => d.calls + d.msgs));
+  const ticks = niceTicks(maxV, 4);
+  const top = ticks[ticks.length - 1];
+  const y = v => M.t + ih - (v / top) * ih;
+
+  const svg = svgEl('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': 'Consumo diario de llamadas y mensajes' });
+
+  // Grid + eje Y
+  for (const t of ticks) {
+    svg.appendChild(svgEl('line', { x1: M.l, x2: M.l + iw, y1: y(t), y2: y(t),
+      stroke: t === 0 ? 'var(--axis)' : 'var(--grid)', 'stroke-width': 1 }));
+    const lb = svgEl('text', { x: M.l - 8, y: y(t) + 4, 'text-anchor': 'end',
+      fill: 'var(--text-muted)', 'font-size': 11, 'font-family': 'inherit' },
+      CFG.sym + fmtNum(t, top < 1 ? 3 : top < 10 ? 2 : 0));
+    svg.appendChild(lb);
+  }
+
+  const band = iw / Math.max(1, days.length);
+  const bw = Math.max(2, Math.min(30, band * 0.66));
+  const GAP = 2;
+
+  days.forEach((d, i) => {
+    const cx = M.l + band * i + band / 2;
+    const x = cx - bw / 2;
+    const base = y(0);
+    const hC = (d.calls / top) * ih;
+    const hM = (d.msgs / top) * ih;
+    let cursor = base;
+    if (hC > 0.3) {
+      const h = hC;
+      svg.appendChild(svgEl('path', { d: barPath(x, cursor - h, bw, h, hM <= 0.3),
+        fill: 'var(--series-1)' }));
+      cursor -= h + (hM > 0.3 ? GAP : 0);
+    }
+    if (hM > 0.3) {
+      const h = hM;
+      svg.appendChild(svgEl('path', { d: barPath(x, cursor - h, bw, h, true), fill: 'var(--series-2)' }));
+    }
+    // Zona de hover a lo ancho de toda la banda
+    const hit = svgEl('rect', { x: M.l + band * i, y: M.t, width: band, height: ih,
+      fill: 'transparent', 'data-i': i, style: 'cursor:crosshair' });
+    svg.appendChild(hit);
+  });
+
+  // Etiquetas del eje X (como mucho ~8, sin colisiones)
+  const stepX = Math.max(1, Math.ceil(days.length / 8));
+  days.forEach((d, i) => {
+    if (i % stepX && i !== days.length - 1) return;
+    svg.appendChild(svgEl('text', { x: M.l + band * i + band / 2, y: H - 10,
+      'text-anchor': 'middle', fill: 'var(--text-muted)', 'font-size': 11,
+      'font-family': 'inherit' }, fmtDay(d.k)));
+  });
+
+  container.appendChild(svg);
+
+  // Tooltip
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  container.appendChild(tip);
+  svg.addEventListener('mousemove', e => {
+    const t = e.target;
+    if (!t.hasAttribute || !t.hasAttribute('data-i')) { tip.style.opacity = 0; return; }
+    const d = days[+t.getAttribute('data-i')];
+    tip.innerHTML =
+      `<div class="t">${bucketLabel(d)}</div>` +
+      `<div class="r"><span><b style="background:var(--series-1)"></b>Llamadas (${d.nCalls})</span><span>${money(d.calls, 4)}</span></div>` +
+      `<div class="r"><span><b style="background:var(--series-2)"></b>Mensajes (${d.nMsgs})</span><span>${money(d.msgs, 4)}</span></div>` +
+      `<div class="r" style="margin-top:4px;font-weight:650"><span>Total</span><span>${money(d.calls + d.msgs, 4)}</span></div>` +
+      (d.rech ? `<div class="r" style="color:var(--good)"><span>Recarga</span><span>+${money(d.rech)}</span></div>` : '');
+    tip.style.opacity = 1;
+    const r = container.getBoundingClientRect();
+    let left = e.clientX - r.left + 14;
+    if (left + tip.offsetWidth > r.width) left = e.clientX - r.left - tip.offsetWidth - 14;
+    tip.style.left = Math.max(0, left) + 'px';
+    tip.style.top = Math.max(0, e.clientY - r.top - tip.offsetHeight - 10) + 'px';
+  });
+  svg.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+}
+
+// ── Gráfico 2: evolución del saldo (línea escalonada) ──
+function drawSaldo(container, days, saldoIni) {
+  container.innerHTML = '';
+  const W = Math.max(320, container.clientWidth || 640);
+  const H = 200;
+  const M = { t: 14, r: 12, b: 30, l: 62 };
+  const iw = W - M.l - M.r, ih = H - M.t - M.b;
+
+  const vals = [saldoIni].concat(days.map(d => d.saldo)).concat(days.map(d => d.saldoTrasRecarga));
+  const maxV = Math.max(...vals, 0);
+  const minV = Math.min(...vals, 0);
+  const ticks = niceTicks(maxV, 4);
+  const top = Math.max(ticks[ticks.length - 1], 0.000001);
+  const bot = minV < 0 ? minV * 1.15 : 0;
+  const y = v => M.t + ih - ((v - bot) / (top - bot)) * ih;
+
+  const n = days.length;
+  const band = iw / Math.max(1, n);
+  const xAt = i => M.l + band * i + band / 2;
+
+  const svg = svgEl('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': 'Evolución del saldo disponible' });
+
+  for (const t of ticks) {
+    svg.appendChild(svgEl('line', { x1: M.l, x2: M.l + iw, y1: y(t), y2: y(t),
+      stroke: 'var(--grid)', 'stroke-width': 1 }));
+    svg.appendChild(svgEl('text', { x: M.l - 8, y: y(t) + 4, 'text-anchor': 'end',
+      fill: 'var(--text-muted)', 'font-size': 11, 'font-family': 'inherit' },
+      CFG.sym + fmtNum(t, top < 10 ? 2 : 0)));
+  }
+  if (bot < 0) {
+    svg.appendChild(svgEl('line', { x1: M.l, x2: M.l + iw, y1: y(0), y2: y(0),
+      stroke: 'var(--critical)', 'stroke-width': 1, 'stroke-dasharray': '3 3', opacity: .7 }));
+  }
+
+  // Trazo escalonado: en cada día sube por la recarga y baja por el consumo
+  const pts = [];
+  let prev = saldoIni;
+  days.forEach((d, i) => {
+    const x = xAt(i);
+    pts.push([x, prev]);
+    if (d.rech) pts.push([x, d.saldoTrasRecarga]);
+    pts.push([x, d.saldo]);
+    prev = d.saldo;
+  });
+  if (!pts.length) pts.push([xAt(0), saldoIni]);
+
+  const dLine = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(2) + ',' + y(p[1]).toFixed(2)).join(' ');
+  const dArea = dLine + ` L${pts[pts.length - 1][0].toFixed(2)},${y(Math.max(bot, 0)).toFixed(2)}` +
+                ` L${pts[0][0].toFixed(2)},${y(Math.max(bot, 0)).toFixed(2)} Z`;
+
+  svg.appendChild(svgEl('path', { d: dArea, fill: 'var(--series-1)', opacity: .12 }));
+  svg.appendChild(svgEl('path', { d: dLine, fill: 'none', stroke: 'var(--series-1)',
+    'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+
+  // Marcadores en los días con recarga: anillo de 2px del color de la superficie
+  days.forEach((d, i) => {
+    if (!d.rech) return;
+    svg.appendChild(svgEl('circle', { cx: xAt(i), cy: y(d.saldoTrasRecarga), r: 5,
+      fill: 'var(--good)', stroke: 'var(--surface-1)', 'stroke-width': 2 }));
+  });
+
+  const stepX = Math.max(1, Math.ceil(n / 8));
+  days.forEach((d, i) => {
+    if (i % stepX && i !== n - 1) return;
+    svg.appendChild(svgEl('text', { x: xAt(i), y: H - 10, 'text-anchor': 'middle',
+      fill: 'var(--text-muted)', 'font-size': 11, 'font-family': 'inherit' }, fmtDay(d.k)));
+  });
+
+  // Crosshair + tooltip
+  const cross = svgEl('line', { y1: M.t, y2: M.t + ih, stroke: 'var(--axis)',
+    'stroke-width': 1, opacity: 0 });
+  const dot = svgEl('circle', { r: 4.5, fill: 'var(--series-1)', stroke: 'var(--surface-1)',
+    'stroke-width': 2, opacity: 0 });
+  svg.appendChild(cross); svg.appendChild(dot);
+  const hit = svgEl('rect', { x: M.l, y: M.t, width: iw, height: ih, fill: 'transparent',
+    style: 'cursor:crosshair' });
+  svg.appendChild(hit);
+
+  container.appendChild(svg);
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  container.appendChild(tip);
+
+  hit.addEventListener('mousemove', e => {
+    if (!n) return;
+    const r = svg.getBoundingClientRect();
+    const px = e.clientX - r.left;
+    let i = Math.round((px - M.l - band / 2) / band);
+    i = Math.max(0, Math.min(n - 1, i));
+    const d = days[i];
+    const X = xAt(i);
+    cross.setAttribute('x1', X); cross.setAttribute('x2', X); cross.setAttribute('opacity', 1);
+    dot.setAttribute('cx', X); dot.setAttribute('cy', y(d.saldo)); dot.setAttribute('opacity', 1);
+    tip.innerHTML =
+      `<div class="t">${bucketLabel(d)}</div>` +
+      (d.rech ? `<div class="r" style="color:var(--good)"><span>Recarga</span><span>+${money(d.rech)}</span></div>` : '') +
+      `<div class="r"><span>Consumo del día</span><span>-${money(d.calls + d.msgs, 4)}</span></div>` +
+      `<div class="r" style="margin-top:4px;font-weight:650"><span>Saldo</span><span>${money(d.saldo)}</span></div>`;
+    tip.style.opacity = 1;
+    const cr = container.getBoundingClientRect();
+    let left = e.clientX - cr.left + 14;
+    if (left + tip.offsetWidth > cr.width) left = e.clientX - cr.left - tip.offsetWidth - 14;
+    tip.style.left = Math.max(0, left) + 'px';
+    tip.style.top = Math.max(0, e.clientY - cr.top - tip.offsetHeight - 10) + 'px';
+  });
+  hit.addEventListener('mouseleave', () => {
+    cross.setAttribute('opacity', 0); dot.setAttribute('opacity', 0); tip.style.opacity = 0;
+  });
+}
+
+/* ── Gráfico de líneas reutilizable ────────────────────────────────────────
+   datos  : buckets de la serie continua
+   series : [{ get(d) → número|null, color, label }]
+   opts   : { fmtY, fmtTip, ref:{v,label}, desdeCero }
+   Los huecos (get → null) cortan la línea en vez de inventar un valor: un día
+   sin actividad no tiene margen ni ratio, y dibujarlo como 0 mentiría.
+   ────────────────────────────────────────────────────────────────────────── */
+function drawLineas(container, datos, series, opts) {
+  opts = opts || {};
+  container.innerHTML = '';
+  const W = Math.max(320, container.clientWidth || 640);
+  const H = opts.alto || 200;
+  const M = { t: 14, r: 12, b: 30, l: 62 };
+  const iw = W - M.l - M.r, ih = H - M.t - M.b;
+
+  const vals = [];
+  for (const d of datos) for (const s of series) {
+    const v = s.get(d);
+    if (v !== null && isFinite(v)) vals.push(v);
+  }
+  if (opts.ref) vals.push(opts.ref.v);
+  if (!vals.length) { container.innerHTML = '<p class="sub">Sin datos en el período.</p>'; return; }
+
+  let max = Math.max(...vals), min = Math.min(...vals, opts.desdeCero ? 0 : Infinity);
+  if (min === Infinity) min = 0;
+  if (max === min) { max = min + 1; }
+  const ticks = niceTicksRango(min, max, 4);
+  const top = ticks[ticks.length - 1], bot = ticks[0];
+  const y = v => M.t + ih - ((v - bot) / (top - bot || 1)) * ih;
+
+  const n = datos.length;
+  const band = iw / Math.max(1, n);
+  const xAt = i => M.l + band * i + band / 2;
+  const fmtY = opts.fmtY || (v => fmtNum(v, 1));
+
+  const svg = svgEl('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`,
+    role: 'img', 'aria-label': opts.titulo || 'gráfico' });
+
+  for (const t of ticks) {
+    svg.appendChild(svgEl('line', { x1: M.l, x2: M.l + iw, y1: y(t), y2: y(t),
+      stroke: 'var(--grid)', 'stroke-width': 1 }));
+    svg.appendChild(svgEl('text', { x: M.l - 8, y: y(t) + 4, 'text-anchor': 'end',
+      fill: 'var(--text-muted)', 'font-size': 11, 'font-family': 'inherit' }, fmtY(t)));
+  }
+
+  // Línea de referencia (promedio, o el 1,0 de un ratio)
+  if (opts.ref && opts.ref.v >= bot && opts.ref.v <= top) {
+    svg.appendChild(svgEl('line', { x1: M.l, x2: M.l + iw, y1: y(opts.ref.v), y2: y(opts.ref.v),
+      stroke: 'var(--axis)', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' }));
+    if (opts.ref.label) {
+      svg.appendChild(svgEl('text', { x: M.l + iw, y: y(opts.ref.v) - 6, 'text-anchor': 'end',
+        fill: 'var(--text-secondary)', 'font-size': 11, 'font-family': 'inherit' }, opts.ref.label));
+    }
+  }
+
+  for (const s of series) {
+    let d = '', abierto = false;
+    datos.forEach((p, i) => {
+      const v = s.get(p);
+      if (v === null || !isFinite(v)) { abierto = false; return; }
+      d += (abierto ? 'L' : 'M') + xAt(i).toFixed(2) + ',' + y(v).toFixed(2) + ' ';
+      abierto = true;
+    });
+    if (d) svg.appendChild(svgEl('path', { d, fill: 'none', stroke: s.color,
+      'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+  }
+
+  const stepX = Math.max(1, Math.ceil(n / 8));
+  datos.forEach((d, i) => {
+    if (i % stepX && i !== n - 1) return;
+    svg.appendChild(svgEl('text', { x: xAt(i), y: H - 10, 'text-anchor': 'middle',
+      fill: 'var(--text-muted)', 'font-size': 11, 'font-family': 'inherit' }, fmtDay(d.k)));
+  });
+
+  const cross = svgEl('line', { y1: M.t, y2: M.t + ih, stroke: 'var(--axis)', 'stroke-width': 1, opacity: 0 });
+  svg.appendChild(cross);
+  const puntos = series.map(s => {
+    const c = svgEl('circle', { r: 4.5, fill: s.color, stroke: 'var(--surface-1)', 'stroke-width': 2, opacity: 0 });
+    svg.appendChild(c); return c;
+  });
+  const hit = svgEl('rect', { x: M.l, y: M.t, width: iw, height: ih, fill: 'transparent', style: 'cursor:crosshair' });
+  svg.appendChild(hit);
+  container.appendChild(svg);
+
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  container.appendChild(tip);
+
+  hit.addEventListener('mousemove', e => {
+    if (!n) return;
+    const r = svg.getBoundingClientRect();
+    let i = Math.round((e.clientX - r.left - M.l - band / 2) / band);
+    i = Math.max(0, Math.min(n - 1, i));
+    const d = datos[i], X = xAt(i);
+    cross.setAttribute('x1', X); cross.setAttribute('x2', X); cross.setAttribute('opacity', 1);
+    let html = `<div class="t">${bucketLabel(d)}</div>`;
+    series.forEach((s, k) => {
+      const v = s.get(d);
+      if (v === null || !isFinite(v)) { puntos[k].setAttribute('opacity', 0); return; }
+      puntos[k].setAttribute('cx', X); puntos[k].setAttribute('cy', y(v));
+      puntos[k].setAttribute('opacity', 1);
+      html += `<div class="r"><span><b style="background:${s.color}"></b>${esc(s.label)}</span>` +
+              `<span>${(opts.fmtTip || fmtY)(v)}</span></div>`;
+    });
+    if (opts.extraTip) html += opts.extraTip(d);
+    tip.innerHTML = html;
+    tip.style.opacity = 1;
+    const cr = container.getBoundingClientRect();
+    let left = e.clientX - cr.left + 14;
+    if (left + tip.offsetWidth > cr.width) left = e.clientX - cr.left - tip.offsetWidth - 14;
+    tip.style.left = Math.max(0, left) + 'px';
+    tip.style.top = Math.max(0, e.clientY - cr.top - tip.offsetHeight - 10) + 'px';
+  });
+  hit.addEventListener('mouseleave', () => {
+    cross.setAttribute('opacity', 0);
+    puntos.forEach(p => p.setAttribute('opacity', 0));
+    tip.style.opacity = 0;
+  });
+}
+
+/* ── Barras horizontales: una medida por categoría ─────────────────────────
+   Una sola serie, así que un único color: las etiquetas ya dan la identidad.
+   ────────────────────────────────────────────────────────────────────────── */
+function drawBarrasH(container, filas, opts) {
+  opts = opts || {};
+  container.innerHTML = '';
+  if (!filas.length) { container.innerHTML = '<p class="sub">Sin datos en el período.</p>'; return; }
+  const W = Math.max(320, container.clientWidth || 640);
+  const max = Math.max(...filas.map(f => f.valor), 0.000001);
+  const fmt = opts.fmt || (v => fmtNum(v, 4));
+  // El margen derecho se dimensiona con la etiqueta más larga: si no, el texto
+  // del valor se corta al salirse del viewBox.
+  const largo = Math.max(...filas.map(f => (fmt(f.valor) + (f.nota ? '  ' + f.nota : '')).length));
+  const fila = 30;
+  const M = { t: 8, r: Math.min(300, Math.max(80, largo * 7 + 16)), b: 8,
+              l: Math.min(220, Math.max(110, W * 0.26)) };
+  const H = M.t + M.b + filas.length * fila;
+  const iw = Math.max(40, W - M.l - M.r);
+
+  const svg = svgEl('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`,
+    role: 'img', 'aria-label': opts.titulo || 'comparación por categoría' });
+
+  filas.forEach((f, i) => {
+    const yc = M.t + i * fila + fila / 2;
+    const ancho = Math.max(1, (f.valor / max) * iw);
+    svg.appendChild(svgEl('text', { x: M.l - 10, y: yc + 4, 'text-anchor': 'end',
+      fill: 'var(--text-secondary)', 'font-size': 12, 'font-family': 'inherit' }, f.etiqueta));
+    // Extremo de datos redondeado 4px; el otro queda a escuadra sobre el eje
+    const h = 14, x = M.l, yb = yc - h / 2, r = Math.min(4, ancho / 2);
+    svg.appendChild(svgEl('path', {
+      d: `M${x},${yb}h${ancho - r}a${r},${r} 0 0 1 ${r},${r}v${h - 2 * r}a${r},${r} 0 0 1 ${-r},${r}h${-(ancho - r)}z`,
+      fill: 'var(--series-1)'
+    }));
+    svg.appendChild(svgEl('text', { x: M.l + ancho + 8, y: yc + 4,
+      fill: 'var(--text-primary)', 'font-size': 12, 'font-family': 'inherit',
+      style: 'font-variant-numeric:tabular-nums' }, fmt(f.valor) + (f.nota ? '  ' + f.nota : '')));
+  });
+
+  container.appendChild(svg);
+}
+
+/* ════════════════════════════════════════════════════════════
+   Render del reporte
+   ════════════════════════════════════════════════════════════ */
+
+let LAST = null;
+
+function render() {
+  const body = document.getElementById('reportBody');
+  const empty = document.getElementById('emptyState');
+  const fw = document.getElementById('fileWarn');
+
+  if (!S.calls && !S.msgs) {
+    body.hidden = true; empty.hidden = false; fw.innerHTML = '';
+    LAST = null;
+    return;
+  }
+
+  const R = compute();
+  LAST = R;
+  fw.innerHTML = R.warn.map(w => `<div class="warn">${w}</div>`).join('');
+  empty.hidden = true; body.hidden = false;
+
+  const pctUsado = R.disponible > 0 ? Math.min(1, R.consumo / R.disponible) : (R.consumo > 0 ? 1 : 0);
+  const periodo = R.periodDesde && R.periodHasta
+    ? fmtDayLong(dayKey(R.periodDesde)) + ' — ' + fmtDayLong(dayKey(R.periodHasta))
+    : 'Sin datos en el período';
+  const hoy = new Date();
+
+  const nDias = R.days.length || 1;
+  const promDia = R.consumo / nDias;   // consumo medio por día con actividad
+
+  let h = '';
+
+  /* ── Cabecera ── */
+  const interna = S.vista === 'interna';
+  h += `<div class="repHead">
+    <div>
+      <div class="cli">${esc(S.cliente || 'Reporte de consumo')}${
+        interna ? '<span class="selloInterna">Uso interno</span>' : ''}</div>
+      <div class="sub">${interna
+        ? 'Consumo, costo y margen — no enviar al cliente'
+        : 'Reporte de consumo de saldo'}</div>
+    </div>
+    <div class="meta">
+      <div><b>Período:</b> ${esc(periodo)}</div>
+      <div>Emitido el ${hoy.getDate()} ${MES[hoy.getMonth()]} ${hoy.getFullYear()}</div>
+    </div>
+  </div>`;
+
+  /* ── KPIs ──
+     El titular es el saldo REAL de la cuenta (el que el cliente ve en su
+     panel), no el que sale de restar. Si difieren, la sección "Cuadre" de más
+     abajo lo explica; poner acá el calculado obligaría al cliente a discutir
+     con su propio panel. */
+  const saldoTitular = saldoApp !== null ? saldoApp : R.saldoFinal;
+  const diasSaldo = promDia > 0 && saldoTitular > 0 ? saldoTitular / promDia : null;
+  h += `<div class="sec">
+    <div class="tiles">
+      <div class="tile">
+        <div class="k">Cargado en el período</div>
+        <div class="v">${money(R.cargado)}</div>
+        <div class="n">${R.rech.length} recarga${R.rech.length === 1 ? '' : 's'}${R.saldoIni ? ' · saldo previo ' + money(R.saldoIni) : ''}</div>
+      </div>
+      <div class="tile">
+        <div class="k">Consumido en el período</div>
+        <div class="v">${money(R.consumo)}</div>
+        <div class="n">Llamadas ${money(R.costCalls)} · Mensajes ${money(R.costMsgs)}</div>
+      </div>
+      <div class="tile accent">
+        <div class="k">Saldo actual</div>
+        <div class="v" style="color:${saldoTitular < 0 ? 'var(--critical)' : 'inherit'}">${money(saldoTitular)}</div>
+        <div class="n">${saldoApp !== null
+          ? 'Hoy en la cuenta' + (diasSaldo !== null ? ` · alcanza ~${fmtNum(diasSaldo, 0)} días al ritmo actual` : '')
+          : (diasSaldo !== null ? `Calculado · alcanza ~${fmtNum(diasSaldo, 0)} días` : 'Calculado')}</div>
+      </div>
+      <div class="tile">
+        <div class="k">% consumido</div>
+        <div class="v">${pct(pctUsado)}</div>
+        <div class="meter"><i style="width:${(pctUsado * 100).toFixed(1)}%;background:${pctUsado > .9 ? 'var(--critical)' : pctUsado > .75 ? 'var(--warning)' : 'var(--series-1)'}"></i></div>
+      </div>
+    </div>
+  </div>`;
+
+  /* ── Desglose de actividad ── */
+  h += `<div class="sec">
+    <h2>Actividad del período</h2>
+    <div class="tiles">
+      <div class="tile">
+        <div class="k">Llamadas</div>
+        <div class="v">${fmtNum(R.llamadas.length, 0)}</div>
+        <div class="n">${money(R.costCalls)} · ${fmtNum(R.costCalls / Math.max(1, R.llamadas.length), 4)} promedio</div>
+      </div>
+      <div class="tile">
+        <div class="k">Minutos hablados</div>
+        <div class="v">${fmtNum(R.segTot / 60, 1)}</div>
+        <div class="n">Duración media ${fmtMinutes(R.segTot / Math.max(1, R.llamadas.length))}</div>
+      </div>
+      <div class="tile">
+        <div class="k">Mensajes</div>
+        <div class="v">${fmtNum(R.msgCount, 0)}</div>
+        <div class="n">${R.msgOut || R.msgIn ? `${fmtNum(R.msgOut, 0)} enviados · ${fmtNum(R.msgIn, 0)} recibidos` : money(R.costMsgs)}</div>
+      </div>
+      <div class="tile">
+        <div class="k">Costo por mensaje</div>
+        <div class="v">${money(R.costMsgs / Math.max(1, R.msgOut || R.msgCount), 4)}</div>
+        <div class="n">Total mensajes ${money(R.costMsgs)}</div>
+      </div>
+    </div>
+  </div>`;
+
+  /* ── Gráfico consumo ── */
+  if (R.days.length) {
+    h += `<div class="sec">
+      <h2>Consumo diario</h2>
+      <div class="legend">
+        <span><b style="background:var(--series-1)"></b>Llamadas</span>
+        <span><b style="background:var(--series-2)"></b>Mensajes</span>
+      </div>
+      <div class="chartbox" id="chartConsumo"></div>
+    </div>`;
+
+    h += `<div class="sec">
+      <h2>Evolución del saldo</h2>
+      <div class="legend"><span><b style="background:var(--good)"></b>Recarga de saldo</span></div>
+      <div class="chartbox" id="chartSaldo"></div>
+    </div>`;
+  }
+
+  /* ── Recargas ── */
+  if (R.rech.length) {
+    h += `<div class="sec">
+      <h2>Recargas de saldo</h2>
+      <table>
+        <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Importe</th></tr></thead>
+        <tbody>${R.rech.map(r => `<tr>
+          <td>${fmtDayLong(dayKey(r.d))}</td>
+          <td>${esc(r.concepto)}</td>
+          <td class="num pos">+${money(r.importe)}</td>
+        </tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="2">Total cargado</td><td class="num">${money(R.cargado)}</td></tr></tfoot>
+      </table>
+    </div>`;
+  }
+
+  /* ── Costo y margen ── solo en la vista interna: al cliente no le mostramos
+     lo que nos cuesta prestarlo. */
+  if (interna) {
+    const pmar = R.consumo > 0 ? R.margenTotal / R.consumo : 0;
+    const marCalls = R.costCalls - R.realCalls;
+    const marMsgs = R.costMsgs - R.realMsgs;
+    h += `<div class="sec">
+      <h2>Costo y margen</h2>
+      <table>
+        <thead><tr>
+          <th>Concepto</th><th class="num">Facturado</th><th class="num">Costo</th>
+          <th class="num">Margen</th><th class="num">% margen</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td>Llamadas <span class="sub">· costo = precio − ${fmtNum(R.pctMargen, 1)}%</span></td>
+            <td class="num">${money(R.costCalls)}</td>
+            <td class="num">${money(R.realCalls)}</td>
+            <td class="num pos">${money(marCalls)}</td>
+            <td class="num">${R.costCalls > 0 ? pct(marCalls / R.costCalls) : '—'}</td>
+          </tr>
+          <tr>
+            <td>Mensajes <span class="sub">· costo medido en <code>cost_usd</code></span></td>
+            <td class="num">${money(R.costMsgs)}</td>
+            <td class="num">${money(R.realMsgs)}</td>
+            <td class="num ${marMsgs < 0 ? 'neg' : 'pos'}">${money(marMsgs)}</td>
+            <td class="num">${R.costMsgs > 0 ? pct(marMsgs / R.costMsgs) : '—'}</td>
+          </tr>
+        </tbody>
+        <tfoot><tr>
+          <td>Total</td>
+          <td class="num">${money(R.consumo)}</td>
+          <td class="num">${money(R.costoTotal)}</td>
+          <td class="num ${R.margenTotal < 0 ? 'neg' : 'pos'}">${money(R.margenTotal)}</td>
+          <td class="num">${pct(pmar)}</td>
+        </tr></tfoot>
+      </table>
+      ${R.margenTotal < 0 ? `<div class="warn err">El costo supera lo facturado en
+        ${money(-R.margenTotal)}: este período se presta a pérdida.</div>` : ''}
+    </div>`;
+  }
+
+  /* ── Gráficas de ratio (solo vista interna) ── */
+  if (interna && R.series.length) {
+    h += `<div class="sec">
+      <h2>Costo vs facturado</h2>
+      <div class="legend">
+        <span><b style="background:var(--series-1)"></b>Facturado</span>
+        <span><b style="background:var(--series-2)"></b>Costo</span>
+      </div>
+      <div class="chartbox" id="chartCostoVs"></div>
+    </div>`;
+
+    h += `<div class="sec">
+      <h2>Margen por período</h2>
+      <p class="sub" style="margin:-6px 0 8px">Porcentaje que queda tras descontar el costo.
+        Los períodos sin actividad no se dibujan.</p>
+      <div class="chartbox" id="chartMargen"></div>
+    </div>`;
+
+    h += `<div class="sec">
+      <h2>Mensajes enviados por cada recibido</h2>
+      <p class="sub" style="margin:-6px 0 8px">Cuánto habla el bot por cada mensaje que le
+        entra. Si sube, el costo sube detrás.</p>
+      <div class="chartbox" id="chartRatioMsg"></div>
+    </div>`;
+
+    // El costo unitario por modelo es la palanca más grande: entre uno y otro
+    // puede haber un orden de magnitud por mensaje.
+    const conCosto = R.modelos.filter(m => m.n > 0 && m.real > 0);
+    if (conCosto.length) {
+      h += `<div class="sec">
+        <h2>Costo por mensaje según modelo</h2>
+        <div class="chartbox" id="chartModelos"></div>
+        <table style="margin-top:12px">
+          <thead><tr>
+            <th>Modelo</th><th class="num">Mensajes</th><th class="num">% del volumen</th>
+            <th class="num">% del costo</th><th class="num">Costo unitario</th>
+          </tr></thead>
+          <tbody>${conCosto.map(m => `<tr>
+            <td>${esc(m.name)}</td>
+            <td class="num">${fmtNum(m.n, 0)}</td>
+            <td class="num">${R.msgCount > 0 ? pct(m.n / R.msgCount) : '—'}</td>
+            <td class="num">${R.realMsgs > 0 ? pct(m.real / R.realMsgs) : '—'}</td>
+            <td class="num">${money(m.real / m.n, 4)}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+    }
+  }
+
+  /* ── Cobros a tarjeta (Whop) ── */
+  if (WHOP && (WHOP.porTarjeta.length || WHOP.rechazadas.length)) {
+    const papel = { principal: 'Principal', backup: 'Backup', anterior: 'Anterior' };
+    if (WHOP.porTarjeta.length) {
+      h += `<div class="sec">
+        <h2>Cobros por tarjeta</h2>
+        <table>
+          <thead><tr>
+            <th>Tarjeta</th><th>Estado</th><th class="num">Cobros</th>
+            <th class="num">Total</th><th>Primero</th><th>Último</th>
+          </tr></thead>
+          <tbody>${WHOP.porTarjeta.map(t => `<tr>
+            <td>${t.tarjetaCorta || t.corta || '<span style="color:var(--text-secondary)">Checkout web (sin tarjeta guardada)</span>'}</td>
+            <td>${t.papel ? papel[t.papel] || t.papel : '—'}</td>
+            <td class="num">${fmtNum(t.cobros, 0)}</td>
+            <td class="num">${money(t.total)}</td>
+            <td>${fmtDayLong(dayKey(new Date(t.primera)))}</td>
+            <td>${fmtDayLong(dayKey(new Date(t.ultima)))}</td>
+          </tr>`).join('')}</tbody>
+          <tfoot><tr>
+            <td colspan="3">Total cargado</td>
+            <td class="num">${money(WHOP.total)}</td><td colspan="2"></td>
+          </tr></tfoot>
+        </table>
+      </div>`;
+    }
+
+    if (WHOP.rechazadas.length) {
+      const totalRech = WHOP.rechazadas.reduce((a, r) => a + r.importe, 0);
+      h += `<div class="sec">
+        <h2>Cobros rechazados</h2>
+        <p class="sub" style="margin:-6px 0 10px">No sumaron saldo. Se listan para justificar los cortes de servicio.</p>
+        <table>
+          <thead><tr><th>Fecha</th><th>Origen</th><th>Tarjeta</th><th class="num">Importe</th><th>Motivo</th></tr></thead>
+          <tbody>${WHOP.rechazadas.map(r => `<tr>
+            <td>${fmtDayLong(dayKey(new Date(r.fecha)))}</td>
+            <td>${esc(r.kindLabel)}</td>
+            <td>${r.tarjetaCorta || '—'}</td>
+            <td class="num neg">${money(r.importe)}</td>
+            <td style="font-size:12px;color:var(--text-secondary)">${esc(r.error || 'sin detalle')}</td>
+          </tr>`).join('')}</tbody>
+          <tfoot><tr><td colspan="3">Total rechazado</td><td class="num">${money(totalRech)}</td><td></td></tr></tfoot>
+        </table>
+      </div>`;
+    }
+
+    const ar = WHOP.cuenta.autoRecarga;
+    if (ar.activa || WHOP.cuenta.tarjetaPrincipal) {
+      h += `<div class="sec">
+        <h2>Configuración de cobro</h2>
+        <table>
+          <tbody>
+            <tr><td>Tarjeta principal</td><td class="num">${WHOP.cuenta.tarjetaPrincipal || '— sin tarjeta guardada —'}</td></tr>
+            ${WHOP.cuenta.tarjetaBackup ? `<tr><td>Tarjeta de respaldo</td><td class="num">${WHOP.cuenta.tarjetaBackup}</td></tr>` : ''}
+            <tr><td>Auto-recarga</td><td class="num">${ar.activa
+              ? `Activa — al bajar de ${money(ar.umbral || 0)} se cobran ${money(ar.monto || 0)}`
+              : 'Apagada'}</td></tr>
+            ${ar.ultima ? `<tr><td>Último cobro automático</td><td class="num">${fmtDayLong(dayKey(new Date(ar.ultima)))}</td></tr>` : ''}
+            ${ar.fallosSeguidos ? `<tr><td>Rechazos consecutivos</td><td class="num neg">${ar.fallosSeguidos}${ar.ultimoError ? ' · ' + esc(ar.ultimoError) : ''}</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>`;
+    }
+  }
+
+  /* ── Por agente ── */
+  if (R.agentes.length) {
+    h += `<div class="sec">
+      <h2>Consumo por agente</h2>
+      <table>
+        <thead><tr>
+          <th>Agente</th><th class="num">Llamadas</th><th class="num">Minutos</th>
+          <th class="num">${interna ? 'Facturado' : 'Costo'}</th>
+          ${interna ? '<th class="num">Costo</th><th class="num">Margen</th>'
+                    : '<th class="num">% del total</th>'}
+        </tr></thead>
+        <tbody>${R.agentes.map(a => `<tr>
+          <td>${esc(a.name)}</td>
+          <td class="num">${fmtNum(a.n, 0)}</td>
+          <td class="num">${fmtNum(a.seg / 60, 1)}</td>
+          <td class="num">${money(a.costo)}</td>
+          ${interna
+            ? `<td class="num">${money(a.real)}</td><td class="num pos">${money(a.costo - a.real)}</td>`
+            : `<td class="num">${R.consumo > 0 ? pct(a.costo / R.consumo) : '—'}</td>`}
+        </tr>`).join('')}</tbody>
+        <tfoot><tr>
+          <td>Total llamadas</td>
+          <td class="num">${fmtNum(R.llamadas.length, 0)}</td>
+          <td class="num">${fmtNum(R.segTot / 60, 1)}</td>
+          <td class="num">${money(R.costCalls)}</td>
+          ${interna
+            ? `<td class="num">${money(R.realCalls)}</td><td class="num pos">${money(R.costCalls - R.realCalls)}</td>`
+            : `<td class="num">${R.consumo > 0 ? pct(R.costCalls / R.consumo) : '—'}</td>`}
+        </tr></tfoot>
+      </table>
+    </div>`;
+  }
+
+  /* ── Por modelo ── */
+  if (R.modelos.length) {
+    h += `<div class="sec">
+      <h2>Consumo de mensajes por ${interna ? 'modelo' : 'chatbot'}</h2>
+      <table>
+        <thead><tr>
+          <th>${interna ? 'Modelo' : 'Chatbot'}</th><th class="num">Mensajes</th>
+          <th class="num">${interna ? 'Facturado' : 'Costo'}</th>
+          ${interna ? '<th class="num">Costo</th><th class="num">Margen</th>' : ''}
+          <th class="num">${interna ? 'Costo unitario' : '% del total'}</th>
+        </tr></thead>
+        <tbody>${R.modelos.map(m => `<tr>
+          <td>${esc(m.name)}</td>
+          <td class="num">${fmtNum(m.n, 0)}</td>
+          <td class="num">${money(m.costo)}</td>
+          ${interna
+            ? `<td class="num">${money(m.real)}</td>
+               <td class="num ${m.costo - m.real < 0 ? 'neg' : 'pos'}">${money(m.costo - m.real)}</td>
+               <td class="num">${money(m.real / Math.max(1, m.n), 4)}</td>`
+            : `<td class="num">${R.consumo > 0 ? pct(m.costo / R.consumo) : '—'}</td>`}
+        </tr>`).join('')}</tbody>
+        <tfoot><tr>
+          <td>Total mensajes</td>
+          <td class="num">${fmtNum(R.msgCount, 0)}</td>
+          <td class="num">${money(R.costMsgs)}</td>
+          ${interna
+            ? `<td class="num">${money(R.realMsgs)}</td>
+               <td class="num ${R.costMsgs - R.realMsgs < 0 ? 'neg' : 'pos'}">${money(R.costMsgs - R.realMsgs)}</td>
+               <td class="num"></td>`
+            : `<td class="num">${R.consumo > 0 ? pct(R.costMsgs / R.consumo) : '—'}</td>`}
+        </tr></tfoot>
+      </table>
+    </div>`;
+  }
+
+  /* ── Movimientos ── */
+  if (R.days.length) {
+    h += `<div class="sec">
+      <h2>Detalle de movimientos</h2>
+      <table>
+        <thead><tr>
+          <th>Fecha</th><th class="num">Recarga</th><th class="num">Llamadas</th>
+          <th class="num">Mensajes</th><th class="num">Consumo</th><th class="num">Saldo</th>
+        </tr></thead>
+        <tbody>${R.days.map(d => `<tr>
+          <td>${fmtDayLong(d.k)}</td>
+          <td class="num">${d.rech ? '<span class="pos">+' + money(d.rech) + '</span>' : '—'}</td>
+          <td class="num">${d.calls ? money(d.calls, 4) : '—'}</td>
+          <td class="num">${d.msgs ? money(d.msgs, 4) : '—'}</td>
+          <td class="num">${(d.calls + d.msgs) ? '-' + money(d.calls + d.msgs, 4) : '—'}</td>
+          <td class="num"${d.saldo < 0 ? ' style="color:var(--critical)"' : ''}>${money(d.saldo)}</td>
+        </tr>`).join('')}</tbody>
+        <tfoot><tr>
+          <td>Total</td>
+          <td class="num">${money(R.cargado)}</td>
+          <td class="num">${money(R.costCalls)}</td>
+          <td class="num">${money(R.costMsgs)}</td>
+          <td class="num">${money(R.consumo)}</td>
+          <td class="num"${R.saldoFinal < 0 ? ' style="color:var(--critical)"' : ''}>${money(R.saldoFinal)}</td>
+        </tr></tfoot>
+      </table>
+    </div>`;
+  }
+
+  /* ── Cuadre contra el saldo real de la cuenta ── */
+  // Si el saldo calculado no coincide con el que ve el cliente en su panel, hay
+  // movimientos que el reporte no explica: se dice en vez de disimularlo.
+  if (saldoApp !== null) {
+    const dif = R.saldoFinal - saldoApp;
+    const cuadra = Math.abs(dif) < 0.01;
+    h += `<div class="sec">
+      <h2>Cuadre del saldo</h2>
+      <table>
+        <tbody>
+          <tr><td>Saldo previo al período</td><td class="num">${money(R.saldoIni)}</td></tr>
+          <tr><td>Cargado en el período</td><td class="num pos">+${money(R.cargado)}</td></tr>
+          <tr><td>Consumido en el período</td><td class="num neg">−${money(R.consumo)}</td></tr>
+          <tr><td>Saldo que sale de esta cuenta</td><td class="num">${money(R.saldoFinal)}</td></tr>
+          <tr><td>Saldo actual de la cuenta</td><td class="num">${money(saldoApp)}</td></tr>
+        </tbody>
+        <tfoot><tr>
+          <td>Diferencia</td>
+          <td class="num ${cuadra ? 'pos' : 'neg'}">${cuadra ? 'cuadra' : money(dif)}</td>
+        </tr></tfoot>
+      </table>
+      ${cuadra ? '' : `<div class="warn">Hay ${money(Math.abs(dif))} sin explicar entre las recargas
+        registradas y el consumo de llamadas y chatbots — puede ser un ajuste manual de saldo, un
+        reembolso o consumo de un concepto que este reporte no lee.</div>`}
+    </div>`;
+  }
+
+  /* ── Pie ── */
+  h += `<div class="sec" style="border-top:1px solid var(--grid); padding-top:12px; color:var(--text-secondary); font-size:12px">
+    ${S.notas ? esc(S.notas) + '<br>' : ''}
+    Saldo inicial ${money(R.saldoIni)} + recargas ${money(R.cargado)} − consumo ${money(R.consumo)} = <b>${money(R.saldoFinal)}</b>.
+    Recargas tomadas de los cobros completados en Whop; consumo por <code>costCharged</code> de llamadas y chatbots.
+  </div>`;
+
+  body.innerHTML = h;
+
+  // El botón dice exactamente qué va a bajar, para que se vea que el detalle
+  // corresponde al período del reporte y no a todo el historial.
+  $('detalleBtn').textContent = `⬇ Excel: ${fmtNum(R.llamadas.length, 0)} llamadas y ` +
+    `${fmtNum(R.msgCount, 0)} mensajes`;
+
+  if (R.series.length) {
+    drawConsumo(document.getElementById('chartConsumo'), R.series);
+    drawSaldo(document.getElementById('chartSaldo'), R.series, R.saldoIni);
+    if (interna) dibujarRatios(R);
+  }
+}
+
+// Las tres gráficas temporales de la vista interna + las barras por modelo
+function dibujarRatios(R) {
+  const fac = d => d.calls + d.msgs;
+  const cos = d => d.callsReal + d.msgsReal;
+
+  const c1 = document.getElementById('chartCostoVs');
+  if (c1) drawLineas(c1, R.series, [
+    { get: fac, color: 'var(--series-1)', label: 'Facturado' },
+    { get: cos, color: 'var(--series-2)', label: 'Costo' }
+  ], {
+    titulo: 'Costo contra facturado por período',
+    fmtY: v => money(v, v < 10 ? 2 : 0), fmtTip: v => money(v, 2), desdeCero: true,
+    extraTip: d => {
+      const m = fac(d) - cos(d);
+      return `<div class="r" style="margin-top:4px;font-weight:650"><span>Margen</span>` +
+             `<span>${money(m, 2)}${fac(d) > 0 ? ' · ' + pct(m / fac(d)) : ''}</span></div>`;
+    }
+  });
+
+  const c2 = document.getElementById('chartMargen');
+  if (c2) drawLineas(c2, R.series, [
+    // null en los períodos sin facturación: no hay margen que mostrar
+    { get: d => fac(d) > 0 ? 100 * (fac(d) - cos(d)) / fac(d) : null,
+      color: 'var(--series-1)', label: 'Margen' }
+  ], {
+    titulo: 'Margen porcentual por período',
+    fmtY: v => fmtNum(v, 0) + '%', fmtTip: v => fmtNum(v, 1) + '%',
+    ref: R.consumo > 0
+      ? { v: 100 * R.margenTotal / R.consumo, label: 'media ' + pct(R.margenTotal / R.consumo) }
+      : null
+  });
+
+  const c3 = document.getElementById('chartRatioMsg');
+  if (c3) drawLineas(c3, R.series, [
+    { get: d => d.nIn > 0 ? d.nOut / d.nIn : null,
+      color: 'var(--series-1)', label: 'Salientes por entrante' }
+  ], {
+    titulo: 'Mensajes salientes por cada entrante',
+    fmtY: v => fmtNum(v, 1) + '×', fmtTip: v => fmtNum(v, 2) + '×',
+    ref: { v: 1, label: '1 a 1' }, desdeCero: true,
+    extraTip: d => `<div class="r"><span>Enviados / recibidos</span>` +
+                   `<span>${fmtNum(d.nOut, 0)} / ${fmtNum(d.nIn, 0)}</span></div>`
+  });
+
+  const c4 = document.getElementById('chartModelos');
+  if (c4) {
+    const filas = R.modelos.filter(m => m.n > 0 && m.real > 0)
+      .map(m => ({ etiqueta: m.name, valor: m.real / m.n, nota: `· ${fmtNum(m.n, 0)} msgs` }))
+      .sort((a, b) => b.valor - a.valor);
+    drawBarrasH(c4, filas, { titulo: 'Costo por mensaje según modelo', fmt: v => money(v, 4) });
+  }
+}
+
+// Redibujar al cambiar el ancho (los SVG se rasterizan a píxeles reales)
+let rzT;
+window.addEventListener('resize', () => {
+  clearTimeout(rzT);
+  rzT = setTimeout(() => {
+    if (!LAST || !LAST.series.length) return;
+    const c1 = document.getElementById('chartConsumo');
+    const c2 = document.getElementById('chartSaldo');
+    if (c1) drawConsumo(c1, LAST.series);
+    if (c2) drawSaldo(c2, LAST.series, LAST.saldoIni);
+    if (S.vista === 'interna') dibujarRatios(LAST);
+  }, 150);
+});
+
+/* ════════════════════════════════════════════════════════════
+   Recargas — UI
+   ════════════════════════════════════════════════════════════ */
+
+function renderRech() {
+  const tb = document.getElementById('rechBody');
+  if (!S.rech.length) {
+    tb.innerHTML = `<tr><td colspan="4" style="color:var(--text-secondary);padding:14px 8px">
+      Todavía no cargaste recargas. Agregá una con el botón de abajo.</td></tr>`;
+  } else {
+    tb.innerHTML = S.rech.map((r, i) => `<tr>
+      <td><input type="date" data-i="${i}" data-f="fecha" value="${esc(r.fecha || '')}"></td>
+      <td>${r.whop ? '<span class="pill" title="Vino de Whop; se reemplaza al recargar">Whop</span> ' : ''}<input type="text" data-i="${i}" data-f="concepto" value="${esc(r.concepto || '')}" placeholder="Recarga de saldo" style="width:calc(100% - ${r.whop ? '58px' : '0px'})"></td>
+      <td><input type="number" step="0.01" data-i="${i}" data-f="importe" value="${r.importe !== '' && r.importe !== undefined ? r.importe : ''}" placeholder="0.00" style="text-align:right"></td>
+      <td><button class="icon" data-del="${i}" title="Eliminar">✕</button></td>
+    </tr>`).join('');
+  }
+  tb.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const i = +inp.dataset.i, f = inp.dataset.f;
+      S.rech[i][f] = f === 'importe' ? (inp.value === '' ? '' : +inp.value) : inp.value;
+      save(); renderTotalRech(); render();
+    });
+  });
+  tb.querySelectorAll('button[data-del]').forEach(b => {
+    b.addEventListener('click', () => {
+      S.rech.splice(+b.dataset.del, 1);
+      save(); renderRech(); render();
+    });
+  });
+  renderTotalRech();
+}
+
+function renderTotalRech() {
+  const t = S.rech.reduce((a, r) => a + (+r.importe || 0), 0);
+  document.getElementById('rechTotal').textContent =
+    S.rech.length ? `Total cargado: ${money(t)}` : '';
+}
+
+/* ════════════════════════════════════════════════════════════
+   Exportar CSV
+   ════════════════════════════════════════════════════════════ */
+
+// Escapa un campo para CSV con separador ';' (lo que espera Excel en español)
+const csvQ = v => {
+  const s = String(v === null || v === undefined ? '' : v);
+  return /[",\n\r;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
+
+function bajarCSV(lineas, sufijo) {
+  // El BOM hace que Excel lea el UTF-8 y no rompa las tildes
+  const blob = new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const cli = (S.cliente || 'cliente').replace(/[^\w\-]+/g, '_').toLowerCase();
+  a.download = `${sufijo}-${cli}-${dayKey(new Date())}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+const hhmm = d => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+
+/* ── Generador de .xlsx (dos hojas) sin librerías ──────────────────────────
+   Un .xlsx es un ZIP con XML dentro. Se arma a mano porque la herramienta no
+   carga dependencias externas: CRC32 + cabeceras ZIP + las partes mínimas del
+   formato. Los números van como celdas numéricas de verdad, así Excel los suma.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+const CRC_TABLA = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLA[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+// Excel rechaza los caracteres de control; & < > deben ir escapados
+function xml(s) {
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function colLetra(n) {           // 0 → A, 25 → Z, 26 → AA
+  let s = '';
+  for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s;
+  return s;
+}
+
+// filas: array de arrays. Un número se escribe como número; el resto, como texto.
+function hojaXML(filas) {
+  const out = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'];
+  for (let r = 0; r < filas.length; r++) {
+    const celdas = filas[r];
+    let fila = `<row r="${r + 1}">`;
+    for (let c = 0; c < celdas.length; c++) {
+      const v = celdas[c];
+      if (v === null || v === undefined || v === '') continue;
+      const ref = colLetra(c) + (r + 1);
+      if (typeof v === 'number' && isFinite(v)) {
+        fila += `<c r="${ref}"><v>${v}</v></c>`;
+      } else {
+        fila += `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xml(v)}</t></is></c>`;
+      }
+    }
+    out.push(fila + '</row>');
+  }
+  out.push('</sheetData></worksheet>');
+  return out.join('');
+}
+
+async function comprimir(bytes) {
+  // deflate-raw es lo que espera el método 8 del ZIP. Si el navegador no lo
+  // tiene, se guarda sin comprimir (método 0): el archivo pesa más pero es válido.
+  if (typeof CompressionStream === 'undefined') return { datos: bytes, metodo: 0 };
+  try {
+    const cs = new CompressionStream('deflate-raw');
+    const buf = await new Response(new Blob([bytes]).stream().pipeThrough(cs)).arrayBuffer();
+    return { datos: new Uint8Array(buf), metodo: 8 };
+  } catch (e) {
+    return { datos: bytes, metodo: 0 };
+  }
+}
+
+async function crearXLSX(hojas) {
+  const enc = new TextEncoder();
+  const partes = [
+    ['[Content_Types].xml',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      hojas.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('') +
+      '</Types>'],
+    ['_rels/.rels',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      '</Relationships>'],
+    ['xl/workbook.xml',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+      'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
+      hojas.map((h, i) => `<sheet name="${xml(h.nombre)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('') +
+      '</sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels',
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      hojas.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('') +
+      '</Relationships>'],
+    ...hojas.map((h, i) => [`xl/worksheets/sheet${i + 1}.xml`, hojaXML(h.filas)])
+  ];
+
+  const locales = [], central = [];
+  let offset = 0;
+  for (const [nombre, texto] of partes) {
+    const nom = enc.encode(nombre);
+    const crudo = enc.encode(texto);
+    const { datos, metodo } = await comprimir(crudo);
+    const crc = crc32(crudo);
+
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0, true);
+    lh.setUint16(8, metodo, true); lh.setUint16(10, 0, true); lh.setUint16(12, 0, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, datos.length, true);
+    lh.setUint32(22, crudo.length, true); lh.setUint16(26, nom.length, true); lh.setUint16(28, 0, true);
+    locales.push(new Uint8Array(lh.buffer), nom, datos);
+
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true);
+    ch.setUint16(8, 0, true); ch.setUint16(10, metodo, true); ch.setUint16(12, 0, true);
+    ch.setUint16(14, 0, true); ch.setUint32(16, crc, true); ch.setUint32(20, datos.length, true);
+    ch.setUint32(24, crudo.length, true); ch.setUint16(28, nom.length, true);
+    ch.setUint16(30, 0, true); ch.setUint16(32, 0, true); ch.setUint16(34, 0, true);
+    ch.setUint16(36, 0, true); ch.setUint32(38, 0, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), nom);
+
+    offset += 30 + nom.length + datos.length;
+  }
+
+  const tamCentral = central.reduce((a, x) => a + x.length, 0);
+  const fin = new DataView(new ArrayBuffer(22));
+  fin.setUint32(0, 0x06054b50, true); fin.setUint16(4, 0, true); fin.setUint16(6, 0, true);
+  fin.setUint16(8, partes.length, true); fin.setUint16(10, partes.length, true);
+  fin.setUint32(12, tamCentral, true); fin.setUint32(16, offset, true); fin.setUint16(20, 0, true);
+
+  return new Blob([...locales, ...central, new Uint8Array(fin.buffer)],
+    { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+// Excel con dos hojas: una de llamadas y otra de mensajes, ambas con dirección
+// (entrante/saliente), fecha y hora. Los textos y el detalle se piden aparte
+// para no cargarlos en cada refresco del reporte.
+// Devuelve { blob, base64, nombre } — lo usa tanto el botón de descarga como
+// el envío por correo, para no duplicar el armado de las hojas.
+async function construirExcel(id, vista) {
+    const v = vista || S.vista;
+    const interna = v === 'interna';
+    const p = new URLSearchParams({ clientId: id, vista: v });
+    if (S.desde) p.set('desde', S.desde);
+    if (S.hasta) p.set('hasta', S.hasta);
+    const res = await fetch('/api/report/detalle?' + p.toString());
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Error del servidor');
+
+    const fh = iso => { const x = new Date(iso); return [dayKey(x), hhmm(x)]; };
+    const r4 = n => Math.round((n || 0) * 10000) / 10000;
+
+    // El costo de una llamada se deriva aquí, con el mismo margen del reporte
+    const factor = 1 - Math.min(100, Math.max(0, +S.margen || 0)) / 100;
+
+    // En la vista de cliente no van las columnas de costo ni margen
+    const hojaLlamadas = [
+      ['Fecha', 'Hora', 'Dirección', 'Agente', 'Contacto', 'Duración',
+       'Segundos', 'Resultado', 'Razón de fin', interna ? 'Facturado' : 'Costo']
+        .concat(interna ? ['Costo', 'Margen'] : [])
+    ];
+    for (const c of d.llamadas) {
+      const [f, h] = fh(c.fecha);
+      const costo = (c.costo || 0) * factor;
+      hojaLlamadas.push([f, h, c.direccion, c.agente, c.contacto,
+        fmtMinutes(c.seg), c.seg, c.resultado, c.razonFin, r4(c.costo)]
+        .concat(interna ? [r4(costo), r4((c.costo || 0) - costo)] : []));
+    }
+    const totLlam = d.llamadas.reduce((a, c) => a + (c.costo || 0), 0);
+    const totSeg = d.llamadas.reduce((a, c) => a + (c.seg || 0), 0);
+    hojaLlamadas.push([]);
+    hojaLlamadas.push(['TOTAL', '', '', '', d.llamadas.length + ' llamadas', '',
+      totSeg, '', '', r4(totLlam)]
+      .concat(interna ? [r4(totLlam * factor), r4(totLlam * (1 - factor))] : []));
+
+    const hojaMensajes = [
+      ['Fecha', 'Hora', 'Dirección', interna ? 'Modelo' : 'Chatbot', 'Contacto', 'Mensaje',
+       interna ? 'Facturado' : 'Costo'].concat(interna ? ['Costo', 'Margen'] : [])
+    ];
+    for (const m of d.mensajes) {
+      const [f, h] = fh(m.fecha);
+      hojaMensajes.push([f, h, m.direccion, m.modelo, m.contacto, m.texto, r4(m.facturado)]
+        .concat(interna ? [r4(m.costo), r4((m.facturado || 0) - (m.costo || 0))] : []));
+    }
+    const totFact = d.mensajes.reduce((a, m) => a + (m.facturado || 0), 0);
+    const totCost = d.mensajes.reduce((a, m) => a + (m.costo || 0), 0);
+    const entrantes = d.mensajes.filter(m => m.direccion === 'Entrante').length;
+    const salientes = d.mensajes.filter(m => m.direccion === 'Saliente').length;
+    hojaMensajes.push([]);
+    hojaMensajes.push(['TOTAL', '', '', '', `${entrantes} entrantes · ${salientes} salientes`,
+      '', r4(totFact)].concat(interna ? [r4(totCost), r4(totFact - totCost)] : []));
+
+    const blob = await crearXLSX([
+      { nombre: 'Llamadas', filas: hojaLlamadas },
+      { nombre: 'Mensajes', filas: hojaMensajes }
+    ]);
+
+    const cli = (S.cliente || 'cliente').replace(/[^\w\-]+/g, '_').toLowerCase();
+    const nombre = `detalle-consumo-${cli}${interna ? '-INTERNO' : ''}-${dayKey(new Date())}.xlsx`;
+
+    // base64 sin desbordar la pila con archivos de megas
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 8192) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+    }
+    return { blob, nombre, base64: btoa(bin) };
+}
+
+async function downloadDetalle() {
+  if (!LAST) { alert('Cargá los datos desde la base primero.'); return; }
+  const id = $('dbClient').value;
+  if (!id) { alert('Elegí una cuenta primero.'); return; }
+
+  const btn = $('detalleBtn'), etiqueta = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generando…';
+  try {
+    const { blob, nombre } = await construirExcel(id);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  } catch (e) {
+    alert('No se pudo generar el Excel: ' + (e.message || e));
+  } finally {
+    btn.disabled = false; btn.textContent = etiqueta;
+  }
+}
+
+function downloadCSV() {
+  if (!LAST) { alert('Cargá los datos desde la base primero.'); return; }
+  const R = LAST;
+  const q = csvQ;
+  const L = [];
+  const push = arr => L.push(arr.map(q).join(';'));
+
+  push(['REPORTE DE CONSUMO']);
+  push(['Cliente', S.cliente || '']);
+  push(['Período', R.periodDesde ? fmtDayLong(dayKey(R.periodDesde)) : '', R.periodHasta ? fmtDayLong(dayKey(R.periodHasta)) : '']);
+  push([]);
+  push(['RESUMEN']);
+  push(['Saldo inicial', R.saldoIni.toFixed(2)]);
+  push(['Recargas del período', R.cargado.toFixed(2)]);
+  push(['Consumo llamadas', R.costCalls.toFixed(4)]);
+  push(['Consumo mensajes', R.costMsgs.toFixed(4)]);
+  push(['Consumo total', R.consumo.toFixed(4)]);
+  push(['Saldo restante', R.saldoFinal.toFixed(2)]);
+  push(['Llamadas', R.llamadas.length]);
+  push(['Minutos', (R.segTot / 60).toFixed(1)]);
+  push(['Mensajes', R.msgCount]);
+  push([]);
+  push(['RECARGAS']);
+  push(['Fecha', 'Concepto', 'Importe']);
+  R.rech.forEach(r => push([dayKey(r.d), r.concepto, r.importe.toFixed(2)]));
+  push([]);
+  push(['POR AGENTE']);
+  push(['Agente', 'Llamadas', 'Minutos', 'Costo']);
+  R.agentes.forEach(a => push([a.name, a.n, (a.seg / 60).toFixed(1), a.costo.toFixed(4)]));
+  push([]);
+  push(['POR MODELO']);
+  push(['Modelo', 'Mensajes', 'Costo']);
+  R.modelos.forEach(m => push([m.name, m.n, m.costo.toFixed(4)]));
+  push([]);
+  push(['MOVIMIENTOS']);
+  push(['Fecha', 'Recarga', 'Llamadas', 'Mensajes', 'Consumo', 'Saldo']);
+  R.days.forEach(d => push([d.k, d.rech.toFixed(2), d.calls.toFixed(4), d.msgs.toFixed(4),
+    (d.calls + d.msgs).toFixed(4), d.saldo.toFixed(2)]));
+
+  bajarCSV(L, 'reporte-consumo');
+}
+
+/* ════════════════════════════════════════════════════════════
+   Arranque
+   ════════════════════════════════════════════════════════════ */
+
+load();
+
+const $ = id => document.getElementById(id);
+$('cliente').value = S.cliente;
+$('desde').value = S.desde;
+$('hasta').value = S.hasta;
+$('saldoInicial').value = S.saldoInicial;
+$('margen').value = S.margen;
+$('notas').value = S.notas;
+$('moneda').value = CFG.sym;
+$('fmt').value = CFG.fmt;
+
+[['cliente', 'cliente'], ['desde', 'desde'], ['hasta', 'hasta'], ['notas', 'notas']].forEach(([id, key]) => {
+  $(id).addEventListener('input', () => { S[key] = $(id).value; save(); render(); });
+});
+$('saldoInicial').addEventListener('input', () => { S.saldoInicial = +$('saldoInicial').value || 0; save(); render(); });
+$('margen').addEventListener('input', () => { S.margen = +$('margen').value || 0; save(); render(); });
+$('moneda').addEventListener('input', () => { CFG.sym = $('moneda').value || '$'; save(); renderTotalRech(); render(); });
+$('fmt').addEventListener('change', () => { CFG.fmt = $('fmt').value; save(); renderTotalRech(); render(); });
+
+$('addRech').addEventListener('click', () => {
+  S.rech.push({ fecha: dayKey(new Date()), concepto: 'Recarga de saldo', importe: '' });
+  save(); renderRech(); render();
+});
+
+$('printBtn').addEventListener('click', () => window.print());
+$('csvBtn').addEventListener('click', downloadCSV);
+$('detalleBtn').addEventListener('click', downloadDetalle);
+$('resetBtn').addEventListener('click', () => {
+  if (!confirm('¿Borrar los datos cargados, las recargas y el resto del reporte?')) return;
+  S.calls = null; S.msgs = null; S.rech = []; S.cliente = ''; S.desde = ''; S.hasta = '';
+  S.saldoInicial = 0; S.notas = '';
+  $('cliente').value = ''; $('desde').value = ''; $('hasta').value = '';
+  $('saldoInicial').value = 0; $('notas').value = '';
+  save(); renderRech(); render();
+  if (!$('dbCard').hidden) $('dbStatus').textContent = 'Listo para volver a cargar.';
+});
+
+$('themeBtn').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const dark = cur ? cur === 'dark'
+    : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+  save();
+  render();
+});
+
+/* ════════════════════════════════════════════════════════════
+   Conexión a las bases. Solo funciona servido por
+   server/scripts/reporte-consumo-server.js — con file:// el
+   navegador no puede hablar con Postgres y la página no sirve de nada.
+
+   Todo sale de la base de esta app: llamadas (CallLog), mensajes
+   (ChatbotMessage) y recargas (CreditPurchase). Los tres usan el
+   mismo saldo, así que el reporte cierra contra el panel del cliente.
+   ════════════════════════════════════════════════════════════ */
+
+let appDisponible = false;
+
+async function initDB() {
+  const notas = [];
+
+  try {
+    const res = await fetch('/api/report/clients');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const { clients, scope } = await res.json();
+    if (!Array.isArray(clients) || !clients.length) {
+      throw new Error(scope && scope.error ? scope.error : 'sin cuentas');
+    }
+    $('dbClient').innerHTML = clients.map(c =>
+      `<option value="${c.id}">${esc(c.name || c.email || ('#' + c.id))}${c.role ? ' · ' + c.role : ''}</option>`
+    ).join('');
+    appDisponible = true;
+    if (scope) {
+      notas.push(`Cuentas de ${esc(scope.name)}: ${fmtNum(clients.length, 0)}.`);
+      // La raíz (el whitelabel) rara vez es el cliente del reporte: se preselecciona
+      // el primer cliente real que cuelgue de ella.
+      const hijo = clients.find(c => c.id !== scope.id);
+      if (hijo) $('dbClient').value = String(hijo.id);
+    }
+  } catch (e) {
+    $('dbClient').innerHTML = '<option value="">— base de la app no disponible —</option>';
+    $('dbClient').disabled = true;
+    notas.push('⚠ La base de la app no responde: el reporte saldrá sin llamadas.');
+  }
+
+  // Abierto con file:// o sin base: no hay nada que mostrar.
+  if (!appDisponible) { $('dbHint').hidden = false; return; }
+
+  $('dbCard').hidden = false;
+  $('dbHint').hidden = true;
+  $('dbStatus').textContent = notas.join(' ');
+
+  await autoDesdeURL();
+}
+
+// Permite abrir la página ya cargada: ?clientId=16&desde=2026-07-01&hasta=...
+// Lo usa el generador de PDF del servidor, que renderiza esta misma página con
+// Chrome en vez de mantener una segunda plantilla que se desincronizaría.
+async function autoDesdeURL() {
+  const q = new URLSearchParams(location.search);
+  const id = q.get('clientId');
+  if (!id) return;
+  if ($('dbClient').querySelector(`option[value="${id}"]`)) $('dbClient').value = id;
+  for (const k of ['desde', 'hasta']) {
+    const v = q.get(k);
+    if (v) { S[k] = v; $(k).value = v; }
+  }
+  if (q.get('saldoInicial')) { S.saldoInicial = +q.get('saldoInicial') || 0; $('saldoInicial').value = S.saldoInicial; }
+  if (q.get('notas')) { S.notas = q.get('notas'); $('notas').value = S.notas; }
+  if (q.get('margen')) { S.margen = +q.get('margen') || 0; $('margen').value = S.margen; }
+  // La vista manda: un PDF interno y uno de cliente no llevan lo mismo
+  if (q.get('vista')) S.vista = q.get('vista') === 'interna' ? 'interna' : 'cliente';
+  await cargarDesdeBase();
+  // Marca que el reporte ya está pintado, para que el PDF no salga a medias
+  document.body.setAttribute('data-listo', LAST ? '1' : '0');
+}
+
+// Última respuesta de /api/report/recargas y saldo real de la cuenta, para
+// poder contrastar lo que calcula el reporte con lo que ve el cliente.
+let WHOP = null, saldoApp = null, errorWa = null;
+
+// Cambia la fuente de mensajes según la vista. No vuelve a consultar: las dos
+// ya vinieron en la carga, así que alternar es instantáneo.
+function aplicarVista(re = true) {
+  const hayInterna = !!MSGS.interna;
+  if (!hayInterna && S.vista === 'interna') S.vista = 'cliente';
+  const v = S.vista === 'interna' ? 'interna' : 'cliente';
+  S.msgs = MSGS[v] || null;
+
+  document.querySelectorAll('.vistaBtn').forEach(b => {
+    const esInterna = b.dataset.vista === 'interna';
+    b.setAttribute('aria-pressed', b.dataset.vista === v ? 'true' : 'false');
+    b.disabled = esInterna && !hayInterna;
+    b.style.opacity = b.disabled ? '.5' : '';
+    b.style.cursor = b.disabled ? 'not-allowed' : 'pointer';
+  });
+  $('vistaCard').hidden = !(MSGS.cliente || MSGS.interna);
+
+  const nota = $('vistaNota');
+  if (errorWa) {
+    nota.innerHTML = `⚠ Vista interna no disponible: la base de WhatsApp no respondió ` +
+      `(<code>${esc(errorWa)}</code>). El resto del reporte está completo — ` +
+      `volvé a tocar “Cargar desde la base” para reintentar.`;
+  } else if (v === 'interna') {
+    nota.innerHTML = 'Los mensajes salen de la base de WhatsApp. <b>Este reporte no cuadra ' +
+      'con el saldo que ve el cliente</b> — es para tus números, no para mandarlo.';
+  } else {
+    nota.innerHTML = 'Los mensajes salen de <code>ChatbotMessage</code>, que es lo que ' +
+      'realmente descuenta saldo. Es la vista que se manda al cliente.';
+  }
+  if (re) render();
+}
+
+document.querySelectorAll('.vistaBtn').forEach(b => b.addEventListener('click', () => {
+  if (b.disabled) return;
+  S.vista = b.dataset.vista; save(); aplicarVista();
+}));
+
+// Vuelca los cobros completados de Whop a la tabla de recargas. Las filas que
+// hayas agregado a mano se respetan; solo se reemplazan las que vinieron de Whop.
+function aplicarRecargasWhop(rec) {
+  const manuales = S.rech.filter(r => !r.whop);
+  const deWhop = rec.completadas.map(c => ({
+    fecha: dayKey(new Date(c.fecha)),
+    concepto: c.kindLabel + (c.tarjetaCorta ? ` · tarjeta ${c.tarjetaCorta}` : ' · checkout web'),
+    importe: c.importe,
+    whop: true
+  }));
+  S.rech = [...deWhop, ...manuales].sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
+  save();
+  renderRech();
+}
+
+async function cargarDesdeBase() {
+  const sel = $('dbClient');
+  const id = sel.value;
+  const st = $('dbStatus'), btn = $('dbLoad');
+  if (!appDisponible || !id) {
+    st.textContent = '✕ No hay cuenta que cargar: la base de la app no responde.';
+    return;
+  }
+  st.textContent = 'Cargando…'; btn.disabled = true;
+  try {
+    const p = new URLSearchParams({ clientId: id });
+    if (S.desde) p.set('desde', S.desde);
+    if (S.hasta) p.set('hasta', S.hasta);
+
+    // Llamadas de esta app, mensajes de la base de WhatsApp y recargas de Whop
+    const pw = new URLSearchParams(p);
+    pw.set('tz', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+    // La base de WhatsApp solo alimenta la vista interna y su DNS falla de a
+    // ratos. Si se cae, el resto del reporte tiene que cargar igual: se captura
+    // aparte en vez de dejar que reviente el Promise.all.
+    const [res, rres, wres] = await Promise.all([
+      fetch('/api/report/data?chatbot=1&' + p.toString()),
+      fetch('/api/report/recargas?' + p.toString()),
+      fetch('/api/report/whatsapp?' + pw.toString()).catch(e => ({ ok: false, _err: e.message }))
+    ]);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Error del servidor');
+    loadFromDB(data);
+
+    // Fuente "cliente": ChatbotMessage, que es lo que descuenta saldo
+    const cm = data.messages || [];
+    MSGS.cliente = cm.length ? {
+      name: 'Base de datos · ChatbotMessage',
+      headers: ['Fecha', 'Costo', 'Contacto', 'Chatbot'],
+      rows: cm.map(m => [m.fecha, m.costo, m.contacto, m.chatbot]),
+      map: { fecha: 0, costo: 1, costoReal: -1, direccion: -1, modelo: 3, contacto: 2, cantidad: -1 },
+      fromDb: true
+    } : null;
+
+    // Fuente "interna": base de WhatsApp, la única con el costo real medido
+    let msgsWa = 0;
+    errorWa = null;
+    try {
+      if (!wres.ok) {
+        const j = wres._err ? { error: wres._err } : await wres.json().catch(() => ({}));
+        throw new Error(j.error || 'no respondió');
+      }
+      const w = await wres.json();
+      const mapa = mapaMensajes(w.headers);
+      if (mapa.costo < 0) throw new Error('no devolvió la columna charged_usd');
+      MSGS.interna = w.rows.length
+        ? { name: 'WhatsApp · messages', headers: w.headers, rows: w.rows, map: mapa, fromDb: true, fromWa: true }
+        : null;
+      msgsWa = w.meta ? w.meta.mensajes : 0;
+    } catch (e) {
+      MSGS.interna = null;
+      errorWa = e.message || String(e);
+      // Si estabas en la vista interna, se cae a la de cliente en vez de
+      // mostrar un reporte sin mensajes que parecería real.
+      if (S.vista === 'interna') S.vista = 'cliente';
+    }
+
+    aplicarVista();
+
+    const rec = await rres.json();
+    if (!rres.ok) throw new Error(rec.error || 'Error leyendo las recargas');
+    WHOP = rec;
+    aplicarRecargasWhop(rec);
+
+    const name = (data.client && data.client.name) ||
+                 sel.options[sel.selectedIndex].text.split(' · ')[0];
+    S.cliente = name; $('cliente').value = name;
+    saldoApp = data.client && typeof data.client.vapiCredits === 'number'
+      ? data.client.vapiCredits : null;
+    save();
+
+    st.innerHTML = `✓ ${fmtNum(data.calls.length, 0)} llamadas · ` +
+      `${fmtNum((data.messages || []).length, 0)} mensajes · ` +
+      `${fmtNum(rec.completadas.length, 0)} recargas ${money(rec.total)}` +
+      (errorWa ? ' · <span style="color:var(--critical)">sin datos de WhatsApp</span>'
+               : ` · ${fmtNum(msgsWa, 0)} en WhatsApp`);
+    render();
+    await cargarCorreoCliente(id);
+  } catch (e) {
+    st.textContent = '✕ ' + (e.message || e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+$('dbLoad').addEventListener('click', cargarDesdeBase);
+
+/* ════════════════════════════════════════════════════════════
+   Envío por correo (Gmail)
+   ════════════════════════════════════════════════════════════ */
+
+let gmailOk = false;
+
+async function initGmail() {
+  try {
+    const g = await (await fetch('/api/report/gmail/estado')).json();
+    gmailOk = !!g.conectado;
+    $('mailCard').hidden = false;
+    const pill = $('mailPill'), st = $('mailStatus');
+    if (gmailOk) {
+      pill.textContent = 'Gmail · ' + g.email;
+      st.textContent = '';
+    } else if (!g.configurado) {
+      pill.textContent = 'Gmail sin configurar';
+      st.innerHTML = 'Faltan las credenciales: agregá <code>googleClientId</code> y ' +
+        '<code>googleClientSecret</code> a <code>tools/db.local.json</code>.';
+      $('mailSend').disabled = true;
+    } else {
+      pill.textContent = 'Gmail sin conectar';
+      st.innerHTML = `<a href="/auth/gmail">Conectar Gmail</a> — hay que registrar ` +
+        `<code>${esc(g.redirect)}</code> como URI de redirección en Google Cloud.`;
+    }
+  } catch (e) {
+    $('mailCard').hidden = true;   // sin servidor no hay envío posible
+  }
+}
+
+// Trae el correo asignado a la cuenta (o el de la cuenta como propuesta)
+async function cargarCorreoCliente(clientId) {
+  try {
+    const r = await (await fetch('/api/report/email?clientId=' + clientId)).json();
+    if (r.error) return;
+    $('mailTo').value = r.email || '';
+    $('mailTo').dataset.clientId = clientId;
+    $('mailTo').dataset.asignado = r.asignado ? '1' : '';
+    if (!$('mailAsunto').value) $('mailAsunto').value = asuntoPorDefecto();
+    if (!$('mailTexto').value.trim()) $('mailTexto').value = cuerpoPorDefecto();
+  } catch (e) { /* el panel de correo simplemente queda vacío */ }
+}
+
+function periodoTexto() {
+  if (!LAST || !LAST.periodDesde || !LAST.periodHasta) return '';
+  return fmtDayLong(dayKey(LAST.periodDesde)) + ' — ' + fmtDayLong(dayKey(LAST.periodHasta));
+}
+function asuntoPorDefecto() {
+  const p = periodoTexto();
+  return `Reporte de consumo${S.cliente ? ' · ' + S.cliente : ''}${p ? ' · ' + p : ''}`;
+}
+function cuerpoPorDefecto() {
+  if (!LAST) return '';
+  const R = LAST;
+  const saldo = saldoApp !== null ? saldoApp : R.saldoFinal;
+  return [
+    `Hola${S.cliente ? ' ' + S.cliente : ''},`,
+    '',
+    `Te enviamos el reporte de consumo${periodoTexto() ? ' del período ' + periodoTexto() : ''}.`,
+    '',
+    `Saldo cargado en el período: ${money(R.cargado)}`,
+    `Consumido: ${money(R.consumo)} (llamadas ${money(R.costCalls)} · mensajes ${money(R.costMsgs)})`,
+    `Saldo actual: ${money(saldo)}`,
+    '',
+    `Actividad: ${fmtNum(R.llamadas.length, 0)} llamadas (${fmtNum(R.segTot / 60, 1)} minutos) ` +
+    `y ${fmtNum(R.msgCount, 0)} mensajes.`,
+    '',
+    'Adjuntamos el reporte en PDF y el detalle completo en Excel.',
+    '',
+    'Saludos.'
+  ].join('\n');
+}
+
+// Guardar el correo del cliente al salir del campo
+$('mailTo').addEventListener('change', async () => {
+  const id = $('mailTo').dataset.clientId;
+  if (!id) return;
+  try {
+    const r = await fetch('/api/report/email', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: +id, email: $('mailTo').value.trim() })
+    });
+    const j = await r.json();
+    $('mailStatus').textContent = r.ok ? 'Correo guardado para esta cuenta.' : ('✕ ' + j.error);
+  } catch (e) { $('mailStatus').textContent = '✕ ' + e.message; }
+});
+
+$('mailSend').addEventListener('click', async () => {
+  if (!LAST) { alert('Cargá los datos desde la base primero.'); return; }
+  const id = $('dbClient').value;
+  const para = $('mailTo').value.trim();
+  if (!para) { alert('Falta el correo del cliente.'); return; }
+  if (!gmailOk) { alert('Gmail no está conectado todavía.'); return; }
+
+  // Al cliente SIEMPRE se le manda su vista, aunque estés mirando la interna:
+  // el PDF y el Excel internos llevan costos y márgenes que no se comparten.
+  if (S.vista === 'interna' &&
+      !confirm('Estás en la vista interna. El correo se va a enviar con la vista ' +
+               'de cliente (sin costos ni márgenes). ¿Seguimos?')) return;
+
+  const btn = $('mailSend'), st = $('mailStatus'), etiqueta = btn.textContent;
+  btn.disabled = true;
+  try {
+    let excelBase64 = null, nombreExcel = null;
+    if ($('mailExcel').checked) {
+      st.textContent = 'Generando el Excel…';
+      const x = await construirExcel(id, 'cliente');
+      if (x) { excelBase64 = x.base64; nombreExcel = x.nombre; }
+    }
+    st.textContent = 'Generando el PDF y enviando… (puede tardar medio minuto)';
+    btn.textContent = 'Enviando…';
+
+    const cli = (S.cliente || 'cliente').replace(/[^\w\-]+/g, '_').toLowerCase();
+    const r = await fetch('/api/report/enviar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientId: +id, para, cc: $('mailCc').value.trim(),
+        asunto: $('mailAsunto').value.trim() || asuntoPorDefecto(),
+        texto: $('mailTexto').value,
+        desde: S.desde || '', hasta: S.hasta || '',
+        vista: 'cliente', margen: S.margen,
+        nombrePdf: `reporte-consumo-${cli}.pdf`,
+        excelBase64, nombreExcel
+      })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Error del servidor');
+    const kb = j.adjuntos.map(a => `${a.nombre} (${fmtNum(a.bytes / 1024, 0)} KB)`).join(' · ');
+    st.innerHTML = `✓ Enviado a <b>${esc(j.para)}</b> — ${esc(kb)}`;
+  } catch (e) {
+    st.textContent = '✕ ' + (e.message || e);
+  } finally {
+    btn.disabled = false; btn.textContent = etiqueta;
+  }
+});
+
+initDB();
+initGmail();
+
+renderRech();
+render();
+</script>
+</body>
+</html>
