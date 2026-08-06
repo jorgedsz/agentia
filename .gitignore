@@ -5,6 +5,17 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env.migration
+migration.log.json
+
+# Credenciales locales y exports del generador de reportes. La herramienta se
+# mudó a su propio repo (Adminnebo/reporte-consumo), pero los archivos siguen
+# acá: db.local.json tiene contraseñas de bases y los CSV llevan teléfonos y
+# transcripciones de clientes.
+tools/db.local.json
+tools/*.csv
+tools/*.xlsx
+tools/*.pdf
 
 # Build outputs
 dist/
