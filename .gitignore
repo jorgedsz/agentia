@@ -5,17 +5,6 @@ node_modules/
 .env
 .env.local
 .env.*.local
-.env.migration
-migration.log.json
-
-# Credenciales locales del generador de reportes (server/scripts/reporte-consumo-server.js)
-tools/db.local.json
-
-# Exports del generador de reportes: llevan datos de clientes (teléfonos,
-# transcripciones) y no tienen por qué versionarse
-tools/*.csv
-tools/*.xlsx
-tools/*.pdf
 
 # Build outputs
 dist/
