@@ -623,6 +623,14 @@ class N8nService {
       ai_memory: [[{ node: 'Memory Manager', type: 'ai_memory', index: 0 }]]
     };
 
+    // Safeguard: an expression that references a specific webhook trigger
+    // ($('Webhook Trigger') or $('Test Webhook')) only resolves when THAT trigger
+    // fired. Since both triggers feed the same flow, a tool authored/imported
+    // against one of them breaks under the other ("node is unexecuted" in n8n).
+    // Rewrite any such reference to whichever trigger actually executed so it
+    // works from both production and test, no matter how the tool was authored.
+    this._robustifyTriggerRefs(nodes);
+
     return {
       name: workflowName,
       nodes,
@@ -632,6 +640,26 @@ class N8nService {
       },
       staticData: null
     };
+  }
+
+  // Rewrite $('Webhook Trigger') / $('Test Webhook') references inside generated
+  // node parameters to a trigger-agnostic form. Skips the trigger nodes
+  // themselves and anything already guarded with .isExecuted (idempotent).
+  _robustifyTriggerRefs(nodes) {
+    const TRIGGER_REF = /\$\(\s*(['"])(Webhook Trigger|Test Webhook)\1\s*\)/g;
+    const WRAP = "($('Webhook Trigger').isExecuted ? $('Webhook Trigger') : $('Test Webhook'))";
+    for (const n of nodes) {
+      if (!n || !n.parameters) continue;
+      if (n.name === 'Webhook Trigger' || n.name === 'Test Webhook') continue;
+      let s;
+      try { s = JSON.stringify(n.parameters); } catch { continue; }
+      if (s.indexOf('Webhook Trigger') === -1 && s.indexOf('Test Webhook') === -1) continue;
+      if (s.includes('.isExecuted')) continue; // already trigger-agnostic
+      const s2 = s.replace(TRIGGER_REF, WRAP);
+      if (s2 !== s) {
+        try { n.parameters = JSON.parse(s2); } catch { /* leave as-is if unparsable */ }
+      }
+    }
   }
 
   _getLLMNodeType(provider) {
