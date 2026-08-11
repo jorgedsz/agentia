@@ -1,5 +1,6 @@
 const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
+const { allowsNegativeBalance } = require('../utils/negativeBalance');
 
 /**
  * POST /api/chatbot-call/trigger — Public endpoint called by chatbot tool (n8n)
@@ -33,7 +34,7 @@ async function triggerCall(req, res) {
     if (user.callsPaused) {
       return res.json({ success: false, message: 'Calls are currently paused for this account.' });
     }
-    if (user.vapiCredits <= 0) {
+    if (user.vapiCredits <= 0 && !(await allowsNegativeBalance(req.prisma, user.id))) {
       return res.json({ success: false, message: 'Insufficient credits to make a call.' });
     }
 

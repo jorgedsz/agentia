@@ -3,6 +3,7 @@ const router = express.Router();
 const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
 const { decrypt } = require('../utils/encryption');
+const { allowsNegativeBalance } = require('../utils/negativeBalance');
 
 // POST /api/call/trigger - Trigger outbound calls (requires x-api-key header)
 router.post('/', async (req, res) => {
@@ -145,7 +146,7 @@ router.post('/', async (req, res) => {
       });
     }
 
-    if (user.vapiCredits <= 0) {
+    if (user.vapiCredits <= 0 && !(await allowsNegativeBalance(req.prisma, user.id))) {
       return res.status(403).json({
         success: false,
         error: `Insufficient credits for user '${user.email}'. Current balance: $${user.vapiCredits.toFixed(2)}. Please add credits before making calls.`,

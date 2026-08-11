@@ -5,6 +5,7 @@ const { logAudit } = require('../utils/auditLog');
 const { getAgentRate } = require('../utils/pricingUtils');
 const { findGhlConnection, ghlRequest, getValidToken } = require('./ghlController');
 const { decrypt } = require('../utils/encryption');
+const { allowsNegativeBalance } = require('../utils/negativeBalance');
 
 // Resolve a GHL token+locationId for the specific integration the agent is bound to.
 // Falls back to findGhlConnection when integrationId is missing or stale.
@@ -134,7 +135,7 @@ const createCall = async (req, res) => {
       return res.status(403).json({ error: 'Calls are currently paused for this account.' });
     }
 
-    if (!user || user.vapiCredits <= 0) {
+    if (!user || (user.vapiCredits <= 0 && !(await allowsNegativeBalance(req.prisma, user.id)))) {
       return res.status(403).json({
         error: 'Insufficient VAPI credits. Please contact your administrator to add credits.',
         code: 'INSUFFICIENT_CREDITS',

@@ -34,6 +34,7 @@ model User {
   agentGeneratorEnabled Boolean        @default(false)
   callsPaused        Boolean           @default(false)
   messagesPaused     Boolean           @default(false)
+  allowNegativeBalance Boolean         @default(false) // Keep calling/messaging when balance is negative; inherited by all accounts below (self → agency → whitelabel)
   hiddenSections     String?            // JSON array of menu item ids hidden for this user (admin-controlled)
   planType           String?            // CLIENT only: "DIY", "DFY", "Partnership"
   planPrice          Float?             // Monthly plan price for any account type

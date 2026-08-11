@@ -1,5 +1,6 @@
 const { encrypt, decrypt } = require('../utils/encryption');
 const { logAudit } = require('../utils/auditLog');
+const { allowsNegativeBalance } = require('../utils/negativeBalance');
 const n8nService = require('../services/n8nService');
 const { getN8nConfig } = require('../utils/getN8nConfig');
 const { findGhlConnection, ghlRequest } = require('./ghlController');
@@ -418,7 +419,7 @@ const testChatbot = async (req, res) => {
 
     // Check credits
     const owner = await req.prisma.user.findUnique({ where: { id: req.user.id }, select: { vapiCredits: true } });
-    if ((owner?.vapiCredits || 0) < TEST_MESSAGE_COST) {
+    if ((owner?.vapiCredits || 0) < TEST_MESSAGE_COST && !(await allowsNegativeBalance(req.prisma, req.user.id))) {
       return res.status(402).json({ error: 'Insufficient credits to run a test message.' });
     }
 
@@ -711,7 +712,7 @@ const webhookProxy = async (req, res) => {
     }
 
     const ownerMessageCost = resolveMessageCost(chatbotOwner);
-    if ((chatbotOwner.vapiCredits || 0) < ownerMessageCost) {
+    if ((chatbotOwner.vapiCredits || 0) < ownerMessageCost && !(await allowsNegativeBalance(req.prisma, chatbot.userId))) {
       return res.status(402).json({ error: 'Insufficient credits. Owner needs to add credits to continue.' });
     }
 
