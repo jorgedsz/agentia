@@ -2,6 +2,7 @@ const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
 const { decrypt } = require('../utils/encryption');
 const { isEncrypted } = require('../utils/phiEncryption');
+const { allowsNegativeBalance } = require('../utils/negativeBalance');
 
 // CallLog.customerNumber is encrypted at rest (PHI), so any value read from a
 // call log, follow-up, or callback row may still be ciphertext. Always route
@@ -159,7 +160,8 @@ async function processFollowUps(prisma) {
           continue;
         }
 
-        if (!user.voiceAgentsEnabled || user.callsPaused || user.vapiCredits <= 0) {
+        const fuAllowNeg = await allowsNegativeBalance(prisma, user.id);
+        if (!user.voiceAgentsEnabled || user.callsPaused || (user.vapiCredits <= 0 && !fuAllowNeg)) {
           console.error(`[Follow-Up] #${followUp.id}: User ${user.email} - voiceAgents=${user.voiceAgentsEnabled}, paused=${user.callsPaused}, credits=${user.vapiCredits}`);
           await prisma.scheduledFollowUp.update({
             where: { id: followUp.id },

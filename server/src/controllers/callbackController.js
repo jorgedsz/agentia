@@ -1,5 +1,6 @@
 const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
+const { allowsNegativeBalance } = require('../utils/negativeBalance');
 
 /**
  * POST /api/callbacks/schedule — Public endpoint called by VAPI tool
@@ -205,7 +206,8 @@ async function processCallbacks(prisma) {
           continue;
         }
 
-        if (!user.voiceAgentsEnabled || user.callsPaused || user.vapiCredits <= 0) {
+        const cbAllowNeg = await allowsNegativeBalance(prisma, user.id);
+        if (!user.voiceAgentsEnabled || user.callsPaused || (user.vapiCredits <= 0 && !cbAllowNeg)) {
           console.error(`Callback #${callback.id}: User ${user.email} - voiceAgents=${user.voiceAgentsEnabled}, paused=${user.callsPaused}, credits=${user.vapiCredits}`);
           await prisma.scheduledCallback.update({
             where: { id: callback.id },

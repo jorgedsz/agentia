@@ -1,5 +1,6 @@
 const { encrypt, decrypt, mask } = require('../utils/encryption');
 const openaiService = require('../services/openaiService');
+const { allowsNegativeBalance } = require('../utils/negativeBalance');
 
 const getSettings = async (req, res) => {
   try {
@@ -217,7 +218,7 @@ const getVapiPublicKey = async (req, res) => {
         where: { id: req.user.id },
         select: { vapiCredits: true }
       });
-      if (!creditCheck || creditCheck.vapiCredits <= 0) {
+      if ((!creditCheck || creditCheck.vapiCredits <= 0) && !(await allowsNegativeBalance(req.prisma, req.user.id))) {
         return res.status(403).json({
           error: 'Insufficient credits. Please add credits to make calls.',
           code: 'INSUFFICIENT_CREDITS',

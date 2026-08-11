@@ -71,20 +71,20 @@ export default function AccountManagement() {
 
   // Partner Whop modal state
   const [whopTarget, setWhopTarget] = useState(null)
-  const [whopForm, setWhopForm] = useState({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '' })
+  const [whopForm, setWhopForm] = useState({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '', allowNegativeBalance: false })
   const [whopStatus, setWhopStatus] = useState(null)
   const [whopSaving, setWhopSaving] = useState(false)
   const [whopMsg, setWhopMsg] = useState('')
 
   const openWhopModal = async (account) => {
     setWhopTarget(account)
-    setWhopForm({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '' })
+    setWhopForm({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '', allowNegativeBalance: false })
     setWhopStatus(null)
     setWhopMsg('')
     try {
       const { data } = await whopAPI.getPartnerConfig(account.id)
       setWhopStatus(data)
-      setWhopForm(f => ({ ...f, billingMode: data.billingMode || 'platform', companyId: data.companyId || '' }))
+      setWhopForm(f => ({ ...f, billingMode: data.billingMode || 'platform', companyId: data.companyId || '', allowNegativeBalance: !!data.allowNegativeBalance }))
     } catch {
       setWhopMsg('No se pudo cargar la configuración.')
     }
@@ -100,9 +100,10 @@ export default function AccountManagement() {
         companyId: whopForm.companyId,
         apiKey: whopForm.apiKey,           // blank keeps existing
         webhookSecret: whopForm.webhookSecret, // blank keeps existing
+        allowNegativeBalance: !!whopForm.allowNegativeBalance,
       })
       setWhopStatus(data)
-      setWhopForm(f => ({ ...f, billingMode: data.billingMode || f.billingMode, apiKey: '', webhookSecret: '' }))
+      setWhopForm(f => ({ ...f, billingMode: data.billingMode || f.billingMode, allowNegativeBalance: !!data.allowNegativeBalance, apiKey: '', webhookSecret: '' }))
       setWhopMsg('Guardado.')
     } catch (e) {
       setWhopMsg(e.response?.data?.error || 'Error al guardar.')
@@ -1347,6 +1348,20 @@ export default function AccountManagement() {
                   </label>
                 ))}
               </div>
+
+              {/* Allow negative balance — inherited by every account below this partner */}
+              <label className="flex gap-2 p-3 rounded-xl border border-gray-200 dark:border-dark-border cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover">
+                <input
+                  type="checkbox"
+                  checked={!!whopForm.allowNegativeBalance}
+                  onChange={(e) => setWhopForm(f => ({ ...f, allowNegativeBalance: e.target.checked }))}
+                  className="mt-0.5 text-primary-600 focus:ring-primary-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Permitir saldo negativo</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Esta cuenta y todas las que cuelgan de ella podrán seguir haciendo llamadas y enviando mensajes aunque el saldo quede en negativo.</p>
+                </div>
+              </label>
 
               {/* Whop credentials — only for own_whop */}
               {whopForm.billingMode === 'own_whop' && (
