@@ -168,6 +168,7 @@ const createChatbot = async (req, res) => {
         console.log('n8n config found, creating workflow for chatbot:', chatbot.id, 'n8n URL:', n8nConfig.url);
         n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, {
         pgMemoryCredentialId: n8nConfig.pgMemoryCredentialId,
+        openAiCredentialId: n8nConfig.openAiCredentialId,
         chatbotGlobalRules: n8nConfig.chatbotGlobalRules,
         chatbotContextWindowLength: n8nConfig.chatbotContextWindowLength
       });
@@ -278,6 +279,7 @@ const updateChatbot = async (req, res) => {
         console.log('n8n config found, updating workflow for chatbot:', chatbot.id, 'existing n8nWorkflowId:', existingChatbot.n8nWorkflowId);
         n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, {
         pgMemoryCredentialId: n8nConfig.pgMemoryCredentialId,
+        openAiCredentialId: n8nConfig.openAiCredentialId,
         chatbotGlobalRules: n8nConfig.chatbotGlobalRules,
         chatbotContextWindowLength: n8nConfig.chatbotContextWindowLength
       });
@@ -368,6 +370,7 @@ const toggleChatbot = async (req, res) => {
         if (n8nConfig) {
           n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, {
         pgMemoryCredentialId: n8nConfig.pgMemoryCredentialId,
+        openAiCredentialId: n8nConfig.openAiCredentialId,
         chatbotGlobalRules: n8nConfig.chatbotGlobalRules,
         chatbotContextWindowLength: n8nConfig.chatbotContextWindowLength
       });
@@ -779,6 +782,7 @@ const syncWorkflow = async (req, res) => {
 
     n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, {
         pgMemoryCredentialId: n8nConfig.pgMemoryCredentialId,
+        openAiCredentialId: n8nConfig.openAiCredentialId,
         chatbotGlobalRules: n8nConfig.chatbotGlobalRules,
         chatbotContextWindowLength: n8nConfig.chatbotContextWindowLength
       });
@@ -942,6 +946,7 @@ const clearMemory = async (req, res) => {
       }
       n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, {
         pgMemoryCredentialId: n8nConfig.pgMemoryCredentialId,
+        openAiCredentialId: n8nConfig.openAiCredentialId,
         chatbotGlobalRules: n8nConfig.chatbotGlobalRules,
         chatbotContextWindowLength: n8nConfig.chatbotContextWindowLength
       });
@@ -1269,6 +1274,7 @@ const importChatbot = async (req, res) => {
       if (n8nConfig) {
         n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, {
         pgMemoryCredentialId: n8nConfig.pgMemoryCredentialId,
+        openAiCredentialId: n8nConfig.openAiCredentialId,
         chatbotGlobalRules: n8nConfig.chatbotGlobalRules,
         chatbotContextWindowLength: n8nConfig.chatbotContextWindowLength
       });
@@ -1348,6 +1354,7 @@ const deleteChatbot = async (req, res) => {
         if (n8nConfig) {
           n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, {
         pgMemoryCredentialId: n8nConfig.pgMemoryCredentialId,
+        openAiCredentialId: n8nConfig.openAiCredentialId,
         chatbotGlobalRules: n8nConfig.chatbotGlobalRules,
         chatbotContextWindowLength: n8nConfig.chatbotContextWindowLength
       });
@@ -1400,6 +1407,7 @@ const listExecutions = async (req, res) => {
     if (!n8nConfig) return res.status(503).json({ error: 'n8n is not configured' });
     n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, {
         pgMemoryCredentialId: n8nConfig.pgMemoryCredentialId,
+        openAiCredentialId: n8nConfig.openAiCredentialId,
         chatbotGlobalRules: n8nConfig.chatbotGlobalRules,
         chatbotContextWindowLength: n8nConfig.chatbotContextWindowLength
       });
@@ -1437,6 +1445,7 @@ const getExecutionDetail = async (req, res) => {
     if (!n8nConfig) return res.status(503).json({ error: 'n8n is not configured' });
     n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, {
         pgMemoryCredentialId: n8nConfig.pgMemoryCredentialId,
+        openAiCredentialId: n8nConfig.openAiCredentialId,
         chatbotGlobalRules: n8nConfig.chatbotGlobalRules,
         chatbotContextWindowLength: n8nConfig.chatbotContextWindowLength
       });

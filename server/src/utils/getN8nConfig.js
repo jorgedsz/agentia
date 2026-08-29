@@ -14,6 +14,7 @@ async function getN8nConfig(prisma) {
       url: decrypt(settings.n8nUrl),
       apiKey: decrypt(settings.n8nApiKey),
       pgMemoryCredentialId: settings.n8nPostgresMemoryCredentialId || null,
+      openAiCredentialId: settings.n8nOpenAiCredentialId || null,
       chatbotGlobalRules: settings.chatbotGlobalRules || '',
       chatbotContextWindowLength: settings.chatbotContextWindowLength || 10
     };
