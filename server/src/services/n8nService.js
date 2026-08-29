@@ -13,6 +13,10 @@ class N8nService {
     // Set by setConfig from PlatformSettings; falls back to env var for
     // backward compat. When unset, buildWorkflowTemplate uses in-RAM memory.
     this.pgMemoryCredentialId = null;
+    // ID of the shared n8n OpenAI credential every chatbot LLM node points at.
+    // Set by setConfig from PlatformSettings so we can re-point to a new n8n
+    // instance without a code change; falls back to the historical constant.
+    this.openaiCredentialId = null;
     // Platform-wide chatbot defaults loaded from PlatformSettings.
     this.chatbotGlobalRules = '';
     this.chatbotContextWindowLength = 10;
@@ -30,6 +34,7 @@ class N8nService {
     if (pgMemoryCredentialIdOrOptions && typeof pgMemoryCredentialIdOrOptions === 'object') {
       const opts = pgMemoryCredentialIdOrOptions;
       this.pgMemoryCredentialId = opts.pgMemoryCredentialId || process.env.N8N_POSTGRES_MEMORY_CREDENTIAL_ID || null;
+      this.openaiCredentialId = opts.openAiCredentialId || process.env.N8N_OPENAI_CREDENTIAL_ID || null;
       if (typeof opts.chatbotGlobalRules === 'string') this.chatbotGlobalRules = opts.chatbotGlobalRules;
       if (Number.isFinite(opts.chatbotContextWindowLength) && opts.chatbotContextWindowLength > 0) {
         this.chatbotContextWindowLength = Math.floor(opts.chatbotContextWindowLength);
@@ -205,7 +210,7 @@ class N8nService {
     // credential — every chatbot must point at the same n8n OpenAI cred so
     // usage rolls up to one billing account and we don't fan out per-user
     // tokens. For other providers, fall back to first matching type.
-    const FORCED_OPENAI_CRED_ID = 'DMfJhB9w1WWA2zA8';
+    const FORCED_OPENAI_CRED_ID = this.openaiCredentialId || 'DMfJhB9w1WWA2zA8';
     let matchingCred = null;
     if (config.modelProvider === 'openai') {
       matchingCred = n8nCredentials.find(c => String(c.id) === FORCED_OPENAI_CRED_ID)

@@ -268,6 +268,7 @@ const adminResyncChatbotWorkflows = async (req, res) => {
     if (!n8nConfig) return res.status(422).json({ error: 'n8n is not configured' });
     n8nService.setConfig(n8nConfig.url, n8nConfig.apiKey, {
       pgMemoryCredentialId: n8nConfig.pgMemoryCredentialId,
+      openAiCredentialId: n8nConfig.openAiCredentialId,
       chatbotGlobalRules: n8nConfig.chatbotGlobalRules,
       chatbotContextWindowLength: n8nConfig.chatbotContextWindowLength
     });
