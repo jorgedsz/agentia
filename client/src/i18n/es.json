@@ -380,7 +380,10 @@
     "noMessagesYet": "Sin mensajes aún",
     "noMessagesDesc": "Los mensajes aparecerán aquí cuando se usen tus chatbots",
     "showing": "Mostrando",
-    "messages": "mensajes"
+    "messages": "mensajes",
+    "exportCsv": "Exportar CSV",
+    "exporting": "Exportando...",
+    "exportError": "Error al exportar los mensajes"
   },
   "credentials": {
     "title": "Credenciales",

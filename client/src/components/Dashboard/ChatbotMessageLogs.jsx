@@ -90,6 +90,35 @@ export default function ChatbotMessageLogs() {
     }
   }
 
+  const [exporting, setExporting] = useState(false)
+
+  const handleExportCsv = async () => {
+    setExporting(true)
+    setError(null)
+    try {
+      const params = {}
+      if (filters.chatbotId) params.chatbotId = filters.chatbotId
+      if (filters.dateFrom) params.createdAtGt = new Date(filters.dateFrom + 'T00:00:00.000Z').toISOString()
+      if (filters.dateTo) params.createdAtLt = new Date(filters.dateTo + 'T23:59:59.999Z').toISOString()
+      if (filters.search) params.search = filters.search
+
+      const response = await chatbotMessagesAPI.export(params)
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `message-logs-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(t('messageLogs.exportError'))
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const handleNextPage = () => {
     if (!pagination.nextCursor) return
     setCursorStack(prev => [...prev, currentCursor])
@@ -147,16 +176,28 @@ export default function ChatbotMessageLogs() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('messageLogs.title')}</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">{t('messageLogs.subtitle')}</p>
         </div>
-        <button
-          onClick={() => { fetchMessages(); fetchAnalytics(); }}
-          disabled={loading}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2 disabled:opacity-50"
-        >
-          <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          {t('common.refresh')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCsv}
+            disabled={exporting || messages.length === 0}
+            className="px-4 py-2 bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover flex items-center gap-2 disabled:opacity-50"
+          >
+            <svg className={`w-4 h-4 ${exporting ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            {exporting ? t('messageLogs.exporting') : t('messageLogs.exportCsv')}
+          </button>
+          <button
+            onClick={() => { fetchMessages(); fetchAnalytics(); }}
+            disabled={loading}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2 disabled:opacity-50"
+          >
+            <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {t('common.refresh')}
+          </button>
+        </div>
       </div>
 
       {error && (

@@ -117,4 +117,58 @@ const getMessageDetail = async (req, res) => {
   }
 };
 
-module.exports = { listMessages, getMessageAnalytics, getMessageDetail };
+const exportMessages = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { createdAtLt, createdAtGt, chatbotId, search } = req.query;
+
+    const where = { userId };
+    if (chatbotId) where.chatbotId = chatbotId;
+    if (createdAtLt || createdAtGt) {
+      where.createdAt = {};
+      if (createdAtGt) where.createdAt.gte = new Date(createdAtGt);
+      if (createdAtLt) where.createdAt.lte = new Date(createdAtLt);
+    }
+    if (search) {
+      where.OR = [
+        { sessionId: { contains: search, mode: 'insensitive' } },
+        { inputMessage: { contains: search, mode: 'insensitive' } },
+        { contactName: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const messages = await req.prisma.chatbotMessage.findMany({ where, orderBy: { createdAt: 'desc' } });
+
+    const headers = ['Fecha', 'Chatbot', 'Sesión', 'Contacto', 'ID de contacto', 'Mensaje', 'Respuesta', 'Costo', 'Estado', 'Error'];
+    const esc = (v) => {
+      const s = (v === null || v === undefined) ? '' : String(v);
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [headers.map(esc).join(',')];
+    for (const m of messages) {
+      lines.push([
+        m.createdAt.toISOString(),
+        m.chatbotName,
+        m.sessionId,
+        m.contactName,
+        m.contactId,
+        m.inputMessage,
+        m.outputMessage,
+        (m.costCharged || 0).toFixed(4),
+        m.status,
+        m.errorMessage,
+      ].map(esc).join(','));
+    }
+    const csv = '﻿' + lines.join('\r\n'); // BOM so Excel reads UTF-8 correctly
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="message-logs-${stamp}.csv"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Export chatbot messages error:', error);
+    res.status(500).json({ error: 'Failed to export messages' });
+  }
+};
+
+module.exports = { listMessages, getMessageAnalytics, getMessageDetail, exportMessages };

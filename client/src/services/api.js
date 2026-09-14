@@ -389,6 +389,7 @@ export const toolsAPI = {
 export const chatbotMessagesAPI = {
   list: (params) => api.get('/chatbot-messages', { params }),
   getAnalytics: (params) => api.get('/chatbot-messages/analytics', { params }),
+  export: (params) => api.get('/chatbot-messages/export', { params, responseType: 'blob' }),
   get: (id) => api.get(`/chatbot-messages/${id}`)
 }
 
