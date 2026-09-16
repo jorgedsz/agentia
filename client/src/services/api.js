@@ -210,6 +210,9 @@ export const creditsAPI = {
   getAutoRecharge: () => api.get('/credits/auto-recharge'),
   updateAutoRecharge: (data) => api.put('/credits/auto-recharge', data),
   rechargeNow: (amount) => api.post('/credits/recharge-now', { amount }),
+  // Collect from an account's saved card (OWNER, or the partner above it)
+  getCardStatus: (userId) => api.get(`/credits/${userId}/card`),
+  chargeCard: (userId, amount) => api.post(`/credits/${userId}/charge-card`, { amount }),
 }
 
 // Rates API
