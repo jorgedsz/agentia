@@ -729,10 +729,18 @@ model RecurringPayment {
   lastNotifiedForDate  DateTime? // nextPaymentDate value at last notification (dedup)
   lastFailureNotifiedForDate DateTime? // nextPaymentDate value at last FAILURE notification (dedup for overdue alerts)
   status               String    @default("active") // active, paused, cancelled
+  // How each cycle is collected. Fixed when the entry is created: "whop" sends a
+  // checkout link per cycle (money to the platform), "stripe_card" charges the
+  // client's saved card in the governing partner's Stripe. Existing rows stay on
+  // Whop - the provider is never switched under a live entry.
+  provider             String    @default("whop") // whop | stripe_card
   whopProductId        String?
   whopPlanId           String?
   lastCheckoutUrl      String?   // Most recent generated checkout URL
   lastWhopPaymentId    String?   // Last Whop payment matched to this recurring payment
+  lastStripePaymentIntentId String? // Last Stripe charge (pi_...) collected for this entry
+  lastChargeAttemptAt  DateTime? // Last automatic charge attempt — keeps the hourly scheduler from retrying a declined card every hour
+  lastChargeError      String?   // Why the last automatic charge was declined
   notes                String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
