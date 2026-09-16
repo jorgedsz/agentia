@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { authAPI, usersAPI, whopAPI, stripeAPI, creditsAPI, payAPI, phoneSwitchAPI } from '../../services/api'
@@ -777,11 +778,14 @@ export default function AccountManagement() {
                               >
                                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4z" /></svg>
                               </button>
-                              {open && (
+                              {/* Rendered into <body>: inside the table the menu
+                                  paints underneath the next row's buttons, which
+                                  hides its options and swallows the clicks. */}
+                              {open && createPortal(
                                 <>
-                                  <div className="fixed inset-0 z-40" onClick={() => setRowMenu(null)} />
+                                  <div className="fixed inset-0 z-[998]" onClick={() => setRowMenu(null)} />
                                   <div
-                                    className="fixed w-52 z-50 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl shadow-lg py-1 text-left"
+                                    className="fixed w-52 z-[999] bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl shadow-lg py-1 text-left"
                                     style={{ top: rowMenuPos?.top, bottom: rowMenuPos?.bottom, right: rowMenuPos?.right }}
                                   >
                                     {canRole && (
@@ -809,7 +813,8 @@ export default function AccountManagement() {
                                       </button>
                                     )}
                                   </div>
-                                </>
+                                </>,
+                                document.body
                               )}
                             </div>
                           )
