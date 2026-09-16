@@ -11,7 +11,32 @@ const PARTNER_SELECT = {
   id: true, role: true, whitelabelId: true, agencyId: true, billingMode: true,
   whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true,
   whopCreditsProductId: true, whopWebhookToken: true,
+  stripeSecretKey: true, stripePublishableKey: true, stripeWebhookSecret: true,
+  stripeWebhookToken: true,
 };
+
+/**
+ * The partners above a user, nearest first: a CLIENT yields [its agency/whitelabel,
+ * that partner's whitelabel]; an AGENCY yields [its whitelabel]; a WHITELABEL/OWNER
+ * yields []. Used to inherit a partner-wide setting down its whole subtree.
+ */
+async function getAncestorPartners(prisma, user) {
+  const chain = [];
+  const seen = new Set([user.id]);
+  let current = user;
+  // A client hangs off agencyId; an agency hangs off whitelabelId. Follow whichever
+  // link the row has, stopping at the top (or on a cycle / missing row).
+  while (chain.length < 5) {
+    const parentId = current.agencyId || current.whitelabelId;
+    if (!parentId || seen.has(parentId)) break;
+    seen.add(parentId);
+    const parent = await prisma.user.findUnique({ where: { id: parentId }, select: PARTNER_SELECT });
+    if (!parent) break;
+    chain.push(parent);
+    current = parent;
+  }
+  return chain;
+}
 
 /**
  * Resolve the billing mode that governs a user.
@@ -28,6 +53,13 @@ const PARTNER_SELECT = {
 async function getEffectiveBilling(prisma, userId) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: PARTNER_SELECT });
   if (!user) return { mode: 'platform', partner: null };
+
+  // Stripe (own_stripe) governs the partner's ENTIRE subtree - its agencies and
+  // their clients alike - so every payment under that partner lands in its Stripe.
+  // Checked before the Whop rules below, which govern only a partner's direct clients.
+  const ancestors = await getAncestorPartners(prisma, user);
+  const stripePartner = ancestors.find(p => p.billingMode === 'own_stripe');
+  if (stripePartner) return { mode: 'own_stripe', partner: stripePartner };
 
   // Partners (AGENCY / WHITELABEL) and the OWNER always self-serve on the platform.
   if (user.role !== 'CLIENT') return { mode: 'platform', partner: null };
@@ -59,6 +91,12 @@ async function resolveWhopPartner(prisma, userId) {
  */
 async function getWhopConfigForUser(prisma, userId) {
   const { mode, partner } = await getEffectiveBilling(prisma, userId).catch(() => ({ mode: 'platform', partner: null }));
+
+  // Stripe accounts never touch Whop - and must NOT fall through to the platform
+  // Whop below. Callers route these to stripeService via getStripeConfigForUser.
+  if (mode === 'own_stripe') {
+    return { apiKey: null, companyId: null, config: undefined, partner, source: 'stripe', isConfigured: false, mode };
+  }
 
   // Manual billing: no self-service Whop purchases at all.
   if (mode === 'manual') {
@@ -107,6 +145,7 @@ function generateWebhookToken() {
 }
 
 module.exports = {
+  getAncestorPartners,
   getEffectiveBilling,
   resolveWhopPartner,
   getWhopConfigForUser,

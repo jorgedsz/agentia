@@ -61,12 +61,22 @@ model User {
   //   "manual"             — no self-service purchase; the partner loads credit to
   //                          its clients from Manage Billing and settles payment
   //                          with them off-platform.
-  billingMode           String         @default("platform") // platform | own_whop | manual
+  billingMode           String         @default("platform") // platform | own_whop | own_stripe | manual
   whopApiKey            String?        // Encrypted — partner's Whop API key (own_whop)
   whopCompanyId         String?        // Partner's Whop company id (biz_xxx)
   whopWebhookSecret     String?        // Encrypted — partner's Whop webhook signing secret
   whopCreditsProductId  String?        // Cached "Credits" product id created in the partner's company
   whopWebhookToken      String? @unique // Random token for the partner's webhook path (/api/whop/webhook/:token)
+  // ── Stripe (partner-owned processor; billingMode = "own_stripe") ──
+  // Set on the partner: its own Stripe credentials collect the money. Set on any
+  // account: the customer and cards it owns inside the governing partner's Stripe.
+  stripeSecretKey       String?        // Encrypted — partner's Stripe secret key (sk_live_/sk_test_)
+  stripePublishableKey  String?        // Partner's publishable key (pk_...) — public by design
+  stripeWebhookSecret   String?        // Encrypted — partner's Stripe webhook signing secret (whsec_...)
+  stripeWebhookToken    String? @unique // Random token for the partner's webhook path (/api/stripe/webhook/:token)
+  stripeCustomerId      String?        // This account's customer id (cus_...) in the governing partner's Stripe
+  stripePaymentMethodId String?        // Primary saved card (pm_...) for off-session charges
+  stripePaymentMethodIdBackup String?  // Backup card — tried automatically if the primary declines
   whitelabelId      Int?               // If AGENCY, belongs to this whitelabel
   whitelabel        User?              @relation("WhitelabelAgencies", fields: [whitelabelId], references: [id])
   agencies          User[]             @relation("WhitelabelAgencies") // If WHITELABEL, these are their agencies
@@ -640,11 +650,13 @@ model CreditPurchase {
   rawPayload          String?
   whopPaymentId       String?  // Whop payment ID for this credit purchase
   whopPlanId          String?  // Unique one-time Whop plan created for this purchase. The reliable link from the webhook back to this user (metadata isn't propagated by Whop, email may not match).
+  stripePaymentIntentId String? // Stripe PaymentIntent (pi_...) for this purchase — links the webhook back to this row
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   @@index([userId, createdAt])
   @@index([whopPlanId])
+  @@index([stripePaymentIntentId])
 }
 
 model Transaction {

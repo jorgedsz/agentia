@@ -339,6 +339,13 @@ export const whopAPI = {
   setPartnerConfig: (userId, data) => api.put(`/whop/partner/${userId}/config`, data),
 }
 
+// Partner Stripe credentials (OWNER). Stripe is always partner-owned: a partner
+// set to billingMode 'own_stripe' collects every payment in its own subtree.
+export const stripeAPI = {
+  getPartnerConfig: (userId) => api.get(`/stripe/partner/${userId}/config`),
+  setPartnerConfig: (userId, data) => api.put(`/stripe/partner/${userId}/config`, data),
+}
+
 // Phone-switch (OWNER curates which agents an account's number can switch between)
 export const phoneSwitchAPI = {
   adminGetAgents: (userId) => api.get(`/phone-switch/admin/${userId}/agents`),

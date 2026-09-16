@@ -11,10 +11,23 @@ const AUTO_RECHARGE_MAX_FAILS = 3; // consecutive failures before auto-recharge 
 /**
  * Saved cards in priority order: primary first, then backup. Off-session charges
  * try them in this order — if the primary declines, the backup is tried next.
+ * `provider` picks which columns hold the cards: 'whop' (default) or 'stripe'.
  * Returns [{ paymentMethodId, memberId, slot }].
  */
-function getSavedCards(user) {
+function getSavedCards(user, provider = 'whop') {
   const cards = [];
+
+  if (provider === 'stripe') {
+    // Stripe cards are PaymentMethods on the account's customer — no member id.
+    if (user?.stripePaymentMethodId) {
+      cards.push({ paymentMethodId: user.stripePaymentMethodId, memberId: null, slot: 'primary' });
+    }
+    if (user?.stripePaymentMethodIdBackup) {
+      cards.push({ paymentMethodId: user.stripePaymentMethodIdBackup, memberId: null, slot: 'backup' });
+    }
+    return cards;
+  }
+
   if (user?.whopPaymentMethodId) {
     cards.push({ paymentMethodId: user.whopPaymentMethodId, memberId: user.whopMemberId || null, slot: 'primary' });
   }

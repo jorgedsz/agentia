@@ -57,6 +57,7 @@ const googleWorkspaceRoutes = require('./routes/googleWorkspace');
 const trainingRoutes = require('./routes/training');
 const playbookRoutes = require('./routes/playbook');
 const whopRoutes = require('./routes/whop');
+const stripeRoutes = require('./routes/stripe');
 const recurringPaymentRoutes = require('./routes/recurringPayments');
 const messageLogRoutes = require('./routes/messages');
 const phoneSwitchRoutes = require('./routes/phoneSwitch');
@@ -184,6 +185,8 @@ app.use(cors({
 
 // Whop webhook needs raw body BEFORE express.json() parses it
 app.use('/api/whop/webhook', express.raw({ type: 'application/json' }));
+// Same for Stripe: the signature is checked against the exact bytes Stripe sent
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -244,6 +247,7 @@ app.use('/api/google-workspace', googleWorkspaceRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/playbook', playbookRoutes);
 app.use('/api/whop', whopRoutes);
+app.use('/api/stripe', stripeRoutes);
 app.use('/api/recurring-payments', recurringPaymentRoutes);
 
 // ── WhatsApp API endpoints ─────────────────────────────────

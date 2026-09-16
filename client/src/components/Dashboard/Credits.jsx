@@ -124,6 +124,12 @@ export default function Credits() {
     setBuyLoading(true)
     try {
       const { data } = await creditsAPI.purchase(num)
+      // Stripe hands back a hosted checkout URL: leave the app and come back
+      // through the ?checkout=success redirect. Whop renders inside a modal.
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl
+        return
+      }
       if (data.planId) {
         setBuyModalOpen(false)
         // checkoutId is the Whop checkout configuration id (ch_xxx) that carries
@@ -173,6 +179,11 @@ export default function Credits() {
     setError(null)
     try {
       const { data } = await creditsAPI.setupCard(slot)
+      // Stripe vaults the card on its own hosted page; Whop uses the embed.
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl
+        return
+      }
       if (data.sessionId) setSetupModal({ sessionId: data.sessionId })
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to start card setup')
@@ -230,10 +241,13 @@ export default function Credits() {
     setRechargeLoading(true)
     setError(null)
     try {
-      await creditsAPI.rechargeNow(amt)
-      setSuccess('Cobro en proceso. Los créditos aparecerán en breve.')
+      const { data } = await creditsAPI.rechargeNow(amt)
+      // Stripe settles on the spot; Whop confirms a few seconds later by webhook.
+      setSuccess(data?.settled
+        ? 'Pago aprobado. Tus créditos ya están acreditados.'
+        : 'Cobro en proceso. Los créditos aparecerán en breve.')
       setRechargeAmount('')
-      setTimeout(() => fetchCredits(), 3000)
+      setTimeout(() => fetchCredits(), data?.settled ? 500 : 3000)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to charge saved card')
     } finally {
