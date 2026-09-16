@@ -1,0 +1,210 @@
+// The public payment page: a per-client link (and embeddable iframe) where the
+// client sees what they owe, pays it, saves a card and reviews their usage —
+// without an account or a login.
+//
+// It is addressed by `paymentToken`, which is deliberately NOT the read-only
+// portal token: a payment page can be pasted into someone else's website, and
+// that must never expose the call and message history the portal token unlocks.
+
+const crypto = require('crypto');
+const { createCreditCheckout, createCardSetupCheckout, CheckoutError } = require('../services/creditCheckout');
+const { getEffectiveBilling } = require('../utils/whopConfig');
+const { getAncestorPartners } = require('../utils/whopConfig');
+
+const MIN_PAYMENT = 0.5;   // Stripe rejects anything smaller
+const MAX_PAYMENT = 10000;
+
+function clientUrl() {
+  return (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/+$/, '');
+}
+
+async function findByToken(prisma, token) {
+  if (!token) return null;
+  return prisma.user.findFirst({ where: { paymentToken: token } });
+}
+
+/**
+ * Everything the page renders: who it belongs to, what is owed, whether a card
+ * is saved, and the recent usage behind the balance. No email, no history.
+ * GET /api/pay/:token
+ */
+const getBilling = async (req, res) => {
+  try {
+    const user = await findByToken(req.prisma, req.params.token);
+    if (!user) return res.status(404).json({ error: 'Payment page not found' });
+
+    const { mode } = await getEffectiveBilling(req.prisma, user.id).catch(() => ({ mode: 'platform' }));
+    const isStripe = mode === 'own_stripe';
+
+    // Branding comes from the partner above the account, so the page looks like
+    // the provider the client actually deals with.
+    const ancestors = await getAncestorPartners(req.prisma, user).catch(() => []);
+    let brand = null;
+    for (const a of ancestors) {
+      const partner = await req.prisma.user.findUnique({
+        where: { id: a.id },
+        select: { companyName: true, companyLogo: true, creditsLabel: true },
+      });
+      if (partner?.companyName || partner?.companyLogo) { brand = partner; break; }
+    }
+
+    // Usage behind the balance: the last 30 days of calls and messages.
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [calls, messages] = await Promise.all([
+      req.prisma.callLog.aggregate({
+        where: { userId: user.id, createdAt: { gte: since } },
+        _count: true,
+        _sum: { costCharged: true, durationSeconds: true },
+      }).catch(() => null),
+      req.prisma.chatbotMessage.aggregate({
+        where: { userId: user.id, createdAt: { gte: since }, isTest: false },
+        _count: true,
+        _sum: { costCharged: true },
+      }).catch(() => null),
+    ]);
+
+    res.json({
+      account: {
+        name: user.companyName || user.name || 'Tu cuenta',
+        creditsLabel: brand?.creditsLabel || user.creditsLabel || 'Créditos',
+      },
+      brand: { companyName: brand?.companyName || null, companyLogo: brand?.companyLogo || null },
+      balance: Math.round(user.vapiCredits * 100) / 100,
+      outstanding: user.vapiCredits < 0 ? Math.round(-user.vapiCredits * 100) / 100 : 0,
+      hasCard: !!(isStripe ? user.stripePaymentMethodId : user.whopPaymentMethodId),
+      // Manual accounts are billed by their provider off-platform: no self-service.
+      canPay: mode !== 'manual',
+      usage: {
+        days: 30,
+        calls: { count: calls?._count || 0, cost: Math.round((calls?._sum?.costCharged || 0) * 100) / 100, minutes: Math.round((calls?._sum?.durationSeconds || 0) / 60) },
+        messages: { count: messages?._count || 0, cost: Math.round((messages?._sum?.costCharged || 0) * 100) / 100 },
+      },
+      min: MIN_PAYMENT,
+      max: MAX_PAYMENT,
+    });
+  } catch (error) {
+    console.error('Payment portal read error:', error.message);
+    res.status(500).json({ error: 'Failed to load the payment page' });
+  }
+};
+
+/**
+ * Start a payment for the amount the client chose.
+ * POST /api/pay/:token/checkout  Body: { amount }
+ */
+const startCheckout = async (req, res) => {
+  try {
+    const user = await findByToken(req.prisma, req.params.token);
+    if (!user) return res.status(404).json({ error: 'Payment page not found' });
+
+    const amount = Math.round(parseFloat(req.body?.amount) * 100) / 100;
+    if (!Number.isFinite(amount) || amount < MIN_PAYMENT || amount > MAX_PAYMENT) {
+      return res.status(400).json({ error: `El monto debe estar entre $${MIN_PAYMENT} y $${MAX_PAYMENT}.` });
+    }
+
+    const back = `${clientUrl()}/pay/${req.params.token}`;
+    const result = await createCreditCheckout(req.prisma, user.id, amount, {
+      successUrl: `${back}?pago=ok`,
+      cancelUrl: `${back}?pago=cancelado`,
+    });
+    res.json(result);
+  } catch (error) {
+    if (error instanceof CheckoutError) return res.status(error.status).json({ error: error.message });
+    console.error('Payment portal checkout error:', error.response?.data || error.message);
+    res.status(500).json({ error: 'No se pudo iniciar el pago' });
+  }
+};
+
+/**
+ * Save a card from the payment page (no charge), so future balances can be
+ * collected without chasing the client.
+ * POST /api/pay/:token/save-card
+ */
+const startCardSetup = async (req, res) => {
+  try {
+    const user = await findByToken(req.prisma, req.params.token);
+    if (!user) return res.status(404).json({ error: 'Payment page not found' });
+
+    const back = `${clientUrl()}/pay/${req.params.token}`;
+    const result = await createCardSetupCheckout(req.prisma, user.id, 'primary', {
+      successUrl: `${back}?tarjeta=ok`,
+      cancelUrl: `${back}?tarjeta=cancelado`,
+    });
+    res.json(result);
+  } catch (error) {
+    if (error instanceof CheckoutError) return res.status(error.status).json({ error: error.message });
+    console.error('Payment portal card setup error:', error.response?.data || error.message);
+    res.status(500).json({ error: 'No se pudo iniciar el guardado de la tarjeta' });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────
+// Admin: hand out (or rotate) an account's payment link
+// ──────────────────────────────────────────────────────────────────────────
+
+/** The OWNER may issue a link for anyone; a partner only inside its subtree. */
+async function canIssueFor(prisma, requester, target) {
+  if (!requester || !target) return false;
+  if (requester.role === 'OWNER') return true;
+  if (requester.role !== 'AGENCY' && requester.role !== 'WHITELABEL') return false;
+  const ancestors = await getAncestorPartners(prisma, target);
+  return ancestors.some((a) => a.id === requester.id);
+}
+
+function linksFor(token) {
+  const base = clientUrl();
+  const url = `${base}/pay/${token}`;
+  return {
+    token,
+    url,
+    // Ready to paste into any site. The height fits the page without scrolling.
+    embed: `<iframe src="${url}?embed=1" width="100%" height="620" style="border:0;max-width:520px" title="Pagar"></iframe>`,
+  };
+}
+
+/**
+ * GET /api/pay/admin/:userId/link — the current link, if any.
+ * POST /api/pay/admin/:userId/link — create it, or rotate it with { rotate: true },
+ * which immediately kills the old link and any embed still using it.
+ */
+const getLink = async (req, res) => {
+  try {
+    const target = await req.prisma.user.findUnique({ where: { id: parseInt(req.params.userId) } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!(await canIssueFor(req.prisma, req.user, target))) {
+      return res.status(403).json({ error: 'You cannot issue a payment link for this account.' });
+    }
+    res.json(target.paymentToken ? linksFor(target.paymentToken) : { token: null, url: null, embed: null });
+  } catch (error) {
+    console.error('Payment link read error:', error.message);
+    res.status(500).json({ error: 'Failed to read the payment link' });
+  }
+};
+
+const createLink = async (req, res) => {
+  try {
+    const target = await req.prisma.user.findUnique({ where: { id: parseInt(req.params.userId) } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!(await canIssueFor(req.prisma, req.user, target))) {
+      return res.status(403).json({ error: 'You cannot issue a payment link for this account.' });
+    }
+
+    let token = target.paymentToken;
+    if (!token || req.body?.rotate) {
+      token = crypto.randomBytes(24).toString('hex');
+      await req.prisma.user.update({ where: { id: target.id }, data: { paymentToken: token } });
+    }
+    res.json(linksFor(token));
+  } catch (error) {
+    console.error('Payment link create error:', error.message);
+    res.status(500).json({ error: 'Failed to create the payment link' });
+  }
+};
+
+module.exports = {
+  getBilling,
+  startCheckout,
+  startCardSetup,
+  getLink,
+  createLink,
+};

@@ -58,6 +58,7 @@ const trainingRoutes = require('./routes/training');
 const playbookRoutes = require('./routes/playbook');
 const whopRoutes = require('./routes/whop');
 const stripeRoutes = require('./routes/stripe');
+const paymentPortalRoutes = require('./routes/paymentPortal');
 const recurringPaymentRoutes = require('./routes/recurringPayments');
 const messageLogRoutes = require('./routes/messages');
 const phoneSwitchRoutes = require('./routes/phoneSwitch');
@@ -167,7 +168,13 @@ app.use(helmet({
 // Allow iframe embedding from the marketing website
 app.use((req, res, next) => {
   const websiteUrl = process.env.WEBSITE_URL || 'https://swordaisolutions.com';
-  res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${websiteUrl}`);
+  // The per-client payment page is meant to be embedded in whatever site the
+  // client runs, so it carries no frame-ancestors restriction. It exposes only a
+  // balance and a pay button behind a token of its own — never the portal data.
+  const isPaymentPage = req.path.startsWith('/pay/') || req.path.startsWith('/api/pay/');
+  res.setHeader('Content-Security-Policy', isPaymentPage
+    ? "frame-ancestors *"
+    : `frame-ancestors 'self' ${websiteUrl}`);
   next();
 });
 
@@ -248,6 +255,7 @@ app.use('/api/training', trainingRoutes);
 app.use('/api/playbook', playbookRoutes);
 app.use('/api/whop', whopRoutes);
 app.use('/api/stripe', stripeRoutes);
+app.use('/api/pay', paymentPortalRoutes);
 app.use('/api/recurring-payments', recurringPaymentRoutes);
 
 // ── WhatsApp API endpoints ─────────────────────────────────

@@ -57,9 +57,14 @@ async function getEffectiveBilling(prisma, userId) {
   // Stripe (own_stripe) governs the partner's ENTIRE subtree - its agencies and
   // their clients alike - so every payment under that partner lands in its Stripe.
   // Checked before the Whop rules below, which govern only a partner's direct clients.
+  // Walk from the nearest partner upward: the closest provider that made an
+  // explicit choice wins. An agency set to manual or to its own Whop is not
+  // overridden by a Stripe partner further up - its own rule governs its clients.
   const ancestors = await getAncestorPartners(prisma, user);
-  const stripePartner = ancestors.find(p => p.billingMode === 'own_stripe');
-  if (stripePartner) return { mode: 'own_stripe', partner: stripePartner };
+  for (const partner of ancestors) {
+    if (partner.billingMode === 'own_stripe') return { mode: 'own_stripe', partner };
+    if (partner.billingMode === 'manual' || partner.billingMode === 'own_whop') break;
+  }
 
   // Partners (AGENCY / WHITELABEL) and the OWNER always self-serve on the platform.
   if (user.role !== 'CLIENT') return { mode: 'platform', partner: null };
