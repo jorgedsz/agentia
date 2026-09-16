@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { authAPI, usersAPI, whopAPI, stripeAPI, phoneSwitchAPI } from '../../services/api'
+import { authAPI, usersAPI, whopAPI, stripeAPI, creditsAPI, phoneSwitchAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -342,8 +342,50 @@ export default function AccountManagement() {
   })
 
   // Billing modal handlers
+  // Collecting an outstanding balance from the account's saved card.
+  const [cardStatus, setCardStatus] = useState(null)
+  const [chargeAmount, setChargeAmount] = useState('')
+  const [charging, setCharging] = useState(false)
+
+  const loadCardStatus = async (userId) => {
+    setCardStatus(null)
+    setChargeAmount('')
+    try {
+      const { data } = await creditsAPI.getCardStatus(userId)
+      setCardStatus(data)
+      // Default to what the account owes; the amount stays editable.
+      if (data.outstanding > 0) setChargeAmount(String(data.outstanding))
+    } catch {
+      // No permission or endpoint unavailable — the section just stays hidden.
+    }
+  }
+
+  const chargeSavedCard = async () => {
+    const amount = parseFloat(chargeAmount)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Ingresa el monto a cobrar.')
+      return
+    }
+    if (!confirm(`¿Cobrar $${amount.toFixed(2)} a la tarjeta guardada de ${editingUser.email}?`)) return
+    setCharging(true)
+    setError('')
+    setSuccess('')
+    try {
+      const { data } = await creditsAPI.chargeCard(editingUser.id, amount)
+      setSuccess(data.message)
+      setEditingUser(u => ({ ...u, vapiCredits: data.balance }))
+      loadCardStatus(editingUser.id)
+      fetchAccounts()
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo cobrar la tarjeta')
+    } finally {
+      setCharging(false)
+    }
+  }
+
   const openBillingModal = (targetUser) => {
     setEditingUser(targetUser)
+    loadCardStatus(targetUser.id)
     setBillingForm({
       credits: '',
       creditOperation: 'add',
@@ -847,6 +889,54 @@ export default function AccountManagement() {
             {success && (
               <div className="mb-4 bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm">
                 {success}
+              </div>
+            )}
+
+            {/* Collect from the saved card — settles what the account has run up */}
+            {cardStatus && cardStatus.provider !== 'manual' && (
+              <div className="mb-4 p-4 rounded-lg border border-gray-200 dark:border-dark-border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Cobrar con tarjeta guardada</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${cardStatus.hasCard ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-dark-hover dark:text-gray-400'}`}>
+                    {cardStatus.hasCard ? `tarjeta en ${cardStatus.provider === 'stripe' ? 'Stripe' : 'Whop'}` : 'sin tarjeta'}
+                  </span>
+                </div>
+
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  {cardStatus.outstanding > 0
+                    ? `Esta cuenta acumula $${cardStatus.outstanding.toFixed(2)} sin pagar. El cobro suma ese monto en créditos, así que el saldo vuelve a cero.`
+                    : 'La cuenta no debe nada. Puedes cobrar igual el monto que indiques; entra como saldo a favor.'}
+                </p>
+
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={cardStatus.min}
+                      value={chargeAmount}
+                      onChange={(e) => setChargeAmount(e.target.value)}
+                      placeholder="0.00"
+                      disabled={!cardStatus.hasCard}
+                      className="w-full pl-7 pr-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={chargeSavedCard}
+                    disabled={charging || !cardStatus.hasCard}
+                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {charging ? 'Cobrando…' : 'Cobrar'}
+                  </button>
+                </div>
+
+                {!cardStatus.hasCard && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                    El cliente tiene que guardar una tarjeta desde su panel de créditos antes de que puedas cobrarle.
+                  </p>
+                )}
               </div>
             )}
 

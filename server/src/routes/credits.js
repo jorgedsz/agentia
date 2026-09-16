@@ -15,6 +15,8 @@ const {
   getUsageByAgentExternal,
   getCallsExternal,
   getMessagesExternal,
+  getCardStatus,
+  chargeCardForUser,
 } = require('../controllers/creditsController');
 
 // Public, API-key-authenticated (clientId + apiKey) reads for external systems.
@@ -40,6 +42,10 @@ router.delete('/card', removeCard);
 router.get('/auto-recharge', getAutoRecharge);
 router.put('/auto-recharge', updateAutoRecharge);
 router.post('/recharge-now', rechargeNow);
+
+// Collect from an account's saved card (OWNER, or the partner above it)
+router.get('/:userId/card', getCardStatus);
+router.post('/:userId/charge-card', chargeCardForUser);
 
 // Get credits for a specific user
 router.get('/:userId', getCredits);

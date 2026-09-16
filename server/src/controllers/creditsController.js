@@ -2,6 +2,7 @@ const { AUTO_RECHARGE_MAX_FAILS, extractDeclineReason } = require('../utils/auto
 const { getWhopConfigForUser, getEffectiveBilling } = require('../utils/whopConfig');
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 const { settleCreditPurchase } = require('../utils/creditSettlement');
+const { logAudit } = require('../utils/auditLog');
 const { decrypt } = require('../utils/encryption');
 const { decryptPHI } = require('../utils/phiEncryption');
 
@@ -448,6 +449,126 @@ const updateCredits = async (req, res) => {
   } catch (error) {
     console.error('Error updating credits:', error);
     res.status(500).json({ error: 'Failed to update credits' });
+  }
+};
+
+// Stripe refuses anything under $0.50, and a charge below that costs more in
+// fees than it collects. Used for settling a balance, which is often small.
+const CHARGE_MIN_AMOUNT = 0.5;
+
+/**
+ * May this requester collect from that account? The OWNER may collect from
+ * anyone; a partner only from the accounts inside its own subtree.
+ */
+async function canCollectFrom(prisma, requester, target) {
+  if (!requester || !target || requester.id === target.id) return false;
+  if (requester.role === 'OWNER') return true;
+  if (requester.role !== 'AGENCY' && requester.role !== 'WHITELABEL') return false;
+  const { getAncestorPartners } = require('../utils/whopConfig');
+  const ancestors = await getAncestorPartners(prisma, target);
+  return ancestors.some((a) => a.id === requester.id);
+}
+
+/**
+ * What could be collected from this account, and whether there is a card to
+ * collect it with.
+ * GET /api/credits/:userId/card
+ */
+const getCardStatus = async (req, res) => {
+  try {
+    const target = await req.prisma.user.findUnique({ where: { id: parseInt(req.params.userId) } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!(await canCollectFrom(req.prisma, req.user, target))) {
+      return res.status(403).json({ error: 'You cannot collect from this account.' });
+    }
+
+    const { mode } = await getEffectiveBilling(req.prisma, target.id).catch(() => ({ mode: 'platform' }));
+    const isStripe = mode === 'own_stripe';
+
+    res.json({
+      balance: target.vapiCredits,
+      // What the account owes: the balance below zero, nothing when in credit.
+      outstanding: target.vapiCredits < 0 ? Math.round(-target.vapiCredits * 100) / 100 : 0,
+      hasCard: !!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId),
+      hasBackupCard: !!(isStripe ? target.stripePaymentMethodIdBackup : target.whopPaymentMethodIdBackup),
+      provider: isStripe ? 'stripe' : mode,
+      min: CHARGE_MIN_AMOUNT,
+      max: CREDITS_MAX_AMOUNT,
+    });
+  } catch (error) {
+    console.error('Error reading card status:', error.message);
+    res.status(500).json({ error: 'Failed to read card status' });
+  }
+};
+
+/**
+ * Charge an account's saved card for an amount the requester chooses — normally
+ * the balance it has run up. The charge adds the same amount in credits, so
+ * collecting a $50 debt returns the account to zero.
+ * POST /api/credits/:userId/charge-card  Body: { amount }
+ */
+const chargeCardForUser = async (req, res) => {
+  try {
+    const target = await req.prisma.user.findUnique({ where: { id: parseInt(req.params.userId) } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!(await canCollectFrom(req.prisma, req.user, target))) {
+      return res.status(403).json({ error: 'You cannot collect from this account.' });
+    }
+
+    const amount = Math.round(parseFloat(req.body?.amount) * 100) / 100;
+    if (!Number.isFinite(amount) || amount < CHARGE_MIN_AMOUNT || amount > CREDITS_MAX_AMOUNT) {
+      return res.status(400).json({ error: `El monto debe estar entre $${CHARGE_MIN_AMOUNT} y $${CREDITS_MAX_AMOUNT}.` });
+    }
+
+    const { mode } = await getEffectiveBilling(req.prisma, target.id).catch(() => ({ mode: 'platform' }));
+    if (mode === 'manual') {
+      return res.status(400).json({ error: 'Esta cuenta está en carga manual de saldo: no tiene tarjeta que cobrar.' });
+    }
+    const isStripe = mode === 'own_stripe';
+    if (!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId)) {
+      return res.status(400).json({ error: 'La cuenta no tiene una tarjeta guardada. El cliente debe agregarla desde su panel.' });
+    }
+
+    let result;
+    try {
+      result = await performOffSessionCharge(req.prisma, target, amount, 'manual_card');
+    } catch (err) {
+      const reason = extractDeclineReason(err);
+      console.error(`[Credits] Collection of $${amount} from user ${target.id} failed:`, reason);
+      return res.status(400).json({ error: reason });
+    }
+
+    // Stripe settles synchronously, so the balance is already updated; Whop
+    // reports back by webhook a few seconds later.
+    const settled = isStripe && result?.status === 'succeeded';
+    const fresh = await req.prisma.user.findUnique({
+      where: { id: target.id },
+      select: { vapiCredits: true },
+    });
+
+    logAudit(req.prisma, {
+      userId: target.id,
+      actorId: req.user.id,
+      actorType: 'user',
+      action: 'credits.charge_card',
+      resourceType: 'user',
+      resourceId: String(target.id),
+      details: { amount, provider: isStripe ? 'stripe' : 'whop', settled },
+      req,
+    });
+
+    res.json({
+      success: true,
+      amount,
+      settled,
+      balance: fresh?.vapiCredits ?? target.vapiCredits,
+      message: settled
+        ? 'Cobro aprobado. El saldo de la cuenta ya quedó actualizado.'
+        : 'Cobro enviado. El saldo se actualizará al confirmarse el pago.',
+    });
+  } catch (error) {
+    console.error('Error charging saved card:', error.message);
+    res.status(500).json({ error: 'Failed to charge the saved card' });
   }
 };
 
@@ -1186,6 +1307,8 @@ const rechargeNow = async (req, res) => {
 module.exports = {
   getCredits,
   updateCredits,
+  getCardStatus,
+  chargeCardForUser,
   listCredits,
   purchaseCredits,
   setupCard,
