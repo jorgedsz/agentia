@@ -657,6 +657,7 @@
     "confirmRechargeBtn": "Charge ${amount}",
     "autoRechargeSaved": "Auto-recharge updated.",
     "rechargeProcessing": "Payment processing. Credits will appear shortly.",
+    "rechargeDone": "Payment approved. Your credits have been added.",
     "creditAmount": "Amount (USD)",
     "minCreditAmount": "Allowed amount",
     "creditsLabel": "credits",

@@ -657,6 +657,7 @@
     "confirmRechargeBtn": "Cobrar ${amount}",
     "autoRechargeSaved": "Auto-recarga actualizada.",
     "rechargeProcessing": "Cobro en proceso. Los créditos aparecerán en breve.",
+    "rechargeDone": "Pago aprobado. Tus créditos ya están acreditados.",
     "creditAmount": "Monto (USD)",
     "minCreditAmount": "Monto permitido",
     "creditsLabel": "créditos",
