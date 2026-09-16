@@ -147,6 +147,37 @@ export default function AccountManagement() {
 
   // Per-row overflow menu (keeps the actions column from overflowing off-screen)
   const [rowMenu, setRowMenu] = useState(null)
+  // Where to draw the open menu, in viewport coordinates. The dropdown sits inside
+  // the table's scroll container, which clips anything drawn past its edges — so it
+  // is positioned fixed, floating above the table instead of being cut off.
+  const [rowMenuPos, setRowMenuPos] = useState(null)
+
+  const openRowMenu = (event, accountId) => {
+    if (rowMenu === accountId) { setRowMenu(null); return }
+    const rect = event.currentTarget.getBoundingClientRect()
+    const MENU_HEIGHT = 190 // four items plus padding
+    const roomBelow = window.innerHeight - rect.bottom
+    setRowMenuPos({
+      right: Math.max(8, window.innerWidth - rect.right),
+      // Flip upward for the last rows, where there is no room underneath.
+      ...(roomBelow < MENU_HEIGHT
+        ? { bottom: window.innerHeight - rect.top + 4 }
+        : { top: rect.bottom + 4 }),
+    })
+    setRowMenu(accountId)
+  }
+
+  // A fixed menu doesn't travel with the page, so close it if anything moves.
+  useEffect(() => {
+    if (rowMenu === null) return
+    const close = () => setRowMenu(null)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [rowMenu])
 
   // Phone-switch: OWNER curates which of an account's agents its number can switch to
   const [psTarget, setPsTarget] = useState(null)
@@ -658,7 +689,7 @@ export default function AccountManagement() {
                           return (
                             <div className="relative" data-row-menu>
                               <button
-                                onClick={() => setRowMenu(open ? null : account.id)}
+                                onClick={(e) => openRowMenu(e, account.id)}
                                 className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
                                 title="Más acciones"
                               >
@@ -667,7 +698,10 @@ export default function AccountManagement() {
                               {open && (
                                 <>
                                   <div className="fixed inset-0 z-40" onClick={() => setRowMenu(null)} />
-                                  <div className="absolute right-0 mt-1 w-52 z-50 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl shadow-lg py-1 text-left">
+                                  <div
+                                    className="fixed w-52 z-50 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl shadow-lg py-1 text-left"
+                                    style={{ top: rowMenuPos?.top, bottom: rowMenuPos?.bottom, right: rowMenuPos?.right }}
+                                  >
                                     {canRole && (
                                       <button onClick={() => { setRowMenu(null); openRoleModal(account) }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-hover">
