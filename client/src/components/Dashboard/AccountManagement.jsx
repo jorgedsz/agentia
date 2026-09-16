@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { authAPI, usersAPI, whopAPI, phoneSwitchAPI } from '../../services/api'
+import { authAPI, usersAPI, whopAPI, stripeAPI, phoneSwitchAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -76,17 +76,31 @@ export default function AccountManagement() {
   const [whopSaving, setWhopSaving] = useState(false)
   const [whopMsg, setWhopMsg] = useState('')
 
+  // Stripe credentials for the same partner (billingMode 'own_stripe'). Unlike
+  // Whop, Stripe applies to the partner's WHOLE subtree, agencies included.
+  const [stripeForm, setStripeForm] = useState({ secretKey: '', publishableKey: '', webhookSecret: '' })
+  const [stripeStatus, setStripeStatus] = useState(null)
+
   const openWhopModal = async (account) => {
     setWhopTarget(account)
     setWhopForm({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '', allowNegativeBalance: false })
     setWhopStatus(null)
     setWhopMsg('')
+    setStripeForm({ secretKey: '', publishableKey: '', webhookSecret: '' })
+    setStripeStatus(null)
     try {
       const { data } = await whopAPI.getPartnerConfig(account.id)
       setWhopStatus(data)
       setWhopForm(f => ({ ...f, billingMode: data.billingMode || 'platform', companyId: data.companyId || '', allowNegativeBalance: !!data.allowNegativeBalance }))
     } catch {
       setWhopMsg('No se pudo cargar la configuración.')
+    }
+    try {
+      const { data } = await stripeAPI.getPartnerConfig(account.id)
+      setStripeStatus(data)
+      setStripeForm(f => ({ ...f, publishableKey: data.publishableKey || '' }))
+    } catch {
+      // Stripe never configured for this partner — the form starts empty.
     }
   }
 
@@ -95,6 +109,25 @@ export default function AccountManagement() {
     setWhopSaving(true)
     setWhopMsg('')
     try {
+      // Stripe keys and the switch to own_stripe live on the Stripe endpoint, which
+      // refuses the switch until a working secret key is stored.
+      if (whopForm.billingMode === 'own_stripe' || stripeForm.secretKey || stripeForm.webhookSecret) {
+        const { data: sData } = await stripeAPI.setPartnerConfig(whopTarget.id, {
+          billingMode: whopForm.billingMode,
+          secretKey: stripeForm.secretKey,         // blank keeps existing
+          publishableKey: stripeForm.publishableKey,
+          webhookSecret: stripeForm.webhookSecret, // blank keeps existing
+        })
+        setStripeStatus(sData)
+        setStripeForm(f => ({ ...f, secretKey: '', webhookSecret: '' }))
+      }
+      if (whopForm.billingMode === 'own_stripe') {
+        // Negative balance is stored on the same row but only the Whop endpoint writes it.
+        await whopAPI.setPartnerConfig(whopTarget.id, { allowNegativeBalance: !!whopForm.allowNegativeBalance })
+        setWhopMsg('Guardado.')
+        setWhopSaving(false)
+        return
+      }
       const { data } = await whopAPI.setPartnerConfig(whopTarget.id, {
         billingMode: whopForm.billingMode,
         companyId: whopForm.companyId,
@@ -1336,6 +1369,7 @@ export default function AccountManagement() {
                 {[
                   { value: 'platform', title: 'Whop de la plataforma', desc: 'Los clientes del partner pagan por tu Whop global (tú recibes el dinero).' },
                   { value: 'own_whop', title: 'Su propio Whop', desc: 'Los clientes del partner pagan por el Whop del partner — el dinero le llega directo a él.' },
+                  { value: 'own_stripe', title: 'Su propio Stripe', desc: 'Todo lo que cuelga del partner — sus agencias y los clientes de esas agencias — paga por el Stripe del partner. El dinero le llega directo a él.' },
                   { value: 'manual', title: 'Carga manual de saldo', desc: 'Los clientes del partner no compran solos: el partner les carga crédito desde "Gestionar" y arregla el pago con ellos por fuera.' },
                 ].map(opt => (
                   <label key={opt.value} className={`flex gap-2 p-3 rounded-xl border cursor-pointer transition-colors ${whopForm.billingMode === opt.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}>
@@ -1402,6 +1436,60 @@ export default function AccountManagement() {
                       <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-1">Pégala en Whop → Developer → Webhooks, y suscribe payment.succeeded, payment.failed y setup_intent.succeeded.</p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Stripe credentials — only for own_stripe */}
+              {whopForm.billingMode === 'own_stripe' && (
+                <div className="space-y-4 border-t border-gray-100 dark:border-dark-border pt-4">
+                  <div className={`px-3 py-2 rounded-lg text-xs font-medium ${stripeStatus?.configured ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+                    {stripeStatus?.configured
+                      ? '✓ Stripe del partner configurado — los cobros van a su cuenta'
+                      : 'Falta configurar Stripe (clave secreta + secreto del webhook).'}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                      Clave secreta (sk_...) {stripeStatus?.hasSecretKey && <span className="text-green-600 dark:text-green-400 normal-case">· ya guardada (deja en blanco para conservarla)</span>}
+                    </label>
+                    <input type="password" value={stripeForm.secretKey} onChange={(e) => setStripeForm(f => ({ ...f, secretKey: e.target.value }))}
+                      placeholder={stripeStatus?.hasSecretKey ? '•••••••• (sin cambios)' : 'sk_live_... o sk_test_...'} autoComplete="new-password"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Se valida contra Stripe al guardar: si la clave no sirve, no se guarda.</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Clave publicable (pk_...)</label>
+                    <input type="text" value={stripeForm.publishableKey} onChange={(e) => setStripeForm(f => ({ ...f, publishableKey: e.target.value }))}
+                      placeholder="pk_live_... (opcional)"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                      Secreto del webhook (whsec_...) {stripeStatus?.hasWebhookSecret && <span className="text-green-600 dark:text-green-400 normal-case">· ya guardado</span>}
+                    </label>
+                    <input type="password" value={stripeForm.webhookSecret} onChange={(e) => setStripeForm(f => ({ ...f, webhookSecret: e.target.value }))}
+                      placeholder={stripeStatus?.hasWebhookSecret ? '•••••••• (sin cambios)' : 'whsec_...'} autoComplete="new-password"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                  </div>
+
+                  {stripeStatus?.webhookUrl && (
+                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                      <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">URL de webhook para el panel de Stripe de este partner:</p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 text-xs break-all text-blue-700 dark:text-blue-300">{stripeStatus.webhookUrl}</code>
+                        <button onClick={() => navigator.clipboard.writeText(stripeStatus.webhookUrl)} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex-shrink-0">Copiar</button>
+                      </div>
+                      <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-1">
+                        Pégala en Stripe → Developers → Webhooks y suscribe: {(stripeStatus.requiredEvents || []).join(', ')}. El secreto que Stripe te dé ahí va en el campo de arriba.
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                    Las tarjetas guardadas en Whop no se pueden trasladar a Stripe: al cambiar de modo, las cuentas con auto-recarga tendrán que volver a cargar su tarjeta.
+                  </p>
                 </div>
               )}
 
