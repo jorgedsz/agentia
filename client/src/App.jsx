@@ -17,6 +17,7 @@ import CallLogs from './components/Dashboard/CallLogs'
 import ChatbotMessageLogs from './components/Dashboard/ChatbotMessageLogs'
 import RatesSettings from './components/Dashboard/RatesSettings'
 import AllUsers from './components/Dashboard/AllUsers'
+import PaymentPortalPage from './components/Public/PaymentPortalPage'
 import AccountManagement from './components/Dashboard/AccountManagement'
 import VoiceLibrary from './components/Dashboard/VoiceLibrary'
 import Analytics from './components/Dashboard/Analytics'
@@ -133,6 +134,7 @@ function App() {
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/demo" element={<DemoPage />} />
+        <Route path="/pay/:token" element={<PaymentPortalPage />} />
         <Route path="/portal/:token" element={<ClientPortalPage />} />
         <Route path="/portal/:token/sessions/:sessionId" element={<SessionPortalPage />} />
         <Route path="/portal/:token/messages/:sessionId" element={<MessagePortalPage />} />

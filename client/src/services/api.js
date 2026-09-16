@@ -514,4 +514,15 @@ export const portalAPI = {
   generateToken: (clientId) => api.post(`/portal/generate/${clientId}`),
 }
 
+// Public payment page (per-client link / embed). Uses the interceptor-free
+// instance: nobody is logged in there, and a 401 must not bounce to /login.
+export const payAPI = {
+  getBilling: (token) => portalAxios.get(`/pay/${token}`),
+  checkout: (token, amount) => portalAxios.post(`/pay/${token}/checkout`, { amount }),
+  saveCard: (token) => portalAxios.post(`/pay/${token}/save-card`),
+  // Admin side (authenticated): issue or rotate an account's link.
+  getLink: (userId) => api.get(`/pay/admin/${userId}/link`),
+  createLink: (userId, rotate = false) => api.post(`/pay/admin/${userId}/link`, { rotate }),
+}
+
 export default api

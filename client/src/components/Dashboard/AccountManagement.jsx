@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { authAPI, usersAPI, whopAPI, stripeAPI, creditsAPI, phoneSwitchAPI } from '../../services/api'
+import { authAPI, usersAPI, whopAPI, stripeAPI, creditsAPI, payAPI, phoneSwitchAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -383,9 +383,49 @@ export default function AccountManagement() {
     }
   }
 
+  // Public payment link / embed for this account.
+  const [payLink, setPayLink] = useState(null)
+  const [payLinkBusy, setPayLinkBusy] = useState(false)
+  const [copied, setCopied] = useState('')
+
+  const loadPayLink = async (userId) => {
+    setPayLink(null)
+    try {
+      const { data } = await payAPI.getLink(userId)
+      setPayLink(data)
+    } catch {
+      // No permission for this account — the section stays hidden.
+    }
+  }
+
+  const issuePayLink = async (rotate = false) => {
+    if (rotate && !confirm('Al regenerar, el enlace anterior deja de funcionar de inmediato, incluido cualquier iframe ya publicado. ¿Continuar?')) return
+    setPayLinkBusy(true)
+    try {
+      const { data } = await payAPI.createLink(editingUser.id, rotate)
+      setPayLink(data)
+      setSuccess(rotate ? 'Enlace regenerado.' : 'Enlace de pago creado.')
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo crear el enlace de pago')
+    } finally {
+      setPayLinkBusy(false)
+    }
+  }
+
+  const copyToClipboard = async (text, what) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(what)
+      setTimeout(() => setCopied(''), 1500)
+    } catch {
+      setError('No se pudo copiar. Selecciona el texto y cópialo a mano.')
+    }
+  }
+
   const openBillingModal = (targetUser) => {
     setEditingUser(targetUser)
     loadCardStatus(targetUser.id)
+    loadPayLink(targetUser.id)
     setBillingForm({
       credits: '',
       creditOperation: 'add',
@@ -936,6 +976,66 @@ export default function AccountManagement() {
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
                     El cliente tiene que guardar una tarjeta desde su panel de créditos antes de que puedas cobrarle.
                   </p>
+                )}
+              </div>
+            )}
+
+            {/* Public payment link — the client pays without logging in, and the
+                same page can be embedded in their own site. */}
+            {payLink && (
+              <div className="mb-4 p-4 rounded-lg border border-gray-200 dark:border-dark-border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Enlace de pago del cliente</span>
+                  {payLink.token && (
+                    <button type="button" onClick={() => issuePayLink(true)} disabled={payLinkBusy}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline disabled:opacity-50">
+                      Regenerar
+                    </button>
+                  )}
+                </div>
+
+                {!payLink.token ? (
+                  <>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                      Crea una página donde este cliente ve lo que debe y paga sin entrar a la plataforma. Sirve como enlace y como iframe para su propio sitio.
+                    </p>
+                    <button type="button" onClick={() => issuePayLink(false)} disabled={payLinkBusy}
+                      className="px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                      {payLinkBusy ? 'Creando…' : 'Crear enlace de pago'}
+                    </button>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Enlace directo</label>
+                      <div className="flex gap-2">
+                        <input readOnly value={payLink.url}
+                          onFocus={(e) => e.target.select()}
+                          className="flex-1 px-3 py-2 text-xs bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300" />
+                        <button type="button" onClick={() => copyToClipboard(payLink.url, 'url')}
+                          className="px-3 py-2 text-xs bg-gray-800 dark:bg-dark-hover text-white rounded-lg hover:opacity-90">
+                          {copied === 'url' ? '¡Copiado!' : 'Copiar'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Código para incrustar en otro sitio</label>
+                      <div className="flex gap-2">
+                        <textarea readOnly value={payLink.embed} rows={2}
+                          onFocus={(e) => e.target.select()}
+                          className="flex-1 px-3 py-2 text-xs font-mono bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300" />
+                        <button type="button" onClick={() => copyToClipboard(payLink.embed, 'embed')}
+                          className="px-3 py-2 text-xs bg-gray-800 dark:bg-dark-hover text-white rounded-lg hover:opacity-90 self-start">
+                          {copied === 'embed' ? '¡Copiado!' : 'Copiar'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                      Quien tenga el enlace puede ver el saldo de esta cuenta y pagarlo. No da acceso a llamadas, mensajes ni al panel.
+                    </p>
+                  </div>
                 )}
               </div>
             )}

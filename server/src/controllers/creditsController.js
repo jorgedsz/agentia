@@ -3,6 +3,7 @@ const { getWhopConfigForUser, getEffectiveBilling } = require('../utils/whopConf
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 const { settleCreditPurchase } = require('../utils/creditSettlement');
 const { logAudit } = require('../utils/auditLog');
+const { createCreditCheckout, createCardSetupCheckout, CheckoutError } = require('../services/creditCheckout');
 const { decrypt } = require('../utils/encryption');
 const { decryptPHI } = require('../utils/phiEncryption');
 
@@ -663,132 +664,19 @@ const purchaseCredits = async (req, res) => {
       return res.status(400).json({ error: `Amount must be between $${CREDITS_MIN_AMOUNT} and $${CREDITS_MAX_AMOUNT}.` });
     }
 
-    // Accounts under a partner billing through Stripe check out in that partner's
-    // Stripe account; everyone else follows the Whop path below.
-    const stripe = await getStripeConfigForUser(req.prisma, req.user.id);
-    if (stripe.mode === 'own_stripe') {
-      if (!stripe.isConfigured) {
-        return res.status(400).json({ error: 'Payment processing is not configured' });
-      }
-      const stripeService = require('../services/stripeService');
-      const user = await req.prisma.user.findUnique({ where: { id: req.user.id } });
-      const customerId = await stripeService.ensureCustomer(req.prisma, user, stripe.secretKey);
-
-      // The pending row is created BEFORE the checkout so its id can ride along in
-      // the session metadata - that id is how the webhook finds the buyer. Stripe
-      // propagates metadata (Whop does not), so no one-time-plan trick is needed.
-      const purchase = await req.prisma.creditPurchase.create({
-        data: { userId: req.user.id, amount, credits: amount, status: 'pending', kind: 'manual' },
-      });
-
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-      const session = await stripeService.createPaymentCheckout({
-        customerId,
-        amount,
-        productName: `Credits ($${amount})`,
-        metadata: {
-          userId: String(req.user.id),
-          type: 'credits',
-          purchaseId: String(purchase.id),
-          credits: String(amount),
-        },
-        successUrl: `${clientUrl}/credits?checkout=success`,
-        cancelUrl: `${clientUrl}/credits?checkout=cancelled`,
-        saveCard: true,
-      }, stripe.secretKey);
-
-      if (session.payment_intent) {
-        await req.prisma.creditPurchase.update({
-          where: { id: purchase.id },
-          data: { stripePaymentIntentId: session.payment_intent },
-        }).catch(() => {});
-      }
-
-      return res.json({ provider: 'stripe', checkoutUrl: session.url, purchaseId: purchase.id, amount });
-    }
-
-    // Route to the user's partner Whop (LM Consulting, etc.) when configured, so
-    // the money lands in the partner's account; otherwise the platform's global Whop.
-    const whop = await getWhopConfigForUser(req.prisma, req.user.id);
-    if (whop.mode === 'manual') {
-      return res.status(403).json({ error: MANUAL_BILLING_MSG });
-    }
-    if (!whop.isConfigured) {
-      return res.status(400).json({ error: 'Payment processing is not configured' });
-    }
-
-    const whopService = require('../services/whopService');
-
-    // Resolve the "Credits" product for this billing account. Partners keep their
-    // own credits product in their own Whop company (cached on the partner user);
-    // the platform uses the shared Product row.
-    let creditsProductId;
-    if (whop.source === 'partner') {
-      creditsProductId = whop.partner.whopCreditsProductId;
-      if (!creditsProductId) {
-        const whopProduct = await whopService.createProduct('Credits', 'VAPI call credits', whop.config);
-        creditsProductId = whopProduct.id;
-        await req.prisma.user.update({
-          where: { id: whop.partner.id },
-          data: { whopCreditsProductId: creditsProductId },
-        });
-      }
-    } else {
-      let creditsProduct = await req.prisma.product.findUnique({ where: { slug: 'credits' } });
-      if (!creditsProduct) {
-        creditsProduct = await req.prisma.product.create({
-          data: { name: 'Credits', slug: 'credits', description: 'VAPI call credits', isActive: true, sortOrder: 999 },
-        });
-      }
-      if (!creditsProduct.whopProductId) {
-        const whopProduct = await whopService.createProduct('Credits', 'VAPI call credits', whop.config);
-        creditsProduct = await req.prisma.product.update({
-          where: { id: creditsProduct.id },
-          data: { whopProductId: whopProduct.id },
-        });
-      }
-      creditsProductId = creditsProduct.whopProductId;
-    }
-
-    // Create a one-time Whop plan for this exact amount, then the checkout.
-    const plan = await whopService.createPlan(creditsProductId, {
-      price: amount,
-      billingCycle: 'lifetime',
-      name: `Credits ($${amount})`,
-    }, whop.config);
-
+    // Where the money goes — the partner's Stripe, the partner's Whop, or the
+    // platform's — is decided inside createCreditCheckout, which the public
+    // payment page uses as well so both routes bill identically.
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-    const session = await whopService.createCheckoutSession({
-      planId: plan.id,
-      metadata: {
-        userId: String(req.user.id),
-        type: 'credits',
-        credits: String(amount),
-      },
-      redirectUrl: `${clientUrl}/credits?checkout=success`,
-    }, whop.config);
-
-    // Record a PENDING purchase keyed by the unique one-time plan id. This is the
-    // reliable link back to the buyer: Whop doesn't propagate checkout metadata to
-    // webhooks and the payer's email may differ from their app account, but the
-    // plan id we just created always appears in the payment webhook as data.plan.id.
-    await req.prisma.creditPurchase.create({
-      data: {
-        userId: req.user.id,
-        amount,
-        credits: amount,
-        status: 'pending',
-        whopPlanId: plan.id,
-      },
-    }).catch((err) => console.error('[Credits] Failed to create pending purchase:', err.message));
-
-    res.json({
-      checkoutId: session.id,
-      planId: plan.id,
-      purchaseUrl: session.purchase_url,
-      amount,
+    const result = await createCreditCheckout(req.prisma, req.user.id, amount, {
+      successUrl: `${clientUrl}/credits?checkout=success`,
+      cancelUrl: `${clientUrl}/credits?checkout=cancelled`,
     });
+    res.json(result);
   } catch (error) {
+    if (error instanceof CheckoutError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     console.error('Error purchasing credits:', error.response?.data || error.message);
     res.status(500).json({ error: 'Failed to create checkout session' });
   }
@@ -1064,45 +952,16 @@ function startAutoRechargeScheduler(prisma) {
  */
 const setupCard = async (req, res) => {
   try {
-    // Stripe accounts vault the card in the partner's Stripe via a setup-mode
-    // Checkout Session; the card id arrives on the checkout.session.completed webhook.
-    const stripe = await getStripeConfigForUser(req.prisma, req.user.id);
-    if (stripe.mode === 'own_stripe') {
-      if (!stripe.isConfigured) {
-        return res.status(400).json({ error: 'Payment processing is not configured' });
-      }
-      const requestedSlot = req.body?.slot === 'backup' ? 'backup' : 'primary';
-      const stripeService = require('../services/stripeService');
-      const user = await req.prisma.user.findUnique({ where: { id: req.user.id } });
-      const customerId = await stripeService.ensureCustomer(req.prisma, user, stripe.secretKey);
-      const url = process.env.CLIENT_URL || 'http://localhost:5173';
-      const session = await stripeService.createSetupCheckout({
-        customerId,
-        metadata: { userId: String(req.user.id), type: 'setup', slot: requestedSlot },
-        successUrl: `${url}/credits?setup=success`,
-        cancelUrl: `${url}/credits?setup=cancelled`,
-      }, stripe.secretKey);
-      return res.json({ provider: 'stripe', checkoutUrl: session.url });
-    }
-
-    const whop = await getWhopConfigForUser(req.prisma, req.user.id);
-    if (whop.mode === 'manual') {
-      return res.status(403).json({ error: MANUAL_BILLING_MSG });
-    }
-    if (!whop.isConfigured) {
-      return res.status(400).json({ error: 'Payment processing is not configured' });
-    }
-    // Which slot this card fills: 'primary' (default) or 'backup'. The
-    // setup_intent webhook reads this to store the card in the right slot.
-    const slot = req.body?.slot === 'backup' ? 'backup' : 'primary';
-    const whopService = require('../services/whopService');
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-    const session = await whopService.createSetupCheckout({
-      metadata: { userId: String(req.user.id), type: 'setup', slot },
-      redirectUrl: `${clientUrl}/credits?setup=success`,
-    }, whop.config);
-    res.json({ sessionId: session.id, purchaseUrl: session.purchase_url });
+    const result = await createCardSetupCheckout(req.prisma, req.user.id, req.body?.slot, {
+      successUrl: `${clientUrl}/credits?setup=success`,
+      cancelUrl: `${clientUrl}/credits?setup=cancelled`,
+    });
+    res.json(result);
   } catch (error) {
+    if (error instanceof CheckoutError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     console.error('Error creating setup checkout:', error.response?.data || error.message);
     res.status(500).json({ error: 'Failed to start card setup' });
   }

@@ -39,6 +39,7 @@ model User {
   planType           String?            // CLIENT only: "DIY", "DFY", "Partnership"
   planPrice          Float?             // Monthly plan price for any account type
   portalToken        String?           @unique // Shareable read-only portal token
+  paymentToken       String?           @unique // Token for the public payment page (/pay/:token). Separate from portalToken on purpose: the payment page can be embedded in someone else's site and must not expose call or message history.
   whopCustomerId    String?            // Whop customer/user ID
   // ── Auto-recharge (Whop off-session charges) ──
   whopMemberId          String?        // Whop member id (mber_xxx). Optional — setup-mode checkout may not create a member.
