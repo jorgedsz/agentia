@@ -194,6 +194,19 @@ export default function Payments() {
     }
   }
 
+  // Saved-card entries can be collected on the spot instead of waiting for the
+  // nightly sweep — useful after the client fixes a declined card.
+  const chargeRecurringNow = async (item) => {
+    if (!confirm(`Charge ${item.user?.email}'s saved card $${item.amount} now?`)) return
+    try {
+      await recurringPaymentsAPI.chargeNow(item.id)
+      setSuccess('Card charged. The cycle moved to the next date.')
+      fetchRecurringPayments()
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to charge the saved card')
+    }
+  }
+
   const deleteRecurring = async (item) => {
     if (!confirm(`Delete recurring payment for ${item.user?.email}? This does not cancel the Whop plan.`)) return
     try {
@@ -766,10 +779,18 @@ export default function Payments() {
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${item.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : item.status === 'paused' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                           {item.status}
                         </span>
+                        {item.provider === 'stripe_card' && (
+                          <span className="block mt-1 text-[11px] text-gray-500 dark:text-gray-400" title={item.lastChargeError || 'The saved card is charged automatically each cycle'}>
+                            {item.lastChargeError ? '💳 card declined' : '💳 auto-charged'}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1 justify-end flex-wrap">
                           <button onClick={() => fireRecurringNotification(item)} className="px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-gray-300" title="Send notification now">Send</button>
+                          {item.provider === 'stripe_card' && (
+                            <button onClick={() => chargeRecurringNow(item)} className="px-2 py-1 text-xs border border-primary-300 dark:border-primary-800 text-primary-700 dark:text-primary-400 rounded hover:bg-primary-50 dark:hover:bg-primary-900/20" title="Charge the saved card now">Charge</button>
+                          )}
                           <button onClick={() => markRecurringPaid(item)} className="px-2 py-1 text-xs border border-green-300 dark:border-green-800 text-green-700 dark:text-green-400 rounded hover:bg-green-50 dark:hover:bg-green-900/20">Mark paid</button>
                           <button onClick={() => toggleRecurringStatus(item)} className="px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-gray-300">{item.status === 'active' ? 'Pause' : 'Resume'}</button>
                           <button onClick={() => openEditRecurring(item)} className="px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-gray-300">Edit</button>

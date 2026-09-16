@@ -385,6 +385,7 @@ export const recurringPaymentsAPI = {
   remove: (id) => api.delete(`/recurring-payments/${id}`),
   markPaid: (id) => api.post(`/recurring-payments/${id}/mark-paid`),
   fireNow: (id) => api.post(`/recurring-payments/${id}/fire-now`),
+  chargeNow: (id) => api.post(`/recurring-payments/${id}/charge-now`),
 }
 
 // Tools API (test HTTP requests via proxy)
