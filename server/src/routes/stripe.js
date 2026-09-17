@@ -16,4 +16,7 @@ router.use(authMiddleware);
 router.get('/partner/:userId/config', requireRole(ROLES.OWNER), stripeController.getPartnerStripeConfig);
 router.put('/partner/:userId/config', requireRole(ROLES.OWNER), stripeController.setPartnerStripeConfig);
 
+// OWNER: credit a Stripe payment whose webhook never landed.
+router.post('/reconcile', requireRole(ROLES.OWNER), stripeController.reconcilePayment);
+
 module.exports = router;

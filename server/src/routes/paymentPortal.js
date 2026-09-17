@@ -12,5 +12,6 @@ router.post('/admin/:userId/link', authMiddleware, controller.createLink);
 router.get('/:token', controller.getBilling);
 router.post('/:token/checkout', controller.startCheckout);
 router.post('/:token/save-card', controller.startCardSetup);
+router.post('/:token/confirm', controller.confirmPayment);
 
 module.exports = router;

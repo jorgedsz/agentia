@@ -347,6 +347,8 @@ export const whopAPI = {
 export const stripeAPI = {
   getPartnerConfig: (userId) => api.get(`/stripe/partner/${userId}/config`),
   setPartnerConfig: (userId, data) => api.put(`/stripe/partner/${userId}/config`, data),
+  // Credit a Stripe payment whose webhook never landed (OWNER).
+  reconcile: (userId, paymentIntentId) => api.post('/stripe/reconcile', { userId, paymentIntentId }),
 }
 
 // Phone-switch (OWNER curates which agents an account's number can switch between)
@@ -520,6 +522,7 @@ export const payAPI = {
   getBilling: (token) => portalAxios.get(`/pay/${token}`),
   checkout: (token, amount) => portalAxios.post(`/pay/${token}/checkout`, { amount }),
   saveCard: (token) => portalAxios.post(`/pay/${token}/save-card`),
+  confirm: (token, sessionId) => portalAxios.post(`/pay/${token}/confirm`, { sessionId }),
   // Admin side (authenticated): issue or rotate an account's link.
   getLink: (userId) => api.get(`/pay/admin/${userId}/link`),
   createLink: (userId, rotate = false) => api.post(`/pay/admin/${userId}/link`, { rotate }),
