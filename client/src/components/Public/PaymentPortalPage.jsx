@@ -33,6 +33,22 @@ export default function PaymentPortalPage() {
 
   useEffect(() => { load() }, [token])
 
+  // The tab title and icon default to the platform's own brand (index.html).
+  // A client paying their provider must only ever see that provider's brand.
+  useEffect(() => {
+    if (!data) return
+    const name = data.brand?.companyName
+    document.title = name ? `Pagar · ${name}` : 'Pagar'
+    let icon = document.querySelector("link[rel~='icon']")
+    if (!icon) {
+      icon = document.createElement('link')
+      icon.rel = 'icon'
+      document.head.appendChild(icon)
+    }
+    if (data.brand?.companyLogo) icon.href = data.brand.companyLogo
+    else icon.removeAttribute('href')
+  }, [data])
+
   // From an embed the checkout opens in another tab; when the client comes back
   // to this one, refresh so the balance they see reflects what they just paid.
   useEffect(() => {
