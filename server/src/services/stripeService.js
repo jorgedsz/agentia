@@ -53,20 +53,35 @@ async function createPaymentCheckout({ customerId, amount, productName, descript
       price_data: {
         currency: 'usd',
         unit_amount: toCents(amount),
-        product_data: { name: productName, ...(description ? { description } : {}) },
+        product_data: { name: productName },
       },
     }],
     metadata: metadata || {},
     payment_intent_data: {
       // Vault the card from this purchase so auto-recharge can reuse it later.
       ...(saveCard ? { setup_future_usage: 'off_session' } : {}),
+      // Without a description the Stripe dashboard lists the payment by its
+      // raw pi_... id, which tells whoever reconciles it nothing.
+      ...(description ? { description } : {}),
       // Metadata on the PaymentIntent too: the payment_intent.succeeded webhook
       // reads it without having to look the session up.
       metadata: metadata || {},
     },
-    success_url: successUrl,
+    success_url: withSessionId(successUrl),
     cancel_url: cancelUrl,
   });
+}
+
+// Stripe substitutes the literal {CHECKOUT_SESSION_ID} on redirect. Carrying the
+// session id back lets the return page confirm the payment itself instead of
+// depending entirely on the webhook arriving.
+function withSessionId(url) {
+  if (!url || url.includes('{CHECKOUT_SESSION_ID}')) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}session_id={CHECKOUT_SESSION_ID}`;
+}
+
+async function getCheckoutSession(sessionId, secretKey) {
+  return client(secretKey).checkout.sessions.retrieve(sessionId);
 }
 
 // ── Checkout: recurring subscription (monthly/quarterly/annual products) ──
@@ -191,6 +206,8 @@ module.exports = {
   detachPaymentMethod,
   getSetupIntent,
   getPaymentIntent,
+  getCheckoutSession,
+  withSessionId,
   cancelSubscription,
   constructEvent,
   verifyCredentials,

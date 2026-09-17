@@ -47,6 +47,7 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
       customerId,
       amount,
       productName: `Credits ($${amount})`,
+      description: `Créditos $${amount} · ${user.companyName || user.name || user.email}`,
       metadata: {
         userId: String(userId),
         type: 'credits',
@@ -165,9 +166,82 @@ async function createCardSetupCheckout(prisma, userId, slot, { successUrl, cance
   return { sessionId: session.id, purchaseUrl: session.purchase_url };
 }
 
+/**
+ * Confirm a Stripe checkout from the return redirect, without waiting for the
+ * webhook. The session id in the URL is only a pointer: the session is fetched
+ * from Stripe with the partner's own key, and must belong to this account and be
+ * paid. Settling is idempotent, so the webhook arriving before or after this
+ * never credits twice.
+ * Returns { paid, credited, alreadySettled }.
+ */
+async function confirmStripeCheckout(prisma, userId, sessionId) {
+  if (!/^cs_(test|live)_/.test(sessionId || '')) throw new CheckoutError('Invalid checkout session');
+
+  const stripe = await getStripeConfigForUser(prisma, userId);
+  if (stripe.mode !== 'own_stripe' || !stripe.isConfigured) {
+    throw new CheckoutError('Stripe is not configured for this account');
+  }
+
+  const stripeService = require('./stripeService');
+  const session = await stripeService.getCheckoutSession(sessionId, stripe.secretKey);
+  const meta = session.metadata || {};
+  if (meta.userId !== String(userId) || meta.type !== 'credits') {
+    throw new CheckoutError('This payment does not belong to this account', 403);
+  }
+  if (session.payment_status !== 'paid') return { paid: false, credited: false, alreadySettled: false };
+
+  const purchase = await prisma.creditPurchase.findUnique({ where: { id: parseInt(meta.purchaseId) } });
+  if (!purchase || purchase.userId !== userId) throw new CheckoutError('Purchase not found', 404);
+
+  const { settleCreditPurchase } = require('../utils/creditSettlement');
+  const credited = await settleCreditPurchase(prisma, purchase, {
+    paymentIntentId: session.payment_intent || undefined,
+    payload: session,
+  });
+  return { paid: true, credited, alreadySettled: !credited };
+}
+
+/**
+ * Credit a payment Stripe collected but the app never recorded — typically one
+ * whose webhook failed to deliver. The PaymentIntent is read from the account's
+ * Stripe, must have succeeded and belong to the account, and must carry the
+ * purchase it paid for. Idempotent: an already-credited payment is left alone.
+ * Returns { credited, alreadySettled, amount }.
+ */
+async function reconcileStripePayment(prisma, userId, paymentIntentId) {
+  if (!/^pi_/.test(paymentIntentId || '')) throw new CheckoutError('That is not a Stripe payment id (pi_...)');
+
+  const stripe = await getStripeConfigForUser(prisma, userId);
+  if (stripe.mode !== 'own_stripe' || !stripe.isConfigured) {
+    throw new CheckoutError('Stripe is not configured for this account');
+  }
+
+  const stripeService = require('./stripeService');
+  const intent = await stripeService.getPaymentIntent(paymentIntentId, stripe.secretKey);
+  const meta = intent.metadata || {};
+  if (meta.userId !== String(userId)) {
+    throw new CheckoutError('This payment does not belong to this account', 403);
+  }
+  if (intent.status !== 'succeeded') {
+    throw new CheckoutError(`The payment has not completed (status: ${intent.status})`);
+  }
+  if (!meta.purchaseId) {
+    throw new CheckoutError('This payment was not a credit purchase made through the app, so there is nothing to credit');
+  }
+
+  const purchase = await prisma.creditPurchase.findUnique({ where: { id: parseInt(meta.purchaseId) } });
+  if (!purchase || purchase.userId !== userId) throw new CheckoutError('Purchase not found', 404);
+
+  const { settleCreditPurchase } = require('../utils/creditSettlement');
+  const credited = await settleCreditPurchase(prisma, purchase, { paymentIntentId: intent.id, payload: intent });
+  return { credited, alreadySettled: !credited, amount: purchase.credits };
+}
+
 module.exports = {
   CheckoutError,
   MANUAL_BILLING_MSG,
   createCreditCheckout,
   createCardSetupCheckout,
+  confirmStripeCheckout,
+  reconcileStripePayment,
 };

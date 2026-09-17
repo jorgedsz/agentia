@@ -7,7 +7,7 @@
 // that must never expose the call and message history the portal token unlocks.
 
 const crypto = require('crypto');
-const { createCreditCheckout, createCardSetupCheckout, CheckoutError } = require('../services/creditCheckout');
+const { createCreditCheckout, createCardSetupCheckout, confirmStripeCheckout, CheckoutError } = require('../services/creditCheckout');
 const { getEffectiveBilling } = require('../utils/whopConfig');
 const { getAncestorPartners } = require('../utils/whopConfig');
 
@@ -138,6 +138,26 @@ const startCardSetup = async (req, res) => {
   }
 };
 
+/**
+ * The client came back from Stripe: confirm the payment straight away instead of
+ * waiting for the webhook, so the balance on the page is already right.
+ * POST /api/pay/:token/confirm  Body: { sessionId }
+ */
+const confirmPayment = async (req, res) => {
+  try {
+    const user = await findByToken(req.prisma, req.params.token);
+    if (!user) return res.status(404).json({ error: 'Payment page not found' });
+
+    const result = await confirmStripeCheckout(req.prisma, user.id, req.body?.sessionId);
+    const fresh = await req.prisma.user.findUnique({ where: { id: user.id }, select: { vapiCredits: true } });
+    res.json({ ...result, balance: Math.round((fresh?.vapiCredits ?? 0) * 100) / 100 });
+  } catch (error) {
+    if (error instanceof CheckoutError) return res.status(error.status).json({ error: error.message });
+    console.error('Payment portal confirm error:', error.response?.data || error.message);
+    res.status(500).json({ error: 'No se pudo confirmar el pago' });
+  }
+};
+
 // ──────────────────────────────────────────────────────────────────────────
 // Admin: hand out (or rotate) an account's payment link
 // ──────────────────────────────────────────────────────────────────────────
@@ -205,6 +225,7 @@ module.exports = {
   getBilling,
   startCheckout,
   startCardSetup,
+  confirmPayment,
   getLink,
   createLink,
 };

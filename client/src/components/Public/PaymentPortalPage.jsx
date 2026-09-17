@@ -33,12 +33,29 @@ export default function PaymentPortalPage() {
 
   useEffect(() => { load() }, [token])
 
-  // Coming back from the payment provider. The balance takes a moment on Whop,
-  // so the page reloads its data instead of trusting the redirect alone.
+  // From an embed the checkout opens in another tab; when the client comes back
+  // to this one, refresh so the balance they see reflects what they just paid.
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') load() }
+    document.addEventListener('visibilitychange', refresh)
+    return () => document.removeEventListener('visibilitychange', refresh)
+  }, [token])
+
+  // Coming back from the payment provider. Stripe returns the session id, which
+  // the server verifies with Stripe and credits on the spot — the balance never
+  // depends on the webhook alone. Whop has no session to verify, so it just waits.
   useEffect(() => {
     if (searchParams.get('pago') === 'ok') {
-      setNotice('¡Pago recibido! Tu saldo se actualiza en unos segundos.')
-      setTimeout(load, 2500)
+      const sessionId = searchParams.get('session_id')
+      setNotice('Confirmando tu pago…')
+      const confirmation = sessionId
+        ? payAPI.confirm(token, sessionId).then(({ data }) => data.paid
+            ? '¡Pago recibido! Tu saldo ya está actualizado.'
+            : 'Tu pago está en proceso. El saldo se actualizará en unos minutos.')
+        : new Promise((resolve) => setTimeout(() => resolve('¡Pago recibido! Tu saldo se actualiza en unos segundos.'), 2500))
+      confirmation
+        .catch(() => 'Recibimos tu pago. El saldo puede tardar unos minutos en reflejarse.')
+        .then((message) => { setNotice(message); load() })
     }
     if (searchParams.get('tarjeta') === 'ok') setNotice('Tarjeta guardada correctamente.')
   }, [searchParams])

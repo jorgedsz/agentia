@@ -4,6 +4,8 @@ const { generateWebhookToken } = require('../utils/whopConfig');
 const { getPartnerByStripeWebhookToken } = require('../utils/stripeConfig');
 const { recordAutoRechargeFailure, extractDeclineReason } = require('../utils/autoRecharge');
 const { settleCreditPurchase } = require('../utils/creditSettlement');
+const { reconcileStripePayment, CheckoutError } = require('../services/creditCheckout');
+const { logAudit } = require('../utils/auditLog');
 
 function partnerWebhookUrl(token) {
   if (!token) return null;
@@ -301,9 +303,51 @@ const handleWebhook = async (req, res) => {
   }
 };
 
+// ──────────────────────────────────────────────────────────────────────────
+// OWNER: credit a payment Stripe collected but the app never recorded
+// ──────────────────────────────────────────────────────────────────────────
+
+// POST /api/stripe/reconcile  Body: { userId, paymentIntentId }
+// For a payment whose webhook never landed: the money is in Stripe, the balance
+// never moved. Safe to run twice — an already-credited payment is left alone.
+const reconcilePayment = async (req, res) => {
+  try {
+    const userId = parseInt(req.body?.userId);
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    const paymentIntentId = String(req.body?.paymentIntentId || '').trim();
+
+    const result = await reconcileStripePayment(req.prisma, userId, paymentIntentId);
+    const fresh = await req.prisma.user.findUnique({ where: { id: userId }, select: { vapiCredits: true } });
+
+    if (result.credited) {
+      logAudit(req.prisma, {
+        userId,
+        actorId: req.user.id,
+        actorType: 'user',
+        action: 'credits.reconcile_stripe_payment',
+        resourceType: 'user',
+        resourceId: String(userId),
+        details: { paymentIntentId, amount: result.amount },
+        req,
+      });
+    }
+
+    res.json({ ...result, balance: fresh?.vapiCredits ?? null });
+  } catch (error) {
+    if (error instanceof CheckoutError) return res.status(error.status).json({ error: error.message });
+    // Stripe answers an unknown id (or one from another account) with this type.
+    if (error.type === 'StripeInvalidRequestError') {
+      return res.status(404).json({ error: `Stripe does not know that payment in this account's Stripe: ${error.message}` });
+    }
+    console.error('reconcilePayment error:', error.message);
+    res.status(500).json({ error: 'Failed to reconcile the payment' });
+  }
+};
+
 module.exports = {
   getPartnerStripeConfig,
   setPartnerStripeConfig,
   handleWebhook,
+  reconcilePayment,
   REQUIRED_EVENTS,
 };
