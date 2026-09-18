@@ -895,8 +895,10 @@ export default function AccountManagement() {
       {/* Billing Modal */}
       {editingUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-6">
+          {/* Capped at the window height: this modal grew long (collection, payment
+              link, features, sections, plan, receipts) and used to run off-screen. */}
+          <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border w-full max-w-md mx-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {t('common.manageBilling')}
               </h3>
@@ -909,6 +911,9 @@ export default function AccountManagement() {
                 </svg>
               </button>
             </div>
+
+            {/* Only this middle part scrolls; header and buttons stay put. */}
+            <div className="flex-1 overflow-y-auto px-6 pb-4">
 
             {/* User info */}
             <div className="mb-6 p-4 bg-gray-50 dark:bg-dark-hover rounded-lg">
@@ -1047,7 +1052,7 @@ export default function AccountManagement() {
               </div>
             )}
 
-            <form onSubmit={handleBillingSubmit} className="space-y-4">
+            <form id="account-billing-form" onSubmit={handleBillingSubmit} className="space-y-4">
               {/* Credits Section */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1274,31 +1279,35 @@ export default function AccountManagement() {
                 </p>
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={closeBillingModal}
-                  className="flex-1 px-4 py-2 border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {saving ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      {t('common.saving')}
-                    </>
-                  ) : (
-                    t('common.saveChanges')
-                  )}
-                </button>
-              </div>
             </form>
+            </div>
+
+            {/* Pinned to the bottom, so Save is one click away no matter how far
+                down the form the reader is. */}
+            <div className="flex gap-3 px-6 py-4 border-t border-gray-200 dark:border-dark-border shrink-0">
+              <button
+                type="button"
+                onClick={closeBillingModal}
+                className="flex-1 px-4 py-2 border border-gray-200 dark:border-dark-border text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="submit"
+                form="account-billing-form"
+                disabled={saving}
+                className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {saving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    {t('common.saving')}
+                  </>
+                ) : (
+                  t('common.saveChanges')
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
