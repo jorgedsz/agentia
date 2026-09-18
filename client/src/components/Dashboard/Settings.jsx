@@ -2963,6 +2963,9 @@ function WebhooksTab() {
   const [hasAccountWebhook, setHasAccountWebhook] = useState(false)
   const [maskedUrl, setMaskedUrl] = useState('')
   const [recurringWebhookUrl, setRecurringWebhookUrl] = useState('')
+  const [reportWebhookUrl, setReportWebhookUrl] = useState('')
+  const [hasReportWebhook, setHasReportWebhook] = useState(false)
+  const [reportMaskedUrl, setReportMaskedUrl] = useState('')
   const [hasRecurringWebhook, setHasRecurringWebhook] = useState(false)
   const [recurringMaskedUrl, setRecurringMaskedUrl] = useState('')
   const [failureWebhookUrl, setFailureWebhookUrl] = useState('')
@@ -2982,6 +2985,8 @@ function WebhooksTab() {
       setMaskedUrl(data.accountWebhookUrl || '')
       setHasRecurringWebhook(data.hasRecurringPaymentWebhook)
       setRecurringMaskedUrl(data.recurringPaymentWebhookUrl || '')
+      setHasReportWebhook(data.hasPaymentReportWebhook)
+      setReportMaskedUrl(data.paymentReportWebhookUrl || '')
       setHasFailureWebhook(data.hasFailureWebhook)
       setFailureMaskedUrl(data.failureWebhookUrl || '')
     } catch (err) {
@@ -3035,6 +3040,8 @@ function WebhooksTab() {
       const { data } = await platformSettingsAPI.update({ recurringPaymentWebhookUrl: recurringWebhookUrl })
       setHasRecurringWebhook(data.hasRecurringPaymentWebhook)
       setRecurringMaskedUrl(data.recurringPaymentWebhookUrl || '')
+      setHasReportWebhook(data.hasPaymentReportWebhook)
+      setReportMaskedUrl(data.paymentReportWebhookUrl || '')
       setRecurringWebhookUrl('')
       setSuccess('Recurring payment webhook saved')
       setTimeout(() => setSuccess(''), 3000)
@@ -3054,6 +3061,8 @@ function WebhooksTab() {
       const { data } = await platformSettingsAPI.update({ recurringPaymentWebhookUrl: '' })
       setHasRecurringWebhook(data.hasRecurringPaymentWebhook)
       setRecurringMaskedUrl(data.recurringPaymentWebhookUrl || '')
+      setHasReportWebhook(data.hasPaymentReportWebhook)
+      setReportMaskedUrl(data.paymentReportWebhookUrl || '')
       setSuccess('Webhook URL removed')
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
@@ -3213,6 +3222,73 @@ function WebhooksTab() {
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
             {saving ? 'Saving...' : hasRecurringWebhook ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {/* Payment report webhook — where the post-payment usage report is sent */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white">Payment Report Webhook URL</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Recibe el reporte de consumo después de cada pago (cliente, monto, período y el detalle día por día con hora exacta), más un <code>html</code> listo para enviar. Úsalo para mandarlo desde n8n con la cuenta de Google que ya tienes conectada ahí. Si lo dejas vacío, el correo sale por Gmail desde una cuenta de Google conectada en la plataforma.
+            </p>
+          </div>
+          {hasReportWebhook && (
+            <span className="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full">Active</span>
+          )}
+        </div>
+
+        {hasReportWebhook && (
+          <div className="mb-4 flex items-center justify-between bg-gray-50 dark:bg-dark-hover p-3 rounded-lg">
+            <code className="text-sm text-gray-600 dark:text-gray-300 font-mono">{reportMaskedUrl}</code>
+            <button
+              onClick={async () => {
+                setSaving(true)
+                try {
+                  const { data } = await platformSettingsAPI.update({ paymentReportWebhookUrl: '' })
+                  setHasReportWebhook(data.hasPaymentReportWebhook)
+                  setReportMaskedUrl('')
+                  setReportWebhookUrl('')
+                  setSuccess('Webhook de reportes eliminado')
+                } catch (err) {
+                  setError(err.response?.data?.error || 'No se pudo eliminar')
+                } finally { setSaving(false) }
+              }}
+              disabled={saving}
+              className="ml-3 px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 text-xs font-medium disabled:opacity-50"
+            >
+              Remove
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <input
+            type="password"
+            value={reportWebhookUrl}
+            onChange={(e) => setReportWebhookUrl(e.target.value)}
+            placeholder={hasReportWebhook ? 'Enter new URL to replace...' : 'https://tu-n8n.com/webhook/reporte-de-pago'}
+            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+          />
+          <button
+            onClick={async () => {
+              setSaving(true)
+              try {
+                const { data } = await platformSettingsAPI.update({ paymentReportWebhookUrl: reportWebhookUrl })
+                setHasReportWebhook(data.hasPaymentReportWebhook)
+                setReportMaskedUrl(data.paymentReportWebhookUrl || '')
+                setReportWebhookUrl('')
+                setSuccess('Webhook de reportes guardado')
+              } catch (err) {
+                setError(err.response?.data?.error || 'No se pudo guardar')
+              } finally { setSaving(false) }
+            }}
+            disabled={saving || !reportWebhookUrl.trim()}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {saving ? 'Saving...' : hasReportWebhook ? 'Update' : 'Save'}
           </button>
         </div>
       </div>

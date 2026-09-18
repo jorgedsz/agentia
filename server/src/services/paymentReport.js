@@ -9,6 +9,8 @@
 // (periodStart/periodEnd). Usage that lands while the client is paying belongs
 // to the next report, not this one — that is what keeps report and amount equal.
 
+const axios = require('axios');
+const { decrypt } = require('../utils/encryption');
 const { decryptPHI } = require('../utils/phiEncryption');
 const { resolveReceiptEmail } = require('./creditCheckout');
 const gmailService = require('./gmailService');
@@ -215,11 +217,53 @@ async function sendPaymentReport(prisma, purchase) {
       paidAt: new Date(),
     });
 
-    const result = await gmailService.sendEmail(prisma, user, {
-      to,
-      subject: `Reporte de consumo pagado · ${money(purchase.amount)} · ${accountName}`,
-      html,
-    });
+    const subject = `Reporte de consumo pagado · ${money(purchase.amount)} · ${accountName}`;
+
+    // Preferred route: hand the report to n8n, which already has the Google
+    // account connected for the report generator and sends the mail from there.
+    // Without that webhook configured, send it ourselves through Gmail.
+    const webhook = await reportWebhookUrl(prisma);
+    const result = webhook
+      ? await postToWebhook(webhook, {
+          type: 'payment_report',
+          to,
+          subject,
+          html,
+          brand: partnerBrandName,
+          client: {
+            id: user.id,
+            name: accountName,
+            email: user.email,
+          },
+          payment: {
+            purchaseId: purchase.id,
+            amount: purchase.amount,
+            currency: 'USD',
+            paidAt: new Date().toISOString(),
+          },
+          period: {
+            start: report.period.start.toISOString(),
+            end: report.period.end.toISOString(),
+            timezone: report.timezone,
+          },
+          totals: report.totals,
+          // Day-by-day usage, each entry with its exact timestamp, for n8n to
+          // render however it likes if the ready-made html doesn't fit.
+          days: report.days.map((day) => ({
+            date: day.key,
+            label: day.label,
+            calls: day.calls,
+            messages: day.messages,
+            total: Math.round(day.total * 100) / 100,
+            items: day.items.map((item) => ({
+              at: item.at.toISOString(),
+              kind: item.kind,
+              detail: item.detail,
+              cost: Math.round(item.cost * 100) / 100,
+            })),
+          })),
+        })
+      : await gmailService.sendEmail(prisma, user, { to, subject, html });
 
     if (result.sent) {
       await prisma.creditPurchase.update({
@@ -234,6 +278,26 @@ async function sendPaymentReport(prisma, purchase) {
   } catch (error) {
     console.error('[PaymentReport] Failed:', error.message);
     return { sent: false, reason: error.message };
+  }
+}
+
+/** The configured webhook that emails payment reports, or null. */
+async function reportWebhookUrl(prisma) {
+  try {
+    const settings = await prisma.platformSettings.findFirst();
+    return settings?.paymentReportWebhookUrl ? decrypt(settings.paymentReportWebhookUrl) : null;
+  } catch (error) {
+    console.error('[PaymentReport] Could not read the report webhook:', error.message);
+    return null;
+  }
+}
+
+async function postToWebhook(url, payload) {
+  try {
+    await axios.post(url, payload, { timeout: 15000 });
+    return { sent: true, via: 'webhook' };
+  } catch (error) {
+    return { sent: false, reason: `webhook failed: ${error.response?.status || error.message}` };
   }
 }
 
