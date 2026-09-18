@@ -3,7 +3,7 @@ const { getWhopConfigForUser, getEffectiveBilling } = require('../utils/whopConf
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 const { settleCreditPurchase } = require('../utils/creditSettlement');
 const { logAudit } = require('../utils/auditLog');
-const { createCreditCheckout, createCardSetupCheckout, CheckoutError } = require('../services/creditCheckout');
+const { createCreditCheckout, createCardSetupCheckout, resolveReceiptEmail, CheckoutError } = require('../services/creditCheckout');
 const { decrypt } = require('../utils/encryption');
 const { decryptPHI } = require('../utils/phiEncryption');
 
@@ -723,6 +723,7 @@ async function performOffSessionCharge(prisma, user, amount, kind, card) {
         paymentMethodId,
         amount,
         description: `Credits ($${amount})`,
+        receiptEmail: await resolveReceiptEmail(prisma, user),
         metadata: {
           userId: String(user.id), type: 'credits', kind,
           purchaseId: String(purchase.id), credits: String(amount),

@@ -50,6 +50,7 @@ const getAllUsers = async (req, res) => {
         outboundRate: true,
         inboundRate: true,
         chatbotMessagePrice: true,
+        receiptEmail: true,
         voiceAgentsEnabled: true,
         chatbotsEnabled: true,
         crmEnabled: true,
@@ -530,7 +531,7 @@ const deleteUser = async (req, res) => {
 const updateUserBilling = async (req, res) => {
   try {
     const { id } = req.params;
-    const { credits, creditOperation, outboundRate, inboundRate, chatbotMessagePrice, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, callsPaused, messagesPaused, hiddenSections, planType, planPrice } = req.body;
+    const { credits, creditOperation, outboundRate, inboundRate, chatbotMessagePrice, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, callsPaused, messagesPaused, hiddenSections, planType, planPrice, receiptEmail } = req.body;
 
     const targetUser = await req.prisma.user.findUnique({
       where: { id: parseInt(id) }
@@ -607,6 +608,17 @@ const updateUserBilling = async (req, res) => {
       }
     }
 
+    // Where Stripe sends the payment receipt. Empty clears it, and payments then
+    // go back to receipting the account's own email. Set on a partner, it is the
+    // default for every account under it.
+    if (receiptEmail !== undefined) {
+      const email = (receiptEmail || '').trim().toLowerCase();
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        return res.status(400).json({ error: 'That receipt email does not look like an email address' });
+      }
+      updateData.receiptEmail = email || null;
+    }
+
     // Handle feature toggles
     if (voiceAgentsEnabled !== undefined) {
       updateData.voiceAgentsEnabled = Boolean(voiceAgentsEnabled);
@@ -657,6 +669,7 @@ const updateUserBilling = async (req, res) => {
         outboundRate: true,
         inboundRate: true,
         chatbotMessagePrice: true,
+        receiptEmail: true,
         voiceAgentsEnabled: true,
         chatbotsEnabled: true,
         crmEnabled: true,

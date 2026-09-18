@@ -6,10 +6,25 @@
 // the partner that governs the account, or through Whop — so the logic lives
 // here and each caller only supplies its own return URLs.
 
-const { getWhopConfigForUser } = require('../utils/whopConfig');
+const { getWhopConfigForUser, getAncestorPartners } = require('../utils/whopConfig');
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 
 const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contáctalo para recargar créditos.';
+
+/**
+ * Where Stripe should send the receipt for this account's payments: the address
+ * configured on the account, else the one configured on the nearest partner above
+ * it, else the account's own email. Configured in the panel under Manage Billing.
+ */
+async function resolveReceiptEmail(prisma, user) {
+  if (user.receiptEmail) return user.receiptEmail;
+  const ancestors = await getAncestorPartners(prisma, user).catch(() => []);
+  for (const a of ancestors) {
+    const partner = await prisma.user.findUnique({ where: { id: a.id }, select: { receiptEmail: true } });
+    if (partner?.receiptEmail) return partner.receiptEmail;
+  }
+  return user.email || null;
+}
 
 /** An error the caller should surface to the user, with an HTTP status. */
 class CheckoutError extends Error {
@@ -48,6 +63,7 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
       amount,
       productName: `Credits ($${amount})`,
       description: `Créditos $${amount} · ${user.companyName || user.name || user.email}`,
+      receiptEmail: await resolveReceiptEmail(prisma, user),
       metadata: {
         userId: String(userId),
         type: 'credits',
@@ -240,6 +256,7 @@ async function reconcileStripePayment(prisma, userId, paymentIntentId) {
 module.exports = {
   CheckoutError,
   MANUAL_BILLING_MSG,
+  resolveReceiptEmail,
   createCreditCheckout,
   createCardSetupCheckout,
   confirmStripeCheckout,

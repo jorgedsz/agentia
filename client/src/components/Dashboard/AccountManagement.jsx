@@ -440,6 +440,7 @@ export default function AccountManagement() {
       planType: targetUser.planType || '',
       planPrice: targetUser.planPrice != null ? String(targetUser.planPrice) : '',
       chatbotMessagePrice: targetUser.chatbotMessagePrice != null ? String(targetUser.chatbotMessagePrice) : '',
+      receiptEmail: targetUser.receiptEmail || '',
     })
     setError('')
     setSuccess('')
@@ -447,7 +448,7 @@ export default function AccountManagement() {
 
   const closeBillingModal = () => {
     setEditingUser(null)
-    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', chatbotMessagePrice: '' })
+    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', chatbotMessagePrice: '', receiptEmail: '' })
   }
 
   const handleBillingSubmit = async (e) => {
@@ -476,6 +477,7 @@ export default function AccountManagement() {
       }
       data.planPrice = billingForm.planPrice !== '' ? billingForm.planPrice : null
       data.chatbotMessagePrice = billingForm.chatbotMessagePrice !== '' ? billingForm.chatbotMessagePrice : null
+      data.receiptEmail = billingForm.receiptEmail
 
       await usersAPI.updateBilling(editingUser.id, data)
       setSuccess('Billing updated successfully')
@@ -1252,6 +1254,24 @@ export default function AccountManagement() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Where Stripe sends the receipt for this account's payments */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Correo para recibos de pago
+                </label>
+                <input
+                  type="email"
+                  value={billingForm.receiptEmail}
+                  onChange={(e) => setBillingForm({ ...billingForm, receiptEmail: e.target.value })}
+                  placeholder={editingUser.email}
+                  className="w-full px-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Stripe manda el recibo aquí cada vez que esta cuenta paga. En blanco, va al correo de la cuenta.
+                  {(editingUser.role === 'WHITELABEL' || editingUser.role === 'AGENCY') && ' Al ser un socio, también aplica a las cuentas que cuelgan de él y no tengan su propio correo.'}
+                </p>
               </div>
 
               {/* Actions */}

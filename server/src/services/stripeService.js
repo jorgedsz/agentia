@@ -44,7 +44,7 @@ async function ensureCustomer(prisma, user, secretKey) {
 
 // ── Checkout: one-time payment (credits, lifetime products) ──
 
-async function createPaymentCheckout({ customerId, amount, productName, description, metadata, successUrl, cancelUrl, saveCard }, secretKey) {
+async function createPaymentCheckout({ customerId, amount, productName, description, metadata, successUrl, cancelUrl, saveCard, receiptEmail }, secretKey) {
   return client(secretKey).checkout.sessions.create({
     mode: 'payment',
     customer: customerId,
@@ -63,6 +63,8 @@ async function createPaymentCheckout({ customerId, amount, productName, descript
       // Without a description the Stripe dashboard lists the payment by its
       // raw pi_... id, which tells whoever reconciles it nothing.
       ...(description ? { description } : {}),
+      // Stripe emails its own receipt to this address once the payment succeeds.
+      ...(receiptEmail ? { receipt_email: receiptEmail } : {}),
       // Metadata on the PaymentIntent too: the payment_intent.succeeded webhook
       // reads it without having to look the session up.
       metadata: metadata || {},
@@ -135,7 +137,7 @@ async function createSetupCheckout({ customerId, metadata, successUrl, cancelUrl
 // synchronously here: a returned status of "succeeded" means the money is in.
 // A card that needs 3-D Secure raises authentication_required, which surfaces as
 // a decline — the customer then has to pay through a hosted checkout instead.
-async function chargeOffSession({ customerId, paymentMethodId, amount, description, metadata }, secretKey) {
+async function chargeOffSession({ customerId, paymentMethodId, amount, description, metadata, receiptEmail }, secretKey) {
   return client(secretKey).paymentIntents.create({
     amount: toCents(amount),
     currency: 'usd',
@@ -144,6 +146,9 @@ async function chargeOffSession({ customerId, paymentMethodId, amount, descripti
     off_session: true,
     confirm: true,
     description: description || undefined,
+    // An automatic charge is the one the customer least expects, so the receipt
+    // matters most here.
+    receipt_email: receiptEmail || undefined,
     metadata: metadata || {},
   });
 }

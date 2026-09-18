@@ -589,6 +589,7 @@ async function chargeSavedCard(prisma, entry) {
         paymentMethodId: card.paymentMethodId,
         amount: entry.amount,
         description: entry.description || `Pago recurrente ${entry.periodLabel}`,
+        receiptEmail: await require('../services/creditCheckout').resolveReceiptEmail(prisma, user),
         metadata: {
           userId: String(entry.userId),
           type: 'recurring_payment',
