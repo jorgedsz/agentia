@@ -40,6 +40,7 @@ model User {
   planPrice          Float?             // Monthly plan price for any account type
   portalToken        String?           @unique // Shareable read-only portal token
   paymentToken       String?           @unique // Token for the public payment page (/pay/:token). Separate from portalToken on purpose: the payment page can be embedded in someone else's site and must not expose call or message history.
+  receiptEmail       String?           // Where Stripe sends the receipt for this account's payments. Set on a partner, it is the default for every account under it; empty falls back to the account's own email.
   whopCustomerId    String?            // Whop customer/user ID
   // ── Auto-recharge (Whop off-session charges) ──
   whopMemberId          String?        // Whop member id (mber_xxx). Optional — setup-mode checkout may not create a member.
