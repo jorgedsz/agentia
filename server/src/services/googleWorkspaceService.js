@@ -241,6 +241,7 @@ async function appendToDocument(prisma, userId, integrationId, documentId, text)
 }
 
 module.exports = {
+  getAccessToken,
   listSpreadsheets,
   getSpreadsheet,
   readSheet,

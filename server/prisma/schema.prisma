@@ -653,6 +653,9 @@ model CreditPurchase {
   whopPaymentId       String?  // Whop payment ID for this credit purchase
   whopPlanId          String?  // Unique one-time Whop plan created for this purchase. The reliable link from the webhook back to this user (metadata isn't propagated by Whop, email may not match).
   stripePaymentIntentId String? // Stripe PaymentIntent (pi_...) for this purchase — links the webhook back to this row
+  periodStart         DateTime? // Usage this payment settles: from here…
+  periodEnd           DateTime? // …to here. Frozen when the checkout is created, so the emailed report matches the amount charged even if the account keeps consuming while it pays.
+  reportSentAt        DateTime? // When the usage report for this payment was emailed
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

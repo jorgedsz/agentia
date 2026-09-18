@@ -520,7 +520,8 @@ export const portalAPI = {
 // instance: nobody is logged in there, and a 401 must not bounce to /login.
 export const payAPI = {
   getBilling: (token) => portalAxios.get(`/pay/${token}`),
-  checkout: (token, amount) => portalAxios.post(`/pay/${token}/checkout`, { amount }),
+  // No amount: the server charges the whole outstanding balance.
+  checkout: (token) => portalAxios.post(`/pay/${token}/checkout`),
   saveCard: (token) => portalAxios.post(`/pay/${token}/save-card`),
   confirm: (token, sessionId) => portalAxios.post(`/pay/${token}/confirm`, { sessionId }),
   // Admin side (authenticated): issue or rotate an account's link.
