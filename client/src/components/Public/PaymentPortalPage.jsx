@@ -14,14 +14,12 @@ export default function PaymentPortalPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [amount, setAmount] = useState('')
   const [working, setWorking] = useState('')
 
   const load = async () => {
     try {
       const { data } = await payAPI.getBilling(token)
       setData(data)
-      if (data.outstanding > 0) setAmount(String(data.outstanding))
     } catch (err) {
       setError(err.response?.status === 404
         ? 'Este enlace de pago no existe o fue reemplazado.'
@@ -83,15 +81,12 @@ export default function PaymentPortalPage() {
     else window.location.href = url
   }
 
+  // The amount is always the whole outstanding balance: the server works it out
+  // and the receipt's usage report covers exactly that period.
   const pay = async () => {
-    const num = parseFloat(amount)
-    if (!Number.isFinite(num) || num < (data?.min || 0.5)) {
-      setError(`Ingresa un monto de al menos $${data?.min ?? 0.5}.`)
-      return
-    }
     setWorking('pay'); setError('')
     try {
-      const { data: res } = await payAPI.checkout(token, num)
+      const { data: res } = await payAPI.checkout(token)
       goTo(res.checkoutUrl || res.purchaseUrl)
     } catch (err) {
       setError(err.response?.data?.error || 'No pudimos iniciar el pago.')
@@ -155,7 +150,7 @@ export default function PaymentPortalPage() {
             ${owes ? data.outstanding.toFixed(2) : Math.abs(data.balance).toFixed(2)}
           </p>
           {!owes && (
-            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">No tienes nada pendiente. Puedes abonar saldo por adelantado.</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">No tienes nada pendiente por pagar.</p>
           )}
         </div>
 
@@ -172,28 +167,16 @@ export default function PaymentPortalPage() {
 
         {data.canPay ? (
           <>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Monto a pagar</label>
-            <div className="flex gap-2 mb-3">
-              <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min={data.min}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full pl-7 pr-4 py-3 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-              <button
-                onClick={pay}
-                disabled={working === 'pay'}
-                className="px-6 py-3 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50"
-              >
-                {working === 'pay' ? 'Abriendo…' : 'Pagar'}
-              </button>
-            </div>
+            <button
+              onClick={pay}
+              disabled={working === 'pay'}
+              className="w-full px-6 py-3 mb-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              {working === 'pay' ? 'Abriendo…' : `Pagar $${data.outstanding.toFixed(2)}`}
+            </button>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 text-center">
+              Se paga el saldo pendiente completo. Al confirmarse, recibirás el detalle de los días que cubre este pago.
+            </p>
 
             <button
               onClick={saveCard}
@@ -210,7 +193,9 @@ export default function PaymentPortalPage() {
           </>
         ) : (
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Tu proveedor gestiona el saldo de esta cuenta. Contáctalo para ponerte al día.
+            {owes
+              ? 'Tu proveedor gestiona el saldo de esta cuenta. Contáctalo para ponerte al día.'
+              : 'No tienes pagos pendientes por ahora.'}
           </p>
         )}
 

@@ -93,8 +93,10 @@ const getBilling = async (req, res) => {
       balance: Math.round(user.vapiCredits * 100) / 100,
       outstanding: user.vapiCredits < 0 ? Math.round(-user.vapiCredits * 100) / 100 : 0,
       hasCard: !!(isStripe ? user.stripePaymentMethodId : user.whopPaymentMethodId),
-      // Manual accounts are billed by their provider off-platform: no self-service.
-      canPay: mode !== 'manual',
+      // Only the full outstanding balance can be paid, so the emailed usage
+      // report always accounts for exactly the amount charged. Nothing owed (or
+      // less than Stripe's floor) means there is nothing to pay right now.
+      canPay: mode !== 'manual' && user.vapiCredits < 0 && -user.vapiCredits >= MIN_PAYMENT,
       usage: {
         days: 30,
         calls: { count: calls?._count || 0, cost: Math.round((calls?._sum?.costCharged || 0) * 100) / 100, minutes: Math.round((calls?._sum?.durationSeconds || 0) / 60) },
@@ -118,9 +120,15 @@ const startCheckout = async (req, res) => {
     const user = await findByToken(req.prisma, req.params.token);
     if (!user) return res.status(404).json({ error: 'Payment page not found' });
 
-    const amount = Math.round(parseFloat(req.body?.amount) * 100) / 100;
-    if (!Number.isFinite(amount) || amount < MIN_PAYMENT || amount > MAX_PAYMENT) {
-      return res.status(400).json({ error: `El monto debe estar entre $${MIN_PAYMENT} y $${MAX_PAYMENT}.` });
+    // The amount is the account's whole outstanding balance, worked out here —
+    // never taken from the request. Partial payments would not line up with the
+    // usage report emailed afterwards.
+    const amount = Math.round(-user.vapiCredits * 100) / 100;
+    if (!(amount >= MIN_PAYMENT)) {
+      return res.status(400).json({ error: 'Esta cuenta no tiene saldo pendiente por pagar.' });
+    }
+    if (amount > MAX_PAYMENT) {
+      return res.status(400).json({ error: `El saldo pendiente supera el máximo de $${MAX_PAYMENT} por pago. Contacta a tu proveedor.` });
     }
 
     // Send the client back to their provider's domain, not the platform's.

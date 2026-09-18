@@ -35,6 +35,33 @@ class CheckoutError extends Error {
 }
 
 /**
+ * The usage window a new payment will cover: from the end of the last settled
+ * period (or that payment's date) up to now. Frozen on the purchase so the
+ * report emailed afterwards accounts for exactly the amount charged, even if the
+ * account keeps consuming while the client is on the checkout page.
+ */
+async function nextPeriodFor(prisma, userId) {
+  let previous = null;
+  try {
+    previous = await prisma.creditPurchase.findFirst({
+      where: { userId, status: 'completed' },
+      orderBy: { id: 'desc' },
+      select: { periodEnd: true, createdAt: true },
+    });
+  } catch (error) {
+    // Never let working out the window block a payment; the report falls back to
+    // the last 30 days.
+    console.error('[Credits] Could not resolve the previous billing period:', error.message);
+  }
+
+  const end = new Date();
+  const start = previous
+    ? new Date(previous.periodEnd || previous.createdAt)
+    : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+  return { periodStart: start, periodEnd: end };
+}
+
+/**
  * Start a credit purchase for `userId`.
  * Returns the Stripe shape ({ provider, checkoutUrl, purchaseId, amount }) or the
  * Whop shape ({ checkoutId, planId, purchaseUrl, amount }), matching what each
@@ -54,8 +81,9 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
     // The pending row is created BEFORE the checkout so its id can ride along in
     // the session metadata - that id is how the webhook finds the buyer. Stripe
     // propagates metadata (Whop does not), so no one-time-plan trick is needed.
+    const period = await nextPeriodFor(prisma, userId);
     const purchase = await prisma.creditPurchase.create({
-      data: { userId, amount, credits: amount, status: 'pending', kind: 'manual' },
+      data: { userId, amount, credits: amount, status: 'pending', kind: 'manual', ...period },
     });
 
     const session = await stripeService.createPaymentCheckout({
@@ -142,7 +170,7 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
   // webhooks and the payer's email may differ from their app account, but the
   // plan id we just created always appears in the payment webhook as data.plan.id.
   await prisma.creditPurchase.create({
-    data: { userId, amount, credits: amount, status: 'pending', whopPlanId: plan.id },
+    data: { userId, amount, credits: amount, status: 'pending', whopPlanId: plan.id, ...(await nextPeriodFor(prisma, userId)) },
   }).catch((err) => console.error('[Credits] Failed to create pending purchase:', err.message));
 
   return { checkoutId: session.id, planId: plan.id, purchaseUrl: session.purchase_url, amount };
@@ -257,6 +285,7 @@ module.exports = {
   CheckoutError,
   MANUAL_BILLING_MSG,
   resolveReceiptEmail,
+  nextPeriodFor,
   createCreditCheckout,
   createCardSetupCheckout,
   confirmStripeCheckout,
