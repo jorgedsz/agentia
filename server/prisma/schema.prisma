@@ -103,6 +103,7 @@ model User {
   waProjects           WaProject[]        @relation("UserWaProjects")
   recurringPayments    RecurringPayment[] @relation("ClientRecurringPayments")
   credentials          Credential[]
+  billingPeriods       BillingPeriod[]
 }
 
 // Per-user credential vault for chatbot tool secrets (Postgres connections,
@@ -421,6 +422,35 @@ model Report {
   @@index([userId, createdAt])
 }
 
+// One calendar month of an account's usage, as a statement that can be reported
+// on and paid on its own. Months are closed automatically: the current one stays
+// "open" and keeps accumulating, every earlier one is "pending" until its usage
+// has been settled. Amounts are recomputed while a month is unsettled and frozen
+// once it is paid, so a paid statement always shows what was actually charged.
+model BillingPeriod {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year           Int
+  month          Int       // 1-12, in the platform's billing timezone
+  periodStart    DateTime  // First instant of the month in that timezone
+  periodEnd      DateTime  // Last instant of the month in that timezone
+  callsCount     Int       @default(0)
+  messagesCount  Int       @default(0)
+  callsAmount    Float     @default(0)
+  messagesAmount Float     @default(0)
+  usageAmount    Float     @default(0) // What the month cost: calls + messages
+  settledAmount  Float     @default(0) // Paid against it so far (card, or marked by hand)
+  status         String    @default("open") // open | pending | paid
+  paidAt         DateTime?
+  note           String?   // Why it was marked paid by hand, for example
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([userId, year, month])
+  @@index([userId, status])
+}
+
 model CallRate {
   id              Int      @id @default(autoincrement())
   outboundRate    Float    @default(0.10) // $ per minute for outbound calls
@@ -654,6 +684,7 @@ model CreditPurchase {
   whopPaymentId       String?  // Whop payment ID for this credit purchase
   whopPlanId          String?  // Unique one-time Whop plan created for this purchase. The reliable link from the webhook back to this user (metadata isn't propagated by Whop, email may not match).
   stripePaymentIntentId String? // Stripe PaymentIntent (pi_...) for this purchase — links the webhook back to this row
+  billingPeriodId     Int?     // The month this payment settles, when it was started from the billing-periods screen rather than against the running balance
   periodStart         DateTime? // Usage this payment settles: from here…
   periodEnd           DateTime? // …to here. Frozen when the checkout is created, so the emailed report matches the amount charged even if the account keeps consuming while it pays.
   reportSentAt        DateTime? // When the usage report for this payment was emailed

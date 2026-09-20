@@ -35,6 +35,13 @@ async function settleCreditPurchase(prisma, purchase, { paymentIntentId, payload
 
   console.log(`[Credits] Added ${purchase.credits} credits to user ${purchase.userId} (purchase #${purchase.id})`);
 
+  // Paying a specific month settles that statement, not just the running balance.
+  if (purchase.billingPeriodId) {
+    await require('../services/billingPeriods')
+      .applyPayment(prisma, purchase.billingPeriodId, purchase.amount)
+      .catch((err) => console.error('[Credits] Could not settle the billing period:', err.message));
+  }
+
   // Email the client the usage this payment covers. Fire-and-forget on purpose:
   // the money is already in and the balance already updated, so a mail problem
   // must never turn a good payment into an error.

@@ -695,7 +695,16 @@ const AUTO_RECHARGE_DAILY_CAP = 5;               // max auto charges per 24h (sa
  * credits the balance via that plan id (no reliance on Whop metadata).
  * Returns the Whop payment object. Throws if the user has no saved card.
  */
-async function performOffSessionCharge(prisma, user, amount, kind, card) {
+async function performOffSessionCharge(prisma, user, amount, kind, card, options = {}) {
+  // A charge started from the billing-periods screen settles one month, so the
+  // purchase carries that month and its window: the settlement marks the period
+  // paid, and the emailed report covers exactly those days.
+  const periodData = {
+    ...(options.billingPeriodId ? { billingPeriodId: options.billingPeriodId } : {}),
+    ...(options.periodStart ? { periodStart: options.periodStart } : {}),
+    ...(options.periodEnd ? { periodEnd: options.periodEnd } : {}),
+  };
+
   // Stripe accounts charge their saved PaymentMethod directly. Unlike Whop, Stripe
   // settles synchronously, so a success here is final and the credits are added
   // right away; the webhook that follows is a no-op thanks to the pending claim.
@@ -713,7 +722,7 @@ async function performOffSessionCharge(prisma, user, amount, kind, card) {
     const stripeService = require('../services/stripeService');
     const customerId = await stripeService.ensureCustomer(prisma, user, stripe.secretKey);
     const purchase = await prisma.creditPurchase.create({
-      data: { userId: user.id, amount, credits: amount, status: 'pending', kind, paymentMethodId },
+      data: { userId: user.id, amount, credits: amount, status: 'pending', kind, paymentMethodId, ...periodData },
     });
 
     let intent;
@@ -785,6 +794,7 @@ async function performOffSessionCharge(prisma, user, amount, kind, card) {
       kind,
       whopPlanId: planId,
       paymentMethodId, // so the webhook can fall back to the next card on decline
+      ...periodData,
     },
   }).catch((e) => console.error('[Credits] Failed to record pending off-session purchase:', e.message));
 
