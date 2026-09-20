@@ -516,6 +516,14 @@ export const portalAPI = {
   generateToken: (clientId) => api.post(`/portal/generate/${clientId}`),
 }
 
+// Monthly statements for an account (OWNER / partner side).
+export const billingPeriodsAPI = {
+  list: (userId) => api.get(`/billing-periods/${userId}`),
+  detail: (userId, periodId) => api.get(`/billing-periods/${userId}/${periodId}`),
+  charge: (userId, periodId) => api.post(`/billing-periods/${userId}/${periodId}/charge`),
+  markPaid: (userId, periodId, note) => api.post(`/billing-periods/${userId}/${periodId}/mark-paid`, { note }),
+}
+
 // Public payment page (per-client link / embed). Uses the interceptor-free
 // instance: nobody is logged in there, and a 401 must not bounce to /login.
 export const payAPI = {
