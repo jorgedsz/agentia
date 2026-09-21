@@ -97,12 +97,23 @@ async function usageIn(prisma, userId, start, end) {
   const callsAmount = calls.reduce((sum, row) => sum + (decryptPHI(row).costCharged || 0), 0);
   const messagesAmount = messages?._sum?.costCharged || 0;
 
+  // Other charges made in the window. In the ledger a charge is negative (it
+  // lowered the balance) and a credit positive, so what they add to the bill is
+  // the negated sum: a $40 marketing fee adds 40, a $10 courtesy takes 10 off.
+  const adjustments = await Promise.resolve()
+    .then(() => prisma.creditAdjustment.findMany({ where: window, select: { amount: true } }))
+    .catch(() => []);
+  const adjustmentsAmount = -adjustments.reduce((sum, a) => sum + (a.amount || 0), 0);
+
+  const usageAmount = callsAmount + messagesAmount;
   return {
     callsCount: calls.length,
     messagesCount: messages?._count || 0,
     callsAmount: round(callsAmount),
     messagesAmount: round(messagesAmount),
-    usageAmount: round(callsAmount + messagesAmount),
+    usageAmount: round(usageAmount),
+    adjustmentsAmount: round(adjustmentsAmount),
+    totalAmount: round(usageAmount + adjustmentsAmount),
   };
 }
 
@@ -150,8 +161,9 @@ async function syncPeriods(prisma, user, { months = 24 } = {}) {
     const usage = await usageIn(prisma, user.id, start, end);
     const isCurrent = y === current.year && m === current.month;
     const settled = row?.settledAmount || 0;
-    // A month still running is "open"; a closed one is pending until covered.
-    const status = isCurrent ? 'open' : (settled >= usage.usageAmount && usage.usageAmount > 0 ? 'paid' : 'pending');
+    // A month still running is "open"; a closed one is pending until what it
+    // owes — consumption plus other charges — has been covered.
+    const status = isCurrent ? 'open' : (settled >= usage.totalAmount && usage.totalAmount > 0 ? 'paid' : 'pending');
 
     const data = {
       periodStart: start, periodEnd: end, ...usage, status,
@@ -175,7 +187,10 @@ async function syncPeriods(prisma, user, { months = 24 } = {}) {
 
 /** What the screen needs on top of the stored row. */
 function decorate(period) {
-  const outstanding = round(Math.max(0, (period.usageAmount || 0) - (period.settledAmount || 0)));
+  // Statements settled before other charges were counted carry no total; their
+  // consumption was the whole bill.
+  const total = period.totalAmount || period.usageAmount || 0;
+  const outstanding = round(Math.max(0, total - (period.settledAmount || 0)));
   return {
     ...period,
     label: monthLabel(period.year, period.month),
@@ -194,7 +209,7 @@ async function applyPayment(prisma, periodId, amount, { note } = {}) {
   if (!period) return null;
 
   const settled = round((period.settledAmount || 0) + amount);
-  const covered = settled >= round(period.usageAmount);
+  const covered = settled >= round(period.totalAmount || period.usageAmount || 0);
 
   return prisma.billingPeriod.update({
     where: { id: periodId },

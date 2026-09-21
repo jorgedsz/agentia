@@ -9,6 +9,7 @@ router.use(authMiddleware);
 router.get('/:userId', controller.list);
 // Literal paths first, so "report" and "cycle" are never read as a period id.
 router.get('/:userId/report', controller.rangeReport);
+router.get('/:userId/logs', controller.logs);
 router.get('/:userId/cycle', controller.cyclePlan);
 router.put('/:userId/cycle', controller.updateCycle);
 router.post('/:userId/cycle/run', controller.runCycle);

@@ -449,7 +449,9 @@ model BillingPeriod {
   messagesCount  Int       @default(0)
   callsAmount    Float     @default(0)
   messagesAmount Float     @default(0)
-  usageAmount    Float     @default(0) // What the month cost: calls + messages
+  usageAmount    Float     @default(0) // Consumption: calls + messages
+  adjustmentsAmount Float  @default(0) // Other charges in the month, net: marketing fees add to it, courtesy credits take from it
+  totalAmount    Float     @default(0) // What the month owes: consumption + other charges. The amount charged for it.
   settledAmount  Float     @default(0) // Paid against it so far (card, or marked by hand)
   status         String    @default("open") // open | pending | paid
   paidAt         DateTime?

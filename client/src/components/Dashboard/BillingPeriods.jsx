@@ -152,6 +152,75 @@ export default function BillingPeriods() {
     }
   }
 
+  // The second PDF: every call, message and other charge in the window, with
+  // all their fields. Built as real tables (not a screenshot of the page) so a
+  // month with thousands of entries still paginates and stays searchable.
+  const downloadLogsPdf = async () => {
+    setBusy('logs'); setError('')
+    try {
+      const { data: logs } = await billingPeriodsAPI.logs(accountId, detail.report.period.start, detail.report.period.end)
+      const { jsPDF } = await import('jspdf')
+      const { default: autoTable } = await import('jspdf-autotable')
+
+      const tz = logs.period.timezone
+      const when = (iso) => new Date(iso).toLocaleString('es-CO', { timeZone: tz, dateStyle: 'short', timeStyle: 'medium' })
+      const usd = (n, digits = 2) => `$${Number(n || 0).toFixed(digits)}`
+      const duration = (s) => `${Math.floor((s || 0) / 60)}:${String(Math.floor((s || 0) % 60)).padStart(2, '0')}`
+      // Long chat replies would stretch a single row across pages.
+      const clip = (text) => {
+        const t = (text || '').replace(/\s+/g, ' ').trim()
+        return t.length > 3000 ? `${t.slice(0, 3000)}…` : t
+      }
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+      const margin = 36
+      let y = 40
+
+      doc.setFontSize(14)
+      doc.text(`Logs · ${logs.account.name}`, margin, y)
+      doc.setFontSize(9)
+      doc.text(`${detail.period.label} · ${when(logs.period.start)} – ${when(logs.period.end)} (${tz})`, margin, y + 16)
+      y += 34
+
+      const section = (title, head, body) => {
+        if (y > doc.internal.pageSize.getHeight() - 80) { doc.addPage(); y = 40 }
+        doc.setFontSize(11)
+        doc.text(title, margin, y)
+        autoTable(doc, {
+          startY: y + 6,
+          head: [head],
+          body: body.length ? body : [[{ content: 'Sin registros', colSpan: head.length }]],
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak', valign: 'top' },
+          headStyles: { fillColor: [243, 244, 246], textColor: 20, fontStyle: 'bold' },
+        })
+        y = doc.lastAutoTable.finalY + 22
+      }
+
+      section(
+        `Llamadas (${logs.calls.length})${logs.truncated.calls ? ' — recortado' : ''}`,
+        ['Fecha y hora', 'Agente', 'Cliente', 'Tipo', 'Duración', 'Resultado', 'Motivo de fin', 'Costo'],
+        logs.calls.map((c) => [when(c.at), c.agent || '—', c.customer || '—', c.type || '—', duration(c.durationSeconds), c.outcome || '—', c.endedReason || '—', usd(c.cost, 4)]),
+      )
+      section(
+        `Mensajes (${logs.messages.length})${logs.truncated.messages ? ' — recortado' : ''}`,
+        ['Fecha y hora', 'Chatbot', 'Contacto', 'Mensaje', 'Respuesta', 'Estado', 'Costo'],
+        logs.messages.map((m) => [when(m.at), m.chatbot || '—', m.contact || '—', clip(m.input), clip(m.output), m.status || '—', usd(m.cost, 4)]),
+      )
+      section(
+        `Otros cobros y abonos (${logs.otherCharges.length})`,
+        ['Fecha y hora', 'Concepto', 'Nota', 'Monto'],
+        logs.otherCharges.map((c) => [when(c.at), c.concept, c.note || '—', `${c.amount < 0 ? '−' : ''}${usd(Math.abs(c.amount))}`]),
+      )
+
+      doc.save(`${(logs.account.name || 'cuenta').replace(/[^\w\s-]/g, '')} - ${detail.period.label} - logs.pdf`)
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo generar el PDF de logs')
+    } finally {
+      setBusy('')
+    }
+  }
+
   const money = (n) => `$${(n || 0).toFixed(2)}`
   const fmtTime = (iso) => new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 
@@ -435,7 +504,14 @@ export default function BillingPeriods() {
                 disabled={busy === 'pdf'}
                 className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
               >
-                {busy === 'pdf' ? 'Generando…' : 'Descargar PDF'}
+                {busy === 'pdf' ? 'Generando…' : 'PDF resumen'}
+              </button>
+              <button
+                onClick={downloadLogsPdf}
+                disabled={busy === 'logs'}
+                className="px-4 py-2 text-sm border border-primary-600 text-primary-700 dark:text-primary-400 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 disabled:opacity-50"
+              >
+                {busy === 'logs' ? 'Generando…' : 'PDF de logs'}
               </button>
               <button
                 onClick={() => setDetail(null)}
@@ -459,8 +535,18 @@ export default function BillingPeriods() {
                     <td className="py-1 border-b border-gray-200 text-right">{money(detail.report.totals.callsCost)}</td></tr>
                 <tr><td className="py-1 border-b border-gray-200">Mensajes ({detail.report.totals.messages})</td>
                     <td className="py-1 border-b border-gray-200 text-right">{money(detail.report.totals.messagesCost)}</td></tr>
-                <tr><td className="py-2 font-bold">Consumo del período</td>
-                    <td className="py-2 font-bold text-right">{money(detail.report.totals.usage)}</td></tr>
+                <tr><td className="py-1 border-b border-gray-200">Consumo del período</td>
+                    <td className="py-1 border-b border-gray-200 text-right">{money(detail.report.totals.usage)}</td></tr>
+                {detail.report.totals.otherCharges > 0 && (
+                  <tr><td className="py-1 border-b border-gray-200">Otros cobros</td>
+                      <td className="py-1 border-b border-gray-200 text-right">{money(detail.report.totals.otherCharges)}</td></tr>
+                )}
+                {detail.report.totals.credits > 0 && (
+                  <tr><td className="py-1 border-b border-gray-200">Abonos</td>
+                      <td className="py-1 border-b border-gray-200 text-right">−{money(detail.report.totals.credits)}</td></tr>
+                )}
+                <tr><td className="py-2 font-bold">Total del período</td>
+                    <td className="py-2 font-bold text-right">{money(detail.report.totals.total)}</td></tr>
                 {detail.period.status !== 'range' && (
                   <>
                     <tr><td className="py-1">Pagado</td>
@@ -471,6 +557,27 @@ export default function BillingPeriods() {
                 )}
               </tbody>
             </table>
+
+            {detail.report.otherCharges?.length > 0 && (
+              <div className="mb-6">
+                <h4 className="font-semibold mb-2">Otros cobros y abonos</h4>
+                <table className="w-full text-xs">
+                  <tbody>
+                    {detail.report.otherCharges.map((c, i) => (
+                      <tr key={i} className="border-b border-gray-100">
+                        <td className="py-1 pr-2 text-gray-500 whitespace-nowrap">
+                          {new Date(c.at).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' })}
+                        </td>
+                        <td className="py-1 pr-2 capitalize">
+                          {c.concept}{c.note && <span className="normal-case text-gray-500"> · {c.note}</span>}
+                        </td>
+                        <td className="py-1 text-right">{c.amount < 0 ? '−' : ''}{money(Math.abs(c.amount))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <h4 className="font-semibold mb-2">Detalle por día</h4>
             <p className="text-xs text-gray-500 mb-3">Horas en zona {detail.report.timezone}.</p>
