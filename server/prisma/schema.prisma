@@ -54,6 +54,15 @@ model User {
   autoRechargeFailCount Int            @default(0) // Consecutive failed charges; auto-disables after N
   autoRechargeLastError String?        // Why the last charge was declined (shown to the customer)
   autoRechargeLastErrorAt DateTime?    // When that decline happened
+  // ── Cut billing (charge every ~15 days, always holding a week in reserve) ──
+  // Instead of topping up a fixed amount at a fixed threshold, the account is
+  // kept funded in days of its own consumption: when the balance drops to the
+  // guarantee (a week), it is topped back up to cycle + guarantee (21 days).
+  cycleBillingEnabled  Boolean       @default(false)
+  cycleTargetDays      Int           @default(21) // Days of consumption a funded account holds: the cut plus its guarantee
+  cycleGuaranteeDays   Int           @default(7)  // Reserve never to be spent down; hitting it triggers the charge
+  cycleUsageWindowDays Int           @default(14) // Days of history the daily average is taken from
+  cycleLastChargeAt    DateTime?     // Last top-up, for the cooldown
   // ── Partner billing (AGENCY / WHITELABEL) ──
   // billingMode, set by the OWNER on an agency or whitelabel, governs how that
   // partner and every account under it pays:
