@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react'
 import { usersAPI, billingPeriodsAPI } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
+
+// Roles that manage other accounts. Everyone else sees only their own.
+const MANAGER_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
 
 // Monthly statements for one account: what each month cost, which are still
 // owed, the day-by-day detail behind any of them, and collecting one.
 export default function BillingPeriods() {
+  const { user } = useAuth()
+  const canManage = MANAGER_ROLES.includes(user?.role)
   const [accounts, setAccounts] = useState([])
-  const [accountId, setAccountId] = useState('')
+  const [accountId, setAccountId] = useState(canManage ? '' : 'me')
   const [data, setData] = useState(null)
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -16,10 +22,12 @@ export default function BillingPeriods() {
   const [cycle, setCycle] = useState(null)
 
   useEffect(() => {
+    // A client goes straight to its own statements; managers pick an account.
+    if (!canManage) { loadPeriods('me'); return }
     usersAPI.getAll()
       .then(({ data }) => setAccounts(data.users || data.clients || []))
       .catch(() => setError('No se pudieron cargar las cuentas'))
-  }, [])
+  }, [canManage])
 
   const loadPeriods = async (id) => {
     if (!id) { setData(null); return }
@@ -27,7 +35,8 @@ export default function BillingPeriods() {
     try {
       const { data } = await billingPeriodsAPI.list(id)
       setData(data)
-      billingPeriodsAPI.cyclePlan(id).then(({ data }) => setCycle(data)).catch(() => {})
+      // Cut settings are the provider's business, not the account's own.
+      if (!data.readOnly) billingPeriodsAPI.cyclePlan(id).then(({ data }) => setCycle(data)).catch(() => {})
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudieron cargar los períodos')
       setData(null)
@@ -157,25 +166,30 @@ export default function BillingPeriods() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Períodos y reportes</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          El consumo de cada mes, con su detalle día por día. Puedes cobrar un mes pendiente con la tarjeta guardada del cliente.
+          {canManage
+            ? 'El consumo de cada mes, con su detalle día por día. Puedes cobrar un mes pendiente con la tarjeta guardada del cliente.'
+            : 'Tu consumo de cada mes, con el detalle día por día. Descarga el reporte de cualquier mes o de las fechas que elijas.'}
         </p>
       </div>
 
-      <div className="mb-6 max-w-md">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cuenta</label>
-        <select
-          value={accountId}
-          onChange={(e) => { setAccountId(e.target.value); loadPeriods(e.target.value) }}
-          className="w-full px-3 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white"
-        >
-          <option value="">Selecciona una cuenta…</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.companyName || a.name || a.email} · {a.role}
-            </option>
-          ))}
-        </select>
-      </div>
+      {canManage && (
+        <div className="mb-6 max-w-md">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cuenta</label>
+          <select
+            value={accountId}
+            onChange={(e) => { setAccountId(e.target.value); loadPeriods(e.target.value) }}
+            className="w-full px-3 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white"
+          >
+            <option value="">Selecciona una cuenta…</option>
+            <option value="me">Mi cuenta</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.companyName || a.name || a.email} · {a.role}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">{error}</div>
@@ -251,7 +265,7 @@ export default function BillingPeriods() {
                           >
                             {busy === `detail-${p.id}` ? 'Abriendo…' : 'Ver reporte'}
                           </button>
-                          {p.payable && (
+                          {p.payable && !data.readOnly && (
                             <>
                               <button
                                 onClick={() => chargePeriod(p)}

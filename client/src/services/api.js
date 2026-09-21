@@ -214,6 +214,7 @@ export const creditsAPI = {
   getCardStatus: (userId) => api.get(`/credits/${userId}/card`),
   // "Otros cobros": hand-made balance moves with a concept
   listAdjustments: (userId) => api.get(`/credits/${userId}/adjustments`),
+  myAdjustments: () => api.get('/credits/my-adjustments'),
   createAdjustment: (userId, data) => api.post(`/credits/${userId}/adjustments`, data),
   chargeCard: (userId, amount) => api.post(`/credits/${userId}/charge-card`, { amount }),
 }

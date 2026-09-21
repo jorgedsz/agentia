@@ -1,5 +1,79 @@
 import { useState, useEffect } from 'react'
 import { usersAPI, creditsAPI } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
+
+// Roles that manage other accounts. Everyone else only sees their own.
+const MANAGER_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
+
+// The charges and credits made to the viewer's own account. Read-only: moving
+// a balance is the provider's call.
+function MyCharges() {
+  const [data, setData] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    creditsAPI.myAdjustments()
+      .then(({ data }) => setData(data))
+      .catch((err) => setError(err.response?.data?.error || 'No se pudieron cargar tus cobros'))
+  }, [])
+
+  const money = (n) => `$${Math.abs(n || 0).toFixed(2)}`
+
+  if (error) return <div className="px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">{error}</div>
+  if (!data) {
+    return (
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
+        <h2 className="text-sm font-medium text-gray-900 dark:text-white">Cobros y abonos de tu cuenta</h2>
+        <span className="text-sm text-gray-500 dark:text-gray-400">
+          Saldo actual: <strong className={data.balance < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}>{data.balance < 0 ? '-' : ''}{money(data.balance)}</strong>
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50 dark:bg-dark-hover">
+            <tr>
+              {['Fecha', 'Concepto', 'Monto', 'Saldo después'].map((h) => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
+            {data.adjustments.map((a) => (
+              <tr key={a.id}>
+                <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                  {new Date(a.at).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                  <span className="capitalize">{a.concept}</span>
+                  {a.note && <p className="text-xs text-gray-500 dark:text-gray-400">{a.note}</p>}
+                </td>
+                <td className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${a.amount < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                  {a.amount < 0 ? '−' : '+'}{money(a.amount)}
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{a.balanceAfter < 0 ? '-' : ''}{money(a.balanceAfter)}</td>
+              </tr>
+            ))}
+            {data.adjustments.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                  No hay otros cobros en tu cuenta.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 // Charges and credits that are not consumption: a marketing fee, a courtesy
 // credit, a correction. Each one moves the account's balance and stays on
@@ -7,6 +81,9 @@ import { usersAPI, creditsAPI } from '../../services/api'
 const CONCEPTS = ['marketing', 'cortesía', 'corrección', 'setup', 'otro']
 
 export default function OtherCharges() {
+  const { user } = useAuth()
+  const canManage = MANAGER_ROLES.includes(user?.role)
+  const [tab, setTab] = useState(canManage ? 'manage' : 'mine')
   const [accounts, setAccounts] = useState([])
   const [accountId, setAccountId] = useState('')
   const [data, setData] = useState(null)
@@ -17,10 +94,11 @@ export default function OtherCharges() {
   const [form, setForm] = useState({ operation: 'subtract', amount: '', concept: 'marketing', customConcept: '', note: '' })
 
   useEffect(() => {
+    if (!canManage) return
     usersAPI.getAll()
       .then(({ data }) => setAccounts(data.users || data.clients || []))
       .catch(() => setError('No se pudieron cargar las cuentas'))
-  }, [])
+  }, [canManage])
 
   const load = async (id) => {
     if (!id) { setData(null); return }
@@ -73,6 +151,30 @@ export default function OtherCharges() {
         </p>
       </div>
 
+      {/* Managers can switch between their own account and the ones they run */}
+      {canManage && (
+        <div className="flex gap-2 mb-6">
+          {[
+            { value: 'manage', label: 'Gestionar cuentas' },
+            { value: 'mine', label: 'Mi cuenta' },
+          ].map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setTab(t.value)}
+              className={`px-4 py-2 text-sm rounded-lg border transition-colors ${tab === t.value
+                ? 'bg-primary-600 border-primary-600 text-white'
+                : 'border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'mine' && <MyCharges />}
+
+      {tab === 'manage' && (
+      <>
       <div className="mb-6 max-w-md">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cuenta</label>
         <select
@@ -208,6 +310,8 @@ export default function OtherCharges() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   )
