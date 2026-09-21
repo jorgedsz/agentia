@@ -47,6 +47,27 @@ function monthRange(year, month, tz = TIMEZONE) {
   return { start, end };
 }
 
+/** First instant of a YYYY-MM-DD in the billing zone. */
+function dayStart(isoDate, tz = TIMEZONE) {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const naive = Date.UTC(y, m - 1, d, 0, 0, 0);
+  let instant = naive - zoneOffsetMs(new Date(naive), tz);
+  instant = naive - zoneOffsetMs(new Date(instant), tz);
+  return new Date(instant);
+}
+
+/** Last millisecond of a YYYY-MM-DD in the billing zone. */
+function dayEnd(isoDate, tz = TIMEZONE) {
+  const start = dayStart(isoDate, tz);
+  return new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+}
+
+/** "1 de septiembre – 15 de septiembre de 2026", for a free range. */
+function rangeLabel(start, end, tz = TIMEZONE) {
+  const fmt = (d) => new Intl.DateTimeFormat('es-CO', { timeZone: tz, day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
 /** Which month (in the billing zone) a moment belongs to. */
 function monthOf(date, tz = TIMEZONE) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' })
@@ -188,6 +209,9 @@ async function applyPayment(prisma, periodId, amount, { note } = {}) {
 
 module.exports = {
   TIMEZONE,
+  dayStart,
+  dayEnd,
+  rangeLabel,
   monthRange,
   monthOf,
   monthLabel,

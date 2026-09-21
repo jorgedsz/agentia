@@ -520,6 +520,7 @@ export const portalAPI = {
 export const billingPeriodsAPI = {
   list: (userId) => api.get(`/billing-periods/${userId}`),
   detail: (userId, periodId) => api.get(`/billing-periods/${userId}/${periodId}`),
+  rangeReport: (userId, from, to) => api.get(`/billing-periods/${userId}/report`, { params: { from, to } }),
   charge: (userId, periodId) => api.post(`/billing-periods/${userId}/${periodId}/charge`),
   markPaid: (userId, periodId, note) => api.post(`/billing-periods/${userId}/${periodId}/mark-paid`, { note }),
 }

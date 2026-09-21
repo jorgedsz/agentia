@@ -104,6 +104,7 @@ model User {
   recurringPayments    RecurringPayment[] @relation("ClientRecurringPayments")
   credentials          Credential[]
   billingPeriods       BillingPeriod[]
+  creditAdjustments    CreditAdjustment[]
 }
 
 // Per-user credential vault for chatbot tool secrets (Postgres connections,
@@ -449,6 +450,26 @@ model BillingPeriod {
 
   @@unique([userId, year, month])
   @@index([userId, status])
+}
+
+// A hand-made move of an account's balance: a marketing credit, a correction, a
+// discount. Separate from CreditPurchase, which only ever records money that
+// actually went through a payment provider — mixing the two would make paid
+// revenue unreadable.
+model CreditAdjustment {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount       Float    // Positive adds balance, negative takes it away
+  concept      String   // "marketing", "cortesía", "corrección"…
+  note         String?
+  reference    String?  @unique // Caller's own id. Repeating it returns the first result instead of moving the balance twice.
+  source       String   @default("api") // api | panel
+  actorId      Int?     // Who made it: the account whose API key was used, or the admin
+  balanceAfter Float
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model CallRate {

@@ -52,6 +52,80 @@ const list = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/billing-periods/:userId/report?from=YYYY-MM-DD&to=YYYY-MM-DD
+ * The same detail as a month, over any dates you like — for the week a client
+ * asks about, or a cut that doesn't line up with a calendar month. Nothing is
+ * stored: a free range is a question, not a statement.
+ */
+const rangeReport = async (req, res) => {
+  try {
+    const target = await resolveTarget(req, res);
+    if (!target) return;
+
+    const { from, to } = req.query || {};
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from || '') || !/^\d{4}-\d{2}-\d{2}$/.test(to || '')) {
+      return res.status(400).json({ error: 'Indica las fechas como AAAA-MM-DD (from y to).' });
+    }
+
+    // Whole local days, so "del 1 al 15" includes everything that happened on
+    // the 15th in the client's own timezone.
+    const start = billing.dayStart(from);
+    const end = billing.dayEnd(to);
+    if (!(start <= end)) {
+      return res.status(400).json({ error: 'La fecha inicial debe ser anterior a la final.' });
+    }
+
+    const report = await buildPaymentReport(req.prisma, {
+      id: 0,
+      userId: target.id,
+      amount: 0,
+      periodStart: start,
+      periodEnd: end,
+      createdAt: end,
+    });
+
+    res.json({
+      account: {
+        id: target.id,
+        name: target.companyName || target.name || target.email,
+        email: target.email,
+      },
+      period: {
+        id: null,
+        label: billing.rangeLabel(start, end),
+        usageAmount: report.totals.usage,
+        status: 'range',
+      },
+      report: serializeReport(report),
+    });
+  } catch (error) {
+    console.error('Billing range report error:', error.message);
+    res.status(500).json({ error: 'Failed to build the report' });
+  }
+};
+
+/** Dates as ISO strings and entries flattened, ready for the screen. */
+function serializeReport(report) {
+  return {
+    ...report,
+    period: { start: report.period.start.toISOString(), end: report.period.end.toISOString() },
+    days: report.days.map((day) => ({
+      date: day.key,
+      label: day.label,
+      calls: day.calls,
+      messages: day.messages,
+      total: Math.round(day.total * 100) / 100,
+      items: day.items.map((item) => ({
+        at: item.at.toISOString(),
+        kind: item.kind,
+        detail: item.detail,
+        cost: Math.round(item.cost * 100) / 100,
+      })),
+    })),
+  };
+}
+
 // GET /api/billing-periods/:userId/:periodId — the detail behind one month
 const detail = async (req, res) => {
   try {
@@ -80,24 +154,7 @@ const detail = async (req, res) => {
         email: target.email,
       },
       period: billing.decorate(period),
-      report: {
-        ...report,
-        // Dates travel as ISO strings; the screen formats them.
-        period: { start: report.period.start.toISOString(), end: report.period.end.toISOString() },
-        days: report.days.map((day) => ({
-          date: day.key,
-          label: day.label,
-          calls: day.calls,
-          messages: day.messages,
-          total: Math.round(day.total * 100) / 100,
-          items: day.items.map((item) => ({
-            at: item.at.toISOString(),
-            kind: item.kind,
-            detail: item.detail,
-            cost: Math.round(item.cost * 100) / 100,
-          })),
-        })),
-      },
+      report: serializeReport(report),
     });
   } catch (error) {
     console.error('Billing period detail error:', error.message);
@@ -216,4 +273,4 @@ const markPaid = async (req, res) => {
   }
 };
 
-module.exports = { list, detail, charge, markPaid };
+module.exports = { list, detail, rangeReport, charge, markPaid };

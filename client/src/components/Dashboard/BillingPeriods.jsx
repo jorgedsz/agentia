@@ -12,6 +12,7 @@ export default function BillingPeriods() {
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [range, setRange] = useState({ from: '', to: '' })
 
   useEffect(() => {
     usersAPI.getAll()
@@ -40,6 +41,22 @@ export default function BillingPeriods() {
       setDetail(data)
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo cargar el detalle')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  // A report over any dates: the week a client asks about, or a cut that does
+  // not line up with a calendar month. It is only a view — nothing is stored
+  // and nothing can be charged from it.
+  const buildRangeReport = async () => {
+    if (!range.from || !range.to) { setError('Elige las dos fechas.'); return }
+    setBusy('range'); setError('')
+    try {
+      const { data } = await billingPeriodsAPI.rangeReport(accountId, range.from, range.to)
+      setDetail(data)
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo generar el reporte')
     } finally {
       setBusy('')
     }
@@ -240,6 +257,32 @@ export default function BillingPeriods() {
         </>
       )}
 
+      {/* A report over freely chosen dates */}
+      {data && !loading && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5 mb-8">
+          <h2 className="text-sm font-medium text-gray-900 dark:text-white mb-1">Reporte por fechas</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Para revisar un rango que no coincide con un mes. Solo se consulta: no crea ni cobra un período.
+          </p>
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Desde</label>
+              <input type="date" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
+                className="px-3 py-2 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Hasta</label>
+              <input type="date" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
+                className="px-3 py-2 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white" />
+            </div>
+            <button onClick={buildRangeReport} disabled={busy === 'range'}
+              className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
+              {busy === 'range' ? 'Generando…' : 'Generar reporte'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Detail of one month — this block is what the PDF prints */}
       {detail && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
@@ -279,10 +322,14 @@ export default function BillingPeriods() {
                     <td className="py-1 border-b border-gray-200 text-right">{money(detail.report.totals.messagesCost)}</td></tr>
                 <tr><td className="py-2 font-bold">Consumo del período</td>
                     <td className="py-2 font-bold text-right">{money(detail.report.totals.usage)}</td></tr>
-                <tr><td className="py-1">Pagado</td>
-                    <td className="py-1 text-right">{money(detail.period.settledAmount)}</td></tr>
-                <tr><td className="py-1 font-semibold">Pendiente</td>
-                    <td className="py-1 font-semibold text-right">{money(detail.period.outstanding)}</td></tr>
+                {detail.period.status !== 'range' && (
+                  <>
+                    <tr><td className="py-1">Pagado</td>
+                        <td className="py-1 text-right">{money(detail.period.settledAmount)}</td></tr>
+                    <tr><td className="py-1 font-semibold">Pendiente</td>
+                        <td className="py-1 font-semibold text-right">{money(detail.period.outstanding)}</td></tr>
+                  </>
+                )}
               </tbody>
             </table>
 

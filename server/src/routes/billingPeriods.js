@@ -7,6 +7,8 @@ const controller = require('../controllers/billingPeriodController');
 router.use(authMiddleware);
 
 router.get('/:userId', controller.list);
+// Literal path first, so "report" is never read as a period id.
+router.get('/:userId/report', controller.rangeReport);
 router.get('/:userId/:periodId', controller.detail);
 router.post('/:userId/:periodId/charge', controller.charge);
 router.post('/:userId/:periodId/mark-paid', controller.markPaid);
