@@ -19,6 +19,7 @@ import RatesSettings from './components/Dashboard/RatesSettings'
 import AllUsers from './components/Dashboard/AllUsers'
 import PaymentPortalPage from './components/Public/PaymentPortalPage'
 import BillingPeriods from './components/Dashboard/BillingPeriods'
+import OtherCharges from './components/Dashboard/OtherCharges'
 import AccountManagement from './components/Dashboard/AccountManagement'
 import VoiceLibrary from './components/Dashboard/VoiceLibrary'
 import Analytics from './components/Dashboard/Analytics'
@@ -168,6 +169,7 @@ function App() {
           <Route path="agent-builder/chat/:id" element={<AgentBuilderHome type="chat" />} />
           <Route path="accounts" element={<AccountManagement />} />
           <Route path="billing-periods" element={<BillingPeriods />} />
+          <Route path="other-charges" element={<OtherCharges />} />
           <Route path="clients" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="agencies" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="all-users" element={<Navigate to="/dashboard/accounts" replace />} />
