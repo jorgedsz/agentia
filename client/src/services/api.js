@@ -520,6 +520,10 @@ export const portalAPI = {
 export const billingPeriodsAPI = {
   list: (userId) => api.get(`/billing-periods/${userId}`),
   detail: (userId, periodId) => api.get(`/billing-periods/${userId}/${periodId}`),
+  rangeReport: (userId, from, to) => api.get(`/billing-periods/${userId}/report`, { params: { from, to } }),
+  cyclePlan: (userId) => api.get(`/billing-periods/${userId}/cycle`),
+  updateCycle: (userId, data) => api.put(`/billing-periods/${userId}/cycle`, data),
+  runCycle: (userId) => api.post(`/billing-periods/${userId}/cycle/run`),
   charge: (userId, periodId) => api.post(`/billing-periods/${userId}/${periodId}/charge`),
   markPaid: (userId, periodId, note) => api.post(`/billing-periods/${userId}/${periodId}/mark-paid`, { note }),
 }

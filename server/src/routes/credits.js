@@ -18,10 +18,15 @@ const {
   getCardStatus,
   chargeCardForUser,
 } = require('../controllers/creditsController');
+const { adjustBalance, listAdjustments } = require('../controllers/creditAdjustmentController');
 
 // Public, API-key-authenticated (clientId + apiKey) reads for external systems.
 // Declared before authMiddleware and before the '/:userId' param route.
 router.get('/balance', getBalanceExternal);
+// Moving a balance by hand (marketing credit, correction). Authenticated with
+// the CALLER's API key — an account may never top itself up.
+router.post('/adjust', adjustBalance);
+router.get('/adjustments', listAdjustments);
 router.get('/usage-by-agent', getUsageByAgentExternal);
 router.get('/calls', getCallsExternal);
 router.get('/messages', getMessagesExternal);

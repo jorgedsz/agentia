@@ -832,6 +832,9 @@ async function triggerAutoRecharge(prisma, userId) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return;
     if (!user.autoRechargeEnabled) return;
+    // Cut billing tops the same account up on its own schedule; running both
+    // would charge the card twice for the same shortfall.
+    if (user.cycleBillingEnabled) return;
     // Manual-billing accounts never self-charge — their provider loads credit.
     const billing = await getEffectiveBilling(prisma, userId).catch(() => ({ mode: 'platform' }));
     if (billing.mode === 'manual') return;
@@ -952,8 +955,16 @@ async function processAutoRecharges(prisma) {
 function startAutoRechargeScheduler(prisma) {
   if (autoRechargeScannerInterval) return;
   console.log('[Auto-Recharge] Scheduler started (every 2 min)');
-  processAutoRecharges(prisma);
-  autoRechargeScannerInterval = setInterval(() => processAutoRecharges(prisma), AUTO_RECHARGE_SCAN_INTERVAL_MS);
+
+  // Accounts on cut billing are funded in days of consumption instead of a
+  // fixed threshold; the same timer drives both sweeps.
+  const sweep = async () => {
+    await processAutoRecharges(prisma);
+    await require('../services/cycleBilling').processCycleBilling(prisma);
+  };
+
+  sweep();
+  autoRechargeScannerInterval = setInterval(sweep, AUTO_RECHARGE_SCAN_INTERVAL_MS);
 }
 
 /**

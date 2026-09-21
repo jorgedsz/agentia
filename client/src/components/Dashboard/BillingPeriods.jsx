@@ -12,6 +12,8 @@ export default function BillingPeriods() {
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [range, setRange] = useState({ from: '', to: '' })
+  const [cycle, setCycle] = useState(null)
 
   useEffect(() => {
     usersAPI.getAll()
@@ -21,10 +23,11 @@ export default function BillingPeriods() {
 
   const loadPeriods = async (id) => {
     if (!id) { setData(null); return }
-    setLoading(true); setError(''); setDetail(null)
+    setLoading(true); setError(''); setDetail(null); setCycle(null)
     try {
       const { data } = await billingPeriodsAPI.list(id)
       setData(data)
+      billingPeriodsAPI.cyclePlan(id).then(({ data }) => setCycle(data)).catch(() => {})
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudieron cargar los períodos')
       setData(null)
@@ -40,6 +43,51 @@ export default function BillingPeriods() {
       setDetail(data)
     } catch (err) {
       setError(err.response?.data?.error || 'No se pudo cargar el detalle')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const saveCycle = async (changes) => {
+    setBusy('cycle'); setError(''); setSuccess('')
+    try {
+      const { data } = await billingPeriodsAPI.updateCycle(accountId, changes)
+      setCycle((c) => ({ ...c, plan: data.plan }))
+      setSuccess('Configuración del corte guardada.')
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo guardar el corte')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  const runCycle = async () => {
+    const amount = cycle?.plan?.chargeAmount || 0
+    if (!confirm(`¿Cobrar $${amount.toFixed(2)} ahora para dejar la cuenta con fondo de ${cycle.plan.targetDays} días?`)) return
+    setBusy('cycle-run'); setError(''); setSuccess('')
+    try {
+      const { data } = await billingPeriodsAPI.runCycle(accountId)
+      setSuccess(data.message)
+      setCycle((c) => ({ ...c, plan: data.plan }))
+      loadPeriods(accountId)
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo cobrar el corte')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  // A report over any dates: the week a client asks about, or a cut that does
+  // not line up with a calendar month. It is only a view — nothing is stored
+  // and nothing can be charged from it.
+  const buildRangeReport = async () => {
+    if (!range.from || !range.to) { setError('Elige las dos fechas.'); return }
+    setBusy('range'); setError('')
+    try {
+      const { data } = await billingPeriodsAPI.rangeReport(accountId, range.from, range.to)
+      setDetail(data)
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo generar el reporte')
     } finally {
       setBusy('')
     }
@@ -240,6 +288,126 @@ export default function BillingPeriods() {
         </>
       )}
 
+      {/* Cut billing: fund the account in days of its own consumption */}
+      {data && !loading && cycle && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5 mb-6">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-medium text-gray-900 dark:text-white">Cobro por cortes</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Mantiene la cuenta con fondo para {cycle.plan.targetDays} días: {cycle.plan.cycleDays} de consumo más {cycle.plan.guaranteeDays} de garantía.
+                Cuando el saldo baja a la garantía, se cobra la tarjeta hasta volver a {cycle.plan.targetDays} días.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={cycle.plan.enabled}
+                onChange={(e) => saveCycle({ enabled: e.target.checked })}
+                disabled={busy === 'cycle'}
+                className="text-primary-600 focus:ring-primary-500"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">{cycle.plan.enabled ? 'Activo' : 'Inactivo'}</span>
+            </label>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="rounded-lg bg-gray-50 dark:bg-dark-hover p-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Consumo diario</p>
+              <p className="text-lg font-semibold text-gray-900 dark:text-white">{money(cycle.plan.dailyAverage)}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">promedio de {cycle.plan.windowDays} días</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 dark:bg-dark-hover p-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Fondo objetivo</p>
+              <p className="text-lg font-semibold text-gray-900 dark:text-white">{money(cycle.plan.targetAmount)}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">{cycle.plan.targetDays} días</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 dark:bg-dark-hover p-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Se cobra al bajar de</p>
+              <p className="text-lg font-semibold text-gray-900 dark:text-white">{money(cycle.plan.guaranteeAmount)}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">{cycle.plan.guaranteeDays} días de garantía</p>
+            </div>
+            <div className="rounded-lg bg-gray-50 dark:bg-dark-hover p-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Fondo actual</p>
+              <p className={`text-lg font-semibold ${cycle.plan.due ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-white'}`}>
+                {cycle.plan.daysLeft === null ? '—' : `${cycle.plan.daysLeft} días`}
+              </p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">{money(cycle.plan.balance)}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 items-end">
+            {[
+              { key: 'targetDays', label: 'Fondo objetivo (días)', value: cycle.plan.targetDays },
+              { key: 'guaranteeDays', label: 'Días de garantía', value: cycle.plan.guaranteeDays },
+              { key: 'usageWindowDays', label: 'Ventana de promedio', value: cycle.plan.windowDays },
+            ].map((field) => (
+              <div key={field.key}>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{field.label}</label>
+                <input
+                  type="number"
+                  defaultValue={field.value}
+                  onBlur={(e) => {
+                    const n = parseInt(e.target.value)
+                    if (Number.isFinite(n) && n !== field.value) saveCycle({ [field.key]: n })
+                  }}
+                  className="w-28 px-3 py-2 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white"
+                />
+              </div>
+            ))}
+
+            <button
+              onClick={runCycle}
+              disabled={busy === 'cycle-run' || !cycle.hasCard || cycle.plan.chargeAmount < 0.5}
+              title={cycle.hasCard ? '' : 'La cuenta no tiene tarjeta guardada'}
+              className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {busy === 'cycle-run' ? 'Cobrando…' : `Cobrar ahora ${money(cycle.plan.chargeAmount)}`}
+            </button>
+          </div>
+
+          {!cycle.hasCard && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-3">
+              La cuenta no tiene tarjeta guardada, así que el corte no puede cobrarse solo. El cliente debe agregarla desde su panel o su enlace de pago.
+            </p>
+          )}
+          {cycle.plan.dailyAverage === 0 && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+              Todavía no hay consumo para estimar el corte. En cuanto la cuenta empiece a consumir, el cálculo aparece solo.
+            </p>
+          )}
+          {cycle.lastError && (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-3">Último intento: {cycle.lastError}</p>
+          )}
+        </div>
+      )}
+
+      {/* A report over freely chosen dates */}
+      {data && !loading && (
+        <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-5 mb-8">
+          <h2 className="text-sm font-medium text-gray-900 dark:text-white mb-1">Reporte por fechas</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Para revisar un rango que no coincide con un mes. Solo se consulta: no crea ni cobra un período.
+          </p>
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Desde</label>
+              <input type="date" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))}
+                className="px-3 py-2 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Hasta</label>
+              <input type="date" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))}
+                className="px-3 py-2 text-sm bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white" />
+            </div>
+            <button onClick={buildRangeReport} disabled={busy === 'range'}
+              className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
+              {busy === 'range' ? 'Generando…' : 'Generar reporte'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Detail of one month — this block is what the PDF prints */}
       {detail && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
@@ -279,10 +447,14 @@ export default function BillingPeriods() {
                     <td className="py-1 border-b border-gray-200 text-right">{money(detail.report.totals.messagesCost)}</td></tr>
                 <tr><td className="py-2 font-bold">Consumo del período</td>
                     <td className="py-2 font-bold text-right">{money(detail.report.totals.usage)}</td></tr>
-                <tr><td className="py-1">Pagado</td>
-                    <td className="py-1 text-right">{money(detail.period.settledAmount)}</td></tr>
-                <tr><td className="py-1 font-semibold">Pendiente</td>
-                    <td className="py-1 font-semibold text-right">{money(detail.period.outstanding)}</td></tr>
+                {detail.period.status !== 'range' && (
+                  <>
+                    <tr><td className="py-1">Pagado</td>
+                        <td className="py-1 text-right">{money(detail.period.settledAmount)}</td></tr>
+                    <tr><td className="py-1 font-semibold">Pendiente</td>
+                        <td className="py-1 font-semibold text-right">{money(detail.period.outstanding)}</td></tr>
+                  </>
+                )}
               </tbody>
             </table>
 
