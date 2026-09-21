@@ -11,10 +11,24 @@ const { getEffectiveBilling } = require('../utils/whopConfig');
 const { extractDeclineReason } = require('../utils/autoRecharge');
 const { logAudit } = require('../utils/auditLog');
 
-async function resolveTarget(req, res) {
-  const target = await req.prisma.user.findUnique({ where: { id: parseInt(req.params.userId) } });
+/**
+ * The account a request is about. `:userId` may be "me" — every account can
+ * read its own statements and reports. Reading someone else's, and every write
+ * (charging, marking paid, cut settings), stays with the OWNER or the partner
+ * above the account.
+ */
+async function resolveTarget(req, res, { allowSelf = false } = {}) {
+  const isSelf = req.params.userId === 'me' || parseInt(req.params.userId) === req.user?.id;
+  const id = req.params.userId === 'me' ? req.user?.id : parseInt(req.params.userId);
+
+  const target = await req.prisma.user.findUnique({ where: { id } });
   if (!target) {
     res.status(404).json({ error: 'User not found' });
+    return null;
+  }
+  if (isSelf) {
+    if (allowSelf) return target;
+    res.status(403).json({ error: 'Esta acción la hace tu proveedor.' });
     return null;
   }
   if (!(await canManageAccount(req.prisma, req.user, target))) {
@@ -27,7 +41,7 @@ async function resolveTarget(req, res) {
 // GET /api/billing-periods/:userId
 const list = async (req, res) => {
   try {
-    const target = await resolveTarget(req, res);
+    const target = await resolveTarget(req, res, { allowSelf: true });
     if (!target) return;
 
     const periods = await billing.syncPeriods(req.prisma, target);
@@ -35,6 +49,7 @@ const list = async (req, res) => {
     const isStripe = mode === 'own_stripe';
 
     res.json({
+      readOnly: target.id === req.user.id,
       account: {
         id: target.id,
         name: target.companyName || target.name || target.email,
@@ -60,7 +75,7 @@ const list = async (req, res) => {
  */
 const rangeReport = async (req, res) => {
   try {
-    const target = await resolveTarget(req, res);
+    const target = await resolveTarget(req, res, { allowSelf: true });
     if (!target) return;
 
     const { from, to } = req.query || {};
@@ -129,7 +144,7 @@ function serializeReport(report) {
 // GET /api/billing-periods/:userId/:periodId — the detail behind one month
 const detail = async (req, res) => {
   try {
-    const target = await resolveTarget(req, res);
+    const target = await resolveTarget(req, res, { allowSelf: true });
     if (!target) return;
 
     const period = await req.prisma.billingPeriod.findFirst({

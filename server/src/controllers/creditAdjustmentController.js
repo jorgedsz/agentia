@@ -276,4 +276,24 @@ const panelCreate = async (req, res) => {
   }
 };
 
-module.exports = { adjustBalance, listAdjustments, panelList, panelCreate };
+/**
+ * GET /api/credits/my-adjustments — the charges and credits made to the viewer's
+ * own account, read-only. Who made each one and the API reference stay out: a
+ * whitelabel's client should see their provider's charges, not the platform
+ * behind them.
+ */
+const myList = async (req, res) => {
+  try {
+    const me = await req.prisma.user.findUnique({ where: { id: req.user.id }, select: { vapiCredits: true } });
+    const rows = await ledgerFor(req.prisma, req.user.id, 200);
+    res.json({
+      balance: round(me?.vapiCredits || 0),
+      adjustments: rows.map(({ id, amount, concept, note, balanceAfter, at }) => ({ id, amount, concept, note, balanceAfter, at })),
+    });
+  } catch (error) {
+    console.error('My adjustments error:', error.message);
+    res.status(500).json({ error: 'Failed to load your charges' });
+  }
+};
+
+module.exports = { adjustBalance, listAdjustments, panelList, panelCreate, myList };

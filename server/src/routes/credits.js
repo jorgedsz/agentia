@@ -18,7 +18,7 @@ const {
   getCardStatus,
   chargeCardForUser,
 } = require('../controllers/creditsController');
-const { adjustBalance, listAdjustments, panelList, panelCreate } = require('../controllers/creditAdjustmentController');
+const { adjustBalance, listAdjustments, panelList, panelCreate, myList } = require('../controllers/creditAdjustmentController');
 
 // Public, API-key-authenticated (clientId + apiKey) reads for external systems.
 // Declared before authMiddleware and before the '/:userId' param route.
@@ -47,6 +47,9 @@ router.delete('/card', removeCard);
 router.get('/auto-recharge', getAutoRecharge);
 router.put('/auto-recharge', updateAutoRecharge);
 router.post('/recharge-now', rechargeNow);
+
+// Every account can read the charges and credits made to itself.
+router.get('/my-adjustments', myList);
 
 // "Otros cobros": hand-made balance moves with a concept (OWNER / partner)
 router.get('/:userId/adjustments', panelList);

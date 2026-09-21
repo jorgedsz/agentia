@@ -310,8 +310,8 @@ export default function DashboardLayout() {
       items: [
         { id: 'accounts', path: '/dashboard/accounts', label: t('sidebar.accounts'), icon: Icons.SubAccounts, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
         { id: 'payments', path: '/dashboard/payments', label: t('sidebar.payments'), icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
-        { id: 'billing-periods', path: '/dashboard/billing-periods', label: 'Períodos y reportes', icon: Icons.Reports, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
-        { id: 'other-charges', path: '/dashboard/other-charges', label: 'Otros cobros', icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
+        { id: 'billing-periods', path: '/dashboard/billing-periods', label: 'Períodos y reportes', icon: Icons.Reports, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'other-charges', path: '/dashboard/other-charges', label: 'Otros cobros', icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'chatbot-costs', path: '/dashboard/chatbot-costs', label: 'Chatbot Costs', icon: Icons.Chatbot, roles: [ROLES.OWNER] },
       ]
     },
