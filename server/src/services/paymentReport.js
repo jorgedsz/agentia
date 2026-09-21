@@ -23,6 +23,7 @@ const TIMEZONE = process.env.PAYMENT_REPORT_TIMEZONE || 'America/Bogota';
 const MAX_DETAIL_ROWS = 400;
 
 const money = (n) => `$${(Math.round((n || 0) * 100) / 100).toFixed(2)}`;
+const round = (n) => Math.round((n || 0) * 100) / 100;
 const fmtDay = (d) => new Intl.DateTimeFormat('es-CO', { timeZone: TIMEZONE, weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(d);
 const fmtTime = (d) => new Intl.DateTimeFormat('es-CO', { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).format(d);
 const dayKey = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
@@ -52,9 +53,12 @@ async function buildPaymentReport(prisma, purchase) {
   const { start, end } = await resolvePeriod(prisma, purchase);
   const window = { userId: purchase.userId, createdAt: { gte: start, lte: end } };
 
-  const [calls, messages] = await Promise.all([
+  const [calls, messages, adjustments] = await Promise.all([
     prisma.callLog.findMany({ where: window, orderBy: { createdAt: 'asc' } }).catch(() => []),
     prisma.chatbotMessage.findMany({ where: { ...window, isTest: false }, orderBy: { createdAt: 'asc' } }).catch(() => []),
+    prisma.creditAdjustment?.findMany
+      ? prisma.creditAdjustment.findMany({ where: window, orderBy: { createdAt: 'asc' } }).catch(() => [])
+      : [],
   ]);
 
   const items = [];
@@ -94,16 +98,33 @@ async function buildPaymentReport(prisma, purchase) {
   const callsCost = calls.reduce((sum, l) => sum + (decryptPHI(l).costCharged || 0), 0);
   const messagesCost = messages.reduce((sum, m) => sum + (m.costCharged || 0), 0);
 
+  // Charges and credits that are not consumption (marketing, courtesies). In
+  // the ledger a charge is negative, so it is flipped to read as money owed.
+  const otherCharges = adjustments.map((a) => ({
+    at: a.createdAt,
+    concept: a.concept,
+    note: a.note || null,
+    amount: round(-a.amount), // positive = charged to the client, negative = credited
+  }));
+  const otherChargesDebits = otherCharges.filter((c) => c.amount > 0).reduce((s, c) => s + c.amount, 0);
+  const otherChargesCredits = otherCharges.filter((c) => c.amount < 0).reduce((s, c) => s - c.amount, 0);
+  const usage = callsCost + messagesCost;
+
   return {
     period: { start, end },
     timezone: TIMEZONE,
     days,
+    otherCharges,
     totals: {
       calls: calls.length,
       messages: messages.length,
       callsCost,
       messagesCost,
-      usage: callsCost + messagesCost,
+      usage,
+      otherCharges: round(otherChargesDebits),
+      credits: round(otherChargesCredits),
+      // What the period owes: consumption plus other charges, less credits.
+      total: round(usage + otherChargesDebits - otherChargesCredits),
       paid: purchase.amount,
     },
     detailed: items.length <= MAX_DETAIL_ROWS,
@@ -176,10 +197,33 @@ function renderPaymentReportHtml(report, { brandName, accountName, paidAt }) {
         <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right">${money(totals.messagesCost)}</td>
       </tr>
       <tr>
-        <td style="padding:8px 10px;font-weight:700">Consumo del período</td>
-        <td style="padding:8px 10px;font-weight:700;text-align:right">${money(totals.usage)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">Consumo del período</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right">${money(totals.usage)}</td>
+      </tr>
+      ${totals.otherCharges ? `<tr>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">Otros cobros</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right">${money(totals.otherCharges)}</td>
+      </tr>` : ''}
+      ${totals.credits ? `<tr>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb">Abonos</td>
+        <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:right">−${money(totals.credits)}</td>
+      </tr>` : ''}
+      <tr>
+        <td style="padding:8px 10px;font-weight:700">Total del período</td>
+        <td style="padding:8px 10px;font-weight:700;text-align:right">${money(totals.total)}</td>
       </tr>
     </table>
+
+    ${report.otherCharges.length ? `
+    <h3 style="font-size:15px;margin:0 0 8px">Otros cobros y abonos</h3>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;margin-bottom:20px">
+      ${report.otherCharges.map((c) => `
+      <tr>
+        <td style="padding:6px 10px;color:#6b7280;font-size:13px;white-space:nowrap">${escape(fmtDay(c.at))} · ${escape(fmtTime(c.at))}</td>
+        <td style="padding:6px 10px;font-size:13px;text-transform:capitalize">${escape(c.concept)}${c.note ? `<br><span style="color:#6b7280">${escape(c.note)}</span>` : ''}</td>
+        <td style="padding:6px 10px;font-size:13px;text-align:right">${c.amount < 0 ? '−' : ''}${money(Math.abs(c.amount))}</td>
+      </tr>`).join('')}
+    </table>` : ''}
 
     <h3 style="font-size:15px;margin:0 0 8px">Detalle por día</h3>
     ${days.length === 0

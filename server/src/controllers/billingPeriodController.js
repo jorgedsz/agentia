@@ -141,6 +141,85 @@ function serializeReport(report) {
   };
 }
 
+// The full-logs PDF lists every entry, so it is bounded by time and by rows
+// instead of summarising the way the report does.
+const LOGS_MAX_DAYS = 370;
+const LOGS_MAX_ROWS = 20000;
+
+/**
+ * GET /api/billing-periods/:userId/logs?start=ISO&end=ISO
+ * Every call, message and other charge in a window, with every field worth
+ * having on paper — the raw record behind a report.
+ */
+const logs = async (req, res) => {
+  try {
+    const target = await resolveTarget(req, res, { allowSelf: true });
+    if (!target) return;
+
+    const start = new Date(req.query?.start);
+    const end = new Date(req.query?.end);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+      return res.status(400).json({ error: 'Indica start y end como fechas ISO, con start antes que end.' });
+    }
+    if (end - start > LOGS_MAX_DAYS * 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ error: `El rango de los logs puede ser de hasta ${LOGS_MAX_DAYS} días.` });
+    }
+
+    const window = { userId: target.id, createdAt: { gte: start, lte: end } };
+    const take = LOGS_MAX_ROWS + 1; // one extra tells us whether it was cut
+
+    const [calls, messages, adjustments] = await Promise.all([
+      req.prisma.callLog.findMany({ where: window, orderBy: { createdAt: 'asc' }, take }).catch(() => []),
+      req.prisma.chatbotMessage.findMany({ where: { ...window, isTest: false }, orderBy: { createdAt: 'asc' }, take }).catch(() => []),
+      req.prisma.creditAdjustment.findMany({ where: window, orderBy: { createdAt: 'asc' } }).catch(() => []),
+    ]);
+
+    const agentIds = [...new Set(calls.map((c) => c.agentId).filter(Boolean))];
+    const agents = agentIds.length
+      ? await req.prisma.agent.findMany({ where: { id: { in: agentIds } }, select: { id: true, name: true } }).catch(() => [])
+      : [];
+    const agentName = Object.fromEntries(agents.map((a) => [a.id, a.name]));
+    const { decryptPHI } = require('../utils/phiEncryption');
+
+    res.json({
+      account: { id: target.id, name: target.companyName || target.name || target.email },
+      period: { start: start.toISOString(), end: end.toISOString(), timezone: billing.TIMEZONE },
+      truncated: { calls: calls.length > LOGS_MAX_ROWS, messages: messages.length > LOGS_MAX_ROWS },
+      calls: calls.slice(0, LOGS_MAX_ROWS).map((log) => {
+        const d = decryptPHI(log);
+        return {
+          at: log.createdAt,
+          agent: agentName[log.agentId] || null,
+          customer: d.customerNumber || null,
+          type: log.type || null,
+          durationSeconds: d.durationSeconds || 0,
+          outcome: d.outcome || null,
+          endedReason: log.endedReason || null,
+          cost: Math.round((d.costCharged || 0) * 10000) / 10000,
+        };
+      }),
+      messages: messages.slice(0, LOGS_MAX_ROWS).map((m) => ({
+        at: m.createdAt,
+        chatbot: m.chatbotName,
+        contact: m.contactName || m.contactId || m.sessionId,
+        input: m.inputMessage,
+        output: m.outputMessage,
+        status: m.status,
+        cost: Math.round((m.costCharged || 0) * 10000) / 10000,
+      })),
+      otherCharges: adjustments.map((a) => ({
+        at: a.createdAt,
+        concept: a.concept,
+        note: a.note || null,
+        amount: Math.round(-a.amount * 100) / 100, // positive = charged, negative = credited
+      })),
+    });
+  } catch (error) {
+    console.error('Billing logs error:', error.message);
+    res.status(500).json({ error: 'Failed to load the logs' });
+  }
+};
+
 // GET /api/billing-periods/:userId/:periodId — the detail behind one month
 const detail = async (req, res) => {
   try {
@@ -411,4 +490,4 @@ const runCycle = async (req, res) => {
   }
 };
 
-module.exports = { list, detail, rangeReport, charge, markPaid, cyclePlan, updateCycle, runCycle };
+module.exports = { list, detail, rangeReport, logs, charge, markPaid, cyclePlan, updateCycle, runCycle };
