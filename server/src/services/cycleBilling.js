@@ -132,8 +132,17 @@ async function runForAccount(prisma, userId) {
   if (blocked) return { charged: false, reason: blocked, plan };
   if (!plan.due) return { charged: false, reason: 'not due yet', plan };
 
-  // Stamp before charging, so a crash mid-charge cannot produce a second one.
-  await prisma.user.update({ where: { id: user.id }, data: { cycleLastChargeAt: new Date() } });
+  // Claim the charge atomically, so two sweeps (or a sweep and "charge now")
+  // landing together cannot both charge the card. Only the run whose
+  // conditional update lands goes on.
+  const claimed = await prisma.user.updateMany({
+    where: {
+      id: user.id,
+      OR: [{ cycleLastChargeAt: null }, { cycleLastChargeAt: { lt: new Date(Date.now() - COOLDOWN_MS) } }],
+    },
+    data: { cycleLastChargeAt: new Date() },
+  });
+  if (claimed.count !== 1) return { charged: false, reason: 'another run is already charging this cut', plan };
 
   const { performOffSessionCharge } = require('../controllers/creditsController');
   try {

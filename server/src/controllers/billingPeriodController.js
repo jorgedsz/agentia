@@ -280,6 +280,10 @@ const charge = async (req, res) => {
       return res.status(400).json({ error: 'El saldo del período es menor al mínimo que acepta Stripe ($0.50).' });
     }
 
+    // Not on top of an automatic top-up already charging this card.
+    const blocked = await require('../services/creditCheckout').manualTopUpBlocker(req.prisma, target.id);
+    if (blocked) return res.status(409).json({ error: blocked });
+
     const { mode } = await getEffectiveBilling(req.prisma, target.id).catch(() => ({ mode: 'platform' }));
     const isStripe = mode === 'own_stripe';
     if (!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId)) {
