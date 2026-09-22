@@ -79,10 +79,31 @@ const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
 
 // ── Socket.IO ──────────────────────────────────────────────
+// A browser sends the origin without a trailing slash and lowercased, so the
+// list has to match that shape or a domain that is configured still gets
+// refused.
+const normalizeOrigin = (value) => {
+  const trimmed = (value || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return null;
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    return new URL(withScheme).origin.toLowerCase();
+  } catch {
+    return null;
+  }
+};
+
+// The portal is reached through more than one domain (a partner on its own
+// domain, the marketing site, the payment page). EXTRA_ORIGINS holds the rest,
+// comma separated, so adding a domain is an env change rather than a deploy of
+// new code:  EXTRA_ORIGINS=https://panel.neboaiconsulting.com,https://otro.com
 const allowedOrigins = [
   process.env.CLIENT_URL || 'http://localhost:5173',
-  process.env.WEBSITE_URL || 'https://swordaisolutions.com'
-].filter(Boolean);
+  process.env.WEBSITE_URL || 'https://swordaisolutions.com',
+  ...(process.env.EXTRA_ORIGINS || '').split(','),
+].map(normalizeOrigin).filter((origin, i, all) => origin && all.indexOf(origin) === i);
+
+console.log(`[CORS] Allowed origins: ${allowedOrigins.join(', ')}`);
 
 const io = new SocketIOServer(server, {
   cors: { origin: allowedOrigins, credentials: true }
@@ -167,23 +188,25 @@ app.use(helmet({
   frameguard: false // handled manually below for selective iframe embedding
 }));
 
-// Allow iframe embedding from the marketing website
+// Allow iframe embedding from the marketing website, and from any other domain
+// the portal answers on (EXTRA_ORIGINS), so an embed on a partner's own site is
+// not blocked by the browser.
+const frameAncestors = allowedOrigins.filter((o) => !o.startsWith('http://localhost')).join(' ');
 app.use((req, res, next) => {
-  const websiteUrl = process.env.WEBSITE_URL || 'https://swordaisolutions.com';
   // The per-client payment page is meant to be embedded in whatever site the
   // client runs, so it carries no frame-ancestors restriction. It exposes only a
   // balance and a pay button behind a token of its own — never the portal data.
   const isPaymentPage = req.path.startsWith('/pay/') || req.path.startsWith('/api/pay/');
   res.setHeader('Content-Security-Policy', isPaymentPage
     ? "frame-ancestors *"
-    : `frame-ancestors 'self' ${websiteUrl}`);
+    : `frame-ancestors 'self' ${frameAncestors}`.trim());
   next();
 });
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
       callback(null, true);
     } else {
       callback(null, false);
