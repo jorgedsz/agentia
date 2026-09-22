@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { brandingAPI } from './services/api'
+import { applyHostBranding } from './utils/hostBranding'
 import Login from './components/Auth/Login'
 import Register from './components/Auth/Register'
 import DashboardLayout from './components/Dashboard/DashboardLayout'
@@ -82,19 +83,36 @@ function PublicRoute({ children }) {
   return children
 }
 
-// On whitelabel custom domains (e.g. lmconsultingai.com) the marketing
-// landing isn't the right entry — those visitors should go straight to
-// their branded login. Resolves by hitting /api/branding/by-host once and
-// redirects when a brand owns the host. Renders blank during the lookup so
-// the Sword AI landing doesn't flash on a whitelabel domain.
+// The marketing landing belongs to the platform's own address. Every other
+// domain the portal answers on (a partner's domain, a panel domain such as
+// panel.neboaiconsulting.com) is an entrance for people who come to sign in,
+// so the landing is never what they should meet there.
+const PLATFORM_HOSTS = (() => {
+  const hosts = ['localhost', '127.0.0.1', 'swordaisolutions.com']
+  try {
+    // Where this build talks to: the address the platform itself is served on.
+    hosts.push(new URL(import.meta.env.VITE_API_URL || 'https://app.swordaisolutions.com/api').hostname)
+  } catch { /* a relative /api — the hosts above are enough */ }
+  return hosts.map((h) => h.replace(/^www\./, ''))
+})()
+
+const isPlatformHost = () =>
+  PLATFORM_HOSTS.includes(window.location.hostname.replace(/^www\./, '').toLowerCase())
+
+// On any domain that is not the platform's own, go straight to the login. The
+// decision is made from the hostname alone, without waiting for the branding
+// lookup, so the login still appears if that call is slow or fails. On the
+// platform's own domain the lookup still runs, because a brand may own it.
 function WhitelabelAwareLanding({ fallback }) {
-  const [resolved, setResolved] = useState(null) // null=loading, true=redirect, false=show fallback
+  const onPlatform = isPlatformHost()
+  const [resolved, setResolved] = useState(onPlatform ? null : true) // null=loading, true=redirect, false=show fallback
 
   useEffect(() => {
+    if (!onPlatform) return
     brandingAPI.getByHost(window.location.host)
       .then((r) => setResolved(!!r.data?.branding))
       .catch(() => setResolved(false))
-  }, [])
+  }, [onPlatform])
 
   if (resolved === null) return <div className="min-h-screen bg-gray-900" />
   if (resolved) return <Navigate to="/login" replace />
@@ -114,6 +132,10 @@ function ComingSoon({ title }) {
 }
 
 function App() {
+  // The tab title, the icon and the link preview follow whoever owns this
+  // domain, so a partner's domain never shows the platform's name.
+  useEffect(() => { applyHostBranding() }, [])
+
   return (
     <div className="min-h-screen bg-gray-100">
       <Routes>

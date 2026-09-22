@@ -297,7 +297,13 @@ export const brandingAPI = {
   // used on the login page and on app boot before falling back to the
   // logged-in user's own branding.
   getByHost: (host) => api.get('/branding/by-host', { params: { host } }),
-  update: (data) => api.put('/branding', data)
+  update: (data) => api.put('/branding', data),
+  // Domains this account is branded on. Without userId they are the caller's
+  // own; with one, another account's (OWNER).
+  getDomains: (userId) => api.get(userId ? `/branding/domains/of/${userId}` : '/branding/domains'),
+  addDomain: (host, userId) => api.post(userId ? `/branding/domains/of/${userId}` : '/branding/domains', { host }),
+  removeDomain: (host, userId) =>
+    api.delete(userId ? `/branding/domains/of/${userId}/${encodeURIComponent(host)}` : `/branding/domains/${encodeURIComponent(host)}`)
 }
 
 // Voices API
