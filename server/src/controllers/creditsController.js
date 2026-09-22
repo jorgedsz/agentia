@@ -3,7 +3,7 @@ const { getWhopConfigForUser, getEffectiveBilling } = require('../utils/whopConf
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 const { settleCreditPurchase } = require('../utils/creditSettlement');
 const { logAudit } = require('../utils/auditLog');
-const { createCreditCheckout, createCardSetupCheckout, resolveReceiptEmail, CheckoutError } = require('../services/creditCheckout');
+const { createCreditCheckout, createCardSetupCheckout, resolveReceiptEmail, CheckoutError, creditsLabel, manualTopUpBlocker } = require('../services/creditCheckout');
 const { decrypt } = require('../utils/encryption');
 const { decryptPHI } = require('../utils/phiEncryption');
 
@@ -516,6 +516,11 @@ const chargeCardForUser = async (req, res) => {
       return res.status(403).json({ error: 'You cannot collect from this account.' });
     }
 
+    // Collecting by hand on top of an automatic top-up would charge the same
+    // card twice for the same shortfall.
+    const blocked = await manualTopUpBlocker(req.prisma, target.id);
+    if (blocked) return res.status(409).json({ error: blocked });
+
     const amount = Math.round(parseFloat(req.body?.amount) * 100) / 100;
     if (!Number.isFinite(amount) || amount < CHARGE_MIN_AMOUNT || amount > CREDITS_MAX_AMOUNT) {
       return res.status(400).json({ error: `El monto debe estar entre $${CHARGE_MIN_AMOUNT} y $${CREDITS_MAX_AMOUNT}.` });
@@ -731,7 +736,13 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
         customerId,
         paymentMethodId,
         amount,
-        description: `Credits ($${amount})`,
+        description: `${creditsLabel(kind)} ($${amount})`,
+        // Second line of defence against a double charge: two automatic attempts
+        // for the same card in the same window reach Stripe with the same key,
+        // and Stripe hands back the first payment instead of making another.
+        idempotencyKey: ['auto_recharge', 'cycle_topup'].includes(kind)
+          ? `${kind}:${user.id}:${paymentMethodId}:${Math.floor(Date.now() / AUTO_RECHARGE_COOLDOWN_MS)}`
+          : undefined,
         receiptEmail: await resolveReceiptEmail(prisma, user),
         metadata: {
           userId: String(user.id), type: 'credits', kind,
@@ -881,8 +892,23 @@ async function triggerAutoRecharge(prisma, userId) {
       return;
     }
 
-    // Stamp the attempt time first so the cooldown/lock holds even if the call is slow.
-    await prisma.user.update({ where: { id: userId }, data: { autoRechargeLastAt: new Date() } });
+    // Claim the charge atomically. Auto-recharge fires from two places — the
+    // two-minute sweep and the webhook at the end of every call — and the
+    // cooldown check above reads a copy of the row taken several queries ago.
+    // Two runs landing together both passed it and both charged the card (two
+    // identical top-ups at once). Now only the run whose conditional update
+    // lands may charge; the other finds the slot taken and stops.
+    const claimed = await prisma.user.updateMany({
+      where: {
+        id: userId,
+        OR: [
+          { autoRechargeLastAt: null },
+          { autoRechargeLastAt: { lt: new Date(Date.now() - AUTO_RECHARGE_COOLDOWN_MS) } },
+        ],
+      },
+      data: { autoRechargeLastAt: new Date() },
+    });
+    if (claimed.count !== 1) return; // another run already owns this charge
 
     // Try each saved card in priority order. A card that Whop ACCEPTS (returns
     // "processing") settles async — its real success/failure arrives via webhook,
@@ -1081,6 +1107,9 @@ const getAutoRecharge = async (req, res) => {
       // When manual, the client can't self-purchase — their provider loads credit.
       billingMode: billing.mode,
       selfServiceDisabled: billing.mode === 'manual',
+      // Why buying or recharging by hand is paused right now (auto-recharge due
+      // or a top-up still settling), or null. The panel disables those buttons.
+      manualTopUpBlocked: await manualTopUpBlocker(req.prisma, req.user.id).catch(() => null),
       min: CREDITS_MIN_AMOUNT,
       max: CREDITS_MAX_AMOUNT,
     });
@@ -1148,6 +1177,10 @@ const updateAutoRecharge = async (req, res) => {
  */
 const rechargeNow = async (req, res) => {
   try {
+    // Not while the automation is about to charge (or is charging) this card.
+    const blocked = await manualTopUpBlocker(req.prisma, req.user.id);
+    if (blocked) return res.status(409).json({ error: blocked });
+
     const whop = await getWhopConfigForUser(req.prisma, req.user.id);
     if (whop.mode === 'manual') {
       return res.status(403).json({ error: MANUAL_BILLING_MSG });

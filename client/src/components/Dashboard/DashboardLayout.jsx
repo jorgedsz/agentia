@@ -768,6 +768,7 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
         amount: data.amount ?? '',
         hasCard: !!data.hasCard,
         selfServiceDisabled: !!data.selfServiceDisabled,
+        manualTopUpBlocked: data.manualTopUpBlocked || null,
         lastError: data.lastError || null,
         disabledByFailures: !!data.disabledByFailures,
         failCount: data.failCount || 0,
@@ -867,6 +868,9 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
     try {
       await creditsAPI.updateAutoRecharge({ enabled: ar.enabled, threshold: parseFloat(ar.threshold), amount: parseFloat(ar.amount) })
       setArMsg(t('credits.autoRechargeSaved') || 'Auto-recarga actualizada.')
+      // Switching auto-recharge on below the threshold makes it charge on its own
+      // within minutes; refresh so the manual buttons pause right away.
+      fetchAr()
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save auto-recharge')
     } finally {
@@ -1007,11 +1011,18 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                   ))}
                 </div>
               )}
+              {/* While auto-recharge is about to charge (or is charging) the card, a
+                  manual top-up would charge it twice — so both buttons wait. */}
+              {ar.manualTopUpBlocked && (
+                <div className="mb-3 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 text-xs">
+                  {ar.manualTopUpBlocked}
+                </div>
+              )}
               {/* Buy (hosted checkout) + Recharge now (saved card) — both use the amount above */}
               <div className={`flex gap-2 ${ar.hasCard ? '' : ''}`}>
                 <button
                   onClick={handleBuy}
-                  disabled={buyLoading || !amount}
+                  disabled={buyLoading || !amount || !!ar.manualTopUpBlocked}
                   className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {buyLoading ? (
@@ -1023,7 +1034,7 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                 {ar.hasCard && (
                   <button
                     onClick={requestRecharge}
-                    disabled={rechargeLoading || !amount}
+                    disabled={rechargeLoading || !amount || !!ar.manualTopUpBlocked}
                     title={t('credits.rechargeNowHint') || 'Cobra el monto de arriba a tu tarjeta guardada'}
                     className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >

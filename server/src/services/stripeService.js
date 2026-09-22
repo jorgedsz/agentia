@@ -137,7 +137,7 @@ async function createSetupCheckout({ customerId, metadata, successUrl, cancelUrl
 // synchronously here: a returned status of "succeeded" means the money is in.
 // A card that needs 3-D Secure raises authentication_required, which surfaces as
 // a decline — the customer then has to pay through a hosted checkout instead.
-async function chargeOffSession({ customerId, paymentMethodId, amount, description, metadata, receiptEmail }, secretKey) {
+async function chargeOffSession({ customerId, paymentMethodId, amount, description, metadata, receiptEmail, idempotencyKey }, secretKey) {
   return client(secretKey).paymentIntents.create({
     amount: toCents(amount),
     currency: 'usd',
@@ -150,7 +150,7 @@ async function chargeOffSession({ customerId, paymentMethodId, amount, descripti
     // matters most here.
     receipt_email: receiptEmail || undefined,
     metadata: metadata || {},
-  });
+  }, idempotencyKey ? { idempotencyKey } : undefined);
 }
 
 // ── Payment methods ──

@@ -11,6 +11,61 @@ const { getStripeConfigForUser } = require('../utils/stripeConfig');
 
 const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contáctalo para recargar créditos.';
 
+// Charges the platform makes on its own, as opposed to ones a person started.
+const AUTOMATIC_KINDS = new Set(['auto_recharge', 'cycle_topup']);
+
+/**
+ * What a credit charge is called on the card statement, in the Stripe dashboard
+ * and on the receipt — so a client can tell a top-up they asked for from one the
+ * platform made for them.
+ */
+function creditsLabel(kind) {
+  return AUTOMATIC_KINDS.has(kind) ? 'Auto-Recharge Credits' : 'Manual Purchase Credits';
+}
+
+/**
+ * Why a person may not load credit right now, or null. Loading by hand while
+ * the automation is about to charge (or already charging) the same card is how
+ * one balance got two simultaneous charges: so it is refused while auto-recharge
+ * is due or a top-up is still settling.
+ */
+async function manualTopUpBlocker(prisma, userId) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return null;
+  const money = (n) => `$${(Math.round((n || 0) * 100) / 100).toFixed(2)}`;
+
+  const inFlight = await Promise.resolve()
+    .then(() => prisma.creditPurchase.findFirst({
+      where: {
+        userId,
+        kind: { in: [...AUTOMATIC_KINDS] },
+        status: 'pending',
+        createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+      orderBy: { createdAt: 'desc' },
+    }))
+    .catch(() => null);
+  if (inFlight) {
+    return `Hay una recarga automática de ${money(inFlight.amount)} en curso. Espera a que se confirme antes de cargar saldo.`;
+  }
+
+  const hasCard = !!(user.stripePaymentMethodId || user.whopPaymentMethodId);
+  if (user.autoRechargeEnabled && !user.cycleBillingEnabled && hasCard
+      && user.autoRechargeThreshold > 0 && user.vapiCredits < user.autoRechargeThreshold) {
+    return `La auto-recarga está activa y tu saldo (${money(user.vapiCredits)}) está por debajo de ${money(user.autoRechargeThreshold)}: `
+      + `se va a cargar sola por ${money(user.autoRechargeAmount)} en unos minutos. No hace falta cargar a mano.`;
+  }
+
+  if (user.cycleBillingEnabled && hasCard) {
+    const plan = await require('./cycleBilling').planFor(prisma, user).catch(() => null);
+    if (plan?.due) {
+      return `El cobro por cortes está por cargar ${money(plan.chargeAmount)} automáticamente. No hace falta cargar a mano.`;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Where Stripe should send the receipt for this account's payments: the address
  * configured on the account, else the one configured on the nearest partner above
@@ -68,6 +123,9 @@ async function nextPeriodFor(prisma, userId) {
  * provider's front-end expects.
  */
 async function createCreditCheckout(prisma, userId, amount, { successUrl, cancelUrl }) {
+  const blocked = await manualTopUpBlocker(prisma, userId);
+  if (blocked) throw new CheckoutError(blocked, 409);
+
   // Accounts under a partner billing through Stripe check out in that partner's
   // Stripe account; everyone else follows the Whop path below.
   const stripe = await getStripeConfigForUser(prisma, userId);
@@ -89,8 +147,8 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
     const session = await stripeService.createPaymentCheckout({
       customerId,
       amount,
-      productName: `Credits ($${amount})`,
-      description: `Créditos $${amount} · ${user.companyName || user.name || user.email}`,
+      productName: `${creditsLabel('manual')} ($${amount})`,
+      description: `${creditsLabel('manual')} $${amount} · ${user.companyName || user.name || user.email}`,
       receiptEmail: await resolveReceiptEmail(prisma, user),
       metadata: {
         userId: String(userId),
@@ -156,7 +214,7 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
   const plan = await whopService.createPlan(creditsProductId, {
     price: amount,
     billingCycle: 'lifetime',
-    name: `Credits ($${amount})`,
+    name: `${creditsLabel('manual')} ($${amount})`,
   }, whop.config);
 
   const session = await whopService.createCheckoutSession({
@@ -284,6 +342,8 @@ async function reconcileStripePayment(prisma, userId, paymentIntentId) {
 module.exports = {
   CheckoutError,
   MANUAL_BILLING_MSG,
+  creditsLabel,
+  manualTopUpBlocker,
   resolveReceiptEmail,
   nextPeriodFor,
   createCreditCheckout,
