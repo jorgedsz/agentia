@@ -434,6 +434,7 @@ export default function AccountManagement() {
       chatbotsEnabled: targetUser.chatbotsEnabled !== false,
       crmEnabled: targetUser.crmEnabled || false,
       agentGeneratorEnabled: targetUser.agentGeneratorEnabled || false,
+      budgetsEnabled: targetUser.budgetsEnabled || false,
       callsPaused: targetUser.callsPaused || false,
       messagesPaused: targetUser.messagesPaused || false,
       hiddenSections: (() => { try { const a = JSON.parse(targetUser.hiddenSections || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } })(),
@@ -448,7 +449,7 @@ export default function AccountManagement() {
 
   const closeBillingModal = () => {
     setEditingUser(null)
-    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', chatbotMessagePrice: '', receiptEmail: '' })
+    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, budgetsEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', chatbotMessagePrice: '', receiptEmail: '' })
   }
 
   const handleBillingSubmit = async (e) => {
@@ -469,6 +470,7 @@ export default function AccountManagement() {
       data.chatbotsEnabled = billingForm.chatbotsEnabled
       data.crmEnabled = billingForm.crmEnabled
       data.agentGeneratorEnabled = billingForm.agentGeneratorEnabled
+      data.budgetsEnabled = billingForm.budgetsEnabled
       data.callsPaused = billingForm.callsPaused
       data.messagesPaused = billingForm.messagesPaused
       data.hiddenSections = billingForm.hiddenSections
@@ -1147,6 +1149,23 @@ export default function AccountManagement() {
                       className={`w-11 h-6 rounded-full p-0.5 transition-colors ${billingForm.agentGeneratorEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
                     >
                       <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.agentGeneratorEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                  {/* Budgets are inherited: switched on for a partner, every account below it gets them */}
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">Presupuestos (bolsillos)</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {billingForm.budgetsEnabled ? t('common.enabled') : t('common.disabled')}
+                        {(editingUser.role === 'WHITELABEL' || editingUser.role === 'AGENCY') && ' · aplica a todas las cuentas que cuelgan de esta'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBillingForm({ ...billingForm, budgetsEnabled: !billingForm.budgetsEnabled })}
+                      className={`w-11 h-6 rounded-full p-0.5 transition-colors ${billingForm.budgetsEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-gray-600'}`}
+                    >
+                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${billingForm.budgetsEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                     </button>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-dark-hover rounded-lg">

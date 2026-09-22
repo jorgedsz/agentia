@@ -312,6 +312,7 @@ export default function DashboardLayout() {
         { id: 'payments', path: '/dashboard/payments', label: t('sidebar.payments'), icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY] },
         { id: 'billing-periods', path: '/dashboard/billing-periods', label: 'Períodos y reportes', icon: Icons.Reports, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'other-charges', path: '/dashboard/other-charges', label: 'Otros cobros', icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        { id: 'budgets', path: '/dashboard/budgets', label: 'Presupuestos', icon: Icons.Payments, featureKey: 'budgets', roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'chatbot-costs', path: '/dashboard/chatbot-costs', label: 'Chatbot Costs', icon: Icons.Chatbot, roles: [ROLES.OWNER] },
       ]
     },
@@ -350,6 +351,9 @@ export default function DashboardLayout() {
     if (key === 'chatbots') return user?.chatbotsEnabled !== false
     if (key === 'crm') return user?.crmEnabled === true
     if (key === 'agentGenerator') return user?.agentGeneratorEnabled === true
+    // Managers always see it (to set up their accounts); everyone else only when
+    // budgets are on for them or for a partner above them.
+    if (key === 'budgets') return ['OWNER', 'WHITELABEL', 'AGENCY'].includes(user?.role) || user?.budgetsActive === true
     return true
   }
 

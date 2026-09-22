@@ -58,6 +58,7 @@ model User {
   // Instead of topping up a fixed amount at a fixed threshold, the account is
   // kept funded in days of its own consumption: when the balance drops to the
   // guarantee (a week), it is topped back up to cycle + guarantee (21 days).
+  budgetsEnabled       Boolean       @default(false) // Budgets ("bolsillos") for this account and every account below it
   cycleBillingEnabled  Boolean       @default(false)
   cycleTargetDays      Int           @default(21) // Days of consumption a funded account holds: the cut plus its guarantee
   cycleGuaranteeDays   Int           @default(7)  // Reserve never to be spent down; hitting it triggers the charge
@@ -114,6 +115,7 @@ model User {
   credentials          Credential[]
   billingPeriods       BillingPeriod[]
   creditAdjustments    CreditAdjustment[]
+  budgets              Budget[]
 }
 
 // Per-user credential vault for chatbot tool secrets (Postgres connections,
@@ -480,6 +482,45 @@ model CreditAdjustment {
   balanceAfter Float
   createdAt    DateTime @default(now())
 
+  @@index([userId, createdAt])
+}
+
+// A "bolsillo": money an account sets aside from its main balance for one
+// purpose — marketing, say — so an outside tool can spend it without touching
+// the rest. Money only reaches a budget by being moved from the main balance, so
+// a budget can never hold more than was really paid in, and it never goes below
+// zero.
+model Budget {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  slug      String           // How the API names it: "marketing"
+  balance   Float            @default(0)
+  archived  Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  movements BudgetMovement[]
+
+  @@unique([userId, slug])
+}
+
+// Every change to a budget, so its balance can always be explained.
+model BudgetMovement {
+  id           Int      @id @default(autoincrement())
+  budgetId     Int
+  budget       Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  userId       Int
+  kind         String   // transfer_in (from the main balance) | transfer_out (back to it) | debit (spent by a tool)
+  amount       Float    // Signed, from the budget's side: + in, − out
+  balanceAfter Float
+  description  String?
+  reference    String?  @unique // Caller's id for a debit, so a retry never spends twice
+  source       String   @default("panel") // panel | api
+  actorId      Int?
+  createdAt    DateTime @default(now())
+
+  @@index([budgetId, createdAt])
   @@index([userId, createdAt])
 }
 

@@ -20,6 +20,7 @@ import AllUsers from './components/Dashboard/AllUsers'
 import PaymentPortalPage from './components/Public/PaymentPortalPage'
 import BillingPeriods from './components/Dashboard/BillingPeriods'
 import OtherCharges from './components/Dashboard/OtherCharges'
+import Budgets from './components/Dashboard/Budgets'
 import AccountManagement from './components/Dashboard/AccountManagement'
 import VoiceLibrary from './components/Dashboard/VoiceLibrary'
 import Analytics from './components/Dashboard/Analytics'
@@ -170,6 +171,7 @@ function App() {
           <Route path="accounts" element={<AccountManagement />} />
           <Route path="billing-periods" element={<BillingPeriods />} />
           <Route path="other-charges" element={<OtherCharges />} />
+          <Route path="budgets" element={<Budgets />} />
           <Route path="clients" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="agencies" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="all-users" element={<Navigate to="/dashboard/accounts" replace />} />

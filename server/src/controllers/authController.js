@@ -172,7 +172,15 @@ const login = async (req, res) => {
 
 const getMe = async (req, res) => {
   try {
-    const response = { user: req.user };
+    // budgetsActive is inherited from the partners above, so the menu can show
+    // "Presupuestos" without every screen walking the account tree itself.
+    let budgetsActive = false;
+    try {
+      const full = await req.prisma.user.findUnique({ where: { id: req.user.id } });
+      budgetsActive = await require('../services/budgets').budgetsEnabledFor(req.prisma, full);
+    } catch { /* the menu just hides the section */ }
+
+    const response = { user: { ...req.user, budgetsActive } };
 
     // Include team member info if applicable
     if (req.isTeamMember) {

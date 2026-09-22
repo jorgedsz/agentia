@@ -520,6 +520,14 @@ export const portalAPI = {
   generateToken: (clientId) => api.post(`/portal/generate/${clientId}`),
 }
 
+// Budgets ("bolsillos") carved from an account's main balance.
+export const budgetsAPI = {
+  get: (userId) => api.get(`/budgets/panel/${userId}`),
+  create: (userId, name) => api.post(`/budgets/panel/${userId}`, { name }),
+  transfer: (userId, budgetId, data) => api.post(`/budgets/panel/${userId}/${budgetId}/transfer`, data),
+  archive: (userId, budgetId) => api.post(`/budgets/panel/${userId}/${budgetId}/archive`),
+}
+
 // Monthly statements for an account (OWNER / partner side).
 export const billingPeriodsAPI = {
   list: (userId) => api.get(`/billing-periods/${userId}`),

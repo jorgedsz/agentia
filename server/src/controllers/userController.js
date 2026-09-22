@@ -55,6 +55,7 @@ const getAllUsers = async (req, res) => {
         chatbotsEnabled: true,
         crmEnabled: true,
         agentGeneratorEnabled: true,
+        budgetsEnabled: true,
         callsPaused: true,
         messagesPaused: true,
         hiddenSections: true,
@@ -531,7 +532,7 @@ const deleteUser = async (req, res) => {
 const updateUserBilling = async (req, res) => {
   try {
     const { id } = req.params;
-    const { credits, creditOperation, outboundRate, inboundRate, chatbotMessagePrice, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, callsPaused, messagesPaused, hiddenSections, planType, planPrice, receiptEmail } = req.body;
+    const { credits, creditOperation, outboundRate, inboundRate, chatbotMessagePrice, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, budgetsEnabled, callsPaused, messagesPaused, hiddenSections, planType, planPrice, receiptEmail } = req.body;
 
     const targetUser = await req.prisma.user.findUnique({
       where: { id: parseInt(id) }
@@ -632,6 +633,10 @@ const updateUserBilling = async (req, res) => {
     if (agentGeneratorEnabled !== undefined) {
       updateData.agentGeneratorEnabled = Boolean(agentGeneratorEnabled);
     }
+    // Budgets ("bolsillos"). Inherited: set on a partner, its whole tree gets them.
+    if (budgetsEnabled !== undefined) {
+      updateData.budgetsEnabled = Boolean(budgetsEnabled);
+    }
     if (callsPaused !== undefined) {
       updateData.callsPaused = Boolean(callsPaused);
     }
@@ -674,6 +679,7 @@ const updateUserBilling = async (req, res) => {
         chatbotsEnabled: true,
         crmEnabled: true,
         agentGeneratorEnabled: true,
+        budgetsEnabled: true,
         callsPaused: true,
         messagesPaused: true,
         hiddenSections: true,
