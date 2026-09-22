@@ -87,7 +87,7 @@ async function createBudget(prisma, userId, name) {
  * Move money between the main balance and a budget.
  * direction 'in': main → budget. direction 'out': budget → main.
  */
-async function transfer(prisma, { userId, budgetId, amount: rawAmount, direction, description, actorId, source = 'panel' }) {
+async function transfer(prisma, { userId, budgetId, amount: rawAmount, direction, description, actorId, source = 'panel', onCredit = false }) {
   const amount = cleanAmount(rawAmount);
   if (direction !== 'in' && direction !== 'out') throw new BudgetError('Indica si el dinero entra o sale del presupuesto.');
 
@@ -97,9 +97,10 @@ async function transfer(prisma, { userId, budgetId, amount: rawAmount, direction
 
     if (direction === 'in') {
       // Only money the account actually has: the main balance may not be pushed
-      // below zero to fund a budget, even on accounts allowed to run negative.
+      // below zero to fund a budget — unless the caller decided this transfer goes
+      // on credit (`onCredit`, see budgetController.fundsOnCredit).
       const taken = await tx.user.updateMany({
-        where: { id: userId, vapiCredits: { gte: amount } },
+        where: onCredit ? { id: userId } : { id: userId, vapiCredits: { gte: amount } },
         data: { vapiCredits: { decrement: amount } },
       });
       if (taken.count !== 1) throw new BudgetError('El saldo principal no alcanza para esa transferencia.');

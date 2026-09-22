@@ -264,7 +264,7 @@ export default function Budgets() {
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {transferring.direction === 'in'
-                ? `Sale del saldo principal (${data.mainBalance < 0 ? '-' : ''}${money(data.mainBalance)} disponibles).`
+                ? `Sale del saldo principal (${data.mainBalance < 0 ? '-' : ''}${money(data.mainBalance)} disponibles)${data.onCredit ? '. Puede quedar en negativo.' : '.'}`
                 : `Vuelve al saldo principal (${money(transferring.budget.balance)} en el presupuesto).`}
             </p>
             <input type="number" step="0.01" min="0.01" autoFocus value={transferAmount}
