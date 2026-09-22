@@ -1,3 +1,4 @@
+const { canManageAccount } = require('../utils/accountAccess');
 const bcrypt = require('bcrypt');
 const { ROLES } = require('../middleware/roleMiddleware');
 const { decrypt } = require('../utils/encryption');
@@ -410,15 +411,11 @@ const updateUserRole = async (req, res) => {
 
     // Ownership scope: WHITELABEL and AGENCY can only touch users in their tree.
     if (req.user.role === ROLES.WHITELABEL) {
-      let inTree = target.whitelabelId === req.user.id;
-      if (!inTree && target.agencyId) {
-        const agency = await req.prisma.user.findUnique({
-          where: { id: target.agencyId },
-          select: { whitelabelId: true }
-        });
-        inTree = agency?.whitelabelId === req.user.id;
+      // Anywhere in its tree: its agencies, their clients, and the clients that
+      // hang directly off the whitelabel with no agency in between.
+      if (!(await canManageAccount(req.prisma, req.user, target))) {
+        return res.status(403).json({ error: 'Cannot manage this user' });
       }
-      if (!inTree) return res.status(403).json({ error: 'Cannot manage this user' });
     } else if (req.user.role === ROLES.AGENCY) {
       if (target.agencyId !== req.user.id) {
         return res.status(403).json({ error: 'Cannot manage this user' });
@@ -468,19 +465,10 @@ const deleteUser = async (req, res) => {
       return res.status(403).json({ error: 'Cannot delete an owner account' });
     }
 
-    // WHITELABEL can delete their agencies and their agencies' clients
+    // WHITELABEL can delete accounts anywhere in its tree: its agencies, their
+    // clients, and clients that hang directly off the whitelabel.
     if (req.user.role === ROLES.WHITELABEL) {
-      if (targetUser.whitelabelId === req.user.id) {
-        // Direct agency - OK
-      } else if (targetUser.agencyId) {
-        const agency = await req.prisma.user.findUnique({
-          where: { id: targetUser.agencyId },
-          select: { whitelabelId: true }
-        });
-        if (!agency || agency.whitelabelId !== req.user.id) {
-          return res.status(403).json({ error: 'Cannot delete this user' });
-        }
-      } else {
+      if (!(await canManageAccount(req.prisma, req.user, targetUser))) {
         return res.status(403).json({ error: 'Cannot delete this user' });
       }
     }
@@ -542,18 +530,10 @@ const updateUserBilling = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // WHITELABEL can only manage billing for their agencies and clients
+    // WHITELABEL can manage billing anywhere in its tree — including clients
+    // that hang directly off it, which a two-level check used to turn away.
     if (req.user.role === ROLES.WHITELABEL) {
-      let allowed = false;
-      if (targetUser.whitelabelId === req.user.id) {
-        allowed = true;
-      } else if (targetUser.agencyId) {
-        const agency = await req.prisma.user.findUnique({
-          where: { id: targetUser.agencyId },
-          select: { whitelabelId: true }
-        });
-        if (agency && agency.whitelabelId === req.user.id) allowed = true;
-      }
+      const allowed = await canManageAccount(req.prisma, req.user, targetUser);
       if (!allowed) {
         return res.status(403).json({ error: 'Cannot manage billing for this user' });
       }
