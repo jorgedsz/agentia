@@ -72,7 +72,7 @@ export default function AccountManagement() {
 
   // Partner Whop modal state
   const [whopTarget, setWhopTarget] = useState(null)
-  const [whopForm, setWhopForm] = useState({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '', allowNegativeBalance: false })
+  const [whopForm, setWhopForm] = useState({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '', allowNegativeBalance: false, hideTwilioBalance: false })
   const [whopStatus, setWhopStatus] = useState(null)
   const [whopSaving, setWhopSaving] = useState(false)
   const [whopMsg, setWhopMsg] = useState('')
@@ -84,7 +84,7 @@ export default function AccountManagement() {
 
   const openWhopModal = async (account) => {
     setWhopTarget(account)
-    setWhopForm({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '', allowNegativeBalance: false })
+    setWhopForm({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '', allowNegativeBalance: false, hideTwilioBalance: false })
     setWhopStatus(null)
     setWhopMsg('')
     setStripeForm({ secretKey: '', publishableKey: '', webhookSecret: '' })
@@ -92,7 +92,7 @@ export default function AccountManagement() {
     try {
       const { data } = await whopAPI.getPartnerConfig(account.id)
       setWhopStatus(data)
-      setWhopForm(f => ({ ...f, billingMode: data.billingMode || 'platform', companyId: data.companyId || '', allowNegativeBalance: !!data.allowNegativeBalance }))
+      setWhopForm(f => ({ ...f, billingMode: data.billingMode || 'platform', companyId: data.companyId || '', allowNegativeBalance: !!data.allowNegativeBalance, hideTwilioBalance: !!data.hideTwilioBalance }))
     } catch {
       setWhopMsg('No se pudo cargar la configuración.')
     }
@@ -124,7 +124,10 @@ export default function AccountManagement() {
       }
       if (whopForm.billingMode === 'own_stripe') {
         // Negative balance is stored on the same row but only the Whop endpoint writes it.
-        await whopAPI.setPartnerConfig(whopTarget.id, { allowNegativeBalance: !!whopForm.allowNegativeBalance })
+        await whopAPI.setPartnerConfig(whopTarget.id, {
+          allowNegativeBalance: !!whopForm.allowNegativeBalance,
+          hideTwilioBalance: !!whopForm.hideTwilioBalance,
+        })
         setWhopMsg('Guardado.')
         setWhopSaving(false)
         return
@@ -135,9 +138,10 @@ export default function AccountManagement() {
         apiKey: whopForm.apiKey,           // blank keeps existing
         webhookSecret: whopForm.webhookSecret, // blank keeps existing
         allowNegativeBalance: !!whopForm.allowNegativeBalance,
+        hideTwilioBalance: !!whopForm.hideTwilioBalance,
       })
       setWhopStatus(data)
-      setWhopForm(f => ({ ...f, billingMode: data.billingMode || f.billingMode, allowNegativeBalance: !!data.allowNegativeBalance, apiKey: '', webhookSecret: '' }))
+      setWhopForm(f => ({ ...f, billingMode: data.billingMode || f.billingMode, allowNegativeBalance: !!data.allowNegativeBalance, hideTwilioBalance: !!data.hideTwilioBalance, apiKey: '', webhookSecret: '' }))
       setWhopMsg('Guardado.')
     } catch (e) {
       setWhopMsg(e.response?.data?.error || 'Error al guardar.')
@@ -1671,6 +1675,20 @@ export default function AccountManagement() {
                 <div>
                   <span className="text-sm font-medium text-gray-900 dark:text-white">Permitir saldo negativo</span>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Esta cuenta y todas las que cuelgan de ella podrán seguir haciendo llamadas y enviando mensajes aunque el saldo quede en negativo.</p>
+                </div>
+              </label>
+
+              {/* Hide the Twilio balance — from every account below this partner, not from the partner */}
+              <label className="flex gap-2 p-3 rounded-xl border border-gray-200 dark:border-dark-border cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover">
+                <input
+                  type="checkbox"
+                  checked={!!whopForm.hideTwilioBalance}
+                  onChange={(e) => setWhopForm(f => ({ ...f, hideTwilioBalance: e.target.checked }))}
+                  className="mt-0.5 text-primary-600 focus:ring-primary-500"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Ocultar el saldo de Twilio a sus clientes</span>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Las cuentas que cuelgan de esta no ven el monto de Twilio, ni en la barra lateral ni en Números de teléfono. El partner lo sigue viendo.</p>
                 </div>
               </label>
 

@@ -1,3 +1,4 @@
+const { hidesTwilioBalance } = require('../utils/twilioBalance');
 const { encrypt, decrypt, mask } = require('../utils/encryption');
 const twilioService = require('../services/twilioService');
 const vapiService = require('../services/vapiService');
@@ -320,7 +321,7 @@ const getBalances = async (req, res) => {
       where: { userId }
     });
 
-    if (credentials && credentials.isVerified) {
+    if (credentials && credentials.isVerified && !(await hidesTwilioBalance(req.prisma, userId))) {
       try {
         const decryptedSid = decrypt(credentials.accountSid);
         const decryptedToken = decrypt(credentials.authToken);

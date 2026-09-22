@@ -1,3 +1,4 @@
+const { hidesTwilioBalance } = require('../utils/twilioBalance');
 const { encrypt, decrypt, mask } = require('../utils/encryption');
 const twilioService = require('../services/twilioService');
 const vonageService = require('../services/vonageService');
@@ -347,12 +348,12 @@ const getBalances = async (req, res) => {
     let twilioBalance = null;
     let vapiBalance = null;
 
-    // Get Twilio balance if credentials exist
+    // Get Twilio balance if credentials exist — unless a partner above hides it
     const twilioCred = await req.prisma.telephonyCredential.findUnique({
       where: { userId_provider: { userId, provider: 'twilio' } }
     });
 
-    if (twilioCred && twilioCred.isVerified) {
+    if (twilioCred && twilioCred.isVerified && !(await hidesTwilioBalance(req.prisma, userId))) {
       try {
         const sid = decrypt(twilioCred.accountSid);
         const token = decrypt(twilioCred.authToken);

@@ -831,7 +831,7 @@ const getPartnerWhopConfig = async (req, res) => {
     const userId = parseInt(req.params.userId);
     const partner = await req.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, role: true, name: true, email: true, billingMode: true, allowNegativeBalance: true, whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
+      select: { id: true, role: true, name: true, email: true, billingMode: true, allowNegativeBalance: true, hideTwilioBalance: true, whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
     });
     if (!partner) return res.status(404).json({ error: 'User not found' });
     res.json({
@@ -840,6 +840,7 @@ const getPartnerWhopConfig = async (req, res) => {
       isPartner: partner.role === 'WHITELABEL' || partner.role === 'AGENCY',
       billingMode: partner.billingMode || 'platform',
       allowNegativeBalance: !!partner.allowNegativeBalance,
+      hideTwilioBalance: !!partner.hideTwilioBalance,
       companyId: partner.whopCompanyId || '',
       hasApiKey: !!partner.whopApiKey,
       hasWebhookSecret: !!partner.whopWebhookSecret,
@@ -880,11 +881,13 @@ const setPartnerWhopConfig = async (req, res) => {
       return res.json({ cleared: true });
     }
 
-    const { apiKey, companyId, webhookSecret, billingMode, allowNegativeBalance } = req.body || {};
+    const { apiKey, companyId, webhookSecret, billingMode, allowNegativeBalance, hideTwilioBalance } = req.body || {};
     const data = {};
     if (['platform', 'own_whop', 'manual'].includes(billingMode)) data.billingMode = billingMode;
     // Let all accounts below this partner keep calling/messaging at a negative balance
     if (typeof allowNegativeBalance === 'boolean') data.allowNegativeBalance = allowNegativeBalance;
+    // Hide the Twilio balance from every account below this partner
+    if (typeof hideTwilioBalance === 'boolean') data.hideTwilioBalance = hideTwilioBalance;
     if (typeof companyId === 'string') data.whopCompanyId = companyId.trim() || null;
     if (apiKey && apiKey.trim()) data.whopApiKey = encrypt(apiKey.trim());
     if (webhookSecret && webhookSecret.trim()) data.whopWebhookSecret = encrypt(webhookSecret.trim());
@@ -897,12 +900,13 @@ const setPartnerWhopConfig = async (req, res) => {
     const updated = await req.prisma.user.update({
       where: { id: userId },
       data,
-      select: { billingMode: true, allowNegativeBalance: true, whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
+      select: { billingMode: true, allowNegativeBalance: true, hideTwilioBalance: true, whopApiKey: true, whopCompanyId: true, whopWebhookSecret: true, whopWebhookToken: true },
     });
 
     res.json({
       billingMode: updated.billingMode,
       allowNegativeBalance: !!updated.allowNegativeBalance,
+      hideTwilioBalance: !!updated.hideTwilioBalance,
       configured: !!(updated.whopApiKey && updated.whopCompanyId),
       companyId: updated.whopCompanyId || '',
       hasApiKey: !!updated.whopApiKey,

@@ -152,6 +152,11 @@ async function panelState(prisma, target) {
   };
 }
 
+/** The panel state plus whether this caller may fund budgets past zero, for the transfer dialog. */
+async function panelResponse(req, target) {
+  return { ...(await panelState(req.prisma, target)), onCredit: await fundsOnCredit(req, target) };
+}
+
 // GET /api/budgets/panel/:userId
 const panelGet = async (req, res) => {
   try {
@@ -160,7 +165,7 @@ const panelGet = async (req, res) => {
     if (!(await budgets.budgetsEnabledFor(req.prisma, target))) {
       return res.json({ enabled: false, account: { id: target.id, name: target.companyName || target.name || target.email } });
     }
-    res.json(await panelState(req.prisma, target));
+    res.json(await panelResponse(req, target));
   } catch (error) { fail(res, error); }
 };
 
@@ -179,9 +184,23 @@ const panelCreate = async (req, res) => {
       return res.status(400).json({ error: 'Ese nombre está reservado; elige otro.' });
     }
     await budgets.createBudget(req.prisma, target.id, req.body?.name);
-    res.status(201).json(await panelState(req.prisma, target));
+    res.status(201).json(await panelResponse(req, target));
   } catch (error) { fail(res, error); }
 };
+
+/**
+ * May this transfer fund a budget past a zero main balance? Only on a mother account
+ * that has "Permitir saldo negativo" set on itself (e.g. LM Consulting) — not on the
+ * accounts that merely inherit it — and only when the OWNER or that account's own
+ * admin does it. A team member who is not an admin never can.
+ */
+async function fundsOnCredit(req, target) {
+  if (req.teamMember && req.teamMember.teamRole !== 'admin') return false;
+  const isOwner = req.user?.role === 'OWNER';
+  const isSelf = req.user?.id === target.id;
+  if (!isOwner && !isSelf) return false;
+  return !!target.allowNegativeBalance;
+}
 
 // POST /api/budgets/panel/:userId/:budgetId/transfer  Body: { amount, direction: 'in'|'out', description? }
 const panelTransfer = async (req, res) => {
@@ -190,6 +209,7 @@ const panelTransfer = async (req, res) => {
     if (!target || !(await requireEnabled(req, res, target))) return;
 
     const result = await budgets.transfer(req.prisma, {
+      onCredit: await fundsOnCredit(req, target),
       userId: target.id,
       budgetId: parseInt(req.params.budgetId),
       amount: req.body?.amount,
@@ -210,7 +230,7 @@ const panelTransfer = async (req, res) => {
       req,
     });
 
-    res.json({ ...(await panelState(req.prisma, target)), message: 'Transferencia realizada.' });
+    res.json({ ...(await panelResponse(req, target)), message: 'Transferencia realizada.' });
   } catch (error) { fail(res, error); }
 };
 
@@ -226,7 +246,7 @@ const panelArchive = async (req, res) => {
       return res.status(400).json({ error: 'Devuelve primero el saldo al principal; solo se archiva un presupuesto vacío.' });
     }
     await req.prisma.budget.update({ where: { id: budget.id }, data: { archived: true } });
-    res.json(await panelState(req.prisma, target));
+    res.json(await panelResponse(req, target));
   } catch (error) { fail(res, error); }
 };
 
