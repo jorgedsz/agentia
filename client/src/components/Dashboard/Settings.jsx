@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI, vapiKeyPoolAPI, complianceAPI, paymentsAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 import PricingSettings from './PricingSettings'
+import { applyBranding } from '../../utils/hostBranding'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -802,6 +803,7 @@ function BrandingTab() {
   const [branding, setBranding] = useState({
     companyName: '',
     companyLogo: '',
+    companyIcon: '',
     companyTagline: '',
     creditsLabel: ''
   })
@@ -819,6 +821,7 @@ function BrandingTab() {
       setBranding({
         companyName: data.companyName || '',
         companyLogo: data.companyLogo || '',
+        companyIcon: data.companyIcon || '',
         companyTagline: data.companyTagline || '',
         creditsLabel: data.creditsLabel || ''
       })
@@ -842,9 +845,13 @@ function BrandingTab() {
       setBranding({
         companyName: data.companyName || '',
         companyLogo: data.companyLogo || '',
+        companyIcon: data.companyIcon || '',
         companyTagline: data.companyTagline || '',
         creditsLabel: data.creditsLabel || ''
       })
+      // The tab title and icon follow this brand on its own domains, so show
+      // the change straight away instead of only after a reload.
+      applyBranding({ ...data, companyIcon: data.companyIcon || data.companyLogo })
       setSuccess('Branding updated successfully')
       if (refreshUser) refreshUser()
       setTimeout(() => setSuccess(''), 3000)
@@ -997,6 +1004,23 @@ function BrandingTab() {
               Enter a URL to your company logo. Recommended size: 40x40px or larger square image.
             </p>
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Icono (pestaña del navegador y miniatura al compartir)
+            </label>
+            <input
+              type="url"
+              value={branding.companyIcon}
+              onChange={(e) => setBranding({ ...branding, companyIcon: e.target.value })}
+              disabled={!canEdit}
+              placeholder="https://example.com/icono.png"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Imagen cuadrada (256x256 o más). Es lo que se ve en la pestaña del navegador y cuando alguien comparte el link de tus dominios. En blanco se usa el logo.
+            </p>
+          </div>
         </div>
 
         {canEdit && (
@@ -1010,6 +1034,116 @@ function BrandingTab() {
             </button>
           </div>
         )}
+      </form>
+
+      {canEdit && <LoginDomainsCard />}
+    </div>
+  )
+}
+
+// The domains this brand answers on. A partner can run several (its own
+// domain and a panel domain); each one shows this brand's name, logo and icon
+// on the login and in the browser tab.
+function LoginDomainsCard() {
+  const [domains, setDomains] = useState([])
+  const [host, setHost] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => { load() }, [])
+
+  const load = async () => {
+    try {
+      const { data } = await brandingAPI.getDomains()
+      setDomains(data.domains || [])
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudieron cargar los dominios')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const add = async (e) => {
+    e.preventDefault()
+    setError('')
+    setBusy(true)
+    try {
+      const { data } = await brandingAPI.addDomain(host)
+      setDomains(data.domains || [])
+      setHost('')
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo agregar el dominio')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async (h) => {
+    if (!window.confirm(`¿Quitar ${h}? El login en ese dominio dejará de mostrar tu marca.`)) return
+    setError('')
+    setBusy(true)
+    try {
+      const { data } = await brandingAPI.removeDomain(h)
+      setDomains(data.domains || [])
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo quitar el dominio')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+      <h3 className="text-md font-semibold text-gray-900 dark:text-white">Dominios de tu marca</h3>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">
+        En estos dominios el login, el nombre de la pestaña, el icono y la miniatura al compartir el link muestran tu marca.
+        El dominio debe estar apuntado al servicio antes de agregarlo aquí.
+      </p>
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm mb-4">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="text-sm text-gray-500 dark:text-gray-400">Cargando…</div>
+      ) : (
+        <div className="space-y-2 mb-4">
+          {domains.length === 0 && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">Todavía no tienes dominios propios.</div>
+          )}
+          {domains.map((d) => (
+            <div key={d.host} className="flex items-center justify-between gap-3 px-3 py-2 bg-gray-50 dark:bg-dark-hover rounded-lg">
+              <span className="text-sm text-gray-900 dark:text-white break-all">{d.host}</span>
+              <button
+                onClick={() => remove(d.host)}
+                disabled={busy}
+                className="text-xs text-red-500 hover:text-red-600 disabled:opacity-50"
+              >
+                Quitar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={add} className="flex gap-2">
+        <input
+          type="text"
+          value={host}
+          onChange={(e) => setHost(e.target.value)}
+          placeholder="panel.tudominio.com"
+          className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+        />
+        <button
+          type="submit"
+          disabled={busy || !host.trim()}
+          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+        >
+          Agregar
+        </button>
       </form>
     </div>
   )

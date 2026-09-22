@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -10,60 +10,62 @@ datasource db {
 
 // Role: OWNER = full access, WHITELABEL = manages agencies, AGENCY = access to own clients, CLIENT = own account only
 model User {
-  id                Int                @id @default(autoincrement())
-  email             String             @unique
-  password          String
-  name              String?
-  phoneNumber       String?            // Client phone number
-  role              String             @default("CLIENT") // OWNER, WHITELABEL, AGENCY, CLIENT
-  vapiCredits       Float              @default(0) // VAPI call credits balance
-  outboundRate      Float              @default(0.10) // $ per minute for outbound calls
-  inboundRate       Float              @default(0.05) // $ per minute for inbound calls
-  chatbotMessagePrice Float?           // Per-account override for chatbot $/message. Null = platform default ($0.01).
-  companyName       String?            // Custom branding: company name
-  companyLogo       String?            // Custom branding: logo URL
-  companyTagline    String?            // Custom branding: tagline
-  creditsLabel      String?            // Custom word for "Credits" (e.g. "Nebos"); inherited by all accounts under a whitelabel
-  loginDomain       String?  @unique   // Custom domain the login page (and dashboard) should brand to this user (e.g. "lmconsultingai.com", "goatai.us"). Used by any partner role, not just WHITELABEL.
-  vapiApiKey        String?            // Encrypted - Per-account VAPI API Key
-  vapiPublicKey     String?            // Encrypted - Per-account VAPI Public Key
-  triggerApiKey     String?            // Encrypted - API key for /api/call/trigger
-  voiceAgentsEnabled Boolean           @default(true)
-  chatbotsEnabled    Boolean           @default(true)
-  crmEnabled         Boolean           @default(false)
-  agentGeneratorEnabled Boolean        @default(false)
-  callsPaused        Boolean           @default(false)
-  messagesPaused     Boolean           @default(false)
-  allowNegativeBalance Boolean         @default(false) // Keep calling/messaging when balance is negative; inherited by all accounts below (self → agency → whitelabel)
-  hiddenSections     String?            // JSON array of menu item ids hidden for this user (admin-controlled)
-  planType           String?            // CLIENT only: "DIY", "DFY", "Partnership"
-  planPrice          Float?             // Monthly plan price for any account type
-  portalToken        String?           @unique // Shareable read-only portal token
-  paymentToken       String?           @unique // Token for the public payment page (/pay/:token). Separate from portalToken on purpose: the payment page can be embedded in someone else's site and must not expose call or message history.
-  receiptEmail       String?           // Where Stripe sends the receipt for this account's payments. Set on a partner, it is the default for every account under it; empty falls back to the account's own email.
-  whopCustomerId    String?            // Whop customer/user ID
+  id                          Int                   @id @default(autoincrement())
+  email                       String                @unique
+  password                    String
+  name                        String?
+  phoneNumber                 String? // Client phone number
+  role                        String                @default("CLIENT") // OWNER, WHITELABEL, AGENCY, CLIENT
+  vapiCredits                 Float                 @default(0) // VAPI call credits balance
+  outboundRate                Float                 @default(0.10) // $ per minute for outbound calls
+  inboundRate                 Float                 @default(0.05) // $ per minute for inbound calls
+  chatbotMessagePrice         Float? // Per-account override for chatbot $/message. Null = platform default ($0.01).
+  companyName                 String? // Custom branding: company name
+  companyLogo                 String? // Custom branding: logo URL
+  companyTagline              String? // Custom branding: tagline
+  creditsLabel                String? // Custom word for "Credits" (e.g. "Nebos"); inherited by all accounts under a whitelabel
+  loginDomain                 String?               @unique // Custom domain the login page (and dashboard) should brand to this user (e.g. "lmconsultingai.com", "goatai.us"). Used by any partner role, not just WHITELABEL. A partner with more than one domain keeps the rest in loginDomains.
+  loginDomains                LoginDomain[] // Further domains branded to this user (a partner on several domains, e.g. lmconsultingai.com and panel.neboaiconsulting.com)
+  companyIcon                 String? // Custom branding: square icon URL for the browser tab and link previews. Falls back to companyLogo.
+  vapiApiKey                  String? // Encrypted - Per-account VAPI API Key
+  vapiPublicKey               String? // Encrypted - Per-account VAPI Public Key
+  triggerApiKey               String? // Encrypted - API key for /api/call/trigger
+  voiceAgentsEnabled          Boolean               @default(true)
+  chatbotsEnabled             Boolean               @default(true)
+  crmEnabled                  Boolean               @default(false)
+  agentGeneratorEnabled       Boolean               @default(false)
+  callsPaused                 Boolean               @default(false)
+  messagesPaused              Boolean               @default(false)
+  allowNegativeBalance        Boolean               @default(false) // Keep calling/messaging when balance is negative; inherited by all accounts below (self → agency → whitelabel)
+  hiddenSections              String? // JSON array of menu item ids hidden for this user (admin-controlled)
+  planType                    String? // CLIENT only: "DIY", "DFY", "Partnership"
+  planPrice                   Float? // Monthly plan price for any account type
+  portalToken                 String?               @unique // Shareable read-only portal token
+  paymentToken                String?               @unique // Token for the public payment page (/pay/:token). Separate from portalToken on purpose: the payment page can be embedded in someone else's site and must not expose call or message history.
+  receiptEmail                String? // Where Stripe sends the receipt for this account's payments. Set on a partner, it is the default for every account under it; empty falls back to the account's own email.
+  whopCustomerId              String? // Whop customer/user ID
   // ── Auto-recharge (Whop off-session charges) ──
-  whopMemberId          String?        // Whop member id (mber_xxx). Optional — setup-mode checkout may not create a member.
-  whopPaymentMethodId   String?        // Primary saved card (payt_xxx) for off-session charges
-  whopPaymentMethodIdBackup String?    // Backup card — tried automatically if the primary declines
-  whopMemberIdBackup    String?        // Whop member id for the backup card (optional)
-  autoRechargeEnabled   Boolean        @default(false) // Auto top-up when balance drops below threshold
-  autoRechargeThreshold Float?         // Trigger when vapiCredits < this value
-  autoRechargeAmount    Float?         // Dollars to charge per auto top-up
-  autoRechargeLastAt    DateTime?      // Last auto-recharge attempt (cooldown / daily-cap guard)
-  autoRechargeFailCount Int            @default(0) // Consecutive failed charges; auto-disables after N
-  autoRechargeLastError String?        // Why the last charge was declined (shown to the customer)
-  autoRechargeLastErrorAt DateTime?    // When that decline happened
+  whopMemberId                String? // Whop member id (mber_xxx). Optional — setup-mode checkout may not create a member.
+  whopPaymentMethodId         String? // Primary saved card (payt_xxx) for off-session charges
+  whopPaymentMethodIdBackup   String? // Backup card — tried automatically if the primary declines
+  whopMemberIdBackup          String? // Whop member id for the backup card (optional)
+  autoRechargeEnabled         Boolean               @default(false) // Auto top-up when balance drops below threshold
+  autoRechargeThreshold       Float? // Trigger when vapiCredits < this value
+  autoRechargeAmount          Float? // Dollars to charge per auto top-up
+  autoRechargeLastAt          DateTime? // Last auto-recharge attempt (cooldown / daily-cap guard)
+  autoRechargeFailCount       Int                   @default(0) // Consecutive failed charges; auto-disables after N
+  autoRechargeLastError       String? // Why the last charge was declined (shown to the customer)
+  autoRechargeLastErrorAt     DateTime? // When that decline happened
   // ── Cut billing (charge every ~15 days, always holding a week in reserve) ──
   // Instead of topping up a fixed amount at a fixed threshold, the account is
   // kept funded in days of its own consumption: when the balance drops to the
   // guarantee (a week), it is topped back up to cycle + guarantee (21 days).
-  budgetsEnabled       Boolean       @default(false) // Budgets ("bolsillos") for this account and every account below it
-  cycleBillingEnabled  Boolean       @default(false)
-  cycleTargetDays      Int           @default(21) // Days of consumption a funded account holds: the cut plus its guarantee
-  cycleGuaranteeDays   Int           @default(7)  // Reserve never to be spent down; hitting it triggers the charge
-  cycleUsageWindowDays Int           @default(14) // Days of history the daily average is taken from
-  cycleLastChargeAt    DateTime?     // Last top-up, for the cooldown
+  budgetsEnabled              Boolean               @default(false) // Budgets ("bolsillos") for this account and every account below it
+  cycleBillingEnabled         Boolean               @default(false)
+  cycleTargetDays             Int                   @default(21) // Days of consumption a funded account holds: the cut plus its guarantee
+  cycleGuaranteeDays          Int                   @default(7) // Reserve never to be spent down; hitting it triggers the charge
+  cycleUsageWindowDays        Int                   @default(14) // Days of history the daily average is taken from
+  cycleLastChargeAt           DateTime? // Last top-up, for the cooldown
   // ── Partner billing (AGENCY / WHITELABEL) ──
   // billingMode, set by the OWNER on an agency or whitelabel, governs how that
   // partner and every account under it pays:
@@ -73,49 +75,49 @@ model User {
   //   "manual"             — no self-service purchase; the partner loads credit to
   //                          its clients from Manage Billing and settles payment
   //                          with them off-platform.
-  billingMode           String         @default("platform") // platform | own_whop | own_stripe | manual
-  whopApiKey            String?        // Encrypted — partner's Whop API key (own_whop)
-  whopCompanyId         String?        // Partner's Whop company id (biz_xxx)
-  whopWebhookSecret     String?        // Encrypted — partner's Whop webhook signing secret
-  whopCreditsProductId  String?        // Cached "Credits" product id created in the partner's company
-  whopWebhookToken      String? @unique // Random token for the partner's webhook path (/api/whop/webhook/:token)
+  billingMode                 String                @default("platform") // platform | own_whop | own_stripe | manual
+  whopApiKey                  String? // Encrypted — partner's Whop API key (own_whop)
+  whopCompanyId               String? // Partner's Whop company id (biz_xxx)
+  whopWebhookSecret           String? // Encrypted — partner's Whop webhook signing secret
+  whopCreditsProductId        String? // Cached "Credits" product id created in the partner's company
+  whopWebhookToken            String?               @unique // Random token for the partner's webhook path (/api/whop/webhook/:token)
   // ── Stripe (partner-owned processor; billingMode = "own_stripe") ──
   // Set on the partner: its own Stripe credentials collect the money. Set on any
   // account: the customer and cards it owns inside the governing partner's Stripe.
-  stripeSecretKey       String?        // Encrypted — partner's Stripe secret key (sk_live_/sk_test_)
-  stripePublishableKey  String?        // Partner's publishable key (pk_...) — public by design
-  stripeWebhookSecret   String?        // Encrypted — partner's Stripe webhook signing secret (whsec_...)
-  stripeWebhookToken    String? @unique // Random token for the partner's webhook path (/api/stripe/webhook/:token)
-  stripeCustomerId      String?        // This account's customer id (cus_...) in the governing partner's Stripe
-  stripePaymentMethodId String?        // Primary saved card (pm_...) for off-session charges
-  stripePaymentMethodIdBackup String?  // Backup card — tried automatically if the primary declines
-  whitelabelId      Int?               // If AGENCY, belongs to this whitelabel
-  whitelabel        User?              @relation("WhitelabelAgencies", fields: [whitelabelId], references: [id])
-  agencies          User[]             @relation("WhitelabelAgencies") // If WHITELABEL, these are their agencies
-  agencyId          Int?               // If CLIENT, belongs to this agency
-  agency            User?              @relation("AgencyClients", fields: [agencyId], references: [id])
-  clients           User[]             @relation("AgencyClients") // If AGENCY, these are their clients
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  agents            Agent[]
-  telephonyCredentials TelephonyCredential[]
-  teamMembers       TeamMember[]       @relation("AccountTeamMembers")
-  ghlIntegration    GHLIntegration?
-  calendarIntegrations CalendarIntegration[]
-  supportTickets       SupportTicket[]
-  ticketReplies        TicketReply[]
-  vapiKeyPoolEntry     VapiKeyPool?
-  complianceSetting    ComplianceSetting?
-  chatbots             Chatbot[]
-  userProducts         UserProduct[]
-  transactions         Transaction[]
-  creditPurchases      CreditPurchase[]
-  waProjects           WaProject[]        @relation("UserWaProjects")
-  recurringPayments    RecurringPayment[] @relation("ClientRecurringPayments")
-  credentials          Credential[]
-  billingPeriods       BillingPeriod[]
-  creditAdjustments    CreditAdjustment[]
-  budgets              Budget[]
+  stripeSecretKey             String? // Encrypted — partner's Stripe secret key (sk_live_/sk_test_)
+  stripePublishableKey        String? // Partner's publishable key (pk_...) — public by design
+  stripeWebhookSecret         String? // Encrypted — partner's Stripe webhook signing secret (whsec_...)
+  stripeWebhookToken          String?               @unique // Random token for the partner's webhook path (/api/stripe/webhook/:token)
+  stripeCustomerId            String? // This account's customer id (cus_...) in the governing partner's Stripe
+  stripePaymentMethodId       String? // Primary saved card (pm_...) for off-session charges
+  stripePaymentMethodIdBackup String? // Backup card — tried automatically if the primary declines
+  whitelabelId                Int? // If AGENCY, belongs to this whitelabel
+  whitelabel                  User?                 @relation("WhitelabelAgencies", fields: [whitelabelId], references: [id])
+  agencies                    User[]                @relation("WhitelabelAgencies") // If WHITELABEL, these are their agencies
+  agencyId                    Int? // If CLIENT, belongs to this agency
+  agency                      User?                 @relation("AgencyClients", fields: [agencyId], references: [id])
+  clients                     User[]                @relation("AgencyClients") // If AGENCY, these are their clients
+  createdAt                   DateTime              @default(now())
+  updatedAt                   DateTime              @updatedAt
+  agents                      Agent[]
+  telephonyCredentials        TelephonyCredential[]
+  teamMembers                 TeamMember[]          @relation("AccountTeamMembers")
+  ghlIntegration              GHLIntegration?
+  calendarIntegrations        CalendarIntegration[]
+  supportTickets              SupportTicket[]
+  ticketReplies               TicketReply[]
+  vapiKeyPoolEntry            VapiKeyPool?
+  complianceSetting           ComplianceSetting?
+  chatbots                    Chatbot[]
+  userProducts                UserProduct[]
+  transactions                Transaction[]
+  creditPurchases             CreditPurchase[]
+  waProjects                  WaProject[]           @relation("UserWaProjects")
+  recurringPayments           RecurringPayment[]    @relation("ClientRecurringPayments")
+  credentials                 Credential[]
+  billingPeriods              BillingPeriod[]
+  creditAdjustments           CreditAdjustment[]
+  budgets                     Budget[]
 }
 
 // Per-user credential vault for chatbot tool secrets (Postgres connections,
@@ -128,8 +130,8 @@ model Credential {
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
-  type      String   // 'postgres_connection' | 'supabase_vector'
-  data      String   // Encrypted JSON
+  type      String // 'postgres_connection' | 'supabase_vector'
+  data      String // Encrypted JSON
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -137,83 +139,84 @@ model Credential {
 }
 
 model VapiKeyPool {
-  id              Int      @id @default(autoincrement())
-  label           String?  // Optional friendly name (e.g. "VAPI Org #1")
-  orgEmail        String?  // Email of the VAPI org account that owns these keys, for OWNER cross-reference
-  vapiApiKey      String   // Encrypted private key
-  vapiPublicKey   String   // Encrypted public key
-  assignedUserId  Int?     @unique // null = available, set = assigned
-  assignedUser    User?    @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  label          String? // Optional friendly name (e.g. "VAPI Org #1")
+  orgEmail       String? // Email of the VAPI org account that owns these keys, for OWNER cross-reference
+  vapiApiKey     String // Encrypted private key
+  vapiPublicKey  String // Encrypted public key
+  assignedUserId Int?     @unique // null = available, set = assigned
+  assignedUser   User?    @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model GHLIntegration {
-  id              Int       @id @default(autoincrement())
-  privateToken    String?   // Encrypted Private Integration Token (legacy)
-  accessToken     String?   // Encrypted OAuth access token
-  refreshToken    String?   // Encrypted OAuth refresh token
-  tokenExpiresAt  DateTime? // OAuth token expiry timestamp
-  companyId       String?   // From OAuth response
-  locationId      String?   // GHL Location ID
-  locationName    String?   // Friendly name of the location
-  isConnected     Boolean   @default(false)
-  userId          Int       @unique
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             Int       @id @default(autoincrement())
+  privateToken   String? // Encrypted Private Integration Token (legacy)
+  accessToken    String? // Encrypted OAuth access token
+  refreshToken   String? // Encrypted OAuth refresh token
+  tokenExpiresAt DateTime? // OAuth token expiry timestamp
+  companyId      String? // From OAuth response
+  locationId     String? // GHL Location ID
+  locationName   String? // Friendly name of the location
+  isConnected    Boolean   @default(false)
+  userId         Int       @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model CalendarIntegration {
   id                Int       @id @default(autoincrement())
-  provider          String    // "google", "ghl", "calendly", "hubspot", "calcom"
-  accessToken       String?   // Encrypted OAuth token
-  refreshToken      String?   // Encrypted refresh token
-  apiKey            String?   // Encrypted API key (Cal.com)
+  provider          String // "google", "ghl", "calendly", "hubspot", "calcom"
+  accessToken       String? // Encrypted OAuth token
+  refreshToken      String? // Encrypted refresh token
+  apiKey            String? // Encrypted API key (Cal.com)
   tokenExpiresAt    DateTime?
-  externalAccountId String?   // Provider account ID (Google email, GHL locationId)
-  accountLabel      String?   // e.g. "john@gmail.com", "GHL - My Location"
+  externalAccountId String? // Provider account ID (Google email, GHL locationId)
+  accountLabel      String? // e.g. "john@gmail.com", "GHL - My Location"
   isConnected       Boolean   @default(false)
-  metadata          String?   // JSON for provider-specific data
+  metadata          String? // JSON for provider-specific data
   userId            Int
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
   @@unique([userId, provider, externalAccountId])
 }
 
 model TeamMember {
-  id          Int      @id @default(autoincrement())
-  email       String   @unique
-  password    String
-  name        String?
-  teamRole    String   @default("user") // "admin" or "user"
+  id             Int      @id @default(autoincrement())
+  email          String   @unique
+  password       String
+  name           String?
+  teamRole       String   @default("user") // "admin" or "user"
   hiddenSections String? // JSON array of menu item ids hidden for this team member
-  accountId   Int      // The parent account this team member belongs to
-  account     User     @relation("AccountTeamMembers", fields: [accountId], references: [id], onDelete: Cascade)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  accountId      Int // The parent account this team member belongs to
+  account        User     @relation("AccountTeamMembers", fields: [accountId], references: [id], onDelete: Cascade)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Agent {
-  id           String        @id @default(cuid())
-  name         String
-  description  String?
-  agentType    String        @default("outbound")
-  vapiId       String?
-  vapiStructuredOutputId String? // ID of the VAPI Structured Output linked via artifactPlan.structuredOutputIds. Null when the agent has no structured data extraction configured.
-  config       String?
+  id                            String            @id @default(cuid())
+  name                          String
+  description                   String?
+  agentType                     String            @default("outbound")
+  vapiId                        String?
+  vapiStructuredOutputId        String? // ID of the VAPI Structured Output linked via artifactPlan.structuredOutputIds. Null when the agent has no structured data extraction configured.
+  config                        String?
   // OWNER-set per-agent pricing. When pricePerMinute is set, billing charges
   // pricePerMinute * (1 + profitPercent/100) $/min for this agent (overrides the
   // computed model+transcriber rate).
-  pricePerMinute Float?
-  profitPercent  Float?
-  publicShareToken              String?  @unique  // Token used in /voice/<id>/<token>; null when disabled
-  publicShareEnabled            Boolean  @default(false)
-  publicShareDailyLimit         Int      @default(20)   // Total shared calls per day
-  publicShareIpDailyLimit       Int      @default(3)    // Per-IP shared calls per day
-  publicShareMaxDurationSeconds Int      @default(180)  // Hard cap per shared call (3 min default)
+  pricePerMinute                Float?
+  profitPercent                 Float?
+  publicShareToken              String?           @unique // Token used in /voice/<id>/<token>; null when disabled
+  publicShareEnabled            Boolean           @default(false)
+  publicShareDailyLimit         Int               @default(20) // Total shared calls per day
+  publicShareIpDailyLimit       Int               @default(3) // Per-IP shared calls per day
+  publicShareMaxDurationSeconds Int               @default(180) // Hard cap per shared call (3 min default)
   // External dashboard mirror — OWNER-only. When set, the vapi webhook
   // controller mirrors each end-of-call to dashboardForwardUrl using
   // dashboardForwardSecret as the x-ingest-secret header. Used to surface
@@ -221,21 +224,21 @@ model Agent {
   // sword-ai DB. Both fields are stored plaintext because they're
   // operational configuration the OWNER edits directly; we never expose
   // them in API responses for non-OWNER users.
-  dashboardForwardUrl    String?
-  dashboardForwardSecret String?
+  dashboardForwardUrl           String?
+  dashboardForwardSecret        String?
   // When true, this agent can be picked by the external phone-switch API
   // (GET/POST /api/phone-switch) so the client can move a phone number between
   // its own agents without touching the dashboard.
-  phoneSwitchEnabled Boolean @default(false)
-  userId       Int
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folderId     String?       // Per-account folder for organization. Null = Uncategorized.
-  folder       AgentFolder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  phoneNumbers     PhoneNumber[]
-  trainingSessions TrainingSession[]
-  playbookEntries  AgentPlaybook[]
+  phoneSwitchEnabled            Boolean           @default(false)
+  userId                        Int
+  user                          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId                      String? // Per-account folder for organization. Null = Uncategorized.
+  folder                        AgentFolder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  createdAt                     DateTime          @default(now())
+  updatedAt                     DateTime          @updatedAt
+  phoneNumbers                  PhoneNumber[]
+  trainingSessions              TrainingSession[]
+  playbookEntries               AgentPlaybook[]
 
   @@index([userId, folderId])
 }
@@ -246,12 +249,12 @@ model AgentPlaybook {
   id              Int      @id @default(autoincrement())
   agentId         String
   agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  category        String   // faq | objection | rule | example
+  category        String // faq | objection | rule | example
   title           String   @db.Text // the trigger/question/short label
   content         String   @db.Text // the answer/response/rule body
   enabled         Boolean  @default(true)
   order           Int      @default(0)
-  sourceSessionId Int?     // TrainingSession that created this entry (for revert)
+  sourceSessionId Int? // TrainingSession that created this entry (for revert)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -261,7 +264,7 @@ model AgentPlaybook {
 model AgentFolder {
   id        String   @id @default(cuid())
   name      String
-  userId    Int      // Account owner — folders are per-account and shared with team members
+  userId    Int // Account owner — folders are per-account and shared with team members
   agents    Agent[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -273,7 +276,7 @@ model AgentShareUsage {
   id        Int      @id @default(autoincrement())
   agentId   String
   date      DateTime @db.Date
-  scope     String                 // "all" or hashed IP
+  scope     String // "all" or hashed IP
   count     Int      @default(0)
   updatedAt DateTime @updatedAt
 
@@ -291,7 +294,7 @@ model TrainingSession {
   proposedChanges String?  @db.Text
   transcript      String?  @db.Text
   previousConfig  String?  @db.Text // Agent config JSON snapshot taken right before this session's changes were applied (enables one-click revert)
-  previousName    String?  // Agent name snapshot taken before applying (for revert)
+  previousName    String? // Agent name snapshot taken before applying (for revert)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -299,32 +302,32 @@ model TrainingSession {
 }
 
 model Chatbot {
-  id              String   @id @default(cuid())
-  name            String
-  description     String?
-  chatbotType     String   @default("standard")
-  n8nWorkflowId   String?  // n8n workflow ID
-  n8nWebhookUrl   String?  // Generated n8n webhook URL
-  outputType      String   @default("respond_to_webhook") // "external_webhook", "respond_to_webhook", "http_request"
-  outputUrl       String?  // Encrypted - destination URL for external_webhook/http_request
-  config          String?  // JSON string (prompt, model, voice, tools, etc.)
-  isActive        Boolean  @default(true)
-  isArchived      Boolean  @default(false)
-  publicShareToken    String?  @unique  // Token in shareable URL; null when sharing disabled
-  publicShareEnabled  Boolean  @default(false)
-  publicShareDailyLimit   Int  @default(200)  // Total messages per chatbot per day via the share link
-  publicShareIpDailyLimit Int  @default(30)   // Per-IP messages per day via the share link
-  userId          Int
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  name                    String
+  description             String?
+  chatbotType             String   @default("standard")
+  n8nWorkflowId           String? // n8n workflow ID
+  n8nWebhookUrl           String? // Generated n8n webhook URL
+  outputType              String   @default("respond_to_webhook") // "external_webhook", "respond_to_webhook", "http_request"
+  outputUrl               String? // Encrypted - destination URL for external_webhook/http_request
+  config                  String? // JSON string (prompt, model, voice, tools, etc.)
+  isActive                Boolean  @default(true)
+  isArchived              Boolean  @default(false)
+  publicShareToken        String?  @unique // Token in shareable URL; null when sharing disabled
+  publicShareEnabled      Boolean  @default(false)
+  publicShareDailyLimit   Int      @default(200) // Total messages per chatbot per day via the share link
+  publicShareIpDailyLimit Int      @default(30) // Per-IP messages per day via the share link
+  userId                  Int
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 }
 
 model ChatbotShareUsage {
   id        Int      @id @default(autoincrement())
   chatbotId String
-  date      DateTime @db.Date     // UTC day bucket
-  scope     String                 // "all" for daily total, otherwise hashed IP
+  date      DateTime @db.Date // UTC day bucket
+  scope     String // "all" for daily total, otherwise hashed IP
   count     Int      @default(0)
   updatedAt DateTime @updatedAt
 
@@ -333,58 +336,58 @@ model ChatbotShareUsage {
 }
 
 model TelephonyCredential {
-  id                Int           @id @default(autoincrement())
-  provider          String        // "twilio" | "vonage" | "telnyx"
+  id       Int    @id @default(autoincrement())
+  provider String // "twilio" | "vonage" | "telnyx"
 
   // Twilio fields (encrypted)
-  accountSid        String?       // Encrypted Twilio Account SID
-  authToken         String?       // Encrypted Twilio Auth Token
+  accountSid String? // Encrypted Twilio Account SID
+  authToken  String? // Encrypted Twilio Auth Token
 
   // Vonage fields (encrypted)
-  apiKey            String?       // Encrypted Vonage API Key
-  apiSecret         String?       // Encrypted Vonage API Secret
+  apiKey    String? // Encrypted Vonage API Key
+  apiSecret String? // Encrypted Vonage API Secret
 
   // Telnyx fields (encrypted)
-  telnyxApiKey      String?       // Encrypted Telnyx API Key (v2)
+  telnyxApiKey String? // Encrypted Telnyx API Key (v2)
 
   // VAPI credential ID (returned by VAPI for Vonage/Telnyx/SIP)
-  vapiCredentialId  String?
+  vapiCredentialId String?
 
   // SIP trunk (provider = "sip"): the trunk host/IP for the byo-sip-trunk credential
-  sipGateway        String?
+  sipGateway String?
 
-  isVerified        Boolean       @default(false)
-  userId            Int
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  phoneNumbers      PhoneNumber[]
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  isVerified   Boolean       @default(false)
+  userId       Int
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phoneNumbers PhoneNumber[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@unique([userId, provider])
 }
 
 model PlatformSettings {
-  id                 Int      @id @default(autoincrement())
-  vapiApiKey         String?  // Encrypted
-  vapiPublicKey      String?  // Encrypted - VAPI Public Key for web SDK
-  openaiApiKey       String?  // Encrypted
-  anthropicApiKey    String?  // Encrypted - Claude API key used for Reports feature
-  elevenLabsApiKey   String?  // Encrypted - ElevenLabs API Key for voice library
-  slackWebhookUrl    String?  // Encrypted - Slack incoming webhook URL
-  n8nUrl             String?  // Encrypted - Self-hosted n8n instance URL
-  n8nApiKey          String?  // Encrypted - n8n API key
+  id                            Int       @id @default(autoincrement())
+  vapiApiKey                    String? // Encrypted
+  vapiPublicKey                 String? // Encrypted - VAPI Public Key for web SDK
+  openaiApiKey                  String? // Encrypted
+  anthropicApiKey               String? // Encrypted - Claude API key used for Reports feature
+  elevenLabsApiKey              String? // Encrypted - ElevenLabs API Key for voice library
+  slackWebhookUrl               String? // Encrypted - Slack incoming webhook URL
+  n8nUrl                        String? // Encrypted - Self-hosted n8n instance URL
+  n8nApiKey                     String? // Encrypted - n8n API key
   n8nPostgresMemoryCredentialId String? // Plaintext n8n credential ID for the Postgres-backed chatbot memory store. Not a secret on its own — anyone with n8n admin can list credentials — so we keep it readable for admin debugging.
-  n8nOpenAiCredentialId String? // Plaintext n8n credential ID for the shared OpenAI credential every chatbot LLM node uses. Lets us re-point to a new n8n instance without a code change. Falls back to the historical hardcoded id when null.
-  chatbotGlobalRules           String?  @db.Text // Hard rules prepended to every chatbot's system prompt. Used for platform-wide behaviour like "don't ask for info already collected" or "don't reset conversations". Plaintext.
-  chatbotContextWindowLength   Int      @default(10) // n8n memoryBufferWindow / memoryPostgresChat contextWindowLength. Bumped at the platform level affects all chatbots after a re-sync.
-  accountWebhookUrl  String?  // Encrypted - Webhook URL for new account creation
-  recurringPaymentWebhookUrl String? // Encrypted - Webhook URL for recurring payment notifications
-  paymentReportWebhookUrl String? // Encrypted - Webhook that receives the usage report after each payment, so it can be emailed from n8n (where the Google account already lives). When empty, the report is sent by Gmail from a connected Google account instead.
-  failureWebhookUrl  String?  // Encrypted - Central webhook that receives every agent/server failure across all clients
-  openaiBalance      Float    @default(0) // Manually-seeded OpenAI credit. Topping up overwrites this and clears OpenAiUsageLog so remaining = openaiBalance - SUM(costUsd).
-  openaiBalanceUpdatedAt DateTime? // When the owner last set the balance (display only).
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  n8nOpenAiCredentialId         String? // Plaintext n8n credential ID for the shared OpenAI credential every chatbot LLM node uses. Lets us re-point to a new n8n instance without a code change. Falls back to the historical hardcoded id when null.
+  chatbotGlobalRules            String?   @db.Text // Hard rules prepended to every chatbot's system prompt. Used for platform-wide behaviour like "don't ask for info already collected" or "don't reset conversations". Plaintext.
+  chatbotContextWindowLength    Int       @default(10) // n8n memoryBufferWindow / memoryPostgresChat contextWindowLength. Bumped at the platform level affects all chatbots after a re-sync.
+  accountWebhookUrl             String? // Encrypted - Webhook URL for new account creation
+  recurringPaymentWebhookUrl    String? // Encrypted - Webhook URL for recurring payment notifications
+  paymentReportWebhookUrl       String? // Encrypted - Webhook that receives the usage report after each payment, so it can be emailed from n8n (where the Google account already lives). When empty, the report is sent by Gmail from a connected Google account instead.
+  failureWebhookUrl             String? // Encrypted - Central webhook that receives every agent/server failure across all clients
+  openaiBalance                 Float     @default(0) // Manually-seeded OpenAI credit. Topping up overwrites this and clears OpenAiUsageLog so remaining = openaiBalance - SUM(costUsd).
+  openaiBalanceUpdatedAt        DateTime? // When the owner last set the balance (display only).
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
 }
 
 model OpenAiUsageLog {
@@ -400,15 +403,15 @@ model OpenAiUsageLog {
 }
 
 model ChatbotTokenUsage {
-  id                Int      @id @default(autoincrement())
-  chatbotId         String
-  userId            Int      // Owner of the chatbot — for per-user roll-up
-  executionId       String?  @unique // n8n execution id, used to de-dupe replayed notifications
-  model             String
-  promptTokens      Int      @default(0)
-  completionTokens  Int      @default(0)
-  costUsd           Float    @default(0) // Computed locally from PRICING table at log time
-  createdAt         DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  chatbotId        String
+  userId           Int // Owner of the chatbot — for per-user roll-up
+  executionId      String?  @unique // n8n execution id, used to de-dupe replayed notifications
+  model            String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  costUsd          Float    @default(0) // Computed locally from PRICING table at log time
+  createdAt        DateTime @default(now())
 
   @@index([chatbotId, createdAt])
   @@index([userId, createdAt])
@@ -419,9 +422,9 @@ model Report {
   userId    Int
   name      String
   prompt    String   @db.Text
-  dataset   String   // 'calls' | 'chatbots' | 'both'
-  filters   String?  @db.Text  // JSON: dateFrom, dateTo, agentIds, chatbotIds, outcomes, limit
-  model     String   // claude-sonnet-4-6 | claude-opus-4-7 | claude-haiku-4-5-20251001
+  dataset   String // 'calls' | 'chatbots' | 'both'
+  filters   String?  @db.Text // JSON: dateFrom, dateTo, agentIds, chatbotIds, outcomes, limit
+  model     String // claude-sonnet-4-6 | claude-opus-4-7 | claude-haiku-4-5-20251001
   status    String   @default("pending") // pending | running | done | failed
   result    String?  @db.Text
   tokensIn  Int?
@@ -440,26 +443,26 @@ model Report {
 // has been settled. Amounts are recomputed while a month is unsettled and frozen
 // once it is paid, so a paid statement always shows what was actually charged.
 model BillingPeriod {
-  id             Int       @id @default(autoincrement())
-  userId         Int
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  year           Int
-  month          Int       // 1-12, in the platform's billing timezone
-  periodStart    DateTime  // First instant of the month in that timezone
-  periodEnd      DateTime  // Last instant of the month in that timezone
-  callsCount     Int       @default(0)
-  messagesCount  Int       @default(0)
-  callsAmount    Float     @default(0)
-  messagesAmount Float     @default(0)
-  usageAmount    Float     @default(0) // Consumption: calls + messages
-  adjustmentsAmount Float  @default(0) // Other charges in the month, net: marketing fees add to it, courtesy credits take from it
-  totalAmount    Float     @default(0) // What the month owes: consumption + other charges. The amount charged for it.
-  settledAmount  Float     @default(0) // Paid against it so far (card, or marked by hand)
-  status         String    @default("open") // open | pending | paid
-  paidAt         DateTime?
-  note           String?   // Why it was marked paid by hand, for example
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year              Int
+  month             Int // 1-12, in the platform's billing timezone
+  periodStart       DateTime // First instant of the month in that timezone
+  periodEnd         DateTime // Last instant of the month in that timezone
+  callsCount        Int       @default(0)
+  messagesCount     Int       @default(0)
+  callsAmount       Float     @default(0)
+  messagesAmount    Float     @default(0)
+  usageAmount       Float     @default(0) // Consumption: calls + messages
+  adjustmentsAmount Float     @default(0) // Other charges in the month, net: marketing fees add to it, courtesy credits take from it
+  totalAmount       Float     @default(0) // What the month owes: consumption + other charges. The amount charged for it.
+  settledAmount     Float     @default(0) // Paid against it so far (card, or marked by hand)
+  status            String    @default("open") // open | pending | paid
+  paidAt            DateTime?
+  note              String? // Why it was marked paid by hand, for example
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@unique([userId, year, month])
   @@index([userId, status])
@@ -473,12 +476,12 @@ model CreditAdjustment {
   id           Int      @id @default(autoincrement())
   userId       Int
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount       Float    // Positive adds balance, negative takes it away
-  concept      String   // "marketing", "cortesía", "corrección"…
+  amount       Float // Positive adds balance, negative takes it away
+  concept      String // "marketing", "cortesía", "corrección"…
   note         String?
   reference    String?  @unique // Caller's own id. Repeating it returns the first result instead of moving the balance twice.
   source       String   @default("api") // api | panel
-  actorId      Int?     // Who made it: the account whose API key was used, or the admin
+  actorId      Int? // Who made it: the account whose API key was used, or the admin
   balanceAfter Float
   createdAt    DateTime @default(now())
 
@@ -495,7 +498,7 @@ model Budget {
   userId    Int
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
-  slug      String           // How the API names it: "marketing"
+  slug      String // How the API names it: "marketing"
   balance   Float            @default(0)
   archived  Boolean          @default(false)
   createdAt DateTime         @default(now())
@@ -511,8 +514,8 @@ model BudgetMovement {
   budgetId     Int
   budget       Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
   userId       Int
-  kind         String   // transfer_in (from the main balance) | transfer_out (back to it) | debit (spent by a tool)
-  amount       Float    // Signed, from the budget's side: + in, − out
+  kind         String // transfer_in (from the main balance) | transfer_out (back to it) | debit (spent by a tool)
+  amount       Float // Signed, from the budget's side: + in, − out
   balanceAfter Float
   description  String?
   reference    String?  @unique // Caller's id for a debit, so a retry never spends twice
@@ -525,59 +528,59 @@ model BudgetMovement {
 }
 
 model CallRate {
-  id              Int      @id @default(autoincrement())
-  outboundRate    Float    @default(0.10) // $ per minute for outbound calls
-  inboundRate     Float    @default(0.05) // $ per minute for inbound calls
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  outboundRate Float    @default(0.10) // $ per minute for outbound calls
+  inboundRate  Float    @default(0.05) // $ per minute for inbound calls
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model CallLog {
   id              Int      @id @default(autoincrement())
   vapiCallId      String   @unique // VAPI call ID
-  userId          Int      // User who made/received the call
-  type            String   // "outbound" or "inbound"
+  userId          Int // User who made/received the call
+  type            String // "outbound" or "inbound"
   durationSeconds Float    @default(0)
   costCharged     Float    @default(0) // Amount deducted from credits
   billed          Boolean  @default(false)
   outcome         String   @default("unknown") // answered, booked, not_interested, failed, transferred, voicemail, unknown
-  agentId         String?  // Local agent ID for per-agent filtering
-  recordingUrl    String?  // Our local recording URL
-  transcript      String?  // Full transcript text
-  summary         String?  // Call summary
-  structuredData  String?  // JSON string of extracted data
-  endedReason     String?  // Why the call ended
-  customerNumber  String?  // The customer's phone number
-  source          String?  // null = standard, "public_share" = call from a public share link
+  agentId         String? // Local agent ID for per-agent filtering
+  recordingUrl    String? // Our local recording URL
+  transcript      String? // Full transcript text
+  summary         String? // Call summary
+  structuredData  String? // JSON string of extracted data
+  endedReason     String? // Why the call ended
+  customerNumber  String? // The customer's phone number
+  source          String? // null = standard, "public_share" = call from a public share link
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
 
 model PhoneNumber {
-  id                      Int                  @id @default(autoincrement())
-  phoneNumber             String               // E.164 format
-  friendlyName            String?
-  provider                String               // "twilio" | "vonage" | "telnyx"
-  providerPhoneId         String?              // twilioSid, vonage number ID, telnyx ID
-  vapiPhoneNumberId       String?              // After VAPI import
-  status                  String               @default("pending") // pending, active, error
-  telephonyCredentialId   Int
-  telephonyCredential     TelephonyCredential  @relation(fields: [telephonyCredentialId], references: [id], onDelete: Cascade)
-  agentId                 String?
-  agent                   Agent?               @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  createdAt               DateTime             @default(now())
-  updatedAt               DateTime             @updatedAt
+  id                    Int                 @id @default(autoincrement())
+  phoneNumber           String // E.164 format
+  friendlyName          String?
+  provider              String // "twilio" | "vonage" | "telnyx"
+  providerPhoneId       String? // twilioSid, vonage number ID, telnyx ID
+  vapiPhoneNumberId     String? // After VAPI import
+  status                String              @default("pending") // pending, active, error
+  telephonyCredentialId Int
+  telephonyCredential   TelephonyCredential @relation(fields: [telephonyCredentialId], references: [id], onDelete: Cascade)
+  agentId               String?
+  agent                 Agent?              @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
   @@unique([providerPhoneId, telephonyCredentialId])
 }
 
 model CustomVoice {
   id          Int      @id @default(autoincrement())
-  voiceId     String   // ElevenLabs voice_id
+  voiceId     String // ElevenLabs voice_id
   name        String
-  gender      String?  // male, female
-  accent      String?  // american, british, etc.
-  languages   String?  // JSON array e.g. '["en","es"]'
+  gender      String? // male, female
+  accent      String? // american, british, etc.
+  languages   String? // JSON array e.g. '["en","es"]'
   description String?
   previewUrl  String?
   provider    String   @default("11labs")
@@ -588,17 +591,17 @@ model CustomVoice {
 }
 
 model SupportTicket {
-  id          Int            @id @default(autoincrement())
+  id          Int           @id @default(autoincrement())
   title       String
   description String
-  status      String         @default("open")
-  priority    String         @default("medium")
-  category    String         @default("general")
+  status      String        @default("open")
+  priority    String        @default("medium")
+  category    String        @default("general")
   userId      Int
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   replies     TicketReply[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 }
 
 model TicketReply {
@@ -614,14 +617,14 @@ model TicketReply {
 
 model AuditLog {
   id           Int      @id @default(autoincrement())
-  userId       Int      // Account this action belongs to
-  actorId      Int?     // Who performed the action (user or team member ID)
-  actorEmail   String?  // Email of the actor
-  actorType    String?  // "user", "team_member", "system"
-  action       String   // e.g. "login", "agent.create", "settings.update"
-  resourceType String?  // e.g. "agent", "team_member", "compliance_setting"
-  resourceId   String?  // ID of the affected resource
-  details      String?  // JSON string with extra context
+  userId       Int // Account this action belongs to
+  actorId      Int? // Who performed the action (user or team member ID)
+  actorEmail   String? // Email of the actor
+  actorType    String? // "user", "team_member", "system"
+  action       String // e.g. "login", "agent.create", "settings.update"
+  resourceType String? // e.g. "agent", "team_member", "compliance_setting"
+  resourceId   String? // ID of the affected resource
+  details      String? // JSON string with extra context
   ipAddress    String?
   userAgent    String?
   createdAt    DateTime @default(now())
@@ -633,13 +636,13 @@ model ComplianceSetting {
   id                Int       @id @default(autoincrement())
   hipaaEnabled      Boolean   @default(false)
   baaSignedDate     DateTime?
-  baaCounterparty   String?   // Name of the BAA counterparty
-  baaDocumentUrl    String?   // URL or reference to BAA document
-  complianceOfficer String?   // Name of compliance officer
+  baaCounterparty   String? // Name of the BAA counterparty
+  baaDocumentUrl    String? // URL or reference to BAA document
+  complianceOfficer String? // Name of compliance officer
   dataRetentionDays Int       @default(365) // Data retention period
   lastReviewDate    DateTime?
   nextReviewDate    DateTime?
-  notes             String?   // Additional compliance notes
+  notes             String? // Additional compliance notes
   userId            Int       @unique
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt         DateTime  @default(now())
@@ -648,121 +651,124 @@ model ComplianceSetting {
 
 model ModelRate {
   id        Int      @id @default(autoincrement())
-  provider  String   // "openai", "anthropic", "google", "groq", "deepseek", "mistral"
-  model     String   // "gpt-4o", "claude-3-5-sonnet-20241022", etc.
-  rate      Float    // $ per minute
+  provider  String // "openai", "anthropic", "google", "groq", "deepseek", "mistral"
+  model     String // "gpt-4o", "claude-3-5-sonnet-20241022", etc.
+  rate      Float // $ per minute
   setById   Int      @default(0) // 0 = global (OWNER), >0 = agency user ID override
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@unique([provider, model, setById])
 }
 
 model TranscriberRate {
   id        Int      @id @default(autoincrement())
-  provider  String   // "deepgram", "assembly-ai", etc.
-  rate      Float    // $ per minute
+  provider  String // "deepgram", "assembly-ai", etc.
+  rate      Float // $ per minute
   setById   Int      @default(0) // 0 = global (OWNER), >0 = agency user ID override
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
   @@unique([provider, setById])
 }
 
 model Product {
-  id                    Int            @id @default(autoincrement())
-  name                  String
-  slug                  String         @unique // "chatbots", "voicebots", "crm", "agent-generator"
-  description           String?
-  monthlyPrice          Float          @default(0)
-  quarterlyPrice        Float          @default(0)
-  annualPrice           Float          @default(0)
-  lifetimePrice         Float          @default(0)
-  isActive              Boolean        @default(true)
-  sortOrder             Int            @default(0)
-  whopProductId         String?        // Whop product ID
-  whopPlanIds           String?        // JSON map: { monthly: "plan_xxx", quarterly: "plan_xxx", ... }
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
-  userProducts          UserProduct[]
+  id             Int           @id @default(autoincrement())
+  name           String
+  slug           String        @unique // "chatbots", "voicebots", "crm", "agent-generator"
+  description    String?
+  monthlyPrice   Float         @default(0)
+  quarterlyPrice Float         @default(0)
+  annualPrice    Float         @default(0)
+  lifetimePrice  Float         @default(0)
+  isActive       Boolean       @default(true)
+  sortOrder      Int           @default(0)
+  whopProductId  String? // Whop product ID
+  whopPlanIds    String? // JSON map: { monthly: "plan_xxx", quarterly: "plan_xxx", ... }
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  userProducts   UserProduct[]
 }
 
 model UserProduct {
-  id                   Int           @id @default(autoincrement())
-  userId               Int
-  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId            Int
-  product              Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
-  billingCycle         String        @default("monthly") // "monthly", "quarterly", "annual", "lifetime"
-  amount               Float
-  discountApplied      Float         @default(0)
-  status               String        @default("active") // "active", "cancelled", "past_due"
-  nextPaymentDate      DateTime?
-  notes                String?
-  assignedBy           Int?          // null = self-purchased
-  whopMembershipId     String?       // Whop membership ID for this subscription
-  whopPaymentId        String?       // Last Whop payment ID
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
-  transactions         Transaction[]
+  id               Int           @id @default(autoincrement())
+  userId           Int
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId        Int
+  product          Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  billingCycle     String        @default("monthly") // "monthly", "quarterly", "annual", "lifetime"
+  amount           Float
+  discountApplied  Float         @default(0)
+  status           String        @default("active") // "active", "cancelled", "past_due"
+  nextPaymentDate  DateTime?
+  notes            String?
+  assignedBy       Int? // null = self-purchased
+  whopMembershipId String? // Whop membership ID for this subscription
+  whopPaymentId    String? // Last Whop payment ID
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  transactions     Transaction[]
+
   @@unique([userId, productId])
 }
 
 model ScheduledCallback {
-  id              Int      @id @default(autoincrement())
-  userId          Int      // Owner of the agent
-  agentId         String   // Agent to use for the callback
-  customerNumber  String   // E.164 phone number to call back
-  scheduledAt     DateTime // When to fire the callback
-  reason          String?  // Why the customer wants a callback
-  status          String   @default("pending") // pending, completed, failed, cancelled
-  callLogId       Int?     // Links to the CallLog once fired
-  fromNumber      String?  // Phone number to call from (agent's assigned number)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  userId         Int // Owner of the agent
+  agentId        String // Agent to use for the callback
+  customerNumber String // E.164 phone number to call back
+  scheduledAt    DateTime // When to fire the callback
+  reason         String? // Why the customer wants a callback
+  status         String   @default("pending") // pending, completed, failed, cancelled
+  callLogId      Int? // Links to the CallLog once fired
+  fromNumber     String? // Phone number to call from (agent's assigned number)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([status, scheduledAt])
 }
 
 model ScheduledFollowUp {
-  id              Int      @id @default(autoincrement())
-  userId          Int
-  agentId         String
-  customerNumber  String
-  scheduledAt     DateTime
-  status          String   @default("pending") // pending, completed, failed, cancelled
-  attemptNumber   Int      @default(1)         // 1st, 2nd, 3rd attempt
-  maxAttempts     Int      @default(3)
-  intervalMinutes Int      @default(120)
-  triggerOutcome  String                       // outcome that triggered this follow-up
-  previousSummary String?                      // summary from the previous call
-  previousCallLogId Int?                       // link to the call that triggered this
-  callLogId       Int?                         // link to the CallLog once this follow-up fires
-  fromNumber      String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  userId            Int
+  agentId           String
+  customerNumber    String
+  scheduledAt       DateTime
+  status            String   @default("pending") // pending, completed, failed, cancelled
+  attemptNumber     Int      @default(1) // 1st, 2nd, 3rd attempt
+  maxAttempts       Int      @default(3)
+  intervalMinutes   Int      @default(120)
+  triggerOutcome    String // outcome that triggered this follow-up
+  previousSummary   String? // summary from the previous call
+  previousCallLogId Int? // link to the call that triggered this
+  callLogId         Int? // link to the CallLog once this follow-up fires
+  fromNumber        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([status, scheduledAt])
 }
 
 model CreditPurchase {
-  id                  Int      @id @default(autoincrement())
-  userId              Int
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount              Float    // USD amount paid
-  credits             Float    // Credits added (equal to amount)
-  status              String   // "completed", "pending", "failed"
-  kind                String   @default("manual") // "manual" (hosted checkout), "manual_card" (off-session 1-click), "auto_recharge"
-  paymentMethodId     String?  // Which saved card this off-session charge used (for backup-card fallback)
-  errorMessage        String?  // Decline reason when status = "failed"
-  rawPayload          String?
-  whopPaymentId       String?  // Whop payment ID for this credit purchase
-  whopPlanId          String?  // Unique one-time Whop plan created for this purchase. The reliable link from the webhook back to this user (metadata isn't propagated by Whop, email may not match).
+  id                    Int       @id @default(autoincrement())
+  userId                Int
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount                Float // USD amount paid
+  credits               Float // Credits added (equal to amount)
+  status                String // "completed", "pending", "failed"
+  kind                  String    @default("manual") // "manual" (hosted checkout), "manual_card" (off-session 1-click), "auto_recharge"
+  paymentMethodId       String? // Which saved card this off-session charge used (for backup-card fallback)
+  errorMessage          String? // Decline reason when status = "failed"
+  rawPayload            String?
+  whopPaymentId         String? // Whop payment ID for this credit purchase
+  whopPlanId            String? // Unique one-time Whop plan created for this purchase. The reliable link from the webhook back to this user (metadata isn't propagated by Whop, email may not match).
   stripePaymentIntentId String? // Stripe PaymentIntent (pi_...) for this purchase — links the webhook back to this row
-  billingPeriodId     Int?     // The month this payment settles, when it was started from the billing-periods screen rather than against the running balance
-  periodStart         DateTime? // Usage this payment settles: from here…
-  periodEnd           DateTime? // …to here. Frozen when the checkout is created, so the emailed report matches the amount charged even if the account keeps consuming while it pays.
-  reportSentAt        DateTime? // When the usage report for this payment was emailed
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  billingPeriodId       Int? // The month this payment settles, when it was started from the billing-periods screen rather than against the running balance
+  periodStart           DateTime? // Usage this payment settles: from here…
+  periodEnd             DateTime? // …to here. Frozen when the checkout is created, so the emailed report matches the amount charged even if the account keeps consuming while it pays.
+  reportSentAt          DateTime? // When the usage report for this payment was emailed
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@index([userId, createdAt])
   @@index([whopPlanId])
@@ -770,18 +776,18 @@ model CreditPurchase {
 }
 
 model Transaction {
-  id                   Int          @id @default(autoincrement())
-  userId               Int
-  user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userProductId        Int?
-  userProduct          UserProduct? @relation(fields: [userProductId], references: [id], onDelete: SetNull)
-  type                 String       // "subscription_payment", "one_time", "refund"
-  amount               Float
-  currency             String       @default("USD")
-  status               String       // "completed", "pending", "refunded", "failed"
-  rawPayload           String?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  id            Int          @id @default(autoincrement())
+  userId        Int
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userProductId Int?
+  userProduct   UserProduct? @relation(fields: [userProductId], references: [id], onDelete: SetNull)
+  type          String // "subscription_payment", "one_time", "refund"
+  amount        Float
+  currency      String       @default("USD")
+  status        String // "completed", "pending", "refunded", "failed"
+  rawPayload    String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   @@index([userId, createdAt])
 }
@@ -808,66 +814,80 @@ model ChatbotMessage {
 }
 
 model ChatbotFollowUpLog {
-  id              Int      @id @default(autoincrement())
-  chatbotId       String
-  ruleIndex       Int
-  conditionType   String   // "opp_in_stage" | "inactive_conversation"
-  targetId        String   // opportunityId or contactId
-  actionType      String   // "send_message" | "move_stage" | "add_tag" | "notify_slack"
-  status          String   @default("completed") // completed | failed
-  details         String?  // JSON with error or result info
-  createdAt       DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  chatbotId     String
+  ruleIndex     Int
+  conditionType String // "opp_in_stage" | "inactive_conversation"
+  targetId      String // opportunityId or contactId
+  actionType    String // "send_message" | "move_stage" | "add_tag" | "notify_slack"
+  status        String   @default("completed") // completed | failed
+  details       String? // JSON with error or result info
+  createdAt     DateTime @default(now())
 
   @@unique([chatbotId, ruleIndex, targetId, actionType])
   @@index([chatbotId, createdAt])
 }
 
 model RecurringPayment {
-  id                   Int       @id @default(autoincrement())
-  userId               Int       // Client being billed
-  user                 User      @relation("ClientRecurringPayments", fields: [userId], references: [id], onDelete: Cascade)
-  createdBy            Int       // Owner who created this
-  description          String?
-  amount               Float
-  currency             String    @default("USD")
-  periodDays           Int       @default(30) // Billing period in days
-  periodLabel          String    @default("monthly") // monthly, quarterly, annual, custom
-  daysBeforeNotify     Int       @default(3) // Notify N days before nextPaymentDate
-  nextPaymentDate      DateTime
-  lastPaidAt           DateTime?
-  lastNotifiedAt       DateTime?
-  lastNotifiedForDate  DateTime? // nextPaymentDate value at last notification (dedup)
+  id                         Int       @id @default(autoincrement())
+  userId                     Int // Client being billed
+  user                       User      @relation("ClientRecurringPayments", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy                  Int // Owner who created this
+  description                String?
+  amount                     Float
+  currency                   String    @default("USD")
+  periodDays                 Int       @default(30) // Billing period in days
+  periodLabel                String    @default("monthly") // monthly, quarterly, annual, custom
+  daysBeforeNotify           Int       @default(3) // Notify N days before nextPaymentDate
+  nextPaymentDate            DateTime
+  lastPaidAt                 DateTime?
+  lastNotifiedAt             DateTime?
+  lastNotifiedForDate        DateTime? // nextPaymentDate value at last notification (dedup)
   lastFailureNotifiedForDate DateTime? // nextPaymentDate value at last FAILURE notification (dedup for overdue alerts)
-  status               String    @default("active") // active, paused, cancelled
+  status                     String    @default("active") // active, paused, cancelled
   // How each cycle is collected. Fixed when the entry is created: "whop" sends a
   // checkout link per cycle (money to the platform), "stripe_card" charges the
   // client's saved card in the governing partner's Stripe. Existing rows stay on
   // Whop - the provider is never switched under a live entry.
-  provider             String    @default("whop") // whop | stripe_card
-  whopProductId        String?
-  whopPlanId           String?
-  lastCheckoutUrl      String?   // Most recent generated checkout URL
-  lastWhopPaymentId    String?   // Last Whop payment matched to this recurring payment
-  lastStripePaymentIntentId String? // Last Stripe charge (pi_...) collected for this entry
-  lastChargeAttemptAt  DateTime? // Last automatic charge attempt — keeps the hourly scheduler from retrying a declined card every hour
-  lastChargeError      String?   // Why the last automatic charge was declined
-  notes                String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  provider                   String    @default("whop") // whop | stripe_card
+  whopProductId              String?
+  whopPlanId                 String?
+  lastCheckoutUrl            String? // Most recent generated checkout URL
+  lastWhopPaymentId          String? // Last Whop payment matched to this recurring payment
+  lastStripePaymentIntentId  String? // Last Stripe charge (pi_...) collected for this entry
+  lastChargeAttemptAt        DateTime? // Last automatic charge attempt — keeps the hourly scheduler from retrying a declined card every hour
+  lastChargeError            String? // Why the last automatic charge was declined
+  notes                      String?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
   @@index([status, nextPaymentDate])
 }
 
 model WaProject {
-  id              Int      @id @default(autoincrement())
-  nombre          String   // Group name
-  whatsappChatId  String   @unique // e.g. "120363XXXXX@g.us"
-  estado          String   @default("active") // active, archived
-  totalMensajes   Int      @default(0)
-  alertasCount    Int      @default(0)
+  id              Int       @id @default(autoincrement())
+  nombre          String // Group name
+  whatsappChatId  String    @unique // e.g. "120363XXXXX@g.us"
+  estado          String    @default("active") // active, archived
+  totalMensajes   Int       @default(0)
+  alertasCount    Int       @default(0)
   ultimaActividad DateTime?
   clientId        Int?
-  client          User?    @relation("UserWaProjects", fields: [clientId], references: [id], onDelete: SetNull)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  client          User?     @relation("UserWaProjects", fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// A domain the portal answers on, branded to a partner. The partner's first
+// domain lives in User.loginDomain; every further one is a row here, so an
+// account can own several domains (lmconsultingai.com and
+// panel.neboaiconsulting.com both showing Nebo AI).
+model LoginDomain {
+  id        Int      @id @default(autoincrement())
+  host      String   @unique // lowercase, no scheme, no "www." (e.g. "panel.neboaiconsulting.com")
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

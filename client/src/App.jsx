@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { brandingAPI } from './services/api'
+import { applyHostBranding } from './utils/hostBranding'
 import Login from './components/Auth/Login'
 import Register from './components/Auth/Register'
 import DashboardLayout from './components/Dashboard/DashboardLayout'
@@ -131,6 +132,10 @@ function ComingSoon({ title }) {
 }
 
 function App() {
+  // The tab title, the icon and the link preview follow whoever owns this
+  // domain, so a partner's domain never shows the platform's name.
+  useEffect(() => { applyHostBranding() }, [])
+
   return (
     <div className="min-h-screen bg-gray-100">
       <Routes>

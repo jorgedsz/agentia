@@ -35,10 +35,22 @@ exports.getBrandingByHost = async (req, res) => {
     const host = rawHost.toLowerCase().split(':')[0].replace(/^www\./, '');
     if (!host) return res.json({ branding: null });
 
-    const user = await prisma.user.findUnique({
-      where: { loginDomain: host },
-      select: { companyName: true, companyLogo: true, companyTagline: true, creditsLabel: true }
-    });
+    const select = {
+      companyName: true, companyLogo: true, companyIcon: true,
+      companyTagline: true, creditsLabel: true,
+    };
+
+    // The partner's first domain lives on the account itself; any further one
+    // (a partner running both its own domain and a panel domain) is a row in
+    // loginDomains.
+    let user = await prisma.user.findUnique({ where: { loginDomain: host }, select });
+    if (!user) {
+      const extra = await prisma.loginDomain.findUnique({
+        where: { host },
+        select: { user: { select } },
+      });
+      user = extra?.user || null;
+    }
 
     if (!user) return res.json({ branding: null });
 
@@ -46,6 +58,9 @@ exports.getBrandingByHost = async (req, res) => {
       branding: {
         companyName: user.companyName,
         companyLogo: user.companyLogo,
+        // What the browser tab and a shared link show. A square icon is better
+        // for that, but the logo is a reasonable stand-in.
+        companyIcon: user.companyIcon || user.companyLogo || null,
         companyTagline: user.companyTagline,
         creditsLabel: user.creditsLabel || null
       }
@@ -67,6 +82,7 @@ exports.getBranding = async (req, res) => {
         role: true,
         companyName: true,
         companyLogo: true,
+        companyIcon: true,
         companyTagline: true,
         agencyId: true
       }
@@ -80,6 +96,7 @@ exports.getBranding = async (req, res) => {
     let branding = {
       companyName: user.companyName,
       companyLogo: user.companyLogo,
+      companyIcon: user.companyIcon,
       companyTagline: user.companyTagline,
       creditsLabel: await resolveCreditsLabel(userId),
       canEdit: user.role === 'OWNER' || user.role === 'WHITELABEL' || user.role === 'AGENCY'
@@ -164,7 +181,7 @@ exports.setBrandingForUser = async (req, res) => {
       return res.status(403).json({ error: 'Cannot set branding for another owner' });
     }
 
-    const { companyName, companyLogo, companyTagline, creditsLabel } = req.body;
+    const { companyName, companyLogo, companyIcon, companyTagline, creditsLabel } = req.body;
 
     const updated = await prisma.user.update({
       where: { id: targetId },
@@ -172,9 +189,10 @@ exports.setBrandingForUser = async (req, res) => {
         companyName: companyName || null,
         companyLogo: companyLogo || null,
         companyTagline: companyTagline || null,
+        ...(companyIcon !== undefined ? { companyIcon: (companyIcon || '').trim() || null } : {}),
         ...(creditsLabel !== undefined ? { creditsLabel: (creditsLabel || '').trim() || null } : {})
       },
-      select: { companyName: true, companyLogo: true, companyTagline: true, creditsLabel: true }
+      select: { companyName: true, companyLogo: true, companyIcon: true, companyTagline: true, creditsLabel: true }
     });
 
     res.json({ ...updated, userId: targetId });
@@ -201,7 +219,7 @@ exports.updateBranding = async (req, res) => {
       return res.status(403).json({ error: 'Only owners, whitelabels, and agencies can update branding' });
     }
 
-    const { companyName, companyLogo, companyTagline, creditsLabel } = req.body;
+    const { companyName, companyLogo, companyIcon, companyTagline, creditsLabel } = req.body;
 
     const updated = await prisma.user.update({
       where: { id: userId },
@@ -209,11 +227,13 @@ exports.updateBranding = async (req, res) => {
         companyName: companyName || null,
         companyLogo: companyLogo || null,
         companyTagline: companyTagline || null,
+        ...(companyIcon !== undefined ? { companyIcon: (companyIcon || '').trim() || null } : {}),
         ...(creditsLabel !== undefined ? { creditsLabel: (creditsLabel || '').trim() || null } : {})
       },
       select: {
         companyName: true,
         companyLogo: true,
+        companyIcon: true,
         companyTagline: true,
         creditsLabel: true
       }
@@ -226,5 +246,126 @@ exports.updateBranding = async (req, res) => {
   } catch (error) {
     console.error('Error updating branding:', error);
     res.status(500).json({ error: 'Failed to update branding' });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────
+// Login domains — the addresses this account is branded on
+// ──────────────────────────────────────────────────────────────────────────
+
+// "https://Panel.Nebo.com/" and "panel.nebo.com" are the same address. Store
+// the shape the browser reports, so a lookup by Host header finds it.
+function normalizeHost(value) {
+  const raw = (value || '').toString().trim().toLowerCase();
+  if (!raw) return null;
+  const host = raw.replace(/^https?:\/\//, '').split('/')[0].split(':')[0].replace(/^www\./, '');
+  // A real domain: labels of letters, digits and hyphens, with a suffix.
+  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(host) ? host : null;
+}
+
+// Who may change the domains of an account: the account itself if it is a
+// partner, or the OWNER for anyone.
+async function domainTarget(req, res) {
+  const targetId = req.params.userId ? parseInt(req.params.userId) : req.user.id;
+  const target = await prisma.user.findUnique({
+    where: { id: targetId },
+    select: { id: true, role: true, loginDomain: true },
+  });
+  if (!target) {
+    res.status(404).json({ error: 'User not found' });
+    return null;
+  }
+  const isSelf = target.id === req.user.id;
+  const partnerRoles = ['OWNER', 'WHITELABEL', 'AGENCY'];
+  if (req.user.role !== 'OWNER' && !(isSelf && partnerRoles.includes(req.user.role))) {
+    res.status(403).json({ error: 'You cannot manage domains for this account.' });
+    return null;
+  }
+  return target;
+}
+
+// Every domain branded to the account: the one on the account itself first,
+// then the extra ones.
+async function listDomains(target) {
+  const extra = await prisma.loginDomain.findMany({
+    where: { userId: target.id },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, host: true },
+  });
+  return [
+    ...(target.loginDomain ? [{ id: null, host: target.loginDomain, primary: true }] : []),
+    ...extra.map((d) => ({ ...d, primary: false })),
+  ];
+}
+
+// GET /api/branding/domains[/:userId]
+exports.getLoginDomains = async (req, res) => {
+  try {
+    const target = await domainTarget(req, res);
+    if (!target) return;
+    res.json({ domains: await listDomains(target) });
+  } catch (error) {
+    console.error('Error listing login domains:', error);
+    res.status(500).json({ error: 'Failed to list domains' });
+  }
+};
+
+// POST /api/branding/domains[/:userId]  Body: { host }
+exports.addLoginDomain = async (req, res) => {
+  try {
+    const target = await domainTarget(req, res);
+    if (!target) return;
+
+    const host = normalizeHost(req.body?.host);
+    if (!host) return res.status(400).json({ error: 'Escribe un dominio válido, por ejemplo panel.tudominio.com' });
+
+    // A domain can only brand one account, so say who holds it rather than
+    // failing on the unique constraint.
+    const takenBy = await prisma.user.findUnique({ where: { loginDomain: host }, select: { id: true, companyName: true, email: true } })
+      || (await prisma.loginDomain.findUnique({ where: { host }, select: { user: { select: { id: true, companyName: true, email: true } } } }))?.user;
+    if (takenBy) {
+      if (takenBy.id === target.id) return res.json({ domains: await listDomains(target), alreadyYours: true });
+      return res.status(409).json({ error: `Ese dominio ya está en uso por ${takenBy.companyName || takenBy.email}.` });
+    }
+
+    // The account's first domain goes on the account itself, which is where
+    // the rest of the platform reads it from.
+    if (!target.loginDomain) {
+      await prisma.user.update({ where: { id: target.id }, data: { loginDomain: host } });
+      target.loginDomain = host;
+    } else {
+      await prisma.loginDomain.create({ data: { host, userId: target.id } });
+    }
+
+    res.status(201).json({ domains: await listDomains(target) });
+  } catch (error) {
+    console.error('Error adding login domain:', error);
+    res.status(500).json({ error: 'Failed to add domain' });
+  }
+};
+
+// DELETE /api/branding/domains/:host[/:userId]
+exports.removeLoginDomain = async (req, res) => {
+  try {
+    const target = await domainTarget(req, res);
+    if (!target) return;
+
+    const host = normalizeHost(req.params.host);
+    if (!host) return res.status(400).json({ error: 'Dominio inválido' });
+
+    if (target.loginDomain === host) {
+      // Promote one of the extras, so the account keeps a primary domain.
+      const next = await prisma.loginDomain.findFirst({ where: { userId: target.id }, orderBy: { createdAt: 'asc' } });
+      await prisma.user.update({ where: { id: target.id }, data: { loginDomain: next ? next.host : null } });
+      if (next) await prisma.loginDomain.delete({ where: { id: next.id } });
+      target.loginDomain = next ? next.host : null;
+    } else {
+      await prisma.loginDomain.deleteMany({ where: { host, userId: target.id } });
+    }
+
+    res.json({ domains: await listDomains(target) });
+  } catch (error) {
+    console.error('Error removing login domain:', error);
+    res.status(500).json({ error: 'Failed to remove domain' });
   }
 };
