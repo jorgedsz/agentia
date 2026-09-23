@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI, platformSettingsAPI, authAPI } from '../../services/api'
 import ChatAssistant from './ChatAssistant'
+import NotificationToasts from './NotificationToasts'
 import WhopCheckoutModal from './WhopCheckoutModal'
 
 const ROLES = {
@@ -681,6 +682,10 @@ export default function DashboardLayout() {
 
       {/* Floating Chat Assistant */}
       <ChatAssistant />
+
+      {/* Floating notices: budget requests waiting on a decision, decisions on
+          your own, and anything another app of yours posts to /api/notifications */}
+      <NotificationToasts />
 
       {/* Add Credits Modal */}
       {showCreditModal && (

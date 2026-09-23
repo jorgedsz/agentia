@@ -7,6 +7,9 @@
 // out of the main balance.
 
 const budgets = require('../services/budgets');
+const budgetRequests = require('../services/budgetRequests');
+const { notifyAll } = require('../services/notifications');
+const { getAncestorPartners } = require('../utils/whopConfig');
 const { authenticateAccountKey } = require('../utils/apiKeyAuth');
 const { canManageAccount } = require('../utils/accountAccess');
 const { logAudit } = require('../utils/auditLog');
@@ -230,7 +233,144 @@ const panelArchive = async (req, res) => {
   } catch (error) { fail(res, error); }
 };
 
+// ──────────────────────────────────────────────────────────────────────────
+// Budget requests — asked for over the API, decided in the panel
+// ──────────────────────────────────────────────────────────────────────────
+
+function requestFail(res, error) {
+  if (error instanceof budgetRequests.RequestError) {
+    return res.status(error.status).json({ success: false, error: error.message });
+  }
+  return fail(res, error);
+}
+
+// Everyone who may decide this account's requests: the account itself and the
+// partners above it.
+async function decidersFor(prisma, account) {
+  const partners = await getAncestorPartners(prisma, account).catch(() => []);
+  return [account.id, ...partners.map((p) => p.id)];
+}
+
+const accountName = (u) => u.companyName || u.name || u.email;
+
+// POST /api/budgets/:slug/requests  Body: { clientId, apiKey, amount, description?, reference? }
+const apiRequestCreate = async (req, res) => {
+  try {
+    const user = await apiAccount(req, res);
+    if (!user) return;
+
+    const { request, duplicate } = await budgetRequests.create(req.prisma, {
+      userId: user.id,
+      slug: req.params.slug,
+      amount: req.body?.amount,
+      description: req.body?.description,
+      reference: req.body?.reference,
+      requestedBy: 'api',
+    });
+
+    if (!duplicate) {
+      await notifyAll(req.prisma, await decidersFor(req.prisma, user), {
+        kind: 'budget_request',
+        title: `Solicitud de $${request.amount.toFixed(2)} para ${request.budget?.name || req.params.slug}`,
+        body: `${accountName(user)} pide saldo para su presupuesto${request.description ? `: ${request.description}` : '.'}`,
+        link: '/dashboard/budgets?tab=requests',
+        data: { requestId: request.id, accountId: user.id, budget: req.params.slug, amount: request.amount },
+      });
+
+      logAudit(req.prisma, {
+        userId: user.id, actorId: user.id, actorType: 'api',
+        action: 'budget.request', resourceType: 'budget_request', resourceId: String(request.id),
+        details: { slug: req.params.slug, amount: request.amount }, req,
+      });
+    }
+
+    res.status(duplicate ? 200 : 201).json({ success: true, duplicate, request });
+  } catch (error) { requestFail(res, error); }
+};
+
+// GET /api/budgets/requests?clientId=..&apiKey=..&status=pending
+const apiRequestList = async (req, res) => {
+  try {
+    const user = await apiAccount(req, res);
+    if (!user) return;
+    res.json({
+      success: true,
+      requests: await budgetRequests.listFor(req.prisma, user.id, { status: req.query?.status, limit: req.query?.limit }),
+    });
+  } catch (error) { requestFail(res, error); }
+};
+
+// GET /api/budgets/requests/:id?clientId=..&apiKey=..
+const apiRequestGet = async (req, res) => {
+  try {
+    const user = await apiAccount(req, res);
+    if (!user) return;
+    res.json({ success: true, request: await budgetRequests.getFor(req.prisma, user.id, req.params.id) });
+  } catch (error) { requestFail(res, error); }
+};
+
+// GET /api/budgets/panel/requests?status=pending
+const panelRequests = async (req, res) => {
+  try {
+    res.json({ requests: await budgetRequests.inboxFor(req.prisma, req.user, { status: req.query?.status, limit: req.query?.limit }) });
+  } catch (error) { requestFail(res, error); }
+};
+
+// POST /api/budgets/panel/requests/:id/approve  Body: { amount?, note? }
+const panelApprove = async (req, res) => {
+  try {
+    const result = await budgetRequests.approve(req.prisma, req.user, req.params.id, {
+      amount: req.body?.amount,
+      note: req.body?.note,
+    });
+    const { request } = result;
+
+    await notifyAll(req.prisma, [request.account?.id], {
+      kind: 'budget_request_approved',
+      title: `Aprobada: $${(request.approvedAmount ?? request.amount).toFixed(2)} para ${request.budget?.name}`,
+      body: request.approvedAmount < request.amount
+        ? `Pediste $${request.amount.toFixed(2)} y se aprobaron $${request.approvedAmount.toFixed(2)}.`
+        : 'El saldo ya está en el presupuesto.',
+      link: '/dashboard/budgets',
+      data: { requestId: request.id, budget: request.budget?.slug, amount: request.approvedAmount },
+    });
+
+    logAudit(req.prisma, {
+      userId: request.account?.id, actorId: req.user.id, actorType: 'user',
+      action: 'budget.request.approve', resourceType: 'budget_request', resourceId: String(request.id),
+      details: { amount: request.approvedAmount, requested: request.amount }, req,
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) { requestFail(res, error); }
+};
+
+// POST /api/budgets/panel/requests/:id/reject  Body: { note? }
+const panelReject = async (req, res) => {
+  try {
+    const { request } = await budgetRequests.reject(req.prisma, req.user, req.params.id, { note: req.body?.note });
+
+    await notifyAll(req.prisma, [request.account?.id], {
+      kind: 'budget_request_rejected',
+      title: `Rechazada: $${request.amount.toFixed(2)} para ${request.budget?.name}`,
+      body: request.decisionNote || 'La solicitud no fue aprobada.',
+      link: '/dashboard/budgets',
+      data: { requestId: request.id, budget: request.budget?.slug, amount: request.amount },
+    });
+
+    logAudit(req.prisma, {
+      userId: request.account?.id, actorId: req.user.id, actorType: 'user',
+      action: 'budget.request.reject', resourceType: 'budget_request', resourceId: String(request.id),
+      details: { amount: request.amount, note: request.decisionNote }, req,
+    });
+
+    res.json({ success: true, request });
+  } catch (error) { requestFail(res, error); }
+};
+
 module.exports = {
   apiList, apiGet, apiDebit, apiMovements,
+  apiRequestCreate, apiRequestList, apiRequestGet,
   panelGet, panelCreate, panelTransfer, panelArchive,
+  panelRequests, panelApprove, panelReject,
 };
