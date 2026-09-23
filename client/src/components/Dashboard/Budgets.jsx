@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { usersAPI, budgetsAPI } from '../../services/api'
+import BudgetRequests from './BudgetRequests'
 import { useAuth } from '../../context/AuthContext'
 
 // Roles that manage other accounts. Everyone else manages only their own.
@@ -28,6 +30,20 @@ export default function Budgets() {
   const [transferring, setTransferring] = useState(null) // { budget, direction }
   const [transferAmount, setTransferAmount] = useState('')
   const [selected, setSelected] = useState(null) // budget whose history is shown
+
+  // A notice about a request links straight here with ?tab=requests.
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState(params.get('tab') === 'requests' ? 'requests' : 'budgets')
+  const [pendingCount, setPendingCount] = useState(0)
+
+  // How many requests are waiting on this person, for the tab's badge.
+  const loadPending = async () => {
+    try {
+      const { data } = await budgetsAPI.requests('pending')
+      setPendingCount((data.requests || []).length)
+    } catch { /* the badge simply stays at zero */ }
+  }
+  useEffect(() => { loadPending() }, [])
 
   const load = async (id) => {
     if (!id) { setData(null); return }
@@ -106,6 +122,28 @@ export default function Budgets() {
         </p>
       </div>
 
+      {/* Two views: the budgets of one account, and the requests waiting on you */}
+      <div className="flex gap-1 mb-6 border-b border-gray-200 dark:border-dark-border">
+        {[['budgets', 'Presupuestos'], ['requests', 'Solicitudes']].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === id
+              ? 'border-primary-600 text-primary-600 dark:text-primary-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
+          >
+            {label}
+            {id === 'requests' && pendingCount > 0 && (
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-amber-500 text-white">{pendingCount}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'requests' ? (
+        <BudgetRequests onDecided={() => { loadPending(); if (accountId) load(accountId) }} />
+      ) : (
+        <>
       {canManage && (
         <div className="mb-6 max-w-md">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cuenta</label>
@@ -281,6 +319,8 @@ export default function Budgets() {
             </div>
           </form>
         </div>
+      )}
+      </>
       )}
     </div>
   )

@@ -26,6 +26,9 @@ model User {
   creditsLabel                String? // Custom word for "Credits" (e.g. "Nebos"); inherited by all accounts under a whitelabel
   loginDomain                 String?               @unique // Custom domain the login page (and dashboard) should brand to this user (e.g. "lmconsultingai.com", "goatai.us"). Used by any partner role, not just WHITELABEL. A partner with more than one domain keeps the rest in loginDomains.
   loginDomains                LoginDomain[] // Further domains branded to this user (a partner on several domains, e.g. lmconsultingai.com and panel.neboaiconsulting.com)
+  budgetRequests              BudgetRequest[]       @relation("AccountBudgetRequests")
+  budgetRequestsDecided       BudgetRequest[]       @relation("DecidedBudgetRequests")
+  notifications               Notification[]
   companyIcon                 String? // Custom branding: square icon URL for the browser tab and link previews. Falls back to companyLogo.
   vapiApiKey                  String? // Encrypted - Per-account VAPI API Key
   vapiPublicKey               String? // Encrypted - Per-account VAPI Public Key
@@ -504,6 +507,7 @@ model Budget {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   movements BudgetMovement[]
+  requests  BudgetRequest[]
 
   @@unique([userId, slug])
 }
@@ -890,4 +894,47 @@ model LoginDomain {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// Money asked for a budget, waiting for someone to approve it. Nothing moves
+// until then: approving is what funds the budget, out of the main balance.
+model BudgetRequest {
+  id             Int       @id @default(autoincrement())
+  userId         Int // The account the budget belongs to
+  user           User      @relation("AccountBudgetRequests", fields: [userId], references: [id], onDelete: Cascade)
+  budgetId       Int
+  budget         Budget    @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  amount         Float // What was asked for
+  approvedAmount Float? // What was actually sent, which may be less
+  status         String    @default("pending") // pending | approved | rejected
+  description    String? // Why the money is needed, from whoever asked
+  reference      String?   @unique // The caller's own id, so a retry does not ask twice
+  requestedBy    String    @default("api") // api | panel
+  decidedById    Int?
+  decidedBy      User?     @relation("DecidedBudgetRequests", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt      DateTime?
+  decisionNote   String?
+  movementId     Int? // The transfer this approval created
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
+}
+
+// A message for an account, shown as a floating notice in the panel and
+// readable over the API by any other app the account runs.
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String // budget_request | budget_request_approved | budget_request_rejected | custom
+  title     String
+  body      String?
+  data      String? // JSON the sending app chooses, passed back untouched
+  link      String? // Where the panel should go when the notice is clicked
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
 }

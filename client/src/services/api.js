@@ -532,6 +532,18 @@ export const budgetsAPI = {
   create: (userId, name) => api.post(`/budgets/panel/${userId}`, { name }),
   transfer: (userId, budgetId, data) => api.post(`/budgets/panel/${userId}/${budgetId}/transfer`, data),
   archive: (userId, budgetId) => api.post(`/budgets/panel/${userId}/${budgetId}/archive`),
+  // Money asked for a budget, waiting on a decision. The inbox holds every
+  // request the logged-in user may decide, across the accounts below them.
+  requests: (status) => api.get('/budgets/panel/requests', { params: status ? { status } : {} }),
+  approve: (id, data) => api.post(`/budgets/panel/requests/${id}/approve`, data || {}),
+  reject: (id, note) => api.post(`/budgets/panel/requests/${id}/reject`, { note }),
+}
+
+// Floating notices for the logged-in account. Other apps read the same list
+// over the API with the account's clientId + apiKey.
+export const notificationsAPI = {
+  list: (unread) => api.get('/notifications/panel', { params: unread ? { unread: 1 } : {} }),
+  markRead: (id) => api.post(`/notifications/panel/${id || 'all'}/read`),
 }
 
 // Monthly statements for an account (OWNER / partner side).
