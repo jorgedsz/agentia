@@ -539,6 +539,15 @@ export const budgetsAPI = {
   reject: (id, note) => api.post(`/budgets/panel/requests/${id}/reject`, { note }),
 }
 
+// What an account costs to run, charged to its balance once a month. Only the
+// OWNER or the partner above an account may price it.
+export const infraCostAPI = {
+  list: () => api.get('/infra-cost'),
+  mine: () => api.get('/infra-cost/me'),
+  set: (userId, data) => api.put(`/infra-cost/${userId}`, data),
+  chargeNow: (userId) => api.post(`/infra-cost/${userId}/charge-now`),
+}
+
 // Floating notices for the logged-in account. Other apps read the same list
 // over the API with the account's clientId + apiKey.
 export const notificationsAPI = {

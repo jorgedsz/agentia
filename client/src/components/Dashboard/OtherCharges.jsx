@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { usersAPI, creditsAPI } from '../../services/api'
+import InfraCosts from './InfraCosts'
 import { useAuth } from '../../context/AuthContext'
 
 // Roles that manage other accounts. Everyone else only sees their own.
@@ -156,6 +157,7 @@ export default function OtherCharges() {
         <div className="flex gap-2 mb-6">
           {[
             { value: 'manage', label: 'Gestionar cuentas' },
+            { value: 'infra', label: 'Coste de infraestructura' },
             { value: 'mine', label: 'Mi cuenta' },
           ].map((t) => (
             <button
@@ -172,6 +174,7 @@ export default function OtherCharges() {
       )}
 
       {tab === 'mine' && <MyCharges />}
+      {tab === 'infra' && <InfraCosts />}
 
       {tab === 'manage' && (
       <>

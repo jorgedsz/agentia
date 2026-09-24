@@ -62,6 +62,7 @@ const paymentPortalRoutes = require('./routes/paymentPortal');
 const billingPeriodRoutes = require('./routes/billingPeriods');
 const budgetRoutes = require('./routes/budgets');
 const notificationRoutes = require('./routes/notifications');
+const infraCostRoutes = require('./routes/infraCost');
 const recurringPaymentRoutes = require('./routes/recurringPayments');
 const messageLogRoutes = require('./routes/messages');
 const phoneSwitchRoutes = require('./routes/phoneSwitch');
@@ -285,6 +286,7 @@ app.use('/api/pay', paymentPortalRoutes);
 app.use('/api/billing-periods', billingPeriodRoutes);
 app.use('/api/budgets', budgetRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/infra-cost', infraCostRoutes);
 app.use('/api/recurring-payments', recurringPaymentRoutes);
 
 // ── WhatsApp API endpoints ─────────────────────────────────

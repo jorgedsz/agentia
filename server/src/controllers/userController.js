@@ -64,6 +64,8 @@ const getAllUsers = async (req, res) => {
         whitelabelId: true,
         planType: true,
         planPrice: true,
+        infraMonthlyCost: true,
+        infraCostNote: true,
         createdAt: true,
         agency: {
           select: { id: true, name: true, email: true }
@@ -238,6 +240,8 @@ const createAgency = async (req, res) => {
         phoneNumber: true,
         role: true,
         planPrice: true,
+        infraMonthlyCost: true,
+        infraCostNote: true,
         createdAt: true
       }
     });
@@ -341,6 +345,8 @@ const createClient = async (req, res) => {
         agencyId: true,
         planType: true,
         planPrice: true,
+        infraMonthlyCost: true,
+        infraCostNote: true,
         createdAt: true
       }
     });
@@ -664,7 +670,9 @@ const updateUserBilling = async (req, res) => {
         messagesPaused: true,
         hiddenSections: true,
         planType: true,
-        planPrice: true
+        planPrice: true,
+        infraMonthlyCost: true,
+        infraCostNote: true
       }
     });
 
@@ -1073,6 +1081,8 @@ const createWhitelabel = async (req, res) => {
         phoneNumber: true,
         role: true,
         planPrice: true,
+        infraMonthlyCost: true,
+        infraCostNote: true,
         createdAt: true
       }
     });
