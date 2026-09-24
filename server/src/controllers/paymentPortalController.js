@@ -7,9 +7,13 @@
 // that must never expose the call and message history the portal token unlocks.
 
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const { createCreditCheckout, createCardSetupCheckout, confirmStripeCheckout, CheckoutError } = require('../services/creditCheckout');
 const { getEffectiveBilling } = require('../utils/whopConfig');
 const { getAncestorPartners } = require('../utils/whopConfig');
+const budgets = require('../services/budgets');
+const budgetRequests = require('../services/budgetRequests');
+const { notifyAll } = require('../services/notifications');
 
 const MIN_PAYMENT = 0.5;   // Stripe rejects anything smaller
 const MAX_PAYMENT = 10000;
@@ -208,11 +212,17 @@ function linksFor(token, brand) {
   // The iframe title is read out by screen readers and shows in dev tools, so it
   // names the provider too — never the platform.
   const title = brand.companyName ? `Pagar · ${brand.companyName}` : 'Pagar';
+  // The wallet is the same page plus the account's budgets and the money asked
+  // for them, for a site that wants all of it in one place.
+  const walletUrl = `${brand.baseUrl}/wallet/${token}`;
+  const walletTitle = brand.companyName ? `Saldo · ${brand.companyName}` : 'Saldo';
   return {
     token,
     url,
     // Ready to paste into any site. The height fits the page without scrolling.
     embed: `<iframe src="${url}?embed=1" width="100%" height="620" style="border:0;max-width:520px" title="${title.replace(/"/g, '&quot;')}"></iframe>`,
+    walletUrl,
+    walletEmbed: `<iframe src="${walletUrl}?embed=1" width="100%" height="820" style="border:0;max-width:640px" title="${walletTitle.replace(/"/g, '&quot;')}"></iframe>`,
   };
 }
 
@@ -257,6 +267,203 @@ const createLink = async (req, res) => {
   }
 };
 
+// ──────────────────────────────────────────────────────────────────────────
+// Wallet — the same link, showing everything at once: what is owed, the
+// balance, a top-up, the budgets and the money asked for them.
+// ──────────────────────────────────────────────────────────────────────────
+
+const round = (n) => Math.round((n || 0) * 100) / 100;
+
+async function walletState(prisma, user) {
+  const enabled = await budgets.budgetsEnabledFor(prisma, user).catch(() => false);
+  if (!enabled) return { budgetsEnabled: false, budgets: [], requests: [] };
+  return {
+    budgetsEnabled: true,
+    budgets: (await budgets.listBudgets(prisma, user.id)).map(({ name, slug, balance }) => ({ name, slug, balance: round(balance) })),
+    requests: await budgetRequests.listFor(prisma, user.id, { limit: 20 }),
+  };
+}
+
+/**
+ * GET /api/pay/:token/wallet — everything the page shows. The same token as
+ * the payment page: whoever holds the link already sees the balance and what
+ * is owed, and now the budgets carved out of it too.
+ */
+const getWallet = async (req, res) => {
+  try {
+    const user = await findByToken(req.prisma, req.params.token);
+    if (!user) return res.status(404).json({ error: 'Payment page not found' });
+
+    const { mode } = await getEffectiveBilling(req.prisma, user.id).catch(() => ({ mode: 'platform' }));
+    const brand = await partnerBrandFor(req.prisma, user);
+    const owed = user.vapiCredits < 0 ? round(-user.vapiCredits) : 0;
+
+    res.json({
+      account: {
+        name: user.companyName || user.name || 'Tu cuenta',
+        creditsLabel: brand?.creditsLabel || user.creditsLabel || 'Créditos',
+      },
+      brand: { companyName: brand?.companyName || null, companyLogo: brand?.companyLogo || null },
+      balance: round(user.vapiCredits),
+      outstanding: owed,
+      canPay: mode !== 'manual' && owed >= MIN_PAYMENT,
+      // Loading credit by choice, as opposed to paying off what is owed.
+      canTopUp: mode !== 'manual',
+      hasCard: !!(mode === 'own_stripe' ? user.stripePaymentMethodId : user.whopPaymentMethodId),
+      // Approving from here is off unless the partner set a key for it.
+      canApprove: !!user.budgetApprovalKey,
+      min: MIN_PAYMENT,
+      max: MAX_PAYMENT,
+      ...(await walletState(req.prisma, user)),
+    });
+  } catch (error) {
+    console.error('Wallet read error:', error.message);
+    res.status(500).json({ error: 'Failed to load the page' });
+  }
+};
+
+/**
+ * POST /api/pay/:token/top-up  Body: { amount }
+ * Load credit for an amount the client chooses, as opposed to paying off the
+ * whole outstanding balance.
+ */
+const startTopUp = async (req, res) => {
+  try {
+    const user = await findByToken(req.prisma, req.params.token);
+    if (!user) return res.status(404).json({ error: 'Payment page not found' });
+
+    const amount = round(parseFloat(req.body?.amount));
+    if (!Number.isFinite(amount) || amount < MIN_PAYMENT || amount > MAX_PAYMENT) {
+      return res.status(400).json({ error: `Indica un monto entre $${MIN_PAYMENT} y $${MAX_PAYMENT}.` });
+    }
+
+    const { baseUrl } = await partnerBrandFor(req.prisma, user);
+    const back = `${baseUrl}/wallet/${req.params.token}`;
+    const result = await createCreditCheckout(req.prisma, user.id, amount, {
+      successUrl: `${back}?pago=ok`,
+      cancelUrl: `${back}?pago=cancelado`,
+    });
+    res.json({ url: result.url, sessionId: result.id || null });
+  } catch (error) {
+    if (error instanceof CheckoutError) return res.status(error.status || 400).json({ error: error.message });
+    console.error('Wallet top-up error:', error.message);
+    res.status(500).json({ error: 'No se pudo iniciar la carga de saldo' });
+  }
+};
+
+/**
+ * POST /api/pay/:token/requests  Body: { slug, amount, description?, reference? }
+ * Ask for money for one of the account's budgets. Nothing moves until someone
+ * approves — here with the approval key, or in the panel with a session.
+ */
+const createWalletRequest = async (req, res) => {
+  try {
+    const user = await findByToken(req.prisma, req.params.token);
+    if (!user) return res.status(404).json({ error: 'Payment page not found' });
+    if (!(await budgets.budgetsEnabledFor(req.prisma, user))) {
+      return res.status(403).json({ error: 'Los presupuestos no están activos para esta cuenta.' });
+    }
+
+    const { request, duplicate } = await budgetRequests.create(req.prisma, {
+      userId: user.id,
+      slug: req.body?.slug,
+      amount: req.body?.amount,
+      description: req.body?.description,
+      reference: req.body?.reference,
+      requestedBy: 'panel',
+    });
+
+    if (!duplicate) {
+      const partners = await getAncestorPartners(req.prisma, user).catch(() => []);
+      await notifyAll(req.prisma, [user.id, ...partners.map((p) => p.id)], {
+        kind: 'budget_request',
+        title: `Solicitud de $${request.amount.toFixed(2)} para ${request.budget?.name || req.body?.slug}`,
+        body: `${user.companyName || user.name || user.email} pide saldo para su presupuesto${request.description ? `: ${request.description}` : '.'}`,
+        link: '/dashboard/budgets?tab=requests',
+        data: { requestId: request.id, accountId: user.id, amount: request.amount },
+      });
+    }
+
+    res.status(duplicate ? 200 : 201).json({ success: true, duplicate, request });
+  } catch (error) {
+    if (error instanceof budgetRequests.RequestError) return res.status(error.status).json({ error: error.message });
+    console.error('Wallet request error:', error.message);
+    res.status(500).json({ error: 'No se pudo crear la solicitud' });
+  }
+};
+
+/**
+ * POST /api/pay/:token/requests/:id/approve  Body: { key, amount?, note? }
+ * Approving without a login, proving it with the approval key the partner set.
+ * The key stands for the account itself, which may approve its own requests,
+ * so the money still only moves from that account's own balance.
+ */
+const approveWalletRequest = async (req, res) => {
+  try {
+    const user = await findByToken(req.prisma, req.params.token);
+    if (!user) return res.status(404).json({ error: 'Payment page not found' });
+    if (!user.budgetApprovalKey) {
+      return res.status(403).json({ error: 'Aprobar desde aquí no está activo. Tu proveedor debe configurar una clave de aprobación.' });
+    }
+
+    const key = (req.body?.key || '').toString();
+    if (!key || !(await bcrypt.compare(key, user.budgetApprovalKey))) {
+      return res.status(401).json({ error: 'Clave de aprobación incorrecta.' });
+    }
+
+    const result = await budgetRequests.approve(
+      req.prisma,
+      { id: user.id, role: user.role },
+      req.params.id,
+      { amount: req.body?.amount, note: req.body?.note },
+    );
+
+    const partners = await getAncestorPartners(req.prisma, user).catch(() => []);
+    await notifyAll(req.prisma, [user.id, ...partners.map((p) => p.id)], {
+      kind: 'budget_request_approved',
+      title: `Aprobada: $${(result.request.approvedAmount ?? result.request.amount).toFixed(2)} para ${result.request.budget?.name}`,
+      body: 'Aprobada desde la página de saldo con la clave de aprobación.',
+      link: '/dashboard/budgets',
+      data: { requestId: result.request.id, amount: result.request.approvedAmount },
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    if (error instanceof budgetRequests.RequestError) return res.status(error.status).json({ error: error.message });
+    console.error('Wallet approve error:', error.message);
+    res.status(500).json({ error: 'No se pudo aprobar la solicitud' });
+  }
+};
+
+/**
+ * PUT /api/pay/admin/:userId/approval-key  Body: { key }
+ * Set or clear the key that allows approving from the page. Only whoever may
+ * issue the link may set it — the OWNER or a partner above the account.
+ */
+const setApprovalKey = async (req, res) => {
+  try {
+    const target = await req.prisma.user.findUnique({ where: { id: parseInt(req.params.userId) } });
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!(await canIssueFor(req.prisma, req.user, target))) {
+      return res.status(403).json({ error: 'You cannot set the approval key for this account.' });
+    }
+
+    const key = (req.body?.key || '').toString().trim();
+    if (key && key.length < 6) {
+      return res.status(400).json({ error: 'La clave debe tener al menos 6 caracteres.' });
+    }
+
+    await req.prisma.user.update({
+      where: { id: target.id },
+      data: { budgetApprovalKey: key ? await bcrypt.hash(key, 10) : null },
+    });
+    res.json({ approvalKeySet: !!key });
+  } catch (error) {
+    console.error('Approval key error:', error.message);
+    res.status(500).json({ error: 'Failed to set the approval key' });
+  }
+};
+
 module.exports = {
   getBilling,
   startCheckout,
@@ -264,4 +471,10 @@ module.exports = {
   confirmPayment,
   getLink,
   createLink,
+  getWallet,
+  startTopUp,
+  createWalletRequest,
+  approveWalletRequest,
+  setApprovalKey,
 };
+

@@ -389,7 +389,23 @@ export default function AccountManagement() {
   // Public payment link / embed for this account.
   const [payLink, setPayLink] = useState(null)
   const [payLinkBusy, setPayLinkBusy] = useState(false)
+  // The key that lets someone approve budget requests from the wallet page.
+  // Write-only: the stored value is hashed and never read back.
+  const [approvalKey, setApprovalKey] = useState('')
   const [copied, setCopied] = useState('')
+
+  const saveApprovalKey = async () => {
+    setPayLinkBusy(true)
+    try {
+      await payAPI.setApprovalKey(editingUser.id, approvalKey)
+      setSuccess(approvalKey ? 'Clave de aprobación guardada' : 'Aprobar desde la página quedó desactivado')
+      setApprovalKey('')
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo guardar la clave')
+    } finally {
+      setPayLinkBusy(false)
+    }
+  }
 
   const loadPayLink = async (userId) => {
     setPayLink(null)
@@ -1061,6 +1077,48 @@ export default function AccountManagement() {
                           {copied === 'embed' ? '¡Copiado!' : 'Copiar'}
                         </button>
                       </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-gray-200 dark:border-dark-border">
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        Panel completo (saldo, presupuestos y solicitudes)
+                      </label>
+                      <div className="flex gap-2">
+                        <textarea readOnly value={payLink.walletEmbed || ''} rows={2}
+                          onFocus={(e) => e.target.select()}
+                          className="flex-1 px-3 py-2 text-xs font-mono bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300" />
+                        <button type="button" onClick={() => copyToClipboard(payLink.walletEmbed, 'wallet')}
+                          className="px-3 py-2 text-xs bg-gray-800 dark:bg-dark-hover text-white rounded-lg hover:opacity-90 self-start">
+                          {copied === 'wallet' ? '¡Copiado!' : 'Copiar'}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                        El mismo enlace, mostrando además el saldo de sus presupuestos y las solicitudes de recarga:
+                        <span className="font-mono"> {payLink.walletUrl}</span>
+                      </p>
+                    </div>
+
+                    <div className="pt-3 border-t border-gray-200 dark:border-dark-border">
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        Clave para aprobar desde esa página
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          value={approvalKey}
+                          onChange={(e) => setApprovalKey(e.target.value)}
+                          placeholder="Mínimo 6 caracteres · en blanco lo desactiva"
+                          autoComplete="new-password"
+                          className="flex-1 px-3 py-2 text-xs bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300" />
+                        <button type="button" onClick={saveApprovalKey} disabled={payLinkBusy}
+                          className="px-3 py-2 text-xs bg-gray-800 dark:bg-dark-hover text-white rounded-lg hover:opacity-90 disabled:opacity-50">
+                          Guardar
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                        Con esta clave se pueden aprobar solicitudes de presupuesto desde esa página, sin entrar al panel.
+                        Sin clave, solo se pueden pedir. Compártela solo con quien deba aprobar.
+                      </p>
                     </div>
 
                     <p className="text-[11px] text-gray-500 dark:text-gray-400">

@@ -579,6 +579,16 @@ export const payAPI = {
   // Admin side (authenticated): issue or rotate an account's link.
   getLink: (userId) => api.get(`/pay/admin/${userId}/link`),
   createLink: (userId, rotate = false) => api.post(`/pay/admin/${userId}/link`, { rotate }),
+  // The key that lets someone approve budget requests from the wallet page.
+  // Empty clears it, which turns approving there off.
+  setApprovalKey: (userId, key) => api.put(`/pay/admin/${userId}/approval-key`, { key }),
+
+  // The wallet: the same token, showing what is owed, the balance, a top-up,
+  // the budgets and the money asked for them.
+  getWallet: (token) => portalAxios.get(`/pay/${token}/wallet`),
+  topUp: (token, amount) => portalAxios.post(`/pay/${token}/top-up`, { amount }),
+  requestBudget: (token, data) => portalAxios.post(`/pay/${token}/requests`, data),
+  approveRequest: (token, id, data) => portalAxios.post(`/pay/${token}/requests/${id}/approve`, data),
 }
 
 export default api

@@ -67,6 +67,7 @@ model User {
   // What this account costs to run, charged to its balance once a month on the
   // 30th (the last day, in a shorter month). Only the OWNER or a partner above
   // the account may set it.
+  budgetApprovalKey           String? // Hashed. Lets someone approve this account's budget requests from the public wallet page without a login. Null = approving there is off.
   infraMonthlyCost            Float? // Null or 0 = nothing is charged
   infraCostNote               String? // What the cost covers, shown on the charge
   infraCostLastChargedAt      DateTime? // Guards against charging the same month twice
