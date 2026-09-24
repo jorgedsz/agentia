@@ -63,6 +63,13 @@ model User {
   // Instead of topping up a fixed amount at a fixed threshold, the account is
   // kept funded in days of its own consumption: when the balance drops to the
   // guarantee (a week), it is topped back up to cycle + guarantee (21 days).
+  // ── Infrastructure cost ──
+  // What this account costs to run, charged to its balance once a month on the
+  // 30th (the last day, in a shorter month). Only the OWNER or a partner above
+  // the account may set it.
+  infraMonthlyCost            Float? // Null or 0 = nothing is charged
+  infraCostNote               String? // What the cost covers, shown on the charge
+  infraCostLastChargedAt      DateTime? // Guards against charging the same month twice
   budgetsEnabled              Boolean               @default(false) // Budgets ("bolsillos") for this account and every account below it
   cycleBillingEnabled         Boolean               @default(false)
   cycleTargetDays             Int                   @default(21) // Days of consumption a funded account holds: the cut plus its guarantee

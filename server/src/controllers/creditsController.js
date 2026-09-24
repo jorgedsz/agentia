@@ -987,6 +987,10 @@ function startAutoRechargeScheduler(prisma) {
   const sweep = async () => {
     await processAutoRecharges(prisma);
     await require('../services/cycleBilling').processCycleBilling(prisma);
+    // The monthly infrastructure cost rides the same timer: it only charges on
+    // its day, and only once, so running the check often costs nothing.
+    await require('../services/infraCost').processInfraCosts(prisma).catch((e) =>
+      console.error(`[InfraCost] Sweep failed: ${e.message}`));
   };
 
   sweep();

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { authAPI, usersAPI, whopAPI, stripeAPI, creditsAPI, payAPI, phoneSwitchAPI } from '../../services/api'
+import { authAPI, usersAPI, whopAPI, stripeAPI, creditsAPI, payAPI, phoneSwitchAPI, infraCostAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -56,6 +56,8 @@ export default function AccountManagement() {
     hiddenSections: [],
     planType: '',
     planPrice: '',
+    infraMonthlyCost: '',
+    infraCostNote: '',
     chatbotMessagePrice: '',
   })
   const [saving, setSaving] = useState(false)
@@ -440,6 +442,8 @@ export default function AccountManagement() {
       hiddenSections: (() => { try { const a = JSON.parse(targetUser.hiddenSections || '[]'); return Array.isArray(a) ? a : [] } catch { return [] } })(),
       planType: targetUser.planType || '',
       planPrice: targetUser.planPrice != null ? String(targetUser.planPrice) : '',
+      infraMonthlyCost: targetUser.infraMonthlyCost != null ? String(targetUser.infraMonthlyCost) : '',
+      infraCostNote: targetUser.infraCostNote || '',
       chatbotMessagePrice: targetUser.chatbotMessagePrice != null ? String(targetUser.chatbotMessagePrice) : '',
       receiptEmail: targetUser.receiptEmail || '',
     })
@@ -449,7 +453,7 @@ export default function AccountManagement() {
 
   const closeBillingModal = () => {
     setEditingUser(null)
-    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, budgetsEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', chatbotMessagePrice: '', receiptEmail: '' })
+    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, budgetsEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', infraMonthlyCost: '', infraCostNote: '', chatbotMessagePrice: '', receiptEmail: '' })
   }
 
   const handleBillingSubmit = async (e) => {
@@ -482,6 +486,19 @@ export default function AccountManagement() {
       data.receiptEmail = billingForm.receiptEmail
 
       await usersAPI.updateBilling(editingUser.id, data)
+
+      // The infrastructure cost lives behind its own endpoint, because only
+      // the OWNER or the partner above an account may set it. Sent only when
+      // it actually changed, so editing anything else is never refused over a
+      // field the editor was not touching.
+      const costChanged = String(billingForm.infraMonthlyCost ?? '') !== String(editingUser.infraMonthlyCost ?? '')
+        || (billingForm.infraCostNote || '') !== (editingUser.infraCostNote || '')
+      if (costChanged) {
+        await infraCostAPI.set(editingUser.id, {
+          amount: billingForm.infraMonthlyCost,
+          note: billingForm.infraCostNote,
+        })
+      }
       setSuccess('Billing updated successfully')
       window.dispatchEvent(new CustomEvent('creditsUpdated'))
       await fetchAccounts()
@@ -1260,6 +1277,33 @@ export default function AccountManagement() {
                       className="w-full pl-7 pr-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    Coste de infraestructura ($/mes)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={billingForm.infraMonthlyCost}
+                      onChange={(e) => setBillingForm({ ...billingForm, infraMonthlyCost: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full pl-7 pr-4 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                  <input
+                    value={billingForm.infraCostNote}
+                    onChange={(e) => setBillingForm({ ...billingForm, infraCostNote: e.target.value })}
+                    maxLength={200}
+                    placeholder="Qué cubre (servidor, números, licencias…)"
+                    className="w-full mt-2 px-3 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                  />
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                    Se descuenta del saldo de la cuenta el día 30 de cada mes (el último día en meses más cortos). En blanco no se cobra nada.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
