@@ -19,6 +19,7 @@ import ChatbotMessageLogs from './components/Dashboard/ChatbotMessageLogs'
 import RatesSettings from './components/Dashboard/RatesSettings'
 import AllUsers from './components/Dashboard/AllUsers'
 import PaymentPortalPage from './components/Public/PaymentPortalPage'
+import WalletPage from './components/Public/WalletPage'
 import BillingPeriods from './components/Dashboard/BillingPeriods'
 import OtherCharges from './components/Dashboard/OtherCharges'
 import Budgets from './components/Dashboard/Budgets'
@@ -160,6 +161,9 @@ function App() {
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/demo" element={<DemoPage />} />
         <Route path="/pay/:token" element={<PaymentPortalPage />} />
+        {/* The same token as /pay, showing the balance, the budgets and the
+            requests as well — meant to be embedded in the client's own site. */}
+        <Route path="/wallet/:token" element={<WalletPage />} />
         <Route path="/portal/:token" element={<ClientPortalPage />} />
         <Route path="/portal/:token/sessions/:sessionId" element={<SessionPortalPage />} />
         <Route path="/portal/:token/messages/:sessionId" element={<MessagePortalPage />} />
