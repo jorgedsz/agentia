@@ -44,18 +44,31 @@ async function ensureCustomer(prisma, user, secretKey) {
 
 // ── Checkout: one-time payment (credits, lifetime products) ──
 
-async function createPaymentCheckout({ customerId, amount, productName, description, metadata, successUrl, cancelUrl, saveCard, receiptEmail }, secretKey) {
+async function createPaymentCheckout({ customerId, amount, lines, productName, description, metadata, successUrl, cancelUrl, saveCard, receiptEmail }, secretKey) {
+  // A checkout can show a breakdown instead of one lump sum: `lines` is an
+  // array of { name, amount } and each entry becomes its own Stripe line item,
+  // so a split (a subtotal and the tax charged on top of it) also reaches
+  // Stripe's own receipt and the dashboard whoever reconciles the payment
+  // reads. Without `lines` this behaves exactly as it did: one line named
+  // `productName` for the whole `amount`.
+  //
+  // A line worth nothing is dropped - Stripe rejects a zero-amount line item,
+  // and dropping it is what lets an untaxed charge send exactly one line
+  // through the same two-line call.
+  const lineItems = (Array.isArray(lines) && lines.length ? lines : [{ name: productName, amount }])
+    .filter((line) => parseFloat(line?.amount) > 0);
+
   return client(secretKey).checkout.sessions.create({
     mode: 'payment',
     customer: customerId,
-    line_items: [{
+    line_items: lineItems.map((line) => ({
       quantity: 1,
       price_data: {
         currency: 'usd',
-        unit_amount: toCents(amount),
-        product_data: { name: productName },
+        unit_amount: toCents(line.amount),
+        product_data: { name: line.name },
       },
-    }],
+    })),
     metadata: metadata || {},
     payment_intent_data: {
       // Vault the card from this purchase so auto-recharge can reuse it later.
