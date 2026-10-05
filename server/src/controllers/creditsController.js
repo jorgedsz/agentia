@@ -758,7 +758,14 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
         customerId,
         paymentMethodId,
         amount: charge.total,
-        description: `${creditsLabel(kind)} ($${charge.subtotal})`,
+        // An off-session PaymentIntent has no line items, so unlike the hosted
+        // checkout there is nowhere for the split to show except here and in
+        // the metadata below. Spell it out when there is a tax, so the Stripe
+        // dashboard does not read "($100)" against a $127 charge; with no tax
+        // the wording stays exactly what it always was.
+        description: charge.taxAmount > 0
+          ? `${creditsLabel(kind)} ($${charge.subtotal} + $${charge.taxAmount} ${charge.taxLabel})`
+          : `${creditsLabel(kind)} ($${charge.subtotal})`,
         // Second line of defence against a double charge: two automatic attempts
         // for the same card in the same window reach Stripe with the same key,
         // and Stripe hands back the first payment instead of making another.

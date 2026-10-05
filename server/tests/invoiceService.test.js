@@ -258,7 +258,10 @@ function makeFakePrisma({ client, partner, profile, existingInvoice = null }) {
   };
 }
 
-const PARTNER = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'manual' };
+// own_stripe is the only mode that gets taxed, and therefore the only one that
+// can produce an invoice at all - resolveTaxConfig gates every other mode to
+// NO_TAX because the Whop settlement path never issues one (see utils/taxes.js).
+const PARTNER = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_stripe' };
 const CLIENT_UNDER_PARTNER = { ...CLIENT, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' };
 
 test('issueInvoiceForPurchase takes the correlative, bumps the profile, and creates the invoice', async () => {

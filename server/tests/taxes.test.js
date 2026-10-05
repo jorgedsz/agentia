@@ -70,7 +70,7 @@ test('a client under a tax-enabled partner inherits the rate', async () => {
     user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: 9, billingMode: 'platform' }) },
     billingProfile: { findUnique: async ({ where }) => (where.ownerId === 9 ? { id: 5, ownerId: 9, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' } : null) },
   };
-  const cfg = await resolveTaxConfig(prisma, 1, { partnerId: 9 });
+  const cfg = await resolveTaxConfig(prisma, 1, { partnerId: 9, mode: 'own_stripe' });
   assert.strictEqual(cfg.taxEnabled, true);
   assert.strictEqual(cfg.taxRate, 27);
   assert.strictEqual(cfg.profile.id, 5);
@@ -81,7 +81,7 @@ test('a profile with the tax switched off resolves to rate 0', async () => {
     user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: 9, billingMode: 'platform' }) },
     billingProfile: { findUnique: async () => ({ id: 5, ownerId: 9, taxEnabled: false, taxRate: 27, taxLabel: 'ITBIS' }) },
   };
-  const cfg = await resolveTaxConfig(prisma, 1, { partnerId: 9 });
+  const cfg = await resolveTaxConfig(prisma, 1, { partnerId: 9, mode: 'own_stripe' });
   assert.strictEqual(cfg.taxEnabled, false);
   assert.strictEqual(cfg.taxRate, 0);
 });
@@ -91,10 +91,42 @@ test('an account with no partner above it resolves to rate 0', async () => {
     user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: null, billingMode: 'platform' }) },
     billingProfile: { findUnique: async () => null },
   };
-  const cfg = await resolveTaxConfig(prisma, 1, { partnerId: null });
+  const cfg = await resolveTaxConfig(prisma, 1, { partnerId: null, mode: 'own_stripe' });
   assert.strictEqual(cfg.taxEnabled, false);
   assert.strictEqual(cfg.taxRate, 0);
   assert.strictEqual(cfg.profile, null);
+});
+
+// The gate that keeps the tax on the Stripe path. Everything else about this
+// account says "tax it" - a real partner above it, a profile with taxEnabled
+// and a 27% rate - and it still resolves to no tax, purely because the money
+// would be collected through Whop, whose settlement never issues an invoice.
+// Asserted with the partner injected so the gate is proven to apply even to a
+// caller that already resolved who governs the account. The mocks deliberately
+// RESOLVE rather than throw: a throwing mock would land in resolveTaxConfig's
+// own catch and return NO_TAX for the wrong reason, so this would pass with the
+// gate deleted. With these, the same call under mode 'own_stripe' returns 27
+// (asserted at the end), which is what makes the 0s above the gate's doing.
+test('the tax is gated off anything but own_stripe, even with the partner injected', async () => {
+  const prisma = {
+    user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' }) },
+    billingProfile: {
+      findUnique: async ({ where }) => (where.ownerId === 9
+        ? { id: 42, ownerId: 9, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' }
+        : null),
+    },
+  };
+  for (const mode of ['own_whop', 'manual', 'platform']) {
+    const cfg = await resolveTaxConfig(prisma, 1, { partnerId: 9, mode });
+    assert.strictEqual(cfg.taxEnabled, false, `${mode} must not be taxed`);
+    assert.strictEqual(cfg.taxRate, 0, `${mode} must resolve to rate 0`);
+    assert.strictEqual(cfg.profile, null, `${mode} must resolve to no profile`);
+  }
+
+  // Same account, same profile, same mocks - only the mode differs.
+  const taxed = await resolveTaxConfig(prisma, 1, { partnerId: 9, mode: 'own_stripe' });
+  assert.strictEqual(taxed.taxRate, 27);
+  assert.strictEqual(taxed.profile.id, 42);
 });
 
 // Regression: 15.50 * 27 / 100 is 4.1849999999999996 in IEEE 754 floats, which
@@ -149,12 +181,20 @@ test('resolveTaxConfig returns NO_TAX instead of throwing when prisma blows up',
   assert.strictEqual(cfg.profile, null);
 });
 
-// Drives resolveTaxConfig through its REAL call shape: no partnerId override,
-// so it must call getEffectiveBilling itself, which walks the user -> agency
-// inheritance via prisma.user.findUnique (both directly and via
-// getAncestorPartners) before taxes.js ever touches billingProfile. The three
-// tests above all pass `partnerId` explicitly, which bypasses this entirely.
-test('resolveTaxConfig walks the real partner-inheritance path with no partnerId override', async () => {
+// Drives resolveTaxConfig through its REAL call shape: no partnerId or mode
+// override, so it must call getEffectiveBilling itself, which walks the
+// user -> agency inheritance via prisma.user.findUnique (both directly and via
+// getAncestorPartners) before taxes.js ever touches billingProfile. The tests
+// above all pass `partnerId` explicitly, which bypasses this entirely.
+//
+// This is the own_whop shape, and the whole point is that it resolves to NO
+// tax: getEffectiveBilling finds a real partner (id 9) with a profile that has
+// taxEnabled and a 27% rate, and the mode gate still refuses it, because the
+// Whop settlement path in whopController.js would collect the tax without ever
+// issuing the invoice that has to accompany it. The own_stripe twin of this
+// test below uses the SAME mock shape and does resolve to 27, which is what
+// pins this 0 on the mode rather than on the mock.
+test('a tax-enabled profile resolves to rate 0 when the money is collected through Whop', async () => {
   const CLIENT = { id: 1, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' };
   const PARTNER = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_whop' };
   const prisma = {
@@ -171,10 +211,17 @@ test('resolveTaxConfig walks the real partner-inheritance path with no partnerId
         : null),
     },
   };
+  // Sanity: this mock really does put an own_whop partner above the account,
+  // so the 0 below is the gate's doing and not a broken inheritance walk.
+  const { getEffectiveBilling } = require('../src/utils/whopConfig');
+  const billing = await getEffectiveBilling(prisma, 1);
+  assert.strictEqual(billing.mode, 'own_whop');
+  assert.strictEqual(billing.partner.id, 9);
+
   const cfg = await resolveTaxConfig(prisma, 1);
-  assert.strictEqual(cfg.taxEnabled, true);
-  assert.strictEqual(cfg.taxRate, 27);
-  assert.strictEqual(cfg.profile.id, 77);
+  assert.strictEqual(cfg.taxEnabled, false);
+  assert.strictEqual(cfg.taxRate, 0);
+  assert.strictEqual(cfg.profile, null);
 });
 
 // LM Consulting's actual configuration is own_stripe, not own_whop - and

@@ -250,6 +250,17 @@ async function handlePaymentIntentFailed(prisma, intent) {
   const kind = purchase?.kind || meta.kind;
   if (kind === 'auto_recharge' || kind === 'manual_card') {
     await recordAutoRechargeFailure(prisma, userId, reason);
+
+    // Everything above treats `purchase` as optional (the userId can come from
+    // the PaymentIntent's own metadata), and the retry below needs the row
+    // itself to know what to charge. Without the row there is nothing to retry
+    // against: stop here rather than let a null throw into the catch below,
+    // which would log a misleading "backup-card retry failed" and silently
+    // skip a retry that was never possible.
+    if (!purchase) {
+      console.warn(`[Stripe Webhook] No purchase row for the declined charge of user ${userId}; skipping the backup-card retry`);
+      return;
+    }
     // Fall back to the backup card, if there is one. Retried for `credits`,
     // the PRE-TAX subtotal — not `amount`, which already has the partner's tax
     // inside it: the retry adds the tax again on top of whatever it is given,

@@ -82,21 +82,48 @@ function computeCharge(subtotal, taxConfig) {
 }
 
 /**
- * The tax governing `userId`. `options.partnerId` short-circuits the lookup of
- * who governs the account — used by tests, and by callers that already resolved
- * it. Never throws: a tax that cannot be resolved must not block a payment, so
- * anything unexpected reads as "no tax". Because that failure is silent to the
- * caller, it is logged loudly here — a swallowed error means a partner quietly
- * stops collecting a tax it is legally required to collect.
+ * The tax governing `userId`. `options.partnerId` and `options.mode`
+ * short-circuit the lookup of who governs the account and through which
+ * processor — used by tests, and by callers that already resolved them. Never
+ * throws: a tax that cannot be resolved must not block a payment, so anything
+ * unexpected reads as "no tax". Because that failure is silent to the caller,
+ * it is logged loudly here — a swallowed error means a partner quietly stops
+ * collecting a tax it is legally required to collect.
+ *
+ * ONLY `own_stripe` is taxed. Not a policy choice — a safety gate, because
+ * only the Stripe path can actually produce the invoice that must accompany a
+ * taxed charge:
+ *
+ *   - Whop settles through its own parallel implementation in
+ *     controllers/whopController.js (~l.265-296), which never calls
+ *     settleCreditPurchase. A taxed `own_whop` account would therefore be
+ *     charged the taxed total, credited the right credits, and issued NO
+ *     invoice — and its billing period would never settle either, since both
+ *     of those live in utils/creditSettlement.js.
+ *   - Worse, whopController.js's orphan-payment fallback (~l.422) credits
+ *     `data.usd_total`, the TAXED total, as credits — so a taxed Whop payment
+ *     that arrived without its pending row would hand the client the tax as
+ *     balance.
+ *
+ * So the tax must not reach the Whop path until those two settlement
+ * implementations are unified behind settleCreditPurchase. This costs nothing
+ * today: the only tax-enabled partner bills through `own_stripe`, and
+ * `manual`-mode accounts never produce a CreditPurchase at all. Remove this
+ * gate only together with that unification.
  */
 async function resolveTaxConfig(prisma, userId, options = {}) {
   const NO_TAX = { profile: null, taxEnabled: false, taxRate: 0, taxLabel: 'ITBIS' };
   try {
     let partnerId = options.partnerId;
-    if (partnerId === undefined) {
-      const { partner } = await getEffectiveBilling(prisma, userId);
-      partnerId = partner?.id ?? null;
+    let mode = options.mode;
+    if (partnerId === undefined || mode === undefined) {
+      const billing = await getEffectiveBilling(prisma, userId);
+      if (partnerId === undefined) partnerId = billing.partner?.id ?? null;
+      if (mode === undefined) mode = billing.mode;
     }
+    // getEffectiveBilling hands back a partner for own_whop and manual too, so
+    // the mode has to be checked explicitly - a profile alone is not enough.
+    if (mode !== 'own_stripe') return NO_TAX;
     if (!partnerId) return NO_TAX;
 
     const profile = await prisma.billingProfile.findUnique({ where: { ownerId: partnerId } });

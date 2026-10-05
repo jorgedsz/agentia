@@ -139,6 +139,15 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
   // throws on a non-finite subtotal rather than quietly charging $0.
   const charge = await resolveCharge(prisma, userId, amount);
   // What the client sees and what the balance gets; the tax is the partner's.
+  //
+  // Hand-built on purpose, field by field, rather than spread from `charge`:
+  // `charge.profile` is the issuer's whole BillingProfile row — bank account,
+  // SWIFT, routing number, RNC, and the live invoice numbering sequence — and
+  // this object is returned straight to the browser by a token-authenticated
+  // PUBLIC endpoint (the payment page and the wallet top-up in
+  // controllers/paymentPortalController.js). Do not turn this into
+  // `...charge`: nothing a client UI needs is in `profile`, and spreading it
+  // would publish the issuer's banking details to every payer.
   const breakdown = {
     subtotal: charge.subtotal,
     taxRate: charge.taxRate,
