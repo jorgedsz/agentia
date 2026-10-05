@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { payAPI } from '../../services/api'
+import ChargeBreakdown, { useChargeQuote } from '../Dashboard/ChargeBreakdown'
 
 // Everything about an account's money in one page, meant to be embedded in
 // someone else's site: what is owed and paying it, the balance, loading more,
@@ -35,6 +36,14 @@ export default function WalletPage() {
   // only at the moment of approving and never stored.
   const [approving, setApproving] = useState(null) // the request being approved
   const [approveForm, setApproveForm] = useState({ key: '', amount: '' })
+
+  // What the card will really be charged, for each of the two amounts this page
+  // can pay: the outstanding balance (fixed, worked out by the server) and the
+  // top-up the client types. Public page, so both go through the token in the
+  // URL instead of a logged-in account.
+  const quoteByToken = (amount) => payAPI.quote(token, amount).then(({ data }) => data)
+  const owedQuote = useChargeQuote(data?.outstanding, quoteByToken, { enabled: !!data?.canPay })
+  const topUpQuote = useChargeQuote(topUpAmount, quoteByToken, { enabled: !!data?.canTopUp })
 
   const load = async () => {
     try {
@@ -191,6 +200,11 @@ export default function WalletPage() {
               <button onClick={payOwed} disabled={!data.canPay || working === 'pay'} className={`${primary} mt-3`}>
                 {working === 'pay' ? 'Abriendo el pago…' : `Pagar ${money(data.outstanding)}`}
               </button>
+              {owedQuote.quote?.taxAmount > 0 && (
+                <div className="mt-3 max-w-xs">
+                  <ChargeBreakdown {...owedQuote} />
+                </div>
+              )}
               {!data.canPay && (
                 <p className="text-xs text-gray-500 mt-2">Tu proveedor gestiona los pagos de esta cuenta. Contáctalo para ponerte al día.</p>
               )}
@@ -220,6 +234,11 @@ export default function WalletPage() {
                 {working === 'topup' ? 'Abriendo…' : 'Cargar'}
               </button>
             </div>
+            {topUpQuote.quote?.taxAmount > 0 && (
+              <div className="mt-3 max-w-xs">
+                <ChargeBreakdown {...topUpQuote} />
+              </div>
+            )}
           </form>
         )}
 

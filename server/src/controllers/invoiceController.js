@@ -1,0 +1,293 @@
+// Reading the invoices a settled payment produced.
+//
+// Everything a rendered invoice shows comes from the snapshots frozen on the
+// row at issue time — issuerSnapshot and clientSnapshot — and NEVER from the
+// live BillingProfile or User. That is the whole point of freezing them: an
+// invoice issued in March must keep saying what it said in March, after the
+// issuer changes its RNC, after the client moves office, and after the
+// client's account is deleted altogether (Invoice.userId is nullable + SetNull
+// for exactly that reason). Any renderer added later must read `issuer` and
+// `client` from here and look nothing up.
+
+const { issueInvoiceForPurchase, conceptFor } = require('../services/invoiceService');
+const { resolveTaxConfig } = require('../utils/taxes');
+const { getAncestorPartners } = require('../utils/whopConfig');
+
+// A client's own invoice list is a side panel, not an accounting export: a cap
+// keeps one account with years of auto-recharges from returning thousands of
+// rows to a browser.
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+
+/**
+ * Parse one of the frozen JSON snapshot columns. A column that cannot be
+ * parsed must not take the whole response down with it: the rest of the
+ * document (the numbers, the dates, the invoice number) is still readable and
+ * still worth showing, so a broken snapshot degrades to the empty shape and is
+ * logged instead of thrown.
+ */
+function parseSnapshot(raw, fallback, label, invoiceId) {
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed === null || parsed === undefined ? fallback : parsed;
+  } catch (error) {
+    console.error(`[Invoices] Invoice ${invoiceId} has an unreadable ${label}:`, error.message);
+    return fallback;
+  }
+}
+
+/**
+ * Everything the document needs, with the three JSON columns parsed into the
+ * shapes a renderer reads: `lines` (the DESCRIPCIÓN rows), `issuer` and
+ * `client`. Pure and synchronous — it looks nothing up.
+ */
+function present(invoice) {
+  return {
+    id: invoice.id,
+    number: invoice.number,
+    currency: invoice.currency,
+    subtotal: invoice.subtotal,
+    taxLabel: invoice.taxLabel,
+    taxRate: invoice.taxRate,
+    taxAmount: invoice.taxAmount,
+    retention: invoice.retention,
+    total: invoice.total,
+    totalInWords: invoice.totalInWords,
+    issuedAt: invoice.issuedAt,
+    dueAt: invoice.dueAt ?? null,
+    // The payment this invoice was issued for, when it still exists. Null on an
+    // invoice whose purchase was deleted (SetNull) — the invoice survives it.
+    // Spelled `purchaseId` here and in the payments list, and it is the same id
+    // the /by-purchase/:purchaseId route takes: one name for one thing, so the
+    // client never translates between two spellings. The COLUMN stays
+    // `creditPurchaseId`; only the API shape is normalised.
+    purchaseId: invoice.creditPurchaseId ?? null,
+    lines: parseSnapshot(invoice.conceptLines, [], 'conceptLines', invoice.id),
+    issuer: parseSnapshot(invoice.issuerSnapshot, {}, 'issuerSnapshot', invoice.id),
+    client: parseSnapshot(invoice.clientSnapshot, {}, 'clientSnapshot', invoice.id),
+  };
+}
+
+/**
+ * May this requester read what belongs to that account? The account itself, the
+ * OWNER, or a partner above it — the same rule every other money-facing read in
+ * the panel applies, walked with the same helper (getAncestorPartners).
+ */
+async function canReadAccount(prisma, requester, accountId) {
+  if (!requester || !accountId) return false;
+  if (requester.role === 'OWNER') return true;
+  if (requester.id === accountId) return true;
+  const account = await prisma.user.findUnique({ where: { id: accountId } });
+  if (!account) return false;
+  const ancestors = await getAncestorPartners(prisma, account);
+  return ancestors.some((a) => a.id === requester.id);
+}
+
+/**
+ * May this requester read this invoice?
+ *
+ * ORPHANED INVOICES (userId null, because the account it was issued to was
+ * deleted) need their own answer: there is no account left to own the document
+ * and no ancestor chain left to walk, so the normal rule would decide nothing.
+ * The choice here is the OWNER, plus the partner that ISSUED it — the account
+ * that owns the invoice's BillingProfile, which is the legal issuer of the
+ * document and whose numbering sequence produced its number. It is a bounded
+ * identity check against a column on the row, so it cannot become a way for an
+ * unrelated account to read an orphan: every other requester, partner or not,
+ * is refused. The alternative (falling back to "nobody but the OWNER") would
+ * lock a partner out of its own fiscal history the moment it deletes a client,
+ * which is precisely the history Dominican bookkeeping requires it to keep.
+ */
+async function canReadInvoice(prisma, requester, invoice) {
+  if (!requester || !invoice) return false;
+  if (requester.role === 'OWNER') return true;
+  if (invoice.userId) return canReadAccount(prisma, requester, invoice.userId);
+
+  const profile = await prisma.billingProfile.findUnique({ where: { id: invoice.profileId } });
+  return !!profile && profile.ownerId === requester.id;
+}
+
+/**
+ * One settled payment, with its invoice attached when there is one.
+ *
+ * `invoiceExpected` is the difference between a document that FAILED to be
+ * issued and one that was never due. Issuing is gated on the partner's profile,
+ * not on the payment, so within a tax-collecting partner any completed payment
+ * CAN be issued an invoice - "can never have one" is not quite the real
+ * distinction. What separates the two cases, and it is free because the column
+ * is already on the row, is whether the payment itself carried tax: taxAmount
+ * above zero means it was charged under the tax and an invoice was due, so a
+ * null invoice there is a failed emission to repair. taxAmount of zero means
+ * the payment predates the partner switching its tax on; an invoice can still
+ * be issued for it (a tax-free one) but nothing went wrong, so the client can
+ * offer that as optional instead of flagging it as broken.
+ */
+function presentPayment(purchase) {
+  const taxAmount = purchase.taxAmount || 0;
+  return {
+    purchaseId: purchase.id,
+    // CreditPurchase has no settlement timestamp - `updatedAt` moves on any
+    // later write (the report being emailed, for one), so the payment's own
+    // createdAt is the stable date. Off-session charges settle within seconds
+    // of it; a hosted checkout within the minutes the client spent on the page.
+    paidAt: purchase.createdAt,
+    // The same Spanish text the invoice's DESCRIPCIÓN row carries, from the same
+    // helper, so the list and the document cannot describe one payment two ways.
+    concept: conceptFor(purchase),
+    // What the card paid.
+    amount: purchase.amount,
+    // The pre-tax subtotal - what actually reached the balance.
+    credits: purchase.credits,
+    taxRate: purchase.taxRate || 0,
+    taxAmount,
+    invoiceExpected: taxAmount > 0,
+    invoice: purchase.invoice
+      ? {
+        id: purchase.invoice.id,
+        number: purchase.invoice.number,
+        total: purchase.invoice.total,
+        issuedAt: purchase.invoice.issuedAt,
+      }
+      : null,
+  };
+}
+
+/**
+ * The requester's own settled PAYMENTS, newest first, each with its invoice
+ * attached or null.
+ * GET /api/invoices?limit=50
+ *
+ * Payments rather than invoices because an invoice that was never issued is
+ * exactly the one that needs issuing, and it cannot appear in a list of
+ * invoices. Emission after a settlement is fire-and-forget - it must never undo
+ * a payment that already went through - so a payment can end up settled with no
+ * document. Listed this way, that payment is visible with `invoice: null` and
+ * its `purchaseId` is what GET /api/invoices/by-purchase/:purchaseId needs to
+ * repair it. There is no other surface in the app that carries a purchase id.
+ */
+const listMine = async (req, res) => {
+  try {
+    const requested = parseInt(req.query.limit);
+    const limit = Math.min(Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_LIMIT, MAX_LIMIT);
+
+    // The same gate issueInvoiceForPurchase applies: a profile AND its tax
+    // switched on. An account that bills without tax has no invoices and never
+    // will, so its screen gets an empty list and stays exactly as it is today
+    // rather than growing a payments table it has no use for. resolveTaxConfig
+    // never throws - it reads as "no tax" on any failure.
+    const { profile, taxEnabled } = await resolveTaxConfig(req.prisma, req.user.id);
+    if (!profile || !taxEnabled) return res.json({ billsWithTax: false, payments: [] });
+
+    const purchases = await req.prisma.creditPurchase.findMany({
+      where: { userId: req.user.id, status: 'completed' },
+      // By id, not createdAt: ids are monotonic and two payments in the same
+      // second would otherwise come back in an arbitrary order.
+      orderBy: { id: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        amount: true,
+        credits: true,
+        taxRate: true,
+        taxAmount: true,
+        createdAt: true,
+        // conceptFor reads these to describe the payment.
+        kind: true,
+        billingPeriodId: true,
+        periodStart: true,
+        periodEnd: true,
+        // Just enough to label and link the document; the document itself is
+        // one more call, to GET /api/invoices/:id.
+        invoice: { select: { id: true, number: true, total: true, issuedAt: true } },
+      },
+    });
+
+    res.json({ billsWithTax: true, payments: purchases.map(presentPayment) });
+  } catch (error) {
+    console.error('Error listing payments:', error.message);
+    res.status(500).json({ error: 'No se pudieron cargar los pagos' });
+  }
+};
+
+/**
+ * The invoice for one payment, ISSUING it on the spot when it is missing.
+ *
+ * Emission after a settlement is fire-and-forget (a failure there must never
+ * undo a payment that already went through), so a payment can end up settled
+ * with no invoice on file. This endpoint is how that repairs itself: asking for
+ * the invoice of a completed purchase issues it if it was never issued.
+ * issueInvoiceForPurchase is idempotent and takes its number inside the same
+ * transaction that bumps the sequence, so two clients asking at once cannot
+ * produce two invoices or burn a number.
+ *
+ * GET /api/invoices/by-purchase/:purchaseId
+ */
+const getByPurchase = async (req, res) => {
+  try {
+    const purchaseId = parseInt(req.params.purchaseId);
+    if (!Number.isFinite(purchaseId)) return res.status(400).json({ error: 'Pago no válido.' });
+
+    const purchase = await req.prisma.creditPurchase.findUnique({ where: { id: purchaseId } });
+    if (!purchase) return res.status(404).json({ error: 'Pago no encontrado.' });
+
+    // Checked against the PAYMENT's account, before anything is issued: issuing
+    // is a write, and nobody may trigger a write on an account they cannot read.
+    if (!(await canReadAccount(req.prisma, req.user, purchase.userId))) {
+      return res.status(403).json({ error: 'No puedes ver las facturas de esta cuenta.' });
+    }
+
+    const existing = await req.prisma.invoice.findUnique({ where: { creditPurchaseId: purchase.id } });
+    if (existing) return res.json({ invoice: present(existing), issued: false });
+
+    // Only a settled payment has an invoice to issue: a pending one may still
+    // fail, and invoicing a failed payment would put a fiscal document on file
+    // for money nobody paid.
+    if (purchase.status !== 'completed') {
+      return res.status(409).json({ error: 'Este pago todavía no está confirmado, así que no tiene factura.' });
+    }
+
+    const invoice = await issueInvoiceForPurchase(req.prisma, purchase);
+    // Null means this payment is not one that gets invoiced at all — the
+    // account bills with no tax, so there is no issuer and no document.
+    if (!invoice) return res.status(404).json({ error: 'Este pago no genera factura.' });
+
+    res.json({ invoice: present(invoice), issued: true });
+  } catch (error) {
+    console.error('Error reading the invoice for a payment:', error.message);
+    res.status(500).json({ error: 'No se pudo cargar la factura' });
+  }
+};
+
+/**
+ * One invoice, with everything the document needs.
+ * GET /api/invoices/:id
+ */
+const getOne = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!Number.isFinite(id)) return res.status(404).json({ error: 'Factura no encontrada.' });
+
+    const invoice = await req.prisma.invoice.findUnique({ where: { id } });
+    if (!invoice) return res.status(404).json({ error: 'Factura no encontrada.' });
+
+    if (!(await canReadInvoice(req.prisma, req.user, invoice))) {
+      return res.status(403).json({ error: 'No puedes ver esta factura.' });
+    }
+
+    res.json({ invoice: present(invoice) });
+  } catch (error) {
+    console.error('Error reading an invoice:', error.message);
+    res.status(500).json({ error: 'No se pudo cargar la factura' });
+  }
+};
+
+module.exports = {
+  listMine,
+  presentPayment,
+  getOne,
+  getByPurchase,
+  present,
+  canReadInvoice,
+  canReadAccount,
+};

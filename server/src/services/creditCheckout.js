@@ -8,6 +8,7 @@
 
 const { getWhopConfigForUser, getAncestorPartners } = require('../utils/whopConfig');
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
+const { resolveCharge } = require('../utils/taxes');
 
 const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contáctalo para recargar créditos.';
 
@@ -52,8 +53,20 @@ async function manualTopUpBlocker(prisma, userId) {
   const hasCard = !!(user.stripePaymentMethodId || user.whopPaymentMethodId);
   if (user.autoRechargeEnabled && !user.cycleBillingEnabled && hasCard
       && user.autoRechargeThreshold > 0 && user.vapiCredits < user.autoRechargeThreshold) {
+    // autoRechargeAmount is the pre-tax subtotal: it is what reaches the
+    // balance, not what the card pays. Quoting it alone told a client "se va a
+    // cargar sola por $100" when the card was about to take $127 - the single
+    // number they would then look for on their statement and not find. So both
+    // figures are named when there is a tax. resolveCharge throws on a
+    // non-finite subtotal (an account with no amount configured), and this is
+    // only a warning message: a failure here falls back to the plain wording
+    // rather than blocking the screen.
+    const charge = await resolveCharge(prisma, userId, user.autoRechargeAmount).catch(() => null);
+    const willCharge = charge && charge.taxAmount > 0
+      ? `${money(charge.total)} (${money(charge.subtotal)} de saldo + ${money(charge.taxAmount)} de ${charge.taxLabel})`
+      : money(user.autoRechargeAmount);
     return `La auto-recarga está activa y tu saldo (${money(user.vapiCredits)}) está por debajo de ${money(user.autoRechargeThreshold)}: `
-      + `se va a cargar sola por ${money(user.autoRechargeAmount)} en unos minutos. No hace falta cargar a mano.`;
+      + `se va a cargar sola por ${willCharge} en unos minutos. No hace falta cargar a mano.`;
   }
 
   if (user.cycleBillingEnabled && hasCard) {
@@ -120,11 +133,40 @@ async function nextPeriodFor(prisma, userId) {
  * Start a credit purchase for `userId`.
  * Returns the Stripe shape ({ provider, checkoutUrl, purchaseId, amount }) or the
  * Whop shape ({ checkoutId, planId, purchaseUrl, amount }), matching what each
- * provider's front-end expects.
+ * provider's front-end expects. Both carry `amount` = what the card will be
+ * charged and `breakdown` = how that splits into credits and tax.
+ *
+ * `amount` IN is the balance the client asked for, and is what reaches the
+ * balance. A partner that collects a tax charges it on top, so the card may pay
+ * more than `amount` - see utils/taxes.js.
  */
 async function createCreditCheckout(prisma, userId, amount, { successUrl, cancelUrl }) {
   const blocked = await manualTopUpBlocker(prisma, userId);
   if (blocked) throw new CheckoutError(blocked, 409);
+
+  // Resolved once, before either provider branch, so the row we record and the
+  // charge we ask for can never disagree about the numbers. `amount` here has
+  // already been validated as a finite number inside its range by every caller
+  // (the credits panel, the payment page, the wallet top-up) - resolveCharge
+  // throws on a non-finite subtotal rather than quietly charging $0.
+  const charge = await resolveCharge(prisma, userId, amount);
+  // What the client sees and what the balance gets; the tax is the partner's.
+  //
+  // Hand-built on purpose, field by field, rather than spread from `charge`:
+  // `charge.profile` is the issuer's whole BillingProfile row — bank account,
+  // SWIFT, routing number, RNC, and the live invoice numbering sequence — and
+  // this object is returned straight to the browser by a token-authenticated
+  // PUBLIC endpoint (the payment page and the wallet top-up in
+  // controllers/paymentPortalController.js). Do not turn this into
+  // `...charge`: nothing a client UI needs is in `profile`, and spreading it
+  // would publish the issuer's banking details to every payer.
+  const breakdown = {
+    subtotal: charge.subtotal,
+    taxRate: charge.taxRate,
+    taxLabel: charge.taxLabel,
+    taxAmount: charge.taxAmount,
+    total: charge.total,
+  };
 
   // Accounts under a partner billing through Stripe check out in that partner's
   // Stripe account; everyone else follows the Whop path below.
@@ -140,21 +182,42 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
     // the session metadata - that id is how the webhook finds the buyer. Stripe
     // propagates metadata (Whop does not), so no one-time-plan trick is needed.
     const period = await nextPeriodFor(prisma, userId);
+    // `credits` is the pre-tax subtotal and is what the balance gets; `amount`
+    // is what the card is charged. They differ by exactly `taxAmount`.
     const purchase = await prisma.creditPurchase.create({
-      data: { userId, amount, credits: amount, status: 'pending', kind: 'manual', ...period },
+      data: {
+        userId,
+        amount: charge.total,
+        credits: charge.subtotal,
+        taxRate: charge.taxRate,
+        taxAmount: charge.taxAmount,
+        status: 'pending',
+        kind: 'manual',
+        ...period,
+      },
     });
 
     const session = await stripeService.createPaymentCheckout({
       customerId,
-      amount,
-      productName: `${creditsLabel('manual')} ($${amount})`,
-      description: `${creditsLabel('manual')} $${amount} · ${user.companyName || user.name || user.email}`,
+      amount: charge.total,
+      // Two lines rather than one taxed line: the split then shows on Stripe's
+      // own receipt and in the dashboard the partner reconciles against, not
+      // only on the invoice we issue ourselves. An untaxed account's zero tax
+      // line is dropped, leaving exactly the single line it always had.
+      lines: [
+        { name: `${creditsLabel('manual')} ($${charge.subtotal})`, amount: charge.subtotal },
+        { name: `${charge.taxLabel} (${charge.taxRate}%)`, amount: charge.taxAmount },
+      ],
+      description: `${creditsLabel('manual')} $${charge.subtotal} · ${user.companyName || user.name || user.email}`,
       receiptEmail: await resolveReceiptEmail(prisma, user),
       metadata: {
         userId: String(userId),
         type: 'credits',
         purchaseId: String(purchase.id),
-        credits: String(amount),
+        credits: String(charge.subtotal),
+        subtotal: String(charge.subtotal),
+        taxRate: String(charge.taxRate),
+        taxAmount: String(charge.taxAmount),
       },
       successUrl,
       cancelUrl,
@@ -168,7 +231,7 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
       }).catch(() => {});
     }
 
-    return { provider: 'stripe', checkoutUrl: session.url, purchaseId: purchase.id, amount };
+    return { provider: 'stripe', checkoutUrl: session.url, purchaseId: purchase.id, amount: charge.total, breakdown };
   }
 
   // Route to the user's partner Whop (LM Consulting, etc.) when configured, so
@@ -210,16 +273,21 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
     creditsProductId = creditsProduct.whopProductId;
   }
 
-  // Create a one-time Whop plan for this exact amount, then the checkout.
+  // Create a one-time Whop plan for this exact amount, then the checkout. The
+  // plan carries the TAXED total: Whop takes a single price and ignores the
+  // plan name, so unlike Stripe above there is nowhere for the split to ride
+  // along and the breakdown lives only on the invoice we issue ourselves. No
+  // account that collects a tax checks out this way today; this keeps the
+  // numbers correct rather than clever.
   const plan = await whopService.createPlan(creditsProductId, {
-    price: amount,
+    price: charge.total,
     billingCycle: 'lifetime',
-    name: `${creditsLabel('manual')} ($${amount})`,
+    name: `${creditsLabel('manual')} ($${charge.subtotal})`,
   }, whop.config);
 
   const session = await whopService.createCheckoutSession({
     planId: plan.id,
-    metadata: { userId: String(userId), type: 'credits', credits: String(amount) },
+    metadata: { userId: String(userId), type: 'credits', credits: String(charge.subtotal) },
     redirectUrl: successUrl,
   }, whop.config);
 
@@ -228,10 +296,19 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
   // webhooks and the payer's email may differ from their app account, but the
   // plan id we just created always appears in the payment webhook as data.plan.id.
   await prisma.creditPurchase.create({
-    data: { userId, amount, credits: amount, status: 'pending', whopPlanId: plan.id, ...(await nextPeriodFor(prisma, userId)) },
+    data: {
+      userId,
+      amount: charge.total,
+      credits: charge.subtotal,
+      taxRate: charge.taxRate,
+      taxAmount: charge.taxAmount,
+      status: 'pending',
+      whopPlanId: plan.id,
+      ...(await nextPeriodFor(prisma, userId)),
+    },
   }).catch((err) => console.error('[Credits] Failed to create pending purchase:', err.message));
 
-  return { checkoutId: session.id, planId: plan.id, purchaseUrl: session.purchase_url, amount };
+  return { checkoutId: session.id, planId: plan.id, purchaseUrl: session.purchase_url, amount: charge.total, breakdown };
 }
 
 /**

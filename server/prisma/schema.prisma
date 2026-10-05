@@ -102,6 +102,12 @@ model User {
   stripeCustomerId            String? // This account's customer id (cus_...) in the governing partner's Stripe
   stripePaymentMethodId       String? // Primary saved card (pm_...) for off-session charges
   stripePaymentMethodIdBackup String? // Backup card — tried automatically if the primary declines
+  // ── Fiscal details printed on this account's invoices ──
+  billingCompany              String?
+  billingRnc                  String?
+  billingAddress              String?
+  billingCity                 String?
+  billingPhone                String?
   whitelabelId                Int? // If AGENCY, belongs to this whitelabel
   whitelabel                  User?                 @relation("WhitelabelAgencies", fields: [whitelabelId], references: [id])
   agencies                    User[]                @relation("WhitelabelAgencies") // If WHITELABEL, these are their agencies
@@ -129,6 +135,8 @@ model User {
   billingPeriods              BillingPeriod[]
   creditAdjustments           CreditAdjustment[]
   budgets                     Budget[]
+  billingProfile              BillingProfile?       @relation("BillingProfileOwner")
+  invoices                    Invoice[]
 }
 
 // Per-user credential vault for chatbot tool secrets (Postgres connections,
@@ -765,8 +773,11 @@ model CreditPurchase {
   id                    Int       @id @default(autoincrement())
   userId                Int
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount                Float // USD amount paid
-  credits               Float // Credits added (equal to amount)
+  amount                Float // USD actually charged to the card — credits + taxAmount
+  credits               Float // Credits added to the balance — this IS the pre-tax subtotal, never the taxed total
+  taxRate               Float     @default(0) // percent applied on top
+  taxAmount             Float     @default(0) // what the tax added on top of `credits` to make `amount`
+  invoice               Invoice?
   status                String // "completed", "pending", "failed"
   kind                  String    @default("manual") // "manual" (hosted checkout), "manual_card" (off-session 1-click), "auto_recharge"
   paymentMethodId       String? // Which saved card this off-session charge used (for backup-card fallback)
@@ -785,6 +796,109 @@ model CreditPurchase {
   @@index([userId, createdAt])
   @@index([whopPlanId])
   @@index([stripePaymentIntentId])
+}
+
+// Who issues invoices, and on what terms. One row per partner that bills its
+// own clients (LM Consulting Group). The whole subtree under that partner
+// inherits the tax; see utils/taxes.js.
+model BillingProfile {
+  id                Int       @id @default(autoincrement())
+  ownerId           Int       @unique
+  // Restrict, not Cascade: a partner's tax configuration and numbering
+  // sequence must not disappear because its User row was deleted. Once a
+  // profile has issued invoices, deleting the owner should fail loudly
+  // (a foreign-key error) rather than silently erase its fiscal history —
+  // the owner must be reassigned or the profile removed by hand first.
+  owner             User      @relation("BillingProfileOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  // Tax
+  taxEnabled        Boolean   @default(false)
+  taxRate           Float     @default(0) // percent, e.g. 27
+  taxLabel          String    @default("ITBIS")
+  retentionRate     Float     @default(0) // the RETENCIÓN row; 0 leaves it empty
+  // Numbering
+  invoicePrefix     String    @default("FAC-")
+  invoiceNextNumber Int       @default(1)
+  invoicePadding    Int       @default(6)
+  // Issuer
+  issuerName        String? // "RAZÓN SOCIAL DEL EMISOR"
+  issuerRnc         String?
+  logoUrl           String?
+  brandName         String? // the large name in the header
+  slogan            String?
+  // Payment instructions
+  bankName          String?
+  bankAccount       String?
+  swift             String?
+  routingNumber     String?
+  paymentMethod     String?
+  paymentTerms      String?
+  dueDays           Int       @default(0)
+  // Footer — the two sites at the bottom of the format
+  site1Name         String?
+  site1Phone        String?
+  site1City         String?
+  site1Address      String?
+  site2Name         String?
+  site2Phone        String?
+  site2City         String?
+  site2Address      String?
+  contactEmail      String?
+  contactWeb        String?
+  invoices          Invoice[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+// One invoice per settled payment. Both parties are snapshotted at issue time:
+// when the issuer changes its RNC or a client moves office, invoices already
+// issued must keep saying what they said.
+//
+// These are fiscal records a Dominican accountant may need years after the
+// account that produced them is gone, so deleting a User must never take an
+// Invoice with it:
+//   - profileId/profile is Restrict: an issuer with invoices on file cannot
+//     be deleted at all.
+//   - userId/user is nullable + SetNull: the client's account can be deleted;
+//     the invoice survives orphaned, since issuerSnapshot/clientSnapshot
+//     already froze every detail that would otherwise be read off it.
+//   - creditPurchaseId/creditPurchase is nullable + SetNull (still @unique,
+//     so idempotent issuance against a live purchase still holds — Postgres
+//     allows multiple NULLs under a unique index): CreditPurchase.user is
+//     Cascade, so deleting the user deletes the purchase too, but that must
+//     not cascade a second time into the invoice.
+model Invoice {
+  id               Int             @id @default(autoincrement())
+  number           String // "FAC-000124"
+  profileId        Int
+  profile          BillingProfile  @relation(fields: [profileId], references: [id], onDelete: Restrict)
+  userId           Int?
+  user             User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  creditPurchaseId Int?            @unique
+  creditPurchase   CreditPurchase? @relation(fields: [creditPurchaseId], references: [id], onDelete: SetNull)
+  currency         String          @default("USD")
+  // Money below is Float, not Decimal, even though these amounts are frozen
+  // fiscal figures: every value here is produced by the integer-cent
+  // arithmetic in utils/taxes.js, verified across 200,000 amounts to land on
+  // exactly-representable cent values, so the float-drift Decimal guards
+  // against cannot arise from that path. Introducing Prisma Decimal would
+  // put Decimal.js objects into one corner of an otherwise all-Float
+  // codebase and into JSON responses the client already formats as numbers.
+  subtotal         Float
+  taxLabel         String
+  taxRate          Float
+  taxAmount        Float
+  retention        Float           @default(0) // the RETENCIÓN row; v1 always writes 0. total = subtotal + taxAmount - retention
+  total            Float
+  totalInWords     String
+  conceptLines     String // JSON: the DESCRIPCIÓN rows
+  issuerSnapshot   String // JSON
+  clientSnapshot   String // JSON
+  issuedAt         DateTime        @default(now())
+  dueAt            DateTime?
+  createdAt        DateTime        @default(now())
+
+  @@unique([profileId, number])
+  @@index([userId, issuedAt])
 }
 
 model Transaction {

@@ -1,0 +1,320 @@
+import { useState } from 'react'
+
+// The invoice, in the format the partner's accountant already works with.
+//
+// EVERYTHING ON THIS PAGE COMES OFF THE INVOICE ROW. `invoice.issuer` and
+// `invoice.client` are snapshots frozen at issue time, and that is the whole
+// point of them: an invoice issued in March must keep saying what it said in
+// March after the issuer changes its RNC and after the client's account is
+// deleted. So this component looks NOTHING up — no account context, no branding
+// hook, no live profile — and anything added to it later must do the same.
+//
+// THE DOCUMENT IS STYLED INLINE, on purpose. The PDF is the rendered node
+// printed by html2pdf.js, and inline styles survive that regardless of how
+// Tailwind's build happens to be purged or themed — the client receives exactly
+// what the screen showed. Only the chrome around the document (the modal, the
+// buttons) uses the app's classes.
+
+const ORANGE = '#E8502A'
+const INK = '#111827'
+const MUTED = '#4b5563'
+
+// The printed format is a spreadsheet, so a one-line invoice still has the
+// height of a full page of rows. Blank ruled rows make up the difference.
+const TABLE_ROWS = 8
+
+// `USD 0.00`. The currency comes off the invoice, not from a setting.
+const money = (n, currency) => `${currency || 'USD'} ${(Number(n) || 0).toFixed(2)}`
+
+// DD/MM/AAAA, assembled by hand rather than through toLocaleDateString: the
+// document's format must not change with the reader's browser locale.
+const fmtDate = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
+// 27 prints as "27", never "27.00".
+const rateOf = (n) => String(Number(n) || 0)
+
+const S = {
+  page: {
+    background: '#ffffff',
+    color: INK,
+    padding: '28px 30px',
+    fontFamily: 'Arial, Helvetica, sans-serif',
+    fontSize: '12px',
+    lineHeight: 1.4,
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  label: { color: MUTED, fontSize: '11px' },
+  cell: { padding: '7px 8px', fontSize: '12px' },
+}
+
+// A `Label: value` line, as every block of this document is built from.
+function Field({ label, value }) {
+  return (
+    <div style={{ marginBottom: '3px' }}>
+      <span style={{ ...S.label, fontWeight: 'bold' }}>{label}</span>{' '}
+      <span>{value || ''}</span>
+    </div>
+  )
+}
+
+function Site({ site }) {
+  if (!site) return null
+  return (
+    <div>
+      {site.name ? <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>{site.name}</div> : null}
+      {site.phone ? <div><span style={S.label}>Teléfono:</span> {site.phone}</div> : null}
+      {site.city ? <div>{site.city}</div> : null}
+      {site.address ? <div>{site.address}</div> : null}
+    </div>
+  )
+}
+
+export default function InvoiceDocument({ invoice, onClose }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  if (!invoice) return null
+
+  const issuer = invoice.issuer || {}
+  const client = invoice.client || {}
+  const lines = Array.isArray(invoice.lines) ? invoice.lines : []
+  const currency = invoice.currency
+  const blanks = Math.max(0, TABLE_ROWS - lines.length)
+  const hasTax = invoice.taxAmount > 0
+
+  // The PDF is this very node printed, so what the client receives and what the
+  // screen shows can never drift apart. Same pattern as the period report.
+  const downloadPdf = async () => {
+    const node = document.getElementById('invoice-document')
+    if (!node) return
+    setBusy(true)
+    setError('')
+    try {
+      const html2pdf = (await import('html2pdf.js')).default
+      await html2pdf().set({
+        margin: 8,
+        filename: `${String(invoice.number || 'factura').replace(/[^\w\s-]/g, '')}.pdf`,
+        html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      }).from(node).save()
+    } catch {
+      setError('No se pudo generar el PDF')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
+      <div
+        className="bg-white dark:bg-dark-card rounded-2xl shadow-xl w-full max-w-3xl my-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Chrome — the app's own styling, unlike the document itself */}
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-200 dark:border-dark-border">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+              Factura {invoice.number}
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{fmtDate(invoice.issuedAt)}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={downloadPdf}
+              disabled={busy}
+              className="px-3 py-1.5 text-xs bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+            >
+              {busy ? 'Generando…' : 'Descargar PDF'}
+            </button>
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 text-xs border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <p className="px-5 pt-3 text-xs text-red-600 dark:text-red-400">{error}</p>
+        )}
+
+        {/* The document. White and inline-styled in both themes — it is a
+            printed page, not a panel screen. */}
+        <div className="p-3 sm:p-5 overflow-x-auto">
+          <div id="invoice-document" style={S.page}>
+            {/* Header: the brand on the left, the legal issuer on the right */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ flex: '1 1 0', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                {issuer.logoUrl ? (
+                  <img src={issuer.logoUrl} alt="" style={{ height: '58px', width: 'auto', maxWidth: '150px', objectFit: 'contain' }} />
+                ) : null}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '26px', fontWeight: 'bold', lineHeight: 1.1, color: INK }}>
+                    {issuer.brandName || ''}
+                  </div>
+                  {issuer.slogan ? (
+                    <div style={{ fontSize: '11px', color: MUTED, marginTop: '3px' }}>{issuer.slogan}</div>
+                  ) : null}
+                </div>
+              </div>
+              <div style={{ borderLeft: `3px solid ${ORANGE}`, paddingLeft: '14px', textAlign: 'right', minWidth: '190px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{issuer.issuerName || ''}</div>
+                <div style={{ fontSize: '11px', color: MUTED, marginTop: '3px' }}>
+                  RNC / ID: {issuer.issuerRnc || ''}
+                </div>
+              </div>
+            </div>
+
+            {/* The invoice's own number */}
+            <div style={{ marginTop: '18px', fontSize: '22px', fontWeight: 'bold', color: ORANGE }}>
+              NO. {invoice.number || ''}
+            </div>
+
+            {/* Who it is for, and when it is due */}
+            <div style={{ display: 'flex', gap: '24px', marginTop: '14px' }}>
+              <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                <Field label="Empresa:" value={client.company} />
+                <Field label="RNC:" value={client.rnc} />
+                <Field label="Dirección:" value={client.address} />
+                <Field label="Ciudad:" value={client.city} />
+                <Field label="Teléfono:" value={client.phone} />
+              </div>
+              <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                <Field label="Fecha de Expedición:" value={fmtDate(invoice.issuedAt)} />
+                <Field label="Condiciones de Pago:" value={issuer.paymentTerms} />
+                <Field label="Fecha de vencimiento:" value={fmtDate(invoice.dueAt)} />
+              </div>
+            </div>
+
+            {/* What is being charged */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '16px' }}>
+              <thead>
+                <tr>
+                  <th style={{
+                    ...S.cell,
+                    textAlign: 'left',
+                    fontWeight: 'bold',
+                    borderTop: `2px solid ${INK}`,
+                    borderBottom: `2px solid ${INK}`,
+                  }}>
+                    DESCRIPCIÓN
+                  </th>
+                  <th style={{
+                    ...S.cell,
+                    textAlign: 'right',
+                    fontWeight: 'bold',
+                    width: '140px',
+                    borderTop: `2px solid ${INK}`,
+                    borderBottom: `2px solid ${INK}`,
+                  }}>
+                    TOTAL
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line, i) => (
+                  <tr key={`line-${i}`}>
+                    <td style={{ ...S.cell, borderBottom: '1px solid #d1d5db' }}>{line.description || ''}</td>
+                    <td style={{ ...S.cell, borderBottom: '1px solid #d1d5db', textAlign: 'right' }}>
+                      {money(line.total, currency)}
+                    </td>
+                  </tr>
+                ))}
+                {/* Blank ruled rows, so one line keeps the printed format's height */}
+                {Array.from({ length: blanks }).map((_, i) => (
+                  <tr key={`blank-${i}`}>
+                    <td style={{ ...S.cell, borderBottom: '1px solid #d1d5db' }}>&nbsp;</td>
+                    <td style={{ ...S.cell, borderBottom: '1px solid #d1d5db' }}>&nbsp;</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* The totals, right-aligned under the TOTAL column */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+              <table style={{ borderCollapse: 'collapse', minWidth: '300px' }}>
+                <tbody>
+                  <tr>
+                    <td style={{ ...S.cell, fontWeight: 'bold' }}>TOTAL NETO</td>
+                    <td style={{ ...S.cell, textAlign: 'right', width: '140px' }}>{money(invoice.subtotal, currency)}</td>
+                  </tr>
+                  {/* Only when a tax was actually charged — an untaxed invoice
+                      must not print an empty tax row. */}
+                  {hasTax && (
+                    <tr>
+                      <td style={{ ...S.cell, fontWeight: 'bold' }}>
+                        {(invoice.taxLabel || 'ITBIS')} ({rateOf(invoice.taxRate)}%)
+                      </td>
+                      <td style={{ ...S.cell, textAlign: 'right' }}>{money(invoice.taxAmount, currency)}</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td style={{ ...S.cell, fontWeight: 'bold' }}>RETENCIÓN</td>
+                    <td style={{ ...S.cell, textAlign: 'right' }}>
+                      {invoice.retention > 0 ? money(invoice.retention, currency) : ''}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ ...S.cell, fontWeight: 'bold', background: ORANGE, color: '#ffffff' }}>TOTAL A PAGAR</td>
+                    <td style={{ ...S.cell, textAlign: 'right', fontWeight: 'bold', background: ORANGE, color: '#ffffff' }}>
+                      {money(invoice.total, currency)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* The amount spelled out, as the format requires */}
+            <div style={{
+              marginTop: '14px',
+              background: ORANGE,
+              color: '#ffffff',
+              padding: '8px 10px',
+              fontWeight: 'bold',
+              fontSize: '11px',
+            }}>
+              TOTAL A PAGAR EN LETRAS: {invoice.totalInWords || ''}
+            </div>
+
+            {/* Where to send the money */}
+            <div style={{ marginTop: '14px', textAlign: 'center', fontSize: '11px' }}>
+              <div>
+                Consignar en la cuenta {issuer.bankAccount || ''} SWIFT {issuer.swift || ''} número de ruta{' '}
+                {issuer.routingNumber || ''} - Banco {issuer.bankName || ''}
+              </div>
+              {issuer.paymentMethod ? (
+                <div style={{ marginTop: '3px' }}>
+                  El pago debe realizarse mediante la modalidad {issuer.paymentMethod}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Where the issuer can be found */}
+            <div style={{
+              display: 'flex',
+              gap: '18px',
+              marginTop: '18px',
+              paddingTop: '10px',
+              borderTop: `2px solid ${ORANGE}`,
+              fontSize: '11px',
+            }}>
+              <div style={{ flex: '1 1 0', minWidth: 0 }}><Site site={issuer.site1} /></div>
+              <div style={{ flex: '1 1 0', minWidth: 0 }}><Site site={issuer.site2} /></div>
+              <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                {issuer.contactEmail ? <div><span style={S.label}>Email:</span> {issuer.contactEmail}</div> : null}
+                {issuer.contactWeb ? <div>{issuer.contactWeb}</div> : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

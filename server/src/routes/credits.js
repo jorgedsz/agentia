@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
 const {
+  getQuote,
   getCredits,
   updateCredits,
   listCredits,
@@ -39,6 +40,11 @@ router.get('/', listCredits);
 
 // Purchase credits via Whop checkout
 router.post('/purchase', purchaseCredits);
+
+// What an amount will really cost (the tax on top, and the card total).
+// NOTE: declared before the '/:userId' routes, or this literal path is
+// swallowed by the param route and "quote" is read as an account id.
+router.get('/quote', getQuote);
 
 // ── Auto-recharge / saved card (self-service) ──
 // NOTE: declared before the '/:userId' routes so these literal paths match first.

@@ -6,8 +6,41 @@ const { logAudit } = require('../utils/auditLog');
 const { createCreditCheckout, createCardSetupCheckout, resolveReceiptEmail, CheckoutError, creditsLabel, manualTopUpBlocker } = require('../services/creditCheckout');
 const { decrypt } = require('../utils/encryption');
 const { decryptPHI } = require('../utils/phiEncryption');
+const { resolveCharge } = require('../utils/taxes');
 
 const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contáctalo para recargar créditos.';
+
+// Amounts are named to the cent in the messages below: a client comparing a
+// message against a card statement needs the exact figure, not a rounded one.
+const money = (n) => `$${(Math.round((n || 0) * 100) / 100).toFixed(2)}`;
+
+/**
+ * The five client-facing fields of a charge, and nothing else. Never spread
+ * `charge` into a response: `charge.profile` is the issuer's whole
+ * BillingProfile row - bank account, SWIFT, routing number and the live invoice
+ * numbering sequence.
+ *
+ * Takes the resolved charge or null, and falls back to an untaxed breakdown of
+ * `subtotal`. Resolving a charge only to REPORT it must never turn a card
+ * charge that already went through into a 500: the money is gone and the
+ * credits are in, so the worst acceptable outcome is reporting the pre-tax
+ * figure the response always used to carry.
+ */
+function breakdownOf(charge, subtotal) {
+  if (!charge) return { subtotal, taxRate: 0, taxLabel: 'ITBIS', taxAmount: 0, total: subtotal };
+  return {
+    subtotal: charge.subtotal,
+    taxRate: charge.taxRate,
+    taxLabel: charge.taxLabel,
+    taxAmount: charge.taxAmount,
+    total: charge.total,
+  };
+}
+
+/** "$127.00 ($100.00 de saldo + $27.00 de ITBIS)" - both figures, once there is a tax. */
+function describeCharge(b) {
+  return `${money(b.total)} (${money(b.subtotal)} de saldo + ${money(b.taxAmount)} de ${b.taxLabel})`;
+}
 
 // Shared clientId + apiKey auth for the external credit endpoints. Returns the
 // user row (selected fields) or sends the error response and returns null.
@@ -317,6 +350,64 @@ const getMessagesExternal = async (req, res) => {
 };
 
 /**
+ * What an amount will really cost, before anyone commits to paying it: the
+ * balance asked for, the governing partner's tax on top of it, and the total
+ * the card will be charged. A client asking for $100 under a partner that
+ * collects 27% pays $127 and is credited $100 — the panel has to be able to
+ * say so up front instead of surprising them on the statement.
+ * GET /api/credits/quote?amount=100[&forUserId=42]
+ *
+ * `forUserId` quotes ANOTHER account instead of the caller, which is what the
+ * billing-periods screen needs: its "Cobrar" button only renders for a manager
+ * looking at someone else's account, so the one place a human presses a button
+ * that charges a taxed card is the one place the caller's own tax is the wrong
+ * one to price with - for LM's own account that tax is zero, and the screen
+ * would show $100 next to a button that charges $127. Allowed only for the
+ * OWNER or a partner above that account; nobody else, and never a sibling.
+ */
+const getQuote = async (req, res) => {
+  try {
+    // Rounded to the cent first, exactly like every charge path, so the quote
+    // is computed on the same number that would reach the card.
+    const amount = Math.round(parseFloat(req.query.amount) * 100) / 100;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Indica un monto válido mayor que cero.' });
+    }
+
+    // Absent, this quotes the caller and behaves exactly as it always did.
+    let subjectId = req.user.id;
+    if (req.query.forUserId !== undefined) {
+      subjectId = parseInt(req.query.forUserId);
+      if (!Number.isFinite(subjectId)) return res.status(400).json({ error: 'Cuenta no válida.' });
+
+      // The SAME check the invoice endpoints use - imported, not reimplemented,
+      // so "the account itself, the OWNER, or a partner above it" cannot drift
+      // into two different answers in two files.
+      const { canReadAccount } = require('./invoiceController');
+      if (!(await canReadAccount(req.prisma, req.user, subjectId))) {
+        return res.status(403).json({ error: 'No puedes consultar los montos de esta cuenta.' });
+      }
+    }
+
+    const charge = await resolveCharge(req.prisma, subjectId, amount);
+    // Hand-built field by field, never `...charge`: charge.profile is the
+    // issuer's whole BillingProfile row — bank account, SWIFT, routing number
+    // and the live invoice numbering sequence — and none of that belongs in a
+    // response a client reads. Nothing a UI needs is in there.
+    res.json({
+      subtotal: charge.subtotal,
+      taxRate: charge.taxRate,
+      taxLabel: charge.taxLabel,
+      taxAmount: charge.taxAmount,
+      total: charge.total,
+    });
+  } catch (error) {
+    console.error('Error quoting a credit charge:', error.message);
+    res.status(500).json({ error: 'No se pudo calcular el monto a cobrar' });
+  }
+};
+
+/**
  * Get credits for a user
  * GET /api/credits/:userId?
  */
@@ -552,6 +643,14 @@ const chargeCardForUser = async (req, res) => {
       select: { vapiCredits: true },
     });
 
+    // What the card really paid: `amount` plus the governing partner's tax.
+    // performOffSessionCharge resolved the same split to make the charge;
+    // resolved again here only to report it, so the panel shows the figure that
+    // will appear on the statement instead of the pre-tax subtotal.
+    const charge = await resolveCharge(req.prisma, target.id, amount).catch(() => null);
+    const breakdown = breakdownOf(charge, amount);
+    const taxed = breakdown.taxAmount > 0;
+
     logAudit(req.prisma, {
       userId: target.id,
       actorId: req.user.id,
@@ -559,18 +658,36 @@ const chargeCardForUser = async (req, res) => {
       action: 'credits.charge_card',
       resourceType: 'user',
       resourceId: String(target.id),
-      details: { amount, provider: isStripe ? 'stripe' : 'whop', settled },
+      // `amount` stays the subtotal that was asked for - the credits the
+      // account received - so anything already reading this trail keeps its
+      // meaning; `charged` is what the card actually paid.
+      details: {
+        amount,
+        charged: breakdown.total,
+        taxAmount: breakdown.taxAmount,
+        provider: isStripe ? 'stripe' : 'whop',
+        settled,
+      },
       req,
     });
 
     res.json({
       success: true,
-      amount,
+      // What was CHARGED, which is what this field always meant: with no tax it
+      // is the amount asked for, exactly as before.
+      amount: breakdown.total,
+      breakdown,
       settled,
       balance: fresh?.vapiCredits ?? target.vapiCredits,
-      message: settled
-        ? 'Cobro aprobado. El saldo de la cuenta ya quedó actualizado.'
-        : 'Cobro enviado. El saldo se actualizará al confirmarse el pago.',
+      // The taxed wording is Spanish like the rest of this handler's; the
+      // untaxed wording is left untouched, word for word.
+      message: taxed
+        ? (settled
+          ? `Cobro aprobado por ${describeCharge(breakdown)}. El saldo de la cuenta ya quedó actualizado.`
+          : `Cobro enviado por ${describeCharge(breakdown)}. El saldo se actualizará al confirmarse el pago.`)
+        : (settled
+          ? 'Cobro aprobado. El saldo de la cuenta ya quedó actualizado.'
+          : 'Cobro enviado. El saldo se actualizará al confirmarse el pago.'),
     });
   } catch (error) {
     console.error('Error charging saved card:', error.message);
@@ -699,6 +816,10 @@ const AUTO_RECHARGE_DAILY_CAP = 5;               // max auto charges per 24h (sa
  * keyed by the inline one-time plan id. The existing payment.succeeded webhook
  * credits the balance via that plan id (no reliance on Whop metadata).
  * Returns the Whop payment object. Throws if the user has no saved card.
+ *
+ * `amount` is the PRE-TAX subtotal — the credits asked for, a cut's top-up, a
+ * month's outstanding — and is what reaches the balance. A partner that
+ * collects a tax charges it on top, so the card may pay more than `amount`.
  */
 async function performOffSessionCharge(prisma, user, amount, kind, card, options = {}) {
   // A charge started from the billing-periods screen settles one month, so the
@@ -709,6 +830,11 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
     ...(options.periodStart ? { periodStart: options.periodStart } : {}),
     ...(options.periodEnd ? { periodEnd: options.periodEnd } : {}),
   };
+
+  // What the card really pays, once the governing partner's tax is added on
+  // top of the subtotal the caller worked out. Resolved once, before either
+  // provider branch, so the charge and the row recording it cannot disagree.
+  const charge = await resolveCharge(prisma, user.id, amount);
 
   // Stripe accounts charge their saved PaymentMethod directly. Unlike Whop, Stripe
   // settles synchronously, so a success here is final and the credits are added
@@ -726,8 +852,20 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
 
     const stripeService = require('../services/stripeService');
     const customerId = await stripeService.ensureCustomer(prisma, user, stripe.secretKey);
+    // `credits` is the pre-tax subtotal and is what the balance gets; `amount`
+    // is what the card is charged. They differ by exactly `taxAmount`.
     const purchase = await prisma.creditPurchase.create({
-      data: { userId: user.id, amount, credits: amount, status: 'pending', kind, paymentMethodId, ...periodData },
+      data: {
+        userId: user.id,
+        amount: charge.total,
+        credits: charge.subtotal,
+        taxRate: charge.taxRate,
+        taxAmount: charge.taxAmount,
+        status: 'pending',
+        kind,
+        paymentMethodId,
+        ...periodData,
+      },
     });
 
     let intent;
@@ -735,18 +873,31 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
       intent = await stripeService.chargeOffSession({
         customerId,
         paymentMethodId,
-        amount,
-        description: `${creditsLabel(kind)} ($${amount})`,
+        amount: charge.total,
+        // An off-session PaymentIntent has no line items, so unlike the hosted
+        // checkout there is nowhere for the split to show except here and in
+        // the metadata below. Spell it out when there is a tax, so the Stripe
+        // dashboard does not read "($100)" against a $127 charge; with no tax
+        // the wording stays exactly what it always was.
+        description: charge.taxAmount > 0
+          ? `${creditsLabel(kind)} ($${charge.subtotal} + $${charge.taxAmount} ${charge.taxLabel})`
+          : `${creditsLabel(kind)} ($${charge.subtotal})`,
         // Second line of defence against a double charge: two automatic attempts
         // for the same card in the same window reach Stripe with the same key,
         // and Stripe hands back the first payment instead of making another.
+        // Deliberately NOT keyed on the amount - keying on user, card and time
+        // window is what makes adding a tax on top unable to open a second
+        // charge window for the same shortfall.
         idempotencyKey: ['auto_recharge', 'cycle_topup'].includes(kind)
           ? `${kind}:${user.id}:${paymentMethodId}:${Math.floor(Date.now() / AUTO_RECHARGE_COOLDOWN_MS)}`
           : undefined,
         receiptEmail: await resolveReceiptEmail(prisma, user),
         metadata: {
           userId: String(user.id), type: 'credits', kind,
-          purchaseId: String(purchase.id), credits: String(amount),
+          purchaseId: String(purchase.id), credits: String(charge.subtotal),
+          subtotal: String(charge.subtotal),
+          taxRate: String(charge.taxRate),
+          taxAmount: String(charge.taxAmount),
         },
       }, stripe.secretKey);
     } catch (err) {
@@ -791,16 +942,20 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
     memberId,
     userId: user.whopCustomerId || null,
     paymentMethodId,
-    amount,
-    metadata: { userId: String(user.id), type: 'credits', kind, credits: String(amount) },
+    amount: charge.total,
+    metadata: { userId: String(user.id), type: 'credits', kind, credits: String(charge.subtotal) },
   }, whop.config);
 
   const planId = payment.plan?.id || payment.plan_id || null;
+  // Same split as the Stripe path above: `credits` is the pre-tax subtotal the
+  // balance gets, `amount` is what the card paid.
   await prisma.creditPurchase.create({
     data: {
       userId: user.id,
-      amount,
-      credits: amount,
+      amount: charge.total,
+      credits: charge.subtotal,
+      taxRate: charge.taxRate,
+      taxAmount: charge.taxAmount,
       status: 'pending',
       kind,
       whopPlanId: planId,
@@ -818,6 +973,10 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
  * we charge the next one in priority order. Returns true if a next card was
  * charged, false if there's no further card to try. Throws only if the Whop call
  * itself is rejected synchronously.
+ *
+ * `amount` is the PRE-TAX subtotal, like performOffSessionCharge's: pass the
+ * declined purchase's `credits`, never its `amount`, or the retry would collect
+ * the tax a second time on top of a total that already included it.
  */
 async function chargeNextCard(prisma, userId, amount, kind, failedPaymentMethodId) {
   const { getSavedCards } = require('../utils/autoRecharge');
@@ -1208,13 +1367,30 @@ const rechargeNow = async (req, res) => {
     // Stripe settles on the spot, so the credits are already in; Whop settles
     // asynchronously and its webhook adds them a moment later.
     const settled = isStripe && result?.status === 'succeeded';
+
+    // The card paid the taxed total while the balance got `amount`. Reported
+    // after the charge and never allowed to fail it: the money has already
+    // moved by this point.
+    const charge = await resolveCharge(req.prisma, req.user.id, amount).catch(() => null);
+    const breakdown = breakdownOf(charge, amount);
+
     res.json({
       success: true,
-      amount,
+      // What was CHARGED. Identical to `amount` for an untaxed account, which
+      // is every account that is not under a tax-collecting partner.
+      amount: breakdown.total,
+      breakdown,
       settled,
-      message: settled
-        ? 'Payment approved. Your credits have been added.'
-        : 'Payment processing. Credits will appear shortly.',
+      // Spanish for the taxed case - the only partner that collects one bills
+      // in Spanish, and the figures need naming. The untaxed wording is left
+      // exactly as it was.
+      message: breakdown.taxAmount > 0
+        ? (settled
+          ? `Pago aprobado por ${describeCharge(breakdown)}. Tus créditos ya están acreditados.`
+          : `Pago en proceso por ${describeCharge(breakdown)}. Los créditos aparecerán en unos momentos.`)
+        : (settled
+          ? 'Payment approved. Your credits have been added.'
+          : 'Payment processing. Credits will appear shortly.'),
     });
   } catch (error) {
     console.error('Error in manual recharge:', error.response?.data || error.message);
@@ -1223,6 +1399,7 @@ const rechargeNow = async (req, res) => {
 };
 
 module.exports = {
+  getQuote,
   getCredits,
   updateCredits,
   getCardStatus,

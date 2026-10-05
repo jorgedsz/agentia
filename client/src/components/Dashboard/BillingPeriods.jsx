@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { usersAPI, billingPeriodsAPI } from '../../services/api'
+import { usersAPI, billingPeriodsAPI, creditsAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
 
 // Roles that manage other accounts. Everyone else sees only their own.
 const MANAGER_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
@@ -20,6 +21,28 @@ export default function BillingPeriods() {
   const [success, setSuccess] = useState('')
   const [range, setRange] = useState({ from: '', to: '' })
   const [cycle, setCycle] = useState(null)
+
+  // What collecting a still-owed period will really cost the card, once the
+  // provider's tax goes on top. There is normally one such period at a time, so
+  // the first is the one quoted.
+  //
+  // ALWAYS QUOTED FOR THE ACCOUNT BEING VIEWED, never for whoever is looking:
+  // the Cobrar button renders only when a manager has someone ELSE's account
+  // selected, and the tax is the one governing THAT account. So `forUserId` is
+  // the selected account — except for 'me', where there is no id to send and
+  // the caller is already the subject. Permission is the server's call: it
+  // allows the OWNER and a partner above the account, and answers 403
+  // otherwise, which the hook treats like any other failure — nothing renders
+  // and the Cobrar button is untouched.
+  const owedPeriod = data?.periods?.find((p) => p.payable && p.outstanding > 0)
+  const owedQuote = useChargeQuote(
+    owedPeriod?.outstanding,
+    (amount) => creditsAPI.quote(amount, accountId === 'me' ? undefined : accountId).then(({ data }) => data),
+    // `subject` so switching accounts re-quotes even when two owe the same
+    // amount; `!loading` so the old account's breakdown is gone while the new
+    // account's periods are still in flight.
+    { enabled: !!owedPeriod && !loading, subject: String(accountId) },
+  )
 
   useEffect(() => {
     // A client goes straight to its own statements; managers pick an account.
@@ -354,6 +377,18 @@ export default function BillingPeriods() {
                             </>
                           )}
                         </div>
+                        {/* What Cobrar will really take off the card, right
+                            under the button that takes it. The same block
+                            serves the account reading its own statements,
+                            where it sits under Ver reporte and answers "what
+                            would paying this month cost me". */}
+                        {owedPeriod?.id === p.id && owedQuote.quote?.taxAmount > 0 && (
+                          <div className="mt-2 flex justify-end">
+                            <div className="w-full max-w-[16rem]">
+                              <ChargeBreakdown {...owedQuote} />
+                            </div>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

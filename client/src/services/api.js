@@ -204,6 +204,13 @@ export const creditsAPI = {
   get: (userId) => api.get(`/credits/${userId}`),
   update: (userId, data) => api.post(`/credits/${userId}`, data),
   purchase: (amount) => api.post('/credits/purchase', { amount }),
+  // What an amount will really cost: the subtotal asked for, the governing
+  // partner's tax on top, and the total the card pays. Quotes the caller's own
+  // account; `forUserId` quotes another one instead, which only the OWNER or a
+  // partner above that account may do (403 otherwise).
+  quote: (amount, forUserId) => api.get('/credits/quote', {
+    params: { amount, ...(forUserId ? { forUserId } : {}) },
+  }),
   // Saved card + auto-recharge (self-service)
   setupCard: (slot) => api.post('/credits/setup-card', slot ? { slot } : {}),
   removeCard: (slot) => api.delete('/credits/card', { data: { slot } }),
@@ -217,6 +224,30 @@ export const creditsAPI = {
   myAdjustments: () => api.get('/credits/my-adjustments'),
   createAdjustment: (userId, data) => api.post(`/credits/${userId}/adjustments`, data),
   chargeCard: (userId, amount) => api.post(`/credits/${userId}/charge-card`, { amount }),
+}
+
+// Invoices API. Everything a rendered invoice shows comes from the snapshots
+// frozen on the row at issue time (`issuer`, `client`), never from live account
+// data — an invoice issued in March must keep saying what it said in March.
+export const invoicesAPI = {
+  // Lists settled PAYMENTS, each with its invoice attached or null — an invoice
+  // that was never issued is exactly the one that needs issuing, and it cannot
+  // appear in a list of invoices. Returns `{ billsWithTax, payments }`; an
+  // account not under a tax-collecting partner gets `billsWithTax: false`.
+  // Capped (50 by default, 200 max) with no cursor, so it is never complete.
+  list: (limit) => api.get('/invoices', { params: limit ? { limit } : {} }),
+  get: (id) => api.get(`/invoices/${id}`),
+  // The invoice for one payment, issued on the spot when a settlement missed
+  // it. Answers 409 when the payment is not completed yet and 404 when the
+  // account does not bill with tax — both expected answers, not errors.
+  forPurchase: (purchaseId) => api.get(`/invoices/by-purchase/${purchaseId}`),
+}
+
+// A partner's invoicing profile: its tax, its invoice numbering, and everything
+// printed on the documents it issues. OWNER only, both ways.
+export const billingProfileAPI = {
+  get: (userId) => api.get(`/billing-profile/${userId}`),
+  save: (userId, data) => api.put(`/billing-profile/${userId}`, data),
 }
 
 // Rates API
@@ -572,6 +603,10 @@ export const billingPeriodsAPI = {
 // instance: nobody is logged in there, and a 401 must not bounce to /login.
 export const payAPI = {
   getBilling: (token) => portalAxios.get(`/pay/${token}`),
+  // What an amount will really cost on the public pages. Same shape as
+  // creditsAPI.quote, but the account comes from the token in the URL — nobody
+  // is logged in here.
+  quote: (token, amount) => portalAxios.get(`/pay/${token}/quote`, { params: { amount } }),
   // No amount: the server charges the whole outstanding balance.
   checkout: (token) => portalAxios.post(`/pay/${token}/checkout`),
   saveCard: (token) => portalAxios.post(`/pay/${token}/save-card`),

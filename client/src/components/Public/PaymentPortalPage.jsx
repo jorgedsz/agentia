@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { payAPI } from '../../services/api'
+import ChargeBreakdown, { useChargeQuote } from '../Dashboard/ChargeBreakdown'
 
 // Public, per-client payment page. Opened directly from a link or embedded in
 // someone else's site with ?embed=1 (which drops the outer padding so the iframe
@@ -15,6 +16,16 @@ export default function PaymentPortalPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [working, setWorking] = useState('')
+
+  // What the card will really be charged. The amount is never typed here — the
+  // server always charges the whole outstanding balance — so this quotes that
+  // figure once the page has loaded it. No login: the account comes from the
+  // token in the URL, like every other call on this page.
+  const payQuote = useChargeQuote(
+    data?.outstanding,
+    (amount) => payAPI.quote(token, amount).then(({ data }) => data),
+    { enabled: !!data?.canPay },
+  )
 
   const load = async () => {
     try {
@@ -174,6 +185,11 @@ export default function PaymentPortalPage() {
             >
               {working === 'pay' ? 'Abriendo…' : `Pagar $${data.outstanding.toFixed(2)}`}
             </button>
+            {payQuote.quote?.taxAmount > 0 && (
+              <div className="mb-3">
+                <ChargeBreakdown {...payQuote} />
+              </div>
+            )}
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 text-center">
               Se paga el saldo pendiente completo. Al confirmarse, recibirás el detalle de los días que cubre este pago.
             </p>

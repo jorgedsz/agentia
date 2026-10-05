@@ -591,7 +591,10 @@ async function handleAutoRechargeFailed(prisma, data, metadata) {
   if (pending.paymentMethodId) {
     try {
       const { chargeNextCard } = require('./creditsController');
-      const retried = await chargeNextCard(prisma, pending.userId, pending.amount, 'auto_recharge', pending.paymentMethodId);
+      // `credits`, the PRE-TAX subtotal — not `amount`, which already has the
+      // partner's tax inside it. The retry adds the tax again on top of
+      // whatever it is given, so the taxed total would be taxed twice.
+      const retried = await chargeNextCard(prisma, pending.userId, pending.credits, 'auto_recharge', pending.paymentMethodId);
       if (retried) {
         console.log(`[Whop Webhook] Primary card declined for user ${pending.userId} — trying backup card`);
         return; // backup charge is now pending; its own webhook decides the outcome

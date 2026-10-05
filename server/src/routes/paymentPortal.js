@@ -13,6 +13,8 @@ router.put('/admin/:userId/approval-key', authMiddleware, controller.setApproval
 
 // Public — the client's payment page, addressed by its own token.
 router.get('/:token', controller.getBilling);
+// What an amount will really cost, before the client commits to paying it.
+router.get('/:token/quote', controller.getPortalQuote);
 router.post('/:token/checkout', controller.startCheckout);
 router.post('/:token/save-card', controller.startCardSetup);
 router.post('/:token/confirm', controller.confirmPayment);

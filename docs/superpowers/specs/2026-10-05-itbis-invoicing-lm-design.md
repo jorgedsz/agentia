@@ -43,7 +43,9 @@ Three new units sit behind them:
 - `server/src/services/invoiceService.js` — allocates a number and writes an `Invoice` with a snapshot of both parties.
 - `server/src/utils/numberToWords.js` — the amount in Spanish words for the "TOTAL A PAGAR EN LETRAS" row.
 
-Tax resolution walks up to the governing partner with `getEffectiveBilling`, the same inheritance `resolveReceiptEmail` already uses. An account with no tax-enabled partner above it gets rate 0, and every code path below behaves exactly as it does today.
+Tax resolution walks up to the governing partner with `getEffectiveBilling`. An account with no tax-enabled partner above it gets rate 0, and every code path below behaves exactly as it does today.
+
+It is additionally gated to `own_stripe`: no other billing mode resolves to a tax, whatever its profile says. This is a safety gate, not a policy choice. The Whop path settles payments in `whopController` without ever calling `settleCreditPurchase`, so a taxed Whop payment would be collected but never invoiced, and a separate Whop fallback credits `usd_total` — the taxed total — as balance. The gate makes both unreachable, and should be lifted only together with unifying the two settlement paths.
 
 ## Data model
 
@@ -104,9 +106,9 @@ model BillingProfile {
 model Invoice {
   id                Int      @id @default(autoincrement())
   number            String                     // "FAC-000124"
-  profileId         Int
-  userId            Int                        // the client
-  creditPurchaseId  Int      @unique           // one invoice per payment, enforced by the DB
+  profileId         Int                        // onDelete: Restrict — an issuer with invoices cannot be deleted
+  userId            Int?                       // the client; onDelete: SetNull
+  creditPurchaseId  Int?     @unique           // one invoice per payment, enforced by the DB; onDelete: SetNull
   currency          String   @default("USD")
   subtotal          Float
   taxLabel          String
@@ -128,16 +130,18 @@ model Invoice {
 
 The two snapshots are the point of the model: when LM changes its RNC or a client moves office, invoices already issued must keep saying what they said. Nothing in rendering reads live `User` or `BillingProfile` rows.
 
+That is also why the deletes are shaped the way they are. `DELETE /api/users/:id` exists and is open to AGENCY, OWNER and WHITELABEL, so cascading from `User` would let an agency destroy a client's fiscal records — and deleting LM's own account would erase every invoice they ever issued. Instead the client and purchase links are nullable and `SetNull`, so the document survives its parents, while the issuer link is `Restrict`, so an account that has issued invoices cannot be deleted at all.
+
 ### `CreditPurchase` (extended)
 
-Three columns: `subtotal`, `taxRate`, `taxAmount`.
+Two columns: `taxRate` and `taxAmount`, both defaulting to 0.
 
-The existing two columns get a definition that holds everywhere from now on:
+There is deliberately no `subtotal` column. The existing two columns get a definition that holds everywhere from now on:
 
-- **`credits`** — what reaches the balance. Equals `subtotal`.
-- **`amount`** — what the card is charged. Equals `subtotal + taxAmount`.
+- **`credits`** — what reaches the balance. This IS the pre-tax subtotal.
+- **`amount`** — what the card is charged. Equals `credits + taxAmount`.
 
-Today those are always equal, so every existing row is already correct under the new definition and the migration backfills `subtotal = amount`, `taxRate = 0`, `taxAmount = 0`.
+A third column holding the subtotal would be the same fact under two names, with no database invariant tying them together and a `subtotal ?? credits` fallback quietly papering over any call site that set one and forgot the other. Every existing row already satisfies the new definition, so the migration adds two defaulted columns and backfills nothing.
 
 ### `User` (extended)
 
@@ -225,14 +229,14 @@ The concept line comes from the purchase `kind`, in Spanish, matching what the c
 
 | Endpoint | Who | Purpose |
 |---|---|---|
-| `GET /api/credits/quote?amount=` | authenticated | Breakdown for the credits panel before paying |
-| `GET /api/portal/:token/quote?amount=` | public page | Same, for the embeddable payment page |
-| `GET /api/invoices` | self | The client's own invoices |
-| `GET /api/invoices/:id` | self / partner above | Everything needed to render, from the snapshots |
-| `GET /api/invoices/by-purchase/:purchaseId` | self / partner above | The invoice for one payment, issuing it if it is missing |
+| `GET /api/credits/quote?amount=[&forUserId=]` | authenticated | Breakdown before paying. `forUserId` quotes another account — OWNER or a partner above it only — because the billing-periods charge button renders only for a manager viewing someone else's account |
+| `GET /api/pay/:token/quote?amount=` | public page | Same, for the embeddable payment page |
+| `GET /api/invoices` | self | The client's own invoices, as `{ invoices: [...] }` |
+| `GET /api/invoices/:id` | self / partner above | `{ invoice }` — everything needed to render, from the snapshots |
+| `GET /api/invoices/by-purchase/:purchaseId` | self / partner above | `{ invoice, issued }` for one payment, issuing it when missing; `issued` tells a repair from a plain read |
 | `GET /api/billing-profile/:userId` | OWNER | Read a partner's issuer profile |
 | `PUT /api/billing-profile/:userId` | OWNER | Write it |
-| `PUT /api/account/billing-info` | self | The client's own fiscal fields |
+| the existing account-billing update | self / partner above | The five fiscal fields ride with `receiptEmail` on `updateUserBilling`; they are also read back by `getAllUsers` and `getAccessibleAccounts` (the latter lives in `accountSwitchController.js`) |
 
 Existing responses from `rechargeNow`, `chargeCard` and the checkout creators grow a `breakdown` object. They keep `amount` meaning what is charged, so nothing that reads them today starts lying.
 
@@ -268,7 +272,7 @@ The payment-report email states the amount the payment covers. It covers the sub
 
 ## Migration and compatibility
 
-- One migration: the new models, the three `CreditPurchase` columns, the five `User` columns. Backfill is `subtotal = amount` on existing rows, which is already true.
+- One migration: the new models, the two defaulted `CreditPurchase` columns, the five `User` columns. Nothing needs backfilling — every existing row already satisfies `credits` = subtotal and `amount` = credits + 0.
 - `BillingProfile` for LM is created by the OWNER through the new screen. Until `taxEnabled` is set, LM behaves exactly as today — the feature ships dark and is switched on deliberately.
 - No account outside LM's subtree is touched by any code path: every new branch is gated on a resolved rate above zero.
 - The DB lives on AWS; `server/.env` still points at the retired Railway host and will not connect. The current `DATABASE_URL` is needed before running the migration.

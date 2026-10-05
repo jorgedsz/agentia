@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { authAPI, usersAPI, whopAPI, stripeAPI, creditsAPI, payAPI, phoneSwitchAPI, infraCostAPI } from '../../services/api'
+import { authAPI, usersAPI, whopAPI, stripeAPI, creditsAPI, payAPI, phoneSwitchAPI, infraCostAPI, billingProfileAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -30,6 +30,96 @@ const MANAGEABLE_ITEMS = [
   { id: 'tutorials/en', label: 'Tutoriales (EN)' },
   { id: 'tutorials/es', label: 'Tutoriales (ES)' },
 ]
+
+// The account's own fiscal details, as they must appear on the invoices issued
+// to it. Read into Invoice.clientSnapshot at issue time, so editing them never
+// rewrites an invoice already on file.
+const FISCAL_FIELDS = [
+  ['billingCompany', 'Empresa / razón social', 'Nombre legal que debe salir en la factura'],
+  ['billingRnc', 'RNC / ID fiscal', '1-31-12345-6'],
+  ['billingAddress', 'Dirección', 'Calle y número'],
+  ['billingCity', 'Ciudad', 'Santo Domingo'],
+  ['billingPhone', 'Teléfono', '809-000-0000'],
+]
+
+// Everything printed on the invoices a partner issues, grouped the way the
+// document itself reads. Keys match the BillingProfile columns the server's
+// allow-list accepts — nothing else is ever sent.
+const INVOICE_TEXT_GROUPS = [
+  {
+    title: 'Emisor',
+    fields: [
+      ['issuerName', 'Razón social', 'Nombre legal que emite la factura'],
+      ['issuerRnc', 'RNC / ID', '1-31-12345-6'],
+      ['brandName', 'Nombre comercial', 'El nombre grande del encabezado'],
+      ['slogan', 'Eslogan', 'La línea pequeña bajo el nombre'],
+      ['logoUrl', 'URL del logo', 'https://…/logo.png'],
+    ],
+  },
+  {
+    title: 'Datos de pago',
+    fields: [
+      ['bankName', 'Banco', 'Banco Popular'],
+      ['bankAccount', 'Número de cuenta', '000000000'],
+      ['swift', 'SWIFT', 'BPDODOSX'],
+      ['routingNumber', 'Número de ruta', '021000021'],
+      ['paymentMethod', 'Modalidad de pago', 'Transferencia bancaria'],
+      ['paymentTerms', 'Condiciones de pago', 'Contado'],
+    ],
+  },
+  {
+    title: 'Sucursal 1',
+    fields: [
+      ['site1Name', 'Nombre', 'Oficina principal'],
+      ['site1Phone', 'Teléfono', '809-000-0000'],
+      ['site1City', 'Ciudad', 'Santo Domingo'],
+      ['site1Address', 'Dirección', 'Av. …'],
+    ],
+  },
+  {
+    title: 'Sucursal 2',
+    fields: [
+      ['site2Name', 'Nombre', 'Opcional'],
+      ['site2Phone', 'Teléfono', ''],
+      ['site2City', 'Ciudad', ''],
+      ['site2Address', 'Dirección', ''],
+    ],
+  },
+  {
+    title: 'Contacto',
+    fields: [
+      ['contactEmail', 'Email', 'facturacion@empresa.com'],
+      ['contactWeb', 'Web', 'www.empresa.com'],
+    ],
+  },
+]
+
+const INVOICE_TEXT_KEYS = INVOICE_TEXT_GROUPS.flatMap(g => g.fields.map(([key]) => key))
+
+// Mirrors the server's own DEFAULTS, as strings so the inputs are controlled.
+const EMPTY_INVOICE_PROFILE = {
+  taxEnabled: false,
+  taxRate: '0',
+  taxLabel: 'ITBIS',
+  invoicePrefix: 'FAC-',
+  invoiceNextNumber: '1',
+  invoicePadding: '6',
+  dueDays: '0',
+  ...Object.fromEntries(INVOICE_TEXT_KEYS.map(key => [key, ''])),
+}
+
+// A stored profile, as the form holds it: nulls become '' and numbers become
+// strings, or the inputs would flip between controlled and uncontrolled.
+const invoiceFormFrom = (profile = {}) => ({
+  taxEnabled: !!profile.taxEnabled,
+  taxRate: profile.taxRate != null ? String(profile.taxRate) : '0',
+  taxLabel: profile.taxLabel || 'ITBIS',
+  invoicePrefix: profile.invoicePrefix ?? 'FAC-',
+  invoiceNextNumber: profile.invoiceNextNumber != null ? String(profile.invoiceNextNumber) : '1',
+  invoicePadding: profile.invoicePadding != null ? String(profile.invoicePadding) : '6',
+  dueDays: profile.dueDays != null ? String(profile.dueDays) : '0',
+  ...Object.fromEntries(INVOICE_TEXT_KEYS.map(key => [key, profile[key] ?? ''])),
+})
 
 export default function AccountManagement() {
   const { user, switchAccount, isImpersonating } = useAuth()
@@ -59,6 +149,7 @@ export default function AccountManagement() {
     infraMonthlyCost: '',
     infraCostNote: '',
     chatbotMessagePrice: '',
+    ...Object.fromEntries(FISCAL_FIELDS.map(([key]) => [key, ''])),
   })
   const [saving, setSaving] = useState(false)
 
@@ -84,6 +175,13 @@ export default function AccountManagement() {
   const [stripeForm, setStripeForm] = useState({ secretKey: '', publishableKey: '', webhookSecret: '' })
   const [stripeStatus, setStripeStatus] = useState(null)
 
+  // The partner's tax and everything printed on the invoices it issues. Only
+  // meaningful on the Stripe path — it is the only one that can produce the
+  // invoice a taxed charge has to be accompanied by — so it is shown and saved
+  // only for billingMode 'own_stripe'.
+  const [invoiceForm, setInvoiceForm] = useState(EMPTY_INVOICE_PROFILE)
+  const [invoiceProfileExists, setInvoiceProfileExists] = useState(false)
+
   const openWhopModal = async (account) => {
     setWhopTarget(account)
     setWhopForm({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '', allowNegativeBalance: false })
@@ -91,6 +189,8 @@ export default function AccountManagement() {
     setWhopMsg('')
     setStripeForm({ secretKey: '', publishableKey: '', webhookSecret: '' })
     setStripeStatus(null)
+    setInvoiceForm(EMPTY_INVOICE_PROFILE)
+    setInvoiceProfileExists(false)
     try {
       const { data } = await whopAPI.getPartnerConfig(account.id)
       setWhopStatus(data)
@@ -105,7 +205,29 @@ export default function AccountManagement() {
     } catch {
       // Stripe never configured for this partner — the form starts empty.
     }
+    try {
+      const { data } = await billingProfileAPI.get(account.id)
+      setInvoiceProfileExists(!!data.exists)
+      setInvoiceForm(invoiceFormFrom(data.profile))
+    } catch {
+      // No profile yet (or it could not be read) — the form shows the same
+      // defaults the partner would get by saving it untouched.
+    }
   }
+
+  // Exactly the keys the server's allow-list accepts, and nothing else: a body
+  // carrying `id` or `ownerId` would be refused, and `ownerId` in particular
+  // would re-point a whole partner's fiscal history at another account.
+  const invoicePayload = () => ({
+    taxEnabled: !!invoiceForm.taxEnabled,
+    taxRate: invoiceForm.taxRate,
+    taxLabel: invoiceForm.taxLabel,
+    invoicePrefix: invoiceForm.invoicePrefix,
+    invoiceNextNumber: invoiceForm.invoiceNextNumber,
+    invoicePadding: invoiceForm.invoicePadding,
+    dueDays: invoiceForm.dueDays,
+    ...Object.fromEntries(INVOICE_TEXT_KEYS.map(key => [key, invoiceForm[key]])),
+  })
 
   const saveWhop = async () => {
     if (!whopTarget) return
@@ -127,6 +249,14 @@ export default function AccountManagement() {
       if (whopForm.billingMode === 'own_stripe') {
         // Negative balance is stored on the same row but only the Whop endpoint writes it.
         await whopAPI.setPartnerConfig(whopTarget.id, { allowNegativeBalance: !!whopForm.allowNegativeBalance })
+        // The invoicing profile lives behind its own endpoint, which validates
+        // the tax rate and refuses to move the numbering sequence backwards once
+        // invoices exist. Letting it throw puts the server's own message in
+        // whopMsg below, which is the point — those are the errors the partner
+        // needs to read, word for word.
+        const { data: pData } = await billingProfileAPI.save(whopTarget.id, invoicePayload())
+        setInvoiceProfileExists(!!pData.exists)
+        setInvoiceForm(invoiceFormFrom(pData.profile))
         setWhopMsg('Guardado.')
         setWhopSaving(false)
         return
@@ -462,6 +592,7 @@ export default function AccountManagement() {
       infraCostNote: targetUser.infraCostNote || '',
       chatbotMessagePrice: targetUser.chatbotMessagePrice != null ? String(targetUser.chatbotMessagePrice) : '',
       receiptEmail: targetUser.receiptEmail || '',
+      ...Object.fromEntries(FISCAL_FIELDS.map(([key]) => [key, targetUser[key] || ''])),
     })
     setError('')
     setSuccess('')
@@ -469,7 +600,7 @@ export default function AccountManagement() {
 
   const closeBillingModal = () => {
     setEditingUser(null)
-    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, budgetsEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', infraMonthlyCost: '', infraCostNote: '', chatbotMessagePrice: '', receiptEmail: '' })
+    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, budgetsEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', infraMonthlyCost: '', infraCostNote: '', chatbotMessagePrice: '', receiptEmail: '', ...Object.fromEntries(FISCAL_FIELDS.map(([key]) => [key, ''])) })
   }
 
   const handleBillingSubmit = async (e) => {
@@ -500,6 +631,12 @@ export default function AccountManagement() {
       data.planPrice = billingForm.planPrice !== '' ? billingForm.planPrice : null
       data.chatbotMessagePrice = billingForm.chatbotMessagePrice !== '' ? billingForm.chatbotMessagePrice : null
       data.receiptEmail = billingForm.receiptEmail
+
+      // The account's fiscal details, sent every time like the rest of this
+      // form. Safe to send blank: the account-list endpoints now return these
+      // five columns, so the form always opens with the stored values and an
+      // empty field really does mean the editor cleared it.
+      for (const [key] of FISCAL_FIELDS) data[key] = billingForm[key]
 
       await usersAPI.updateBilling(editingUser.id, data)
 
@@ -1400,6 +1537,30 @@ export default function AccountManagement() {
                 </p>
               </div>
 
+              {/* The fiscal details printed on this account's invoices */}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Datos fiscales de la cuenta
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Estos son los datos que se imprimen en las facturas de esta cuenta. En blanco, la factura usa el nombre y el teléfono de la cuenta.
+                  </p>
+                </div>
+                {FISCAL_FIELDS.map(([key, label, placeholder]) => (
+                  <div key={key}>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</label>
+                    <input
+                      type="text"
+                      value={billingForm[key]}
+                      onChange={(e) => setBillingForm({ ...billingForm, [key]: e.target.value })}
+                      placeholder={placeholder}
+                      className="w-full px-3 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+
             </form>
             </div>
 
@@ -1869,6 +2030,109 @@ export default function AccountManagement() {
                   <p className="text-[11px] text-amber-700 dark:text-amber-400">
                     Las tarjetas guardadas en Whop no se pueden trasladar a Stripe: al cambiar de modo, las cuentas con auto-recarga tendrán que volver a cargar su tarjeta.
                   </p>
+
+                  {/* Impuesto y facturación del partner */}
+                  <div className="border-t border-gray-100 dark:border-dark-border pt-4 space-y-4">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Impuesto y facturación</h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Lo que este partner le cobra de impuesto a sus clientes, y los datos que se imprimen en las facturas que emite.
+                      </p>
+                    </div>
+
+                    {/* The switch the whole feature hangs off. Off means the
+                        panel behaves exactly as it did before this existed. */}
+                    <label className="flex gap-2 p-3 rounded-xl border border-gray-200 dark:border-dark-border cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover">
+                      <input
+                        type="checkbox"
+                        checked={!!invoiceForm.taxEnabled}
+                        onChange={(e) => setInvoiceForm(f => ({ ...f, taxEnabled: e.target.checked }))}
+                        className="mt-0.5 text-primary-600 focus:ring-primary-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">Cobrar impuesto sobre cada pago</span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Mientras esté apagado no cambia nada: se cobra el monto exacto que el cliente pide y no se emite ninguna factura.
+                          Encendido, el impuesto se suma por encima (un cliente que pide $100 de saldo paga $127 al 27% y recibe 100 créditos)
+                          y cada pago confirmado genera una factura.
+                        </p>
+                      </div>
+                    </label>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Tasa de impuesto (%)</label>
+                        <input type="number" min="0" max="100" step="0.01" value={invoiceForm.taxRate}
+                          onChange={(e) => setInvoiceForm(f => ({ ...f, taxRate: e.target.value }))}
+                          placeholder="27"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Nombre del impuesto</label>
+                        <input type="text" value={invoiceForm.taxLabel}
+                          onChange={(e) => setInvoiceForm(f => ({ ...f, taxLabel: e.target.value }))}
+                          placeholder="ITBIS"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Prefijo del número</label>
+                        <input type="text" value={invoiceForm.invoicePrefix}
+                          onChange={(e) => setInvoiceForm(f => ({ ...f, invoicePrefix: e.target.value }))}
+                          placeholder="FAC-"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Dígitos del número</label>
+                        <input type="number" min="1" max="20" step="1" value={invoiceForm.invoicePadding}
+                          onChange={(e) => setInvoiceForm(f => ({ ...f, invoicePadding: e.target.value }))}
+                          placeholder="6"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Próximo número</label>
+                        <input type="number" min="1" step="1" value={invoiceForm.invoiceNextNumber}
+                          onChange={(e) => setInvoiceForm(f => ({ ...f, invoiceNextNumber: e.target.value }))}
+                          placeholder="1"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                          No puede retroceder una vez que la secuencia ya emitió facturas: los números se repetirían.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Días de vencimiento</label>
+                        <input type="number" min="0" max="365" step="1" value={invoiceForm.dueDays}
+                          onChange={(e) => setInvoiceForm(f => ({ ...f, dueDays: e.target.value }))}
+                          placeholder="0"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                      </div>
+                    </div>
+
+                    {INVOICE_TEXT_GROUPS.map(group => (
+                      <div key={group.title} className="space-y-2">
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{group.title}</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {group.fields.map(([key, label, placeholder]) => (
+                            <div key={key}>
+                              <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{label}</label>
+                              <input type="text" value={invoiceForm[key]}
+                                onChange={(e) => setInvoiceForm(f => ({ ...f, [key]: e.target.value }))}
+                                placeholder={placeholder}
+                                className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {!invoiceProfileExists && (
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        Este partner todavía no tiene perfil de facturación: lo que ves son los valores por defecto y se crean al guardar.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1878,7 +2142,14 @@ export default function AccountManagement() {
                 </p>
               )}
 
-              {whopMsg && <p className="text-sm text-gray-600 dark:text-gray-400">{whopMsg}</p>}
+              {/* Anything that is not the success word is the server's own
+                  refusal — a tax rate over 100, a numbering sequence moved
+                  backwards — and has to read like one. */}
+              {whopMsg && (
+                <p className={`text-sm ${whopMsg === 'Guardado.' ? 'text-gray-600 dark:text-gray-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {whopMsg}
+                </p>
+              )}
             </div>
             <div className="flex items-center justify-between gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
               <button onClick={clearWhop} disabled={whopSaving || (whopForm.billingMode === 'platform' && !whopStatus?.configured)}

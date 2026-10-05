@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const { createCreditCheckout, createCardSetupCheckout, confirmStripeCheckout, CheckoutError } = require('../services/creditCheckout');
 const { getEffectiveBilling } = require('../utils/whopConfig');
+const { resolveCharge } = require('../utils/taxes');
 const { getAncestorPartners } = require('../utils/whopConfig');
 const budgets = require('../services/budgets');
 const budgetRequests = require('../services/budgetRequests');
@@ -112,6 +113,45 @@ const getBilling = async (req, res) => {
   } catch (error) {
     console.error('Payment portal read error:', error.message);
     res.status(500).json({ error: 'Failed to load the payment page' });
+  }
+};
+
+/**
+ * What an amount will really cost the client, before they commit to it: the
+ * balance asked for, the provider's tax on top, and the total the card will be
+ * charged. There is no logged-in user here, so the account comes from the
+ * page's own token, exactly like every other route on this page.
+ * GET /api/pay/:token/quote?amount=100
+ */
+const getPortalQuote = async (req, res) => {
+  try {
+    const user = await findByToken(req.prisma, req.params.token);
+    if (!user) return res.status(404).json({ error: 'Payment page not found' });
+
+    // Rounded to the cent first, like every charge path, so the quote is
+    // computed on the same number that would reach the card.
+    const amount = Math.round(parseFloat(req.query.amount) * 100) / 100;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Indica un monto válido mayor que cero.' });
+    }
+
+    const charge = await resolveCharge(req.prisma, user.id, amount);
+    // Five named fields, hand-built, never `...charge`: THIS ENDPOINT IS
+    // PUBLIC - whoever holds the link reaches it, and the page can be embedded
+    // in someone else's site. charge.profile is the issuer's whole
+    // BillingProfile row (bank account, SWIFT, routing number, RNC and the
+    // live invoice numbering sequence); spreading it would publish the
+    // issuer's banking details to every payer.
+    res.json({
+      subtotal: charge.subtotal,
+      taxRate: charge.taxRate,
+      taxLabel: charge.taxLabel,
+      taxAmount: charge.taxAmount,
+      total: charge.total,
+    });
+  } catch (error) {
+    console.error('Payment portal quote error:', error.message);
+    res.status(500).json({ error: 'No se pudo calcular el monto a cobrar' });
   }
 };
 
@@ -466,6 +506,7 @@ const setApprovalKey = async (req, res) => {
 
 module.exports = {
   getBilling,
+  getPortalQuote,
   startCheckout,
   startCardSetup,
   confirmPayment,

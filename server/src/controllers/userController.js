@@ -52,6 +52,15 @@ const getAllUsers = async (req, res) => {
         inboundRate: true,
         chatbotMessagePrice: true,
         receiptEmail: true,
+        // The account's fiscal details, so the billing modal can PREFILL them.
+        // updateUserBilling writes these; without them on the way out the form
+        // opens blank over an RNC that is already on file, and saving anything
+        // else blanks it.
+        billingCompany: true,
+        billingRnc: true,
+        billingAddress: true,
+        billingCity: true,
+        billingPhone: true,
         voiceAgentsEnabled: true,
         chatbotsEnabled: true,
         crmEnabled: true,
@@ -526,7 +535,7 @@ const deleteUser = async (req, res) => {
 const updateUserBilling = async (req, res) => {
   try {
     const { id } = req.params;
-    const { credits, creditOperation, outboundRate, inboundRate, chatbotMessagePrice, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, budgetsEnabled, callsPaused, messagesPaused, hiddenSections, planType, planPrice, receiptEmail } = req.body;
+    const { credits, creditOperation, outboundRate, inboundRate, chatbotMessagePrice, voiceAgentsEnabled, chatbotsEnabled, crmEnabled, agentGeneratorEnabled, budgetsEnabled, callsPaused, messagesPaused, hiddenSections, planType, planPrice, receiptEmail, billingCompany, billingRnc, billingAddress, billingCity, billingPhone } = req.body;
 
     const targetUser = await req.prisma.user.findUnique({
       where: { id: parseInt(id) }
@@ -606,6 +615,19 @@ const updateUserBilling = async (req, res) => {
       updateData.receiptEmail = email || null;
     }
 
+    // The account's fiscal details, as they must appear on the invoices issued
+    // to it. Written through the same permissions as receiptEmail above, since
+    // an account may no more invent its own RNC than redirect its own receipts.
+    // They are only ever READ at issue time, into Invoice.clientSnapshot, so
+    // changing them never rewrites an invoice already on file. Empty clears the
+    // field, and invoiceService then falls back to the account's own company
+    // name and phone.
+    const fiscalFields = { billingCompany, billingRnc, billingAddress, billingCity, billingPhone };
+    for (const [field, value] of Object.entries(fiscalFields)) {
+      if (value === undefined) continue;
+      updateData[field] = String(value ?? '').trim() || null;
+    }
+
     // Handle feature toggles
     if (voiceAgentsEnabled !== undefined) {
       updateData.voiceAgentsEnabled = Boolean(voiceAgentsEnabled);
@@ -661,6 +683,11 @@ const updateUserBilling = async (req, res) => {
         inboundRate: true,
         chatbotMessagePrice: true,
         receiptEmail: true,
+        billingCompany: true,
+        billingRnc: true,
+        billingAddress: true,
+        billingCity: true,
+        billingPhone: true,
         voiceAgentsEnabled: true,
         chatbotsEnabled: true,
         crmEnabled: true,
