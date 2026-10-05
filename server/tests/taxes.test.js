@@ -68,3 +68,83 @@ test('an account with no partner above it resolves to rate 0', async () => {
   assert.strictEqual(cfg.taxRate, 0);
   assert.strictEqual(cfg.profile, null);
 });
+
+// Regression: 15.50 * 27 / 100 is 4.1849999999999996 in IEEE 754 floats, which
+// used to round DOWN to 4.18 (the tax was a cent short) instead of the correct
+// 4.19. This is the exact value that exposed the bug.
+test('27% of 15.50 is 4.19, not 4.18', () => {
+  const c = computeCharge(15.5, ITBIS);
+  assert.strictEqual(c.taxAmount, 4.19);
+  assert.strictEqual(c.total, 19.69);
+});
+
+// An independent ground truth for "correct", computed with BigInt cent
+// arithmetic so it can never share a floating-point rounding error with the
+// code under test. Unlike "subtotal + tax === total" (which is true by
+// construction no matter what taxAmount comes out to), this actually pins
+// the VALUE of taxAmount against a value computed a different way.
+function expectedTaxCents(subtotalDollars, ratePercent) {
+  const cents = BigInt(Math.round(subtotalDollars * 100));
+  const rate = BigInt(ratePercent);
+  return Number((cents * rate + 50n) / 100n); // half up, exactly
+}
+
+test('taxAmount matches an independently computed cents value across a sweep', () => {
+  let checked = 0;
+  for (let cents = 1; cents <= 200000; cents++) {
+    const subtotal = cents / 100;
+    const c = computeCharge(subtotal, ITBIS);
+    const expected = expectedTaxCents(subtotal, 27) / 100;
+    assert.strictEqual(c.taxAmount, expected, `failed at subtotal ${subtotal}`);
+    checked++;
+  }
+  assert.strictEqual(checked, 200000);
+});
+
+test('computeCharge throws on a non-numeric subtotal instead of silently charging $0', () => {
+  assert.throws(() => computeCharge('100', ITBIS), TypeError);
+  assert.throws(() => computeCharge(undefined, ITBIS), TypeError);
+});
+
+test('computeCharge throws on NaN', () => {
+  assert.throws(() => computeCharge(NaN, ITBIS), TypeError);
+});
+
+test('resolveTaxConfig returns NO_TAX instead of throwing when prisma blows up', async () => {
+  const prisma = {
+    user: { findUnique: async () => { throw new Error('connection reset'); } },
+    billingProfile: { findUnique: async () => { throw new Error('should not be reached'); } },
+  };
+  const cfg = await resolveTaxConfig(prisma, 1); // no partnerId override - exercises getEffectiveBilling too
+  assert.strictEqual(cfg.taxEnabled, false);
+  assert.strictEqual(cfg.taxRate, 0);
+  assert.strictEqual(cfg.profile, null);
+});
+
+// Drives resolveTaxConfig through its REAL call shape: no partnerId override,
+// so it must call getEffectiveBilling itself, which walks the user -> agency
+// inheritance via prisma.user.findUnique (both directly and via
+// getAncestorPartners) before taxes.js ever touches billingProfile. The three
+// tests above all pass `partnerId` explicitly, which bypasses this entirely.
+test('resolveTaxConfig walks the real partner-inheritance path with no partnerId override', async () => {
+  const CLIENT = { id: 1, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' };
+  const PARTNER = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_whop' };
+  const prisma = {
+    user: {
+      findUnique: async ({ where }) => {
+        if (where.id === 1) return CLIENT;
+        if (where.id === 9) return PARTNER;
+        return null;
+      },
+    },
+    billingProfile: {
+      findUnique: async ({ where }) => (where.ownerId === 9
+        ? { id: 77, ownerId: 9, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' }
+        : null),
+    },
+  };
+  const cfg = await resolveTaxConfig(prisma, 1);
+  assert.strictEqual(cfg.taxEnabled, true);
+  assert.strictEqual(cfg.taxRate, 27);
+  assert.strictEqual(cfg.profile.id, 77);
+});
