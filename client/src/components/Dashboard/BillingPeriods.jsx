@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { usersAPI, billingPeriodsAPI } from '../../services/api'
+import { usersAPI, billingPeriodsAPI, creditsAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
 
 // Roles that manage other accounts. Everyone else sees only their own.
 const MANAGER_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
@@ -20,6 +21,24 @@ export default function BillingPeriods() {
   const [success, setSuccess] = useState('')
   const [range, setRange] = useState({ from: '', to: '' })
   const [cycle, setCycle] = useState(null)
+
+  // What paying a still-owed period will really cost once the provider's tax
+  // goes on top. There is normally one such period at a time, so the first is
+  // the one quoted.
+  //
+  // ONLY FOR THE VIEWER'S OWN STATEMENTS (`data.readOnly`, which the server sets
+  // when the account being read is the requester's). /api/credits/quote answers
+  // for the LOGGED-IN account and takes no `forUserId`, so quoting it while a
+  // manager has someone else's account selected would price the MANAGER's tax,
+  // not the client's — a wrong number next to a real charge button. Until that
+  // endpoint can quote another account, the breakdown is shown where it is
+  // right: to the account that owes the money.
+  const owedPeriod = data?.readOnly ? data.periods?.find((p) => p.payable && p.outstanding > 0) : null
+  const owedQuote = useChargeQuote(
+    owedPeriod?.outstanding,
+    (amount) => creditsAPI.quote(amount).then(({ data }) => data),
+    { enabled: !!owedPeriod },
+  )
 
   useEffect(() => {
     // A client goes straight to its own statements; managers pick an account.
@@ -354,6 +373,13 @@ export default function BillingPeriods() {
                             </>
                           )}
                         </div>
+                        {owedPeriod?.id === p.id && owedQuote.quote?.taxAmount > 0 && (
+                          <div className="mt-2 flex justify-end">
+                            <div className="w-full max-w-[16rem]">
+                              <ChargeBreakdown {...owedQuote} />
+                            </div>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -4,6 +4,11 @@ import { useAuth } from '../../context/AuthContext'
 import { creditsAPI, whopAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 import WhopCheckoutModal from './WhopCheckoutModal'
+import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
+
+// Every surface here that takes money quotes the amount the client typed, so
+// they see the tax before paying it. Renders nothing for an untaxed account.
+const quoteCharge = (amount) => creditsAPI.quote(amount).then(({ data }) => data)
 
 export default function Credits() {
   const { user, branding } = useAuth()
@@ -34,6 +39,12 @@ export default function Credits() {
   const [setupLoading, setSetupLoading] = useState(false)
   const [rechargeAmount, setRechargeAmount] = useState('')
   const [rechargeLoading, setRechargeLoading] = useState(false)
+
+  // What each of the three amounts on this page will really cost. Quoted only
+  // while the field can be acted on, so a closed modal asks for nothing.
+  const buyQuote = useChargeQuote(buyAmount, quoteCharge, { enabled: buyModalOpen })
+  const rechargeQuote = useChargeQuote(rechargeAmount, quoteCharge, { enabled: ar.hasCard })
+  const autoRechargeQuote = useChargeQuote(ar.amount, quoteCharge, { enabled: ar.hasCard && ar.enabled })
 
   useEffect(() => {
     fetchCredits()
@@ -450,6 +461,18 @@ export default function Credits() {
                 </div>
               )}
 
+              {/* What the automation will charge each time it fires */}
+              {ar.enabled && autoRechargeQuote.quote?.taxAmount > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Cada recarga automática cobrará a tu tarjeta:
+                  </p>
+                  <div className="max-w-sm">
+                    <ChargeBreakdown {...autoRechargeQuote} />
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <button
                   onClick={handleSaveAutoRecharge}
@@ -492,6 +515,11 @@ export default function Credits() {
                     {t('credits.rechargeNowBtn') || 'Recargar ahora'}
                   </button>
                 </div>
+                {rechargeQuote.quote?.taxAmount > 0 && (
+                  <div className="mt-3 max-w-sm">
+                    <ChargeBreakdown {...rechargeQuote} />
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -550,6 +578,11 @@ export default function Credits() {
                     ${preset}
                   </button>
                 ))}
+              </div>
+            )}
+            {buyQuote.quote?.taxAmount > 0 && (
+              <div className="mb-4">
+                <ChargeBreakdown {...buyQuote} />
               </div>
             )}
             <button
