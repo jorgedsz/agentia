@@ -56,10 +56,15 @@ export default function ChargeBreakdown({ quote, loading }) {
  * never disables anything.
  *
  * `fetcher` is read through a ref, so callers can pass an inline arrow without
- * restarting the debounce on every render; only the amount and `enabled` do
- * that. Returns `{ quote, loading }`, which are this file's component's props.
+ * restarting the debounce on every render; only the amount, `enabled` and
+ * `subject` do that. `subject` is for callers that quote something other than
+ * themselves: it names WHOSE charge this is, so switching from one account to
+ * another re-quotes even when the two owe the identical amount — without it the
+ * second account would silently keep the first one's breakdown.
+ *
+ * Returns `{ quote, loading }`, which are this file's component's props.
  */
-export function useChargeQuote(amount, fetcher, { enabled = true, delay = 350 } = {}) {
+export function useChargeQuote(amount, fetcher, { enabled = true, delay = 350, subject = '' } = {}) {
   const [quote, setQuote] = useState(null)
   const [loading, setLoading] = useState(false)
   const fetcherRef = useRef(fetcher)
@@ -85,7 +90,7 @@ export function useChargeQuote(amount, fetcher, { enabled = true, delay = 350 } 
         .then(() => { if (alive) setLoading(false) })
     }, delay)
     return () => { alive = false; clearTimeout(timer) }
-  }, [num, askable, delay])
+  }, [num, askable, delay, subject])
 
   return { quote, loading }
 }

@@ -22,22 +22,26 @@ export default function BillingPeriods() {
   const [range, setRange] = useState({ from: '', to: '' })
   const [cycle, setCycle] = useState(null)
 
-  // What paying a still-owed period will really cost once the provider's tax
-  // goes on top. There is normally one such period at a time, so the first is
-  // the one quoted.
+  // What collecting a still-owed period will really cost the card, once the
+  // provider's tax goes on top. There is normally one such period at a time, so
+  // the first is the one quoted.
   //
-  // ONLY FOR THE VIEWER'S OWN STATEMENTS (`data.readOnly`, which the server sets
-  // when the account being read is the requester's). /api/credits/quote answers
-  // for the LOGGED-IN account and takes no `forUserId`, so quoting it while a
-  // manager has someone else's account selected would price the MANAGER's tax,
-  // not the client's — a wrong number next to a real charge button. Until that
-  // endpoint can quote another account, the breakdown is shown where it is
-  // right: to the account that owes the money.
-  const owedPeriod = data?.readOnly ? data.periods?.find((p) => p.payable && p.outstanding > 0) : null
+  // ALWAYS QUOTED FOR THE ACCOUNT BEING VIEWED, never for whoever is looking:
+  // the Cobrar button renders only when a manager has someone ELSE's account
+  // selected, and the tax is the one governing THAT account. So `forUserId` is
+  // the selected account — except for 'me', where there is no id to send and
+  // the caller is already the subject. Permission is the server's call: it
+  // allows the OWNER and a partner above the account, and answers 403
+  // otherwise, which the hook treats like any other failure — nothing renders
+  // and the Cobrar button is untouched.
+  const owedPeriod = data?.periods?.find((p) => p.payable && p.outstanding > 0)
   const owedQuote = useChargeQuote(
     owedPeriod?.outstanding,
-    (amount) => creditsAPI.quote(amount).then(({ data }) => data),
-    { enabled: !!owedPeriod },
+    (amount) => creditsAPI.quote(amount, accountId === 'me' ? undefined : accountId).then(({ data }) => data),
+    // `subject` so switching accounts re-quotes even when two owe the same
+    // amount; `!loading` so the old account's breakdown is gone while the new
+    // account's periods are still in flight.
+    { enabled: !!owedPeriod && !loading, subject: String(accountId) },
   )
 
   useEffect(() => {
@@ -373,6 +377,11 @@ export default function BillingPeriods() {
                             </>
                           )}
                         </div>
+                        {/* What Cobrar will really take off the card, right
+                            under the button that takes it. The same block
+                            serves the account reading its own statements,
+                            where it sits under Ver reporte and answers "what
+                            would paying this month cost me". */}
                         {owedPeriod?.id === p.id && owedQuote.quote?.taxAmount > 0 && (
                           <div className="mt-2 flex justify-end">
                             <div className="w-full max-w-[16rem]">

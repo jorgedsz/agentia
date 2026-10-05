@@ -205,9 +205,12 @@ export const creditsAPI = {
   update: (userId, data) => api.post(`/credits/${userId}`, data),
   purchase: (amount) => api.post('/credits/purchase', { amount }),
   // What an amount will really cost: the subtotal asked for, the governing
-  // partner's tax on top, and the total the card pays. Answers for the LOGGED-IN
-  // account only — there is no `forUserId`, so it cannot quote another account.
-  quote: (amount) => api.get('/credits/quote', { params: { amount } }),
+  // partner's tax on top, and the total the card pays. Quotes the caller's own
+  // account; `forUserId` quotes another one instead, which only the OWNER or a
+  // partner above that account may do (403 otherwise).
+  quote: (amount, forUserId) => api.get('/credits/quote', {
+    params: { amount, ...(forUserId ? { forUserId } : {}) },
+  }),
   // Saved card + auto-recharge (self-service)
   setupCard: (slot) => api.post('/credits/setup-card', slot ? { slot } : {}),
   removeCard: (slot) => api.delete('/credits/card', { data: { slot } }),

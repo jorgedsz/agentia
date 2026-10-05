@@ -632,17 +632,11 @@ export default function AccountManagement() {
       data.chatbotMessagePrice = billingForm.chatbotMessagePrice !== '' ? billingForm.chatbotMessagePrice : null
       data.receiptEmail = billingForm.receiptEmail
 
-      // The account's fiscal details, sent ONLY when they actually changed —
-      // the same care the infrastructure cost below takes, and for a sharper
-      // reason: the account-list endpoints this modal is populated from do not
-      // return these five columns, so the form opens blank even when the
-      // account has them. Sending a blank field unconditionally would trim to
-      // null on the server and wipe an RNC nobody meant to touch. With this
-      // guard, leaving the section alone sends nothing at all.
-      for (const [key] of FISCAL_FIELDS) {
-        const current = editingUser[key] ?? ''
-        if ((billingForm[key] ?? '') !== current) data[key] = billingForm[key]
-      }
+      // The account's fiscal details, sent every time like the rest of this
+      // form. Safe to send blank: the account-list endpoints now return these
+      // five columns, so the form always opens with the stored values and an
+      // empty field really does mean the editor cleared it.
+      for (const [key] of FISCAL_FIELDS) data[key] = billingForm[key]
 
       await usersAPI.updateBilling(editingUser.id, data)
 
