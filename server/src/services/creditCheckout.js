@@ -53,8 +53,20 @@ async function manualTopUpBlocker(prisma, userId) {
   const hasCard = !!(user.stripePaymentMethodId || user.whopPaymentMethodId);
   if (user.autoRechargeEnabled && !user.cycleBillingEnabled && hasCard
       && user.autoRechargeThreshold > 0 && user.vapiCredits < user.autoRechargeThreshold) {
+    // autoRechargeAmount is the pre-tax subtotal: it is what reaches the
+    // balance, not what the card pays. Quoting it alone told a client "se va a
+    // cargar sola por $100" when the card was about to take $127 - the single
+    // number they would then look for on their statement and not find. So both
+    // figures are named when there is a tax. resolveCharge throws on a
+    // non-finite subtotal (an account with no amount configured), and this is
+    // only a warning message: a failure here falls back to the plain wording
+    // rather than blocking the screen.
+    const charge = await resolveCharge(prisma, userId, user.autoRechargeAmount).catch(() => null);
+    const willCharge = charge && charge.taxAmount > 0
+      ? `${money(charge.total)} (${money(charge.subtotal)} de saldo + ${money(charge.taxAmount)} de ${charge.taxLabel})`
+      : money(user.autoRechargeAmount);
     return `La auto-recarga está activa y tu saldo (${money(user.vapiCredits)}) está por debajo de ${money(user.autoRechargeThreshold)}: `
-      + `se va a cargar sola por ${money(user.autoRechargeAmount)} en unos minutos. No hace falta cargar a mano.`;
+      + `se va a cargar sola por ${willCharge} en unos minutos. No hace falta cargar a mano.`;
   }
 
   if (user.cycleBillingEnabled && hasCard) {

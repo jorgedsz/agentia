@@ -10,6 +10,38 @@ const { resolveCharge } = require('../utils/taxes');
 
 const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contáctalo para recargar créditos.';
 
+// Amounts are named to the cent in the messages below: a client comparing a
+// message against a card statement needs the exact figure, not a rounded one.
+const money = (n) => `$${(Math.round((n || 0) * 100) / 100).toFixed(2)}`;
+
+/**
+ * The five client-facing fields of a charge, and nothing else. Never spread
+ * `charge` into a response: `charge.profile` is the issuer's whole
+ * BillingProfile row - bank account, SWIFT, routing number and the live invoice
+ * numbering sequence.
+ *
+ * Takes the resolved charge or null, and falls back to an untaxed breakdown of
+ * `subtotal`. Resolving a charge only to REPORT it must never turn a card
+ * charge that already went through into a 500: the money is gone and the
+ * credits are in, so the worst acceptable outcome is reporting the pre-tax
+ * figure the response always used to carry.
+ */
+function breakdownOf(charge, subtotal) {
+  if (!charge) return { subtotal, taxRate: 0, taxLabel: 'ITBIS', taxAmount: 0, total: subtotal };
+  return {
+    subtotal: charge.subtotal,
+    taxRate: charge.taxRate,
+    taxLabel: charge.taxLabel,
+    taxAmount: charge.taxAmount,
+    total: charge.total,
+  };
+}
+
+/** "$127.00 ($100.00 de saldo + $27.00 de ITBIS)" - both figures, once there is a tax. */
+function describeCharge(b) {
+  return `${money(b.total)} (${money(b.subtotal)} de saldo + ${money(b.taxAmount)} de ${b.taxLabel})`;
+}
+
 // Shared clientId + apiKey auth for the external credit endpoints. Returns the
 // user row (selected fields) or sends the error response and returns null.
 async function authClientApiKey(req, res, select) {
@@ -588,6 +620,14 @@ const chargeCardForUser = async (req, res) => {
       select: { vapiCredits: true },
     });
 
+    // What the card really paid: `amount` plus the governing partner's tax.
+    // performOffSessionCharge resolved the same split to make the charge;
+    // resolved again here only to report it, so the panel shows the figure that
+    // will appear on the statement instead of the pre-tax subtotal.
+    const charge = await resolveCharge(req.prisma, target.id, amount).catch(() => null);
+    const breakdown = breakdownOf(charge, amount);
+    const taxed = breakdown.taxAmount > 0;
+
     logAudit(req.prisma, {
       userId: target.id,
       actorId: req.user.id,
@@ -595,18 +635,36 @@ const chargeCardForUser = async (req, res) => {
       action: 'credits.charge_card',
       resourceType: 'user',
       resourceId: String(target.id),
-      details: { amount, provider: isStripe ? 'stripe' : 'whop', settled },
+      // `amount` stays the subtotal that was asked for - the credits the
+      // account received - so anything already reading this trail keeps its
+      // meaning; `charged` is what the card actually paid.
+      details: {
+        amount,
+        charged: breakdown.total,
+        taxAmount: breakdown.taxAmount,
+        provider: isStripe ? 'stripe' : 'whop',
+        settled,
+      },
       req,
     });
 
     res.json({
       success: true,
-      amount,
+      // What was CHARGED, which is what this field always meant: with no tax it
+      // is the amount asked for, exactly as before.
+      amount: breakdown.total,
+      breakdown,
       settled,
       balance: fresh?.vapiCredits ?? target.vapiCredits,
-      message: settled
-        ? 'Cobro aprobado. El saldo de la cuenta ya quedó actualizado.'
-        : 'Cobro enviado. El saldo se actualizará al confirmarse el pago.',
+      // The taxed wording is Spanish like the rest of this handler's; the
+      // untaxed wording is left untouched, word for word.
+      message: taxed
+        ? (settled
+          ? `Cobro aprobado por ${describeCharge(breakdown)}. El saldo de la cuenta ya quedó actualizado.`
+          : `Cobro enviado por ${describeCharge(breakdown)}. El saldo se actualizará al confirmarse el pago.`)
+        : (settled
+          ? 'Cobro aprobado. El saldo de la cuenta ya quedó actualizado.'
+          : 'Cobro enviado. El saldo se actualizará al confirmarse el pago.'),
     });
   } catch (error) {
     console.error('Error charging saved card:', error.message);
@@ -1286,13 +1344,30 @@ const rechargeNow = async (req, res) => {
     // Stripe settles on the spot, so the credits are already in; Whop settles
     // asynchronously and its webhook adds them a moment later.
     const settled = isStripe && result?.status === 'succeeded';
+
+    // The card paid the taxed total while the balance got `amount`. Reported
+    // after the charge and never allowed to fail it: the money has already
+    // moved by this point.
+    const charge = await resolveCharge(req.prisma, req.user.id, amount).catch(() => null);
+    const breakdown = breakdownOf(charge, amount);
+
     res.json({
       success: true,
-      amount,
+      // What was CHARGED. Identical to `amount` for an untaxed account, which
+      // is every account that is not under a tax-collecting partner.
+      amount: breakdown.total,
+      breakdown,
       settled,
-      message: settled
-        ? 'Payment approved. Your credits have been added.'
-        : 'Payment processing. Credits will appear shortly.',
+      // Spanish for the taxed case - the only partner that collects one bills
+      // in Spanish, and the figures need naming. The untaxed wording is left
+      // exactly as it was.
+      message: breakdown.taxAmount > 0
+        ? (settled
+          ? `Pago aprobado por ${describeCharge(breakdown)}. Tus créditos ya están acreditados.`
+          : `Pago en proceso por ${describeCharge(breakdown)}. Los créditos aparecerán en unos momentos.`)
+        : (settled
+          ? 'Payment approved. Your credits have been added.'
+          : 'Payment processing. Credits will appear shortly.'),
     });
   } catch (error) {
     console.error('Error in manual recharge:', error.response?.data || error.message);

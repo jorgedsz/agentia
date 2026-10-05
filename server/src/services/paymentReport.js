@@ -110,6 +110,22 @@ async function buildPaymentReport(prisma, purchase) {
   const otherChargesCredits = otherCharges.filter((c) => c.amount < 0).reduce((s, c) => s - c.amount, 0);
   const usage = callsCost + messagesCost;
 
+  // The tax the partner collected on top of this payment, if any. `purchase`
+  // carries the amount and the rate but NOT the label (taxLabel is not a column
+  // on CreditPurchase), so the name of the tax comes off the invoice issued for
+  // this payment; a payment whose invoice is not on file yet falls back to the
+  // only label in use. Guarded like the creditAdjustment read above: an older
+  // generated Prisma client has no `invoice` delegate, and a report must not
+  // fail over a label.
+  const taxAmount = round(purchase.taxAmount || 0);
+  let taxLabel = 'ITBIS';
+  if (taxAmount > 0 && prisma.invoice?.findUnique) {
+    const invoice = await prisma.invoice
+      .findUnique({ where: { creditPurchaseId: purchase.id }, select: { taxLabel: true } })
+      .catch(() => null);
+    if (invoice?.taxLabel) taxLabel = invoice.taxLabel;
+  }
+
   return {
     period: { start, end },
     timezone: TIMEZONE,
@@ -126,6 +142,13 @@ async function buildPaymentReport(prisma, purchase) {
       // What the period owes: consumption plus other charges, less credits.
       total: round(usage + otherChargesDebits - otherChargesCredits),
       paid: purchase.amount,
+      // The tax charged ON TOP of that, and what the card therefore paid. Zero
+      // for every account not under a tax-collecting partner, and the rows that
+      // show them are then left out entirely.
+      taxLabel,
+      taxRate: purchase.taxRate || 0,
+      taxAmount,
+      charged: round(purchase.amount),
     },
     detailed: items.length <= MAX_DETAIL_ROWS,
   };
@@ -212,6 +235,14 @@ function renderPaymentReportHtml(report, { brandName, accountName, paidAt }) {
         <td style="padding:8px 10px;font-weight:700">Total del período</td>
         <td style="padding:8px 10px;font-weight:700;text-align:right">${money(totals.total)}</td>
       </tr>
+      ${totals.taxAmount > 0 ? `<tr>
+        <td style="padding:8px 10px;border-top:1px solid #e5e7eb">${escape(totals.taxLabel)} (${totals.taxRate}%)</td>
+        <td style="padding:8px 10px;border-top:1px solid #e5e7eb;text-align:right">${money(totals.taxAmount)}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 10px;font-weight:700">Total cobrado a la tarjeta</td>
+        <td style="padding:8px 10px;font-weight:700;text-align:right">${money(totals.charged)}</td>
+      </tr>` : ''}
     </table>
 
     ${report.otherCharges.length ? `
