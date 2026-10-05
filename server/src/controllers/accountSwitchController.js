@@ -46,6 +46,7 @@ const getAccessibleAccounts = async (req, res) => {
           billingAddress: true,
           billingCity: true,
           billingPhone: true,
+          receiptEmail: true, // same reason: the modal edits it, so it has to be readable
           callsPaused: true,
           messagesPaused: true,
           agency: {
@@ -98,6 +99,7 @@ const getAccessibleAccounts = async (req, res) => {
           billingAddress: true,
           billingCity: true,
           billingPhone: true,
+          receiptEmail: true, // same reason: the modal edits it, so it has to be readable
           callsPaused: true,
           messagesPaused: true,
           agency: {
@@ -137,6 +139,7 @@ const getAccessibleAccounts = async (req, res) => {
           billingAddress: true,
           billingCity: true,
           billingPhone: true,
+          receiptEmail: true, // same reason: the modal edits it, so it has to be readable
           callsPaused: true,
           messagesPaused: true,
           _count: {
