@@ -6,6 +6,7 @@ const { logAudit } = require('../utils/auditLog');
 const { createCreditCheckout, createCardSetupCheckout, resolveReceiptEmail, CheckoutError, creditsLabel, manualTopUpBlocker } = require('../services/creditCheckout');
 const { decrypt } = require('../utils/encryption');
 const { decryptPHI } = require('../utils/phiEncryption');
+const { resolveCharge } = require('../utils/taxes');
 
 const MANUAL_BILLING_MSG = 'Tu proveedor gestiona el saldo de tu cuenta. Contáctalo para recargar créditos.';
 
@@ -699,6 +700,10 @@ const AUTO_RECHARGE_DAILY_CAP = 5;               // max auto charges per 24h (sa
  * keyed by the inline one-time plan id. The existing payment.succeeded webhook
  * credits the balance via that plan id (no reliance on Whop metadata).
  * Returns the Whop payment object. Throws if the user has no saved card.
+ *
+ * `amount` is the PRE-TAX subtotal — the credits asked for, a cut's top-up, a
+ * month's outstanding — and is what reaches the balance. A partner that
+ * collects a tax charges it on top, so the card may pay more than `amount`.
  */
 async function performOffSessionCharge(prisma, user, amount, kind, card, options = {}) {
   // A charge started from the billing-periods screen settles one month, so the
@@ -709,6 +714,11 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
     ...(options.periodStart ? { periodStart: options.periodStart } : {}),
     ...(options.periodEnd ? { periodEnd: options.periodEnd } : {}),
   };
+
+  // What the card really pays, once the governing partner's tax is added on
+  // top of the subtotal the caller worked out. Resolved once, before either
+  // provider branch, so the charge and the row recording it cannot disagree.
+  const charge = await resolveCharge(prisma, user.id, amount);
 
   // Stripe accounts charge their saved PaymentMethod directly. Unlike Whop, Stripe
   // settles synchronously, so a success here is final and the credits are added
@@ -726,8 +736,20 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
 
     const stripeService = require('../services/stripeService');
     const customerId = await stripeService.ensureCustomer(prisma, user, stripe.secretKey);
+    // `credits` is the pre-tax subtotal and is what the balance gets; `amount`
+    // is what the card is charged. They differ by exactly `taxAmount`.
     const purchase = await prisma.creditPurchase.create({
-      data: { userId: user.id, amount, credits: amount, status: 'pending', kind, paymentMethodId, ...periodData },
+      data: {
+        userId: user.id,
+        amount: charge.total,
+        credits: charge.subtotal,
+        taxRate: charge.taxRate,
+        taxAmount: charge.taxAmount,
+        status: 'pending',
+        kind,
+        paymentMethodId,
+        ...periodData,
+      },
     });
 
     let intent;
@@ -735,18 +757,24 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
       intent = await stripeService.chargeOffSession({
         customerId,
         paymentMethodId,
-        amount,
-        description: `${creditsLabel(kind)} ($${amount})`,
+        amount: charge.total,
+        description: `${creditsLabel(kind)} ($${charge.subtotal})`,
         // Second line of defence against a double charge: two automatic attempts
         // for the same card in the same window reach Stripe with the same key,
         // and Stripe hands back the first payment instead of making another.
+        // Deliberately NOT keyed on the amount - keying on user, card and time
+        // window is what makes adding a tax on top unable to open a second
+        // charge window for the same shortfall.
         idempotencyKey: ['auto_recharge', 'cycle_topup'].includes(kind)
           ? `${kind}:${user.id}:${paymentMethodId}:${Math.floor(Date.now() / AUTO_RECHARGE_COOLDOWN_MS)}`
           : undefined,
         receiptEmail: await resolveReceiptEmail(prisma, user),
         metadata: {
           userId: String(user.id), type: 'credits', kind,
-          purchaseId: String(purchase.id), credits: String(amount),
+          purchaseId: String(purchase.id), credits: String(charge.subtotal),
+          subtotal: String(charge.subtotal),
+          taxRate: String(charge.taxRate),
+          taxAmount: String(charge.taxAmount),
         },
       }, stripe.secretKey);
     } catch (err) {
@@ -791,16 +819,20 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
     memberId,
     userId: user.whopCustomerId || null,
     paymentMethodId,
-    amount,
-    metadata: { userId: String(user.id), type: 'credits', kind, credits: String(amount) },
+    amount: charge.total,
+    metadata: { userId: String(user.id), type: 'credits', kind, credits: String(charge.subtotal) },
   }, whop.config);
 
   const planId = payment.plan?.id || payment.plan_id || null;
+  // Same split as the Stripe path above: `credits` is the pre-tax subtotal the
+  // balance gets, `amount` is what the card paid.
   await prisma.creditPurchase.create({
     data: {
       userId: user.id,
-      amount,
-      credits: amount,
+      amount: charge.total,
+      credits: charge.subtotal,
+      taxRate: charge.taxRate,
+      taxAmount: charge.taxAmount,
       status: 'pending',
       kind,
       whopPlanId: planId,
@@ -818,6 +850,10 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
  * we charge the next one in priority order. Returns true if a next card was
  * charged, false if there's no further card to try. Throws only if the Whop call
  * itself is rejected synchronously.
+ *
+ * `amount` is the PRE-TAX subtotal, like performOffSessionCharge's: pass the
+ * declined purchase's `credits`, never its `amount`, or the retry would collect
+ * the tax a second time on top of a total that already included it.
  */
 async function chargeNextCard(prisma, userId, amount, kind, failedPaymentMethodId) {
   const { getSavedCards } = require('../utils/autoRecharge');
