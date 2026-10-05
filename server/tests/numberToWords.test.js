@@ -18,7 +18,7 @@ test('exactly one hundred is CIEN, not CIENTO', () => {
   assert.strictEqual(amountToSpanishWords(100), 'CIEN DÓLARES CON 00/100');
 });
 
-test('the twenties contract, and DIECISEIS, carry their Spanish accent', () => {
+test('the twenties contract, and DIECISÉIS, carry their Spanish accent', () => {
   assert.strictEqual(amountToSpanishWords(16), 'DIECISÉIS DÓLARES CON 00/100');
   assert.strictEqual(amountToSpanishWords(21), 'VEINTIÚN DÓLARES CON 00/100');
   assert.strictEqual(amountToSpanishWords(22), 'VEINTIDÓS DÓLARES CON 00/100');
