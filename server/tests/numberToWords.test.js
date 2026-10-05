@@ -18,9 +18,12 @@ test('exactly one hundred is CIEN, not CIENTO', () => {
   assert.strictEqual(amountToSpanishWords(100), 'CIEN DÓLARES CON 00/100');
 });
 
-test('the twenties contract', () => {
-  assert.strictEqual(amountToSpanishWords(21), 'VEINTIUN DÓLARES CON 00/100');
-  assert.strictEqual(amountToSpanishWords(16), 'DIECISEIS DÓLARES CON 00/100');
+test('the twenties contract, and DIECISEIS, carry their Spanish accent', () => {
+  assert.strictEqual(amountToSpanishWords(16), 'DIECISÉIS DÓLARES CON 00/100');
+  assert.strictEqual(amountToSpanishWords(21), 'VEINTIÚN DÓLARES CON 00/100');
+  assert.strictEqual(amountToSpanishWords(22), 'VEINTIDÓS DÓLARES CON 00/100');
+  assert.strictEqual(amountToSpanishWords(23), 'VEINTITRÉS DÓLARES CON 00/100');
+  assert.strictEqual(amountToSpanishWords(26), 'VEINTISÉIS DÓLARES CON 00/100');
 });
 
 test('thousands', () => {
@@ -49,4 +52,20 @@ test('a million or more is out of scope and rejected loudly', () => {
 
 test('just under a million still works', () => {
   assert.strictEqual(amountToSpanishWords(999999.99), 'NOVECIENTOS NOVENTA Y NUEVE MIL NOVECIENTOS NOVENTA Y NUEVE DÓLARES CON 99/100');
+});
+
+// The hand-written hundreds table has three irregular forms (QUINIENTOS,
+// SETECIENTOS, NOVECIENTOS are not built by appending "CIENTOS" to the unit,
+// the way DOSCIENTOS/TRESCIENTOS/CUATROCIENTOS are) - the likeliest place for
+// a transcription error, and previously unverified by any test.
+test('the hundreds table, including its irregular forms', () => {
+  assert.strictEqual(amountToSpanishWords(110), 'CIENTO DIEZ DÓLARES CON 00/100');
+  assert.strictEqual(amountToSpanishWords(200), 'DOSCIENTOS DÓLARES CON 00/100');
+  assert.strictEqual(amountToSpanishWords(500), 'QUINIENTOS DÓLARES CON 00/100');
+  assert.strictEqual(amountToSpanishWords(700), 'SETECIENTOS DÓLARES CON 00/100');
+  assert.strictEqual(amountToSpanishWords(900), 'NOVECIENTOS DÓLARES CON 00/100');
+});
+
+test('a hundreds-plus-thousands composite', () => {
+  assert.strictEqual(amountToSpanishWords(101000), 'CIENTO UN MIL DÓLARES CON 00/100');
 });
