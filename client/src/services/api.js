@@ -226,10 +226,15 @@ export const creditsAPI = {
   chargeCard: (userId, amount) => api.post(`/credits/${userId}/charge-card`, { amount }),
 }
 
-// Invoices API — the fiscal documents a settled payment produced. Everything a
-// rendered invoice shows comes from the snapshots frozen on the row at issue
-// time (`issuer`, `client`), never from live account data.
+// Invoices API. Everything a rendered invoice shows comes from the snapshots
+// frozen on the row at issue time (`issuer`, `client`), never from live account
+// data — an invoice issued in March must keep saying what it said in March.
 export const invoicesAPI = {
+  // Lists settled PAYMENTS, each with its invoice attached or null — an invoice
+  // that was never issued is exactly the one that needs issuing, and it cannot
+  // appear in a list of invoices. Returns `{ billsWithTax, payments }`; an
+  // account not under a tax-collecting partner gets `billsWithTax: false`.
+  // Capped (50 by default, 200 max) with no cursor, so it is never complete.
   list: (limit) => api.get('/invoices', { params: limit ? { limit } : {} }),
   get: (id) => api.get(`/invoices/${id}`),
   // The invoice for one payment, issued on the spot when a settlement missed
