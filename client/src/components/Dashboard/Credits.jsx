@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { creditsAPI, whopAPI } from '../../services/api'
+import { creditsAPI, whopAPI, invoicesAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 import WhopCheckoutModal from './WhopCheckoutModal'
 import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
+import InvoiceDocument from './InvoiceDocument'
 
 // Every surface here that takes money quotes the amount the client typed, so
 // they see the tax before paying it. Renders nothing for an untaxed account.
@@ -40,6 +41,14 @@ export default function Credits() {
   const [rechargeAmount, setRechargeAmount] = useState('')
   const [rechargeLoading, setRechargeLoading] = useState(false)
 
+  // The invoices this account's settled payments produced, and the one being
+  // read. Both stay empty for an account that does not bill with tax — it has
+  // no invoices, so the section below never renders and the page is unchanged.
+  const [invoices, setInvoices] = useState([])
+  const [invoice, setInvoice] = useState(null)
+  const [invoiceBusy, setInvoiceBusy] = useState(null)
+  const [invoiceNotice, setInvoiceNotice] = useState('')
+
   // What each of the three amounts on this page will really cost. Quoted only
   // while the field can be acted on, so a closed modal asks for nothing.
   const buyQuote = useChargeQuote(buyAmount, quoteCharge, { enabled: buyModalOpen })
@@ -50,6 +59,7 @@ export default function Credits() {
     fetchCredits()
     fetchTiers()
     fetchAutoRecharge()
+    fetchInvoices()
   }, [])
 
   // Detect card-setup success from redirect fallback
@@ -84,6 +94,46 @@ export default function Credits() {
       setError(err.response?.data?.error || 'Failed to load credits')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchInvoices = async () => {
+    try {
+      const { data } = await invoicesAPI.list()
+      setInvoices(Array.isArray(data.invoices) ? data.invoices : [])
+    } catch {
+      // No invoices to show is the normal case, not an error worth a banner.
+      setInvoices([])
+    }
+  }
+
+  // Open one invoice: by its own id, or by the payment it was issued for.
+  //
+  // `forPurchase` issues the document on the spot when a settlement missed it,
+  // which is why it has two answers that are NOT failures and must be told
+  // apart from one: 404 means this account does not bill with tax, and 409 that
+  // the payment has not been confirmed yet. Both are shown as a message instead
+  // of opening an empty document.
+  const openInvoice = async (key, { id, purchaseId } = {}) => {
+    setInvoiceBusy(key)
+    setInvoiceNotice('')
+    setError(null)
+    try {
+      const { data } = id != null
+        ? await invoicesAPI.get(id)
+        : await invoicesAPI.forPurchase(purchaseId)
+      setInvoice(data.invoice)
+    } catch (err) {
+      const status = err.response?.status
+      if (status === 404) {
+        setInvoiceNotice(err.response?.data?.error || 'Esta cuenta no factura con impuesto, así que este pago no genera factura.')
+      } else if (status === 409) {
+        setInvoiceNotice(err.response?.data?.error || 'El pago todavía no se ha confirmado, así que aún no tiene factura.')
+      } else {
+        setError(err.response?.data?.error || 'No se pudo cargar la factura')
+      }
+    } finally {
+      setInvoiceBusy(null)
     }
   }
 
@@ -525,6 +575,56 @@ export default function Credits() {
           )}
         </div>
       )}
+
+      {/* The invoices this account's payments produced. An account that does
+          not bill with tax has none, so nothing renders here at all. */}
+      {invoices.length > 0 && (
+        <div className="mb-6 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-200 dark:border-dark-border">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Facturas</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Cada pago confirmado genera una factura. Ábrela para verla o descargarla en PDF.
+            </p>
+          </div>
+          {invoiceNotice && (
+            <p className="px-5 pt-3 text-sm text-amber-700 dark:text-amber-400">{invoiceNotice}</p>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-dark-hover">
+                <tr>
+                  {['Número', 'Fecha', 'Total', ''].map((h) => (
+                    <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
+                {invoices.map((inv) => (
+                  <tr key={inv.id} className="hover:bg-gray-50 dark:hover:bg-dark-hover">
+                    <td className="px-5 py-3 text-sm font-medium text-gray-900 dark:text-white">{inv.number}</td>
+                    <td className="px-5 py-3 text-sm text-gray-500 dark:text-gray-400">
+                      {new Date(inv.issuedAt).toLocaleDateString('es-DO')}
+                    </td>
+                    <td className="px-5 py-3 text-sm text-gray-900 dark:text-white">${(inv.total || 0).toFixed(2)}</td>
+                    <td className="px-5 py-3 text-right">
+                      <button
+                        onClick={() => openInvoice(`invoice-${inv.id}`, { id: inv.id })}
+                        disabled={invoiceBusy === `invoice-${inv.id}`}
+                        className="px-3 py-1.5 text-xs border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-50"
+                      >
+                        {invoiceBusy === `invoice-${inv.id}` ? 'Abriendo…' : 'Factura'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* The invoice itself, with its PDF download */}
+      {invoice && <InvoiceDocument invoice={invoice} onClose={() => setInvoice(null)} />}
 
       {/* Buy Credits Modal — Variable Amount */}
       {buyModalOpen && (
