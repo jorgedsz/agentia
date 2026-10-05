@@ -523,7 +523,7 @@ Expected: `Generated Prisma Client`
 
 This works without a database. **The migration itself needs one:** `server/.env` still points at the retired Railway host (`tramway.proxy.rlwy.net`), so `npx prisma migrate dev --name itbis_invoicing` must be run with the current AWS `DATABASE_URL` in hand. Ask for it before this step; do not invent one, and do not point it at anything but the real database.
 
-`subtotal` is nullable so existing rows migrate without a default; Task 7 reads it as `purchase.subtotal ?? purchase.credits`, which is correct for every row written before this feature.
+There is deliberately NO `subtotal` column: `credits` already holds what reaches the balance, which IS the pre-tax subtotal. Storing it twice would be a dual source of truth with no invariant tying the two together. Everything downstream reads `purchase.credits` for the subtotal.
 
 - [ ] **Step 6: Commit**
 
@@ -575,7 +575,7 @@ test('the concept names what the client actually bought', () => {
 });
 
 test('the invoice carries the breakdown and both snapshots', () => {
-  const purchase = { id: 77, userId: 1, kind: 'manual', credits: 100, subtotal: 100, taxAmount: 27, taxRate: 27, amount: 127 };
+  const purchase = { id: 77, userId: 1, kind: 'manual', credits: 100, taxAmount: 27, taxRate: 27, amount: 127 };
   const data = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase, number: 'FAC-000124' });
 
   assert.strictEqual(data.number, 'FAC-000124');
@@ -596,7 +596,7 @@ test('the invoice carries the breakdown and both snapshots', () => {
 
 test('a client with no fiscal fields falls back to what the account already has', () => {
   const bare = { id: 2, email: 'otro@ejemplo.com', name: 'Ana', companyName: 'Ana SRL' };
-  const purchase = { id: 78, userId: 2, kind: 'manual', credits: 50, subtotal: 50, taxAmount: 13.5, taxRate: 27, amount: 63.5 };
+  const purchase = { id: 78, userId: 2, kind: 'manual', credits: 50, taxAmount: 13.5, taxRate: 27, amount: 63.5 };
   const client = JSON.parse(buildInvoiceData({ profile: PROFILE, client: bare, purchase, number: 'FAC-000125' }).clientSnapshot);
   assert.strictEqual(client.company, 'Ana SRL');
   assert.strictEqual(client.rnc, '');
@@ -604,14 +604,14 @@ test('a client with no fiscal fields falls back to what the account already has'
 });
 
 test('an untaxed purchase still totals correctly', () => {
-  const purchase = { id: 79, userId: 1, kind: 'manual', credits: 40, subtotal: 40, taxAmount: 0, taxRate: 0, amount: 40 };
+  const purchase = { id: 79, userId: 1, kind: 'manual', credits: 40, taxAmount: 0, taxRate: 0, amount: 40 };
   const data = buildInvoiceData({ profile: { ...PROFILE, taxEnabled: false, taxRate: 0 }, client: CLIENT, purchase, number: 'FAC-000126' });
   assert.strictEqual(data.taxAmount, 0);
   assert.strictEqual(data.total, 40);
 });
 
 test('due date follows the profile', () => {
-  const purchase = { id: 80, userId: 1, kind: 'manual', credits: 10, subtotal: 10, taxAmount: 2.7, taxRate: 27, amount: 12.7 };
+  const purchase = { id: 80, userId: 1, kind: 'manual', credits: 10, taxAmount: 2.7, taxRate: 27, amount: 12.7 };
   const issuedAt = new Date('2026-10-05T12:00:00Z');
   const sameDay = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase, number: 'FAC-1', issuedAt });
   assert.strictEqual(sameDay.dueAt.getTime(), issuedAt.getTime());
@@ -664,7 +664,7 @@ function conceptFor(purchase) {
 
 /** Everything the Invoice row holds, with both parties frozen as they are now. */
 function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Date() }) {
-  const subtotal = purchase.subtotal ?? purchase.credits;
+  const subtotal = purchase.credits; // `credits` IS the pre-tax subtotal
   const taxAmount = purchase.taxAmount || 0;
   const retention = 0; // v1 always 0; the row is rendered empty
   const total = Math.round((subtotal + taxAmount - retention + Number.EPSILON) * 100) / 100;
@@ -829,7 +829,6 @@ Replace the Stripe branch's purchase creation and checkout call:
         userId,
         amount: charge.total,
         credits: charge.subtotal,
-        subtotal: charge.subtotal,
         taxRate: charge.taxRate,
         taxAmount: charge.taxAmount,
         status: 'pending',
@@ -890,7 +889,6 @@ Whop takes one price and ignores the plan name we pass, so the breakdown lives o
       userId,
       amount: charge.total,
       credits: charge.subtotal,
-      subtotal: charge.subtotal,
       taxRate: charge.taxRate,
       taxAmount: charge.taxAmount,
       status: 'pending',
@@ -955,7 +953,6 @@ Replace the pending-row creation and the `chargeOffSession` call:
         userId: user.id,
         amount: charge.total,
         credits: charge.subtotal,
-        subtotal: charge.subtotal,
         taxRate: charge.taxRate,
         taxAmount: charge.taxAmount,
         status: 'pending',
@@ -1006,7 +1003,6 @@ Replace the Whop `chargeOffSession` amount and the pending row it writes:
       userId: user.id,
       amount: charge.total,
       credits: charge.subtotal,
-      subtotal: charge.subtotal,
       taxRate: charge.taxRate,
       taxAmount: charge.taxAmount,
       status: 'pending',
@@ -1051,7 +1047,7 @@ In `server/src/utils/creditSettlement.js`, replace the block after the balance u
   // against the month's consumption.
   if (purchase.billingPeriodId) {
     await require('../services/billingPeriods')
-      .applyPayment(prisma, purchase.billingPeriodId, purchase.subtotal ?? purchase.credits)
+      .applyPayment(prisma, purchase.billingPeriodId, purchase.credits)
       .catch((err) => console.error('[Credits] Could not settle the billing period:', err.message));
   }
 
@@ -2093,7 +2089,7 @@ In the panel, on a **test** partner (not LM in production), set `own_stripe`, ti
 - [ ] **Step 4: Buy credits as a client under it**
 
 Enter $10.
-Expected: the panel shows Subtotal $10.00 · ITBIS (27%) $2.70 · Total a pagar $12.70. Stripe shows two lines. After paying, the balance rises by **10**, and `CreditPurchase` holds `amount: 12.70`, `credits: 10`, `subtotal: 10`, `taxAmount: 2.70`.
+Expected: the panel shows Subtotal $10.00 · ITBIS (27%) $2.70 · Total a pagar $12.70. Stripe shows two lines. After paying, the balance rises by **10**, and `CreditPurchase` holds `amount: 12.70`, `credits: 10`, `taxAmount: 2.70`.
 
 - [ ] **Step 5: Check the invoice**
 
