@@ -26,14 +26,26 @@ function assertFiniteNumber(value, label) {
 }
 
 /**
- * Money is kept to the cent everywhere, rounded in exactly one place: here.
- * Rounds half a cent up, like a real cash register. Throws on anything that
- * isn't a finite number rather than silently coercing — a bad input here is a
- * bug upstream, not a $0 charge.
+ * Round a decimal to the cent, half a cent up, like a real cash register —
+ * for arbitrary standalone values (later tasks use this directly on numbers
+ * that aren't necessarily charge subtotals). Throws on anything that isn't a
+ * finite number rather than silently coercing — a bad input here is a bug
+ * upstream, not a value to quietly turn into 0.
+ *
+ * Plain `Math.round(n * 100) / 100` is wrong for a large class of inputs at
+ * exactly this magnitude: `1.005 * 100` is `100.49999999999999` in IEEE 754,
+ * which rounds DOWN to 1.00 instead of the correct 1.01 — the same class of
+ * error computeCharge had, just showing up at small numbers instead of
+ * charge-sized ones. `toPrecision(15)` collapses that representation error
+ * (100.49999999999999 -> "100.5") before Math.round sees it, without the
+ * magnitude-dependence that made a flat Number.EPSILON nudge a no-op at
+ * charge-sized values. Verified against an independent decimal ground truth
+ * (exact-integer milli-unit arithmetic, no float multiplication) across every
+ * 3-decimal value from 0.000 to 500.000: 0 mismatches in 500,001 values.
  */
 function round2(n) {
   assertFiniteNumber(n, 'round2(n)');
-  return Math.round(n * 100) / 100;
+  return Math.round(Number((n * 100).toPrecision(15))) / 100;
 }
 
 /**
@@ -102,7 +114,16 @@ async function resolveTaxConfig(prisma, userId, options = {}) {
   }
 }
 
-/** Resolve and compute in one call — what every charge path uses. */
+/**
+ * Resolve and compute in one call — what every charge path uses. The tax
+ * lookup itself never throws (see resolveTaxConfig above), but this still can:
+ * it hands `subtotal` to computeCharge, which throws a TypeError on a
+ * non-finite subtotal (a string, NaN, undefined, ...). That's deliberate — a
+ * bad subtotal reaching a charge call is a caller bug, and a silent $0 charge
+ * is worse than a loud failure — but it means resolveCharge is NOT blanket
+ * exception-safe the way resolveTaxConfig is. Callers on a live Stripe charge
+ * path must validate `subtotal` before calling this, or be ready to catch.
+ */
 async function resolveCharge(prisma, userId, subtotal) {
   const taxConfig = await resolveTaxConfig(prisma, userId);
   return { ...computeCharge(subtotal, taxConfig), profile: taxConfig.profile };

@@ -11,6 +11,34 @@ test('round2 rounds half a cent up', () => {
   assert.strictEqual(round2(10), 10);
 });
 
+// Regression: these are NOT exact binary fractions, unlike 3.375/0.005/10
+// above - they expose a case the first round2 (plain Math.round(n*100)/100,
+// no epsilon handling at all) got wrong. 1.005*100 is 100.49999999999999 in
+// IEEE 754, which used to round DOWN to 1.00 instead of the correct 1.01.
+test('round2 is correct at small magnitudes, not just exact binary fractions', () => {
+  assert.strictEqual(round2(1.005), 1.01);
+  assert.strictEqual(round2(0.145), 0.15);
+  assert.strictEqual(round2(1.255), 1.26);
+});
+
+// An independent ground truth for round2, built from the sweep's own integer
+// index rather than from any float multiplication - i is an exact integer by
+// construction (the loop variable), so `i % 10` / `Math.floor(i / 10)` are
+// exact and share no arithmetic with round2's implementation.
+test('round2 matches an independently computed decimal truth across a sweep', () => {
+  let checked = 0;
+  for (let i = 0; i <= 500000; i++) {
+    const n = i / 1000; // 0.000 .. 500.000 in steps of 0.001
+    const tenths = i % 10; // the digit deciding whether the 3rd decimal rounds the cent up
+    const centsBase = Math.floor(i / 10);
+    const expectedCents = tenths >= 5 ? centsBase + 1 : centsBase;
+    const expected = expectedCents / 100;
+    assert.strictEqual(round2(n), expected, `failed at ${n}`);
+    checked++;
+  }
+  assert.strictEqual(checked, 500001);
+});
+
 test('27% on a round amount', () => {
   const c = computeCharge(100, ITBIS);
   assert.deepStrictEqual(c, { subtotal: 100, taxRate: 27, taxLabel: 'ITBIS', taxAmount: 27, total: 127 });
@@ -147,4 +175,34 @@ test('resolveTaxConfig walks the real partner-inheritance path with no partnerId
   assert.strictEqual(cfg.taxEnabled, true);
   assert.strictEqual(cfg.taxRate, 27);
   assert.strictEqual(cfg.profile.id, 77);
+});
+
+// LM Consulting's actual configuration is own_stripe, not own_whop - and
+// getEffectiveBilling resolves it through a different branch: it returns as
+// soon as it finds an own_stripe partner while walking ancestors (inside
+// getAncestorPartners' loop), rather than via the separate direct-parent
+// lookup own_whop/manual go through afterwards. This test mirrors that branch
+// exactly (verified by calling getEffectiveBilling with this same mock
+// directly) instead of assuming it behaves like the own_whop case above.
+test('resolveTaxConfig walks the real inheritance path for an own_stripe partner (LM Consulting\'s actual setup)', async () => {
+  const CLIENT = { id: 1, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' };
+  const PARTNER = { id: 9, role: 'WHITELABEL', agencyId: null, whitelabelId: null, billingMode: 'own_stripe' };
+  const prisma = {
+    user: {
+      findUnique: async ({ where }) => {
+        if (where.id === 1) return CLIENT;
+        if (where.id === 9) return PARTNER;
+        return null;
+      },
+    },
+    billingProfile: {
+      findUnique: async ({ where }) => (where.ownerId === 9
+        ? { id: 88, ownerId: 9, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' }
+        : null),
+    },
+  };
+  const cfg = await resolveTaxConfig(prisma, 1);
+  assert.strictEqual(cfg.taxEnabled, true);
+  assert.strictEqual(cfg.taxRate, 27);
+  assert.strictEqual(cfg.profile.id, 88);
 });
