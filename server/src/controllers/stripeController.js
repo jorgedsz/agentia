@@ -250,10 +250,13 @@ async function handlePaymentIntentFailed(prisma, intent) {
   const kind = purchase?.kind || meta.kind;
   if (kind === 'auto_recharge' || kind === 'manual_card') {
     await recordAutoRechargeFailure(prisma, userId, reason);
-    // Fall back to the backup card, if there is one.
+    // Fall back to the backup card, if there is one. Retried for `credits`,
+    // the PRE-TAX subtotal — not `amount`, which already has the partner's tax
+    // inside it: the retry adds the tax again on top of whatever it is given,
+    // so passing the taxed total would collect the tax twice.
     try {
       const { chargeNextCard } = require('./creditsController');
-      await chargeNextCard(prisma, userId, purchase.amount, kind, purchase.paymentMethodId);
+      await chargeNextCard(prisma, userId, purchase.credits, kind, purchase.paymentMethodId);
     } catch (err) {
       console.error('[Stripe Webhook] Backup-card retry failed:', err.message);
     }
