@@ -9,7 +9,8 @@
 // for exactly that reason). Any renderer added later must read `issuer` and
 // `client` from here and look nothing up.
 
-const { issueInvoiceForPurchase } = require('../services/invoiceService');
+const { issueInvoiceForPurchase, conceptFor } = require('../services/invoiceService');
+const { resolveTaxConfig } = require('../utils/taxes');
 const { getAncestorPartners } = require('../utils/whopConfig');
 
 // A client's own invoice list is a side panel, not an accounting export: a cap
@@ -57,7 +58,11 @@ function present(invoice) {
     dueAt: invoice.dueAt ?? null,
     // The payment this invoice was issued for, when it still exists. Null on an
     // invoice whose purchase was deleted (SetNull) — the invoice survives it.
-    creditPurchaseId: invoice.creditPurchaseId ?? null,
+    // Spelled `purchaseId` here and in the payments list, and it is the same id
+    // the /by-purchase/:purchaseId route takes: one name for one thing, so the
+    // client never translates between two spellings. The COLUMN stays
+    // `creditPurchaseId`; only the API shape is normalised.
+    purchaseId: invoice.creditPurchaseId ?? null,
     lines: parseSnapshot(invoice.conceptLines, [], 'conceptLines', invoice.id),
     issuer: parseSnapshot(invoice.issuerSnapshot, {}, 'issuerSnapshot', invoice.id),
     client: parseSnapshot(invoice.clientSnapshot, {}, 'clientSnapshot', invoice.id),
@@ -104,26 +109,104 @@ async function canReadInvoice(prisma, requester, invoice) {
 }
 
 /**
- * The requester's own invoices, newest first.
+ * One settled payment, with its invoice attached when there is one.
+ *
+ * `invoiceExpected` is the difference between a document that FAILED to be
+ * issued and one that was never due. Issuing is gated on the partner's profile,
+ * not on the payment, so within a tax-collecting partner any completed payment
+ * CAN be issued an invoice - "can never have one" is not quite the real
+ * distinction. What separates the two cases, and it is free because the column
+ * is already on the row, is whether the payment itself carried tax: taxAmount
+ * above zero means it was charged under the tax and an invoice was due, so a
+ * null invoice there is a failed emission to repair. taxAmount of zero means
+ * the payment predates the partner switching its tax on; an invoice can still
+ * be issued for it (a tax-free one) but nothing went wrong, so the client can
+ * offer that as optional instead of flagging it as broken.
+ */
+function presentPayment(purchase) {
+  const taxAmount = purchase.taxAmount || 0;
+  return {
+    purchaseId: purchase.id,
+    // CreditPurchase has no settlement timestamp - `updatedAt` moves on any
+    // later write (the report being emailed, for one), so the payment's own
+    // createdAt is the stable date. Off-session charges settle within seconds
+    // of it; a hosted checkout within the minutes the client spent on the page.
+    paidAt: purchase.createdAt,
+    // The same Spanish text the invoice's DESCRIPCIÓN row carries, from the same
+    // helper, so the list and the document cannot describe one payment two ways.
+    concept: conceptFor(purchase),
+    // What the card paid.
+    amount: purchase.amount,
+    // The pre-tax subtotal - what actually reached the balance.
+    credits: purchase.credits,
+    taxRate: purchase.taxRate || 0,
+    taxAmount,
+    invoiceExpected: taxAmount > 0,
+    invoice: purchase.invoice
+      ? {
+        id: purchase.invoice.id,
+        number: purchase.invoice.number,
+        total: purchase.invoice.total,
+        issuedAt: purchase.invoice.issuedAt,
+      }
+      : null,
+  };
+}
+
+/**
+ * The requester's own settled PAYMENTS, newest first, each with its invoice
+ * attached or null.
  * GET /api/invoices?limit=50
+ *
+ * Payments rather than invoices because an invoice that was never issued is
+ * exactly the one that needs issuing, and it cannot appear in a list of
+ * invoices. Emission after a settlement is fire-and-forget - it must never undo
+ * a payment that already went through - so a payment can end up settled with no
+ * document. Listed this way, that payment is visible with `invoice: null` and
+ * its `purchaseId` is what GET /api/invoices/by-purchase/:purchaseId needs to
+ * repair it. There is no other surface in the app that carries a purchase id.
  */
 const listMine = async (req, res) => {
   try {
     const requested = parseInt(req.query.limit);
     const limit = Math.min(Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_LIMIT, MAX_LIMIT);
 
-    const invoices = await req.prisma.invoice.findMany({
-      where: { userId: req.user.id },
-      orderBy: { issuedAt: 'desc' },
+    // The same gate issueInvoiceForPurchase applies: a profile AND its tax
+    // switched on. An account that bills without tax has no invoices and never
+    // will, so its screen gets an empty list and stays exactly as it is today
+    // rather than growing a payments table it has no use for. resolveTaxConfig
+    // never throws - it reads as "no tax" on any failure.
+    const { profile, taxEnabled } = await resolveTaxConfig(req.prisma, req.user.id);
+    if (!profile || !taxEnabled) return res.json({ billsWithTax: false, payments: [] });
+
+    const purchases = await req.prisma.creditPurchase.findMany({
+      where: { userId: req.user.id, status: 'completed' },
+      // By id, not createdAt: ids are monotonic and two payments in the same
+      // second would otherwise come back in an arbitrary order.
+      orderBy: { id: 'desc' },
       take: limit,
-      // Just enough to list and link them; the document itself is one more call.
-      select: { id: true, number: true, total: true, issuedAt: true },
+      select: {
+        id: true,
+        amount: true,
+        credits: true,
+        taxRate: true,
+        taxAmount: true,
+        createdAt: true,
+        // conceptFor reads these to describe the payment.
+        kind: true,
+        billingPeriodId: true,
+        periodStart: true,
+        periodEnd: true,
+        // Just enough to label and link the document; the document itself is
+        // one more call, to GET /api/invoices/:id.
+        invoice: { select: { id: true, number: true, total: true, issuedAt: true } },
+      },
     });
 
-    res.json({ invoices });
+    res.json({ billsWithTax: true, payments: purchases.map(presentPayment) });
   } catch (error) {
-    console.error('Error listing invoices:', error.message);
-    res.status(500).json({ error: 'No se pudieron cargar las facturas' });
+    console.error('Error listing payments:', error.message);
+    res.status(500).json({ error: 'No se pudieron cargar los pagos' });
   }
 };
 
@@ -201,6 +284,7 @@ const getOne = async (req, res) => {
 
 module.exports = {
   listMine,
+  presentPayment,
   getOne,
   getByPurchase,
   present,

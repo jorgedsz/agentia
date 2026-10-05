@@ -76,8 +76,15 @@ test('present treats a null or empty snapshot as the empty shape', () => {
   assert.deepStrictEqual(out.lines, []);
 });
 
-test('present reports a creditPurchaseId of null on an invoice whose payment was deleted', () => {
-  assert.strictEqual(present(row({ creditPurchaseId: null })).creditPurchaseId, null);
+test('present spells the payment id `purchaseId`, the same name the payments list and the route use', () => {
+  const out = present(row());
+  assert.strictEqual(out.purchaseId, 99);
+  // The column name is not the API name; only one spelling reaches the client.
+  assert.strictEqual(out.creditPurchaseId, undefined);
+});
+
+test('present reports a purchaseId of null on an invoice whose payment was deleted', () => {
+  assert.strictEqual(present(row({ creditPurchaseId: null })).purchaseId, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -153,4 +160,73 @@ test('canReadInvoice: an orphan whose issuing profile is gone is readable by nob
   const orphan = { id: 5, userId: null, profileId: 7 };
   assert.strictEqual(await canReadInvoice(fakePrisma(), { id: 1, role: 'WHITELABEL' }, orphan), false);
   assert.strictEqual(await canReadInvoice(fakePrisma(), { id: 99, role: 'OWNER' }, orphan), true);
+});
+
+// ---------------------------------------------------------------------------
+// presentPayment — the row the payments list returns
+// ---------------------------------------------------------------------------
+
+const { presentPayment } = require('../src/controllers/invoiceController');
+
+function purchase(overrides = {}) {
+  return {
+    id: 412,
+    amount: 127,
+    credits: 100,
+    taxRate: 27,
+    taxAmount: 27,
+    createdAt: new Date('2026-03-15T12:00:00.000Z'),
+    kind: 'manual',
+    billingPeriodId: null,
+    periodStart: null,
+    periodEnd: null,
+    invoice: null,
+    ...overrides,
+  };
+}
+
+test('presentPayment keeps the charged total and the pre-tax subtotal apart', () => {
+  const out = presentPayment(purchase());
+  assert.strictEqual(out.amount, 127);   // what the card paid
+  assert.strictEqual(out.credits, 100);  // what reached the balance
+  assert.strictEqual(out.taxAmount, 27);
+  assert.strictEqual(out.taxRate, 27);
+});
+
+test('presentPayment uses the same id spelling as present() and the by-purchase route', () => {
+  assert.strictEqual(presentPayment(purchase()).purchaseId, 412);
+  assert.strictEqual(presentPayment(purchase()).id, undefined);
+});
+
+test('presentPayment attaches the invoice when there is one, trimmed to what a list row shows', () => {
+  const out = presentPayment(purchase({
+    invoice: { id: 9, number: 'FAC-000124', total: 127, issuedAt: new Date('2026-03-15T12:00:05.000Z'), clientSnapshot: '{}' },
+  }));
+  assert.deepStrictEqual(Object.keys(out.invoice), ['id', 'number', 'total', 'issuedAt']);
+  assert.strictEqual(out.invoice.number, 'FAC-000124');
+});
+
+test('a taxed payment with no invoice is a failed emission: invoice null, invoiceExpected true', () => {
+  const out = presentPayment(purchase({ invoice: null }));
+  assert.strictEqual(out.invoice, null);
+  assert.strictEqual(out.invoiceExpected, true);
+});
+
+test('a payment from before the tax was switched on is not flagged as broken', () => {
+  const out = presentPayment(purchase({ amount: 100, taxRate: 0, taxAmount: 0, invoice: null }));
+  assert.strictEqual(out.invoice, null);
+  assert.strictEqual(out.invoiceExpected, false);
+});
+
+test('presentPayment describes the payment with the same helper the invoice line uses', () => {
+  assert.strictEqual(presentPayment(purchase()).concept, 'Recarga de saldo — créditos de consumo');
+  assert.strictEqual(presentPayment(purchase({ kind: 'auto_recharge' })).concept, 'Recarga automática de saldo');
+  assert.strictEqual(presentPayment(purchase({ billingPeriodId: 3 })).concept, 'Liquidación del periodo facturado');
+});
+
+test('presentPayment tolerates the default-zero tax columns being absent on an old row', () => {
+  const out = presentPayment({ id: 1, amount: 50, credits: 50, createdAt: new Date(), kind: 'manual', invoice: null });
+  assert.strictEqual(out.taxAmount, 0);
+  assert.strictEqual(out.taxRate, 0);
+  assert.strictEqual(out.invoiceExpected, false);
 });
