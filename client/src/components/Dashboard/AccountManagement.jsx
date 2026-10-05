@@ -31,6 +31,17 @@ const MANAGEABLE_ITEMS = [
   { id: 'tutorials/es', label: 'Tutoriales (ES)' },
 ]
 
+// The account's own fiscal details, as they must appear on the invoices issued
+// to it. Read into Invoice.clientSnapshot at issue time, so editing them never
+// rewrites an invoice already on file.
+const FISCAL_FIELDS = [
+  ['billingCompany', 'Empresa / razón social', 'Nombre legal que debe salir en la factura'],
+  ['billingRnc', 'RNC / ID fiscal', '1-31-12345-6'],
+  ['billingAddress', 'Dirección', 'Calle y número'],
+  ['billingCity', 'Ciudad', 'Santo Domingo'],
+  ['billingPhone', 'Teléfono', '809-000-0000'],
+]
+
 // Everything printed on the invoices a partner issues, grouped the way the
 // document itself reads. Keys match the BillingProfile columns the server's
 // allow-list accepts — nothing else is ever sent.
@@ -138,6 +149,7 @@ export default function AccountManagement() {
     infraMonthlyCost: '',
     infraCostNote: '',
     chatbotMessagePrice: '',
+    ...Object.fromEntries(FISCAL_FIELDS.map(([key]) => [key, ''])),
   })
   const [saving, setSaving] = useState(false)
 
@@ -580,6 +592,7 @@ export default function AccountManagement() {
       infraCostNote: targetUser.infraCostNote || '',
       chatbotMessagePrice: targetUser.chatbotMessagePrice != null ? String(targetUser.chatbotMessagePrice) : '',
       receiptEmail: targetUser.receiptEmail || '',
+      ...Object.fromEntries(FISCAL_FIELDS.map(([key]) => [key, targetUser[key] || ''])),
     })
     setError('')
     setSuccess('')
@@ -587,7 +600,7 @@ export default function AccountManagement() {
 
   const closeBillingModal = () => {
     setEditingUser(null)
-    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, budgetsEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', infraMonthlyCost: '', infraCostNote: '', chatbotMessagePrice: '', receiptEmail: '' })
+    setBillingForm({ credits: '', creditOperation: 'add', voiceAgentsEnabled: true, chatbotsEnabled: true, crmEnabled: false, agentGeneratorEnabled: false, budgetsEnabled: false, callsPaused: false, messagesPaused: false, hiddenSections: [], planType: '', planPrice: '', infraMonthlyCost: '', infraCostNote: '', chatbotMessagePrice: '', receiptEmail: '', ...Object.fromEntries(FISCAL_FIELDS.map(([key]) => [key, ''])) })
   }
 
   const handleBillingSubmit = async (e) => {
@@ -618,6 +631,18 @@ export default function AccountManagement() {
       data.planPrice = billingForm.planPrice !== '' ? billingForm.planPrice : null
       data.chatbotMessagePrice = billingForm.chatbotMessagePrice !== '' ? billingForm.chatbotMessagePrice : null
       data.receiptEmail = billingForm.receiptEmail
+
+      // The account's fiscal details, sent ONLY when they actually changed —
+      // the same care the infrastructure cost below takes, and for a sharper
+      // reason: the account-list endpoints this modal is populated from do not
+      // return these five columns, so the form opens blank even when the
+      // account has them. Sending a blank field unconditionally would trim to
+      // null on the server and wipe an RNC nobody meant to touch. With this
+      // guard, leaving the section alone sends nothing at all.
+      for (const [key] of FISCAL_FIELDS) {
+        const current = editingUser[key] ?? ''
+        if ((billingForm[key] ?? '') !== current) data[key] = billingForm[key]
+      }
 
       await usersAPI.updateBilling(editingUser.id, data)
 
@@ -1516,6 +1541,30 @@ export default function AccountManagement() {
                   Stripe manda el recibo aquí cada vez que esta cuenta paga. En blanco, va al correo de la cuenta.
                   {(editingUser.role === 'WHITELABEL' || editingUser.role === 'AGENCY') && ' Al ser un socio, también aplica a las cuentas que cuelgan de él y no tengan su propio correo.'}
                 </p>
+              </div>
+
+              {/* The fiscal details printed on this account's invoices */}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Datos fiscales de la cuenta
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Estos son los datos que se imprimen en las facturas de esta cuenta. En blanco, la factura usa el nombre y el teléfono de la cuenta.
+                  </p>
+                </div>
+                {FISCAL_FIELDS.map(([key, label, placeholder]) => (
+                  <div key={key}>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</label>
+                    <input
+                      type="text"
+                      value={billingForm[key]}
+                      onChange={(e) => setBillingForm({ ...billingForm, [key]: e.target.value })}
+                      placeholder={placeholder}
+                      className="w-full px-3 py-2 bg-white dark:bg-dark-hover border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    />
+                  </div>
+                ))}
               </div>
 
             </form>
