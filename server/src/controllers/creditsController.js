@@ -318,6 +318,41 @@ const getMessagesExternal = async (req, res) => {
 };
 
 /**
+ * What an amount will really cost, before anyone commits to paying it: the
+ * balance asked for, the governing partner's tax on top of it, and the total
+ * the card will be charged. A client asking for $100 under a partner that
+ * collects 27% pays $127 and is credited $100 — the panel has to be able to
+ * say so up front instead of surprising them on the statement.
+ * GET /api/credits/quote?amount=100
+ */
+const getQuote = async (req, res) => {
+  try {
+    // Rounded to the cent first, exactly like every charge path, so the quote
+    // is computed on the same number that would reach the card.
+    const amount = Math.round(parseFloat(req.query.amount) * 100) / 100;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Indica un monto válido mayor que cero.' });
+    }
+
+    const charge = await resolveCharge(req.prisma, req.user.id, amount);
+    // Hand-built field by field, never `...charge`: charge.profile is the
+    // issuer's whole BillingProfile row — bank account, SWIFT, routing number
+    // and the live invoice numbering sequence — and none of that belongs in a
+    // response a client reads. Nothing a UI needs is in there.
+    res.json({
+      subtotal: charge.subtotal,
+      taxRate: charge.taxRate,
+      taxLabel: charge.taxLabel,
+      taxAmount: charge.taxAmount,
+      total: charge.total,
+    });
+  } catch (error) {
+    console.error('Error quoting a credit charge:', error.message);
+    res.status(500).json({ error: 'No se pudo calcular el monto a cobrar' });
+  }
+};
+
+/**
  * Get credits for a user
  * GET /api/credits/:userId?
  */
@@ -1266,6 +1301,7 @@ const rechargeNow = async (req, res) => {
 };
 
 module.exports = {
+  getQuote,
   getCredits,
   updateCredits,
   getCardStatus,
