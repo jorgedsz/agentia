@@ -38,6 +38,14 @@ const getAccessibleAccounts = async (req, res) => {
           chatbotsEnabled: true,
           crmEnabled: true,
           agentGeneratorEnabled: true,
+          // The account's fiscal details, so the billing modal can prefill
+          // them for a partner the way it does for the OWNER - the client
+          // reads them off whichever account list it was given.
+          billingCompany: true,
+          billingRnc: true,
+          billingAddress: true,
+          billingCity: true,
+          billingPhone: true,
           callsPaused: true,
           messagesPaused: true,
           agency: {
@@ -82,6 +90,14 @@ const getAccessibleAccounts = async (req, res) => {
           chatbotsEnabled: true,
           crmEnabled: true,
           agentGeneratorEnabled: true,
+          // The account's fiscal details, so the billing modal can prefill
+          // them for a partner the way it does for the OWNER - the client
+          // reads them off whichever account list it was given.
+          billingCompany: true,
+          billingRnc: true,
+          billingAddress: true,
+          billingCity: true,
+          billingPhone: true,
           callsPaused: true,
           messagesPaused: true,
           agency: {
@@ -113,6 +129,14 @@ const getAccessibleAccounts = async (req, res) => {
           chatbotsEnabled: true,
           crmEnabled: true,
           agentGeneratorEnabled: true,
+          // The account's fiscal details, so the billing modal can prefill
+          // them for a partner the way it does for the OWNER - the client
+          // reads them off whichever account list it was given.
+          billingCompany: true,
+          billingRnc: true,
+          billingAddress: true,
+          billingCity: true,
+          billingPhone: true,
           callsPaused: true,
           messagesPaused: true,
           _count: {

@@ -52,6 +52,15 @@ const getAllUsers = async (req, res) => {
         inboundRate: true,
         chatbotMessagePrice: true,
         receiptEmail: true,
+        // The account's fiscal details, so the billing modal can PREFILL them.
+        // updateUserBilling writes these; without them on the way out the form
+        // opens blank over an RNC that is already on file, and saving anything
+        // else blanks it.
+        billingCompany: true,
+        billingRnc: true,
+        billingAddress: true,
+        billingCity: true,
+        billingPhone: true,
         voiceAgentsEnabled: true,
         chatbotsEnabled: true,
         crmEnabled: true,

@@ -355,7 +355,15 @@ const getMessagesExternal = async (req, res) => {
  * the card will be charged. A client asking for $100 under a partner that
  * collects 27% pays $127 and is credited $100 — the panel has to be able to
  * say so up front instead of surprising them on the statement.
- * GET /api/credits/quote?amount=100
+ * GET /api/credits/quote?amount=100[&forUserId=42]
+ *
+ * `forUserId` quotes ANOTHER account instead of the caller, which is what the
+ * billing-periods screen needs: its "Cobrar" button only renders for a manager
+ * looking at someone else's account, so the one place a human presses a button
+ * that charges a taxed card is the one place the caller's own tax is the wrong
+ * one to price with - for LM's own account that tax is zero, and the screen
+ * would show $100 next to a button that charges $127. Allowed only for the
+ * OWNER or a partner above that account; nobody else, and never a sibling.
  */
 const getQuote = async (req, res) => {
   try {
@@ -366,7 +374,22 @@ const getQuote = async (req, res) => {
       return res.status(400).json({ error: 'Indica un monto válido mayor que cero.' });
     }
 
-    const charge = await resolveCharge(req.prisma, req.user.id, amount);
+    // Absent, this quotes the caller and behaves exactly as it always did.
+    let subjectId = req.user.id;
+    if (req.query.forUserId !== undefined) {
+      subjectId = parseInt(req.query.forUserId);
+      if (!Number.isFinite(subjectId)) return res.status(400).json({ error: 'Cuenta no válida.' });
+
+      // The SAME check the invoice endpoints use - imported, not reimplemented,
+      // so "the account itself, the OWNER, or a partner above it" cannot drift
+      // into two different answers in two files.
+      const { canReadAccount } = require('./invoiceController');
+      if (!(await canReadAccount(req.prisma, req.user, subjectId))) {
+        return res.status(403).json({ error: 'No puedes consultar los montos de esta cuenta.' });
+      }
+    }
+
+    const charge = await resolveCharge(req.prisma, subjectId, amount);
     // Hand-built field by field, never `...charge`: charge.profile is the
     // issuer's whole BillingProfile row — bank account, SWIFT, routing number
     // and the live invoice numbering sequence — and none of that belongs in a
