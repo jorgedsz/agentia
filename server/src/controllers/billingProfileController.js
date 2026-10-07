@@ -21,6 +21,7 @@ const DEFAULTS = {
   taxRate: 0,
   taxLabel: 'ITBIS',
   retentionRate: 0,
+  retentionLabel: 'RETENCIÓN',
   invoicePrefix: 'FAC-',
   invoiceNextNumber: 1,
   invoicePadding: 6,
@@ -149,6 +150,14 @@ function sanitizeProfileInput(body = {}) {
   // nameless tax row.
   if (body.taxLabel !== undefined) {
     data.taxLabel = String(body.taxLabel ?? '').trim() || DEFAULTS.taxLabel;
+  }
+
+  // Same treatment for the retention's label, and for the same reason: it is
+  // free text (an issuer writes its own form's name, "Ret. 27% IR-17"), the
+  // column is NOT NULL, and a blank one would print a row with an amount under
+  // a nameless header. Falls back to the literal the format has always used.
+  if (body.retentionLabel !== undefined) {
+    data.retentionLabel = String(body.retentionLabel ?? '').trim() || DEFAULTS.retentionLabel;
   }
 
   // An empty prefix is legitimate (numbering with nothing but digits), so it is

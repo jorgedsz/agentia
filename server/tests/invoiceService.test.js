@@ -549,8 +549,8 @@ test('buildRegeneratedInvoiceData agrees with buildInvoiceData field by field', 
     issuedAt: ISSUED.issuedAt,
   });
   const again = buildRegeneratedInvoiceData({ invoice: ISSUED, profile: PROFILE, client: CLIENT, purchase: PURCHASE });
-  for (const key of ['subtotal', 'taxLabel', 'taxRate', 'taxAmount', 'retention', 'total',
-    'amountPaid', 'totalInWords', 'conceptLines', 'issuerSnapshot', 'clientSnapshot']) {
+  for (const key of ['subtotal', 'taxLabel', 'taxRate', 'taxAmount', 'retention', 'retentionLabel',
+    'total', 'amountPaid', 'totalInWords', 'conceptLines', 'issuerSnapshot', 'clientSnapshot']) {
     assert.deepStrictEqual(again[key], fresh[key], `${key} must match what issuance would write`);
   }
   assert.strictEqual(again.dueAt.getTime(), fresh.dueAt.getTime());
@@ -590,7 +590,7 @@ test('with no purchase, buildRegeneratedInvoiceData touches no money field at al
   const orphan = { ...ISSUED, creditPurchaseId: null };
   const data = buildRegeneratedInvoiceData({ invoice: orphan, profile: PROFILE, client: CLIENT, purchase: null });
 
-  for (const key of ['subtotal', 'taxLabel', 'taxRate', 'taxAmount', 'retention',
+  for (const key of ['subtotal', 'taxLabel', 'taxRate', 'taxAmount', 'retention', 'retentionLabel',
     'total', 'amountPaid', 'totalInWords', 'conceptLines']) {
     assert.strictEqual(Object.prototype.hasOwnProperty.call(data, key), false, `must not rewrite ${key}`);
   }
@@ -843,4 +843,64 @@ test('buildRegeneratedInvoiceData drops the retención back to 0 when the issuer
   // The net comes back down to the money received, not left grossed up.
   assert.strictEqual(data.subtotal, 100);
   assert.strictEqual(data.total, 127);
+});
+
+// ---------------------------------------------------------------------------
+// THE RETENCIÓN'S NAME, which is frozen onto the document the same way the
+// tax's is. Dominican withholding is remitted on a numbered form and an issuer
+// may change forms, so what the row was CALLED has to survive on the row.
+// ---------------------------------------------------------------------------
+
+test('buildInvoiceData freezes the retention label the issuer configured onto the invoice', () => {
+  const named = { ...RETAINED, retentionLabel: 'Ret. IR-17' };
+  const data = retainedData(100, named);
+  assert.strictEqual(data.retentionLabel, 'Ret. IR-17');
+  // And it is only a NAME: not one cent moves because of it.
+  assert.strictEqual(data.subtotal, 136.99);
+  assert.strictEqual(data.retention, 36.99);
+  assert.strictEqual(data.total, 100);
+});
+
+test('a profile with no retention label at all freezes the old literal', () => {
+  // PROFILE predates the column, exactly like every row already on file.
+  assert.strictEqual(retainedData(100).retentionLabel, 'RETENCIÓN');
+  assert.strictEqual(
+    buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase: PURCHASE, number: 'FAC-000102' }).retentionLabel,
+    'RETENCIÓN',
+  );
+});
+
+test('a blank retention label falls back rather than freezing a nameless row', () => {
+  for (const blank of ['', '   ', null, undefined]) {
+    assert.strictEqual(
+      retainedData(100, { ...RETAINED, retentionLabel: blank }).retentionLabel,
+      'RETENCIÓN',
+      `a label of ${JSON.stringify(blank)} must not reach the document`,
+    );
+  }
+  // A real label is trimmed, not stored with the whitespace somebody pasted.
+  assert.strictEqual(retainedData(100, { ...RETAINED, retentionLabel: '  Ret. IR-17  ' }).retentionLabel, 'Ret. IR-17');
+});
+
+// The label follows the profile on a rebuild, like taxLabel does: a document
+// regenerated after the issuer corrected its form's name says the new one.
+test('buildRegeneratedInvoiceData picks the retention label up off the CURRENT profile', () => {
+  const data = buildRegeneratedInvoiceData({
+    invoice: ISSUED,
+    profile: { ...RETAINED, retentionLabel: 'Ret. IR-17' },
+    client: CLIENT,
+    purchase: PURCHASE,
+  });
+  assert.strictEqual(data.retentionLabel, 'Ret. IR-17');
+});
+
+test('with no purchase, buildRegeneratedInvoiceData leaves the retention label alone too', () => {
+  const data = buildRegeneratedInvoiceData({
+    invoice: { ...ISSUED, creditPurchaseId: null, retentionLabel: 'Ret. IR-17' },
+    profile: { ...RETAINED, retentionLabel: 'Algo distinto' },
+    client: CLIENT,
+    purchase: null,
+  });
+  // Not in the update at all: the row is the only surviving record of it.
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(data, 'retentionLabel'), false);
 });

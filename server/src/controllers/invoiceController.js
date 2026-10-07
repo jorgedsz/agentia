@@ -53,6 +53,11 @@ function present(invoice) {
     taxRate: invoice.taxRate,
     taxAmount: invoice.taxAmount,
     retention: invoice.retention,
+    // What the RETENCIÓN row is called, frozen at issue time like taxLabel.
+    // Null on an invoice issued before the column existed, and on those the
+    // document printed the literal 'RETENCIÓN' — so that is what it keeps
+    // printing, rather than a blank row header or the issuer's current label.
+    retentionLabel: invoice.retentionLabel || 'RETENCIÓN',
     total: invoice.total,
     // What was ACTUALLY collected for this document. Below `total` whenever the
     // issuer shows the tax without charging it to the client - which is the

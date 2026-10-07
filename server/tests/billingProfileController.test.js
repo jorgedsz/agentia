@@ -89,6 +89,20 @@ test('a blank tax label falls back to the default instead of printing a nameless
   assert.strictEqual(sanitizeProfileInput({ taxLabel: ' ITBIS ' }).data.taxLabel, 'ITBIS');
 });
 
+// Free text, because an issuer writes its own form's name into it — but the
+// column is NOT NULL and the row prints an amount, so a blank header is the one
+// thing it may not become.
+test('a blank retention label falls back to the default instead of printing a nameless row', () => {
+  assert.strictEqual(sanitizeProfileInput({ retentionLabel: '   ' }).data.retentionLabel, 'RETENCIÓN');
+  assert.strictEqual(sanitizeProfileInput({ retentionLabel: '' }).data.retentionLabel, 'RETENCIÓN');
+  assert.strictEqual(sanitizeProfileInput({ retentionLabel: null }).data.retentionLabel, 'RETENCIÓN');
+  assert.strictEqual(sanitizeProfileInput({ retentionLabel: ' Ret. IR-17 ' }).data.retentionLabel, 'Ret. IR-17');
+});
+
+test('a body that never mentions the retention label does not rewrite it', () => {
+  assert.strictEqual('retentionLabel' in sanitizeProfileInput({ taxRate: 27 }).data, false);
+});
+
 test('an empty invoice prefix is kept: numbering with nothing but digits is legitimate', () => {
   assert.strictEqual(sanitizeProfileInput({ invoicePrefix: '' }).data.invoicePrefix, '');
   assert.strictEqual(sanitizeProfileInput({ invoicePrefix: ' B02 ' }).data.invoicePrefix, 'B02');
@@ -153,6 +167,11 @@ test('shape falls back to the schema defaults when there is no profile yet', () 
   assert.strictEqual(DEFAULTS.chargeTaxToClient, false);
   assert.strictEqual(out.taxRate, 0);
   assert.strictEqual(out.taxLabel, 'ITBIS');
+  // The literal the document printed before the label was configurable, so an
+  // issuer that never touches this keeps printing exactly what it printed.
+  assert.strictEqual(out.retentionRate, 0);
+  assert.strictEqual(out.retentionLabel, 'RETENCIÓN');
+  assert.strictEqual(DEFAULTS.retentionLabel, 'RETENCIÓN');
   assert.strictEqual(out.invoicePrefix, 'FAC-');
   assert.strictEqual(out.invoiceNextNumber, 1);
   assert.strictEqual(out.invoicePadding, 6);

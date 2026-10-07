@@ -478,10 +478,16 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
                       there IS one it is signed, because it sits directly under
                       a tax row that ADDS and an unsigned figure in the same
                       column would read as a second charge. The label carries
-                      the rate the same way the tax row does. */}
+                      the rate the same way the tax row does.
+
+                      THE NAME COMES OFF THE INVOICE, not off the issuer's
+                      profile: the withholding is remitted on a numbered form
+                      and the issuer may change forms, so the document keeps
+                      the name it was issued under. Absent — every invoice
+                      issued before the column existed — is the old literal. */}
                   <tr>
                     <td style={{ ...S.cell, fontWeight: 'bold' }}>
-                      RETENCIÓN{showRetentionRate ? ` (${rateOf(retentionRate)}%)` : ''}
+                      {(invoice.retentionLabel || 'RETENCIÓN')}{showRetentionRate ? ` (${rateOf(retentionRate)}%)` : ''}
                     </td>
                     <td style={{ ...S.cell, textAlign: 'right' }}>
                       {hasRetention ? `− ${money(invoice.retention, currency)}` : ''}
