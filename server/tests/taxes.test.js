@@ -2,8 +2,14 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { round2, computeCharge, resolveTaxConfig } = require('../src/utils/taxes');
 
-const ITBIS = { taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' };
-const NONE = { taxEnabled: false, taxRate: 0, taxLabel: 'ITBIS' };
+// The two modes the feature now has. SHOWN is the default a partner gets when
+// it switches its invoicing on: its invoices carry the 27%, but no client is
+// charged anything extra. CHARGED is the same partner with
+// chargeTaxToClient flipped on, which is the behaviour that used to be the only
+// one — $100 of balance costs the card $127.
+const ITBIS_SHOWN = { taxEnabled: true, chargeTaxToClient: false, taxRate: 27, taxLabel: 'ITBIS' };
+const ITBIS = { taxEnabled: true, chargeTaxToClient: true, taxRate: 27, taxLabel: 'ITBIS' };
+const NONE = { taxEnabled: false, chargeTaxToClient: false, taxRate: 0, taxLabel: 'ITBIS' };
 
 test('round2 rounds half a cent up', () => {
   assert.strictEqual(round2(3.375), 3.38);
@@ -58,6 +64,39 @@ test('tax disabled leaves the amount alone', () => {
   assert.strictEqual(c.taxRate, 0);
 });
 
+// THE DEFAULT MODE. The partner's invoices show 27% ITBIS, but the client is
+// charged nothing extra: $100 asked for is $100 on the card. The rate and the
+// label still come through, because the invoice and the panel display them.
+test('tax shown but not charged: the client pays exactly what it asked for', () => {
+  const c = computeCharge(100, ITBIS_SHOWN);
+  assert.deepStrictEqual(c, { subtotal: 100, taxRate: 27, taxLabel: 'ITBIS', taxAmount: 0, total: 100 });
+});
+
+test('tax shown but not charged: total equals subtotal at every magnitude', () => {
+  for (const s of [0.01, 1, 7.77, 12.5, 15.5, 33.33, 99.99, 250, 1000.01]) {
+    const c = computeCharge(s, ITBIS_SHOWN);
+    assert.strictEqual(c.taxAmount, 0, `taxAmount must be 0 at ${s}`);
+    assert.strictEqual(c.total, c.subtotal, `total must equal subtotal at ${s}`);
+  }
+});
+
+// chargeTaxToClient on its own does nothing: a tax that appears on no invoice
+// must never reach a card.
+test('chargeTaxToClient without taxEnabled charges nothing', () => {
+  const c = computeCharge(100, { taxEnabled: false, chargeTaxToClient: true, taxRate: 27, taxLabel: 'ITBIS' });
+  assert.strictEqual(c.taxRate, 0);
+  assert.strictEqual(c.taxAmount, 0);
+  assert.strictEqual(c.total, 100);
+});
+
+// A config object from before this split (no chargeTaxToClient key at all)
+// must read as "do not charge", never as "charge".
+test('a taxConfig with no chargeTaxToClient key charges nothing', () => {
+  const c = computeCharge(100, { taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' });
+  assert.strictEqual(c.taxAmount, 0);
+  assert.strictEqual(c.total, 100);
+});
+
 test('subtotal plus tax always equals total, to the cent', () => {
   for (const s of [1, 7.77, 12.5, 33.33, 99.99, 250, 1000.01]) {
     const c = computeCharge(s, ITBIS);
@@ -74,6 +113,46 @@ test('a client under a tax-enabled partner inherits the rate', async () => {
   assert.strictEqual(cfg.taxEnabled, true);
   assert.strictEqual(cfg.taxRate, 27);
   assert.strictEqual(cfg.profile.id, 5);
+  // Not configured on the profile, so the client is charged nothing extra.
+  assert.strictEqual(cfg.chargeTaxToClient, false);
+});
+
+test('resolveTaxConfig reports chargeTaxToClient off and on, straight off the profile', async () => {
+  const makePrisma = (chargeTaxToClient) => ({
+    user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: 9, billingMode: 'platform' }) },
+    billingProfile: {
+      findUnique: async () => ({ id: 5, ownerId: 9, taxEnabled: true, chargeTaxToClient, taxRate: 27, taxLabel: 'ITBIS' }),
+    },
+  });
+
+  const shown = await resolveTaxConfig(makePrisma(false), 1, { partnerId: 9, mode: 'own_stripe' });
+  assert.strictEqual(shown.taxEnabled, true);
+  assert.strictEqual(shown.chargeTaxToClient, false);
+  assert.strictEqual(shown.taxRate, 27);
+  assert.strictEqual(computeCharge(100, shown).total, 100);
+
+  const charged = await resolveTaxConfig(makePrisma(true), 1, { partnerId: 9, mode: 'own_stripe' });
+  assert.strictEqual(charged.chargeTaxToClient, true);
+  assert.strictEqual(computeCharge(100, charged).total, 127);
+});
+
+// The same account, the same 27% — and still nothing charged, because the tax
+// is only shown. This is the whole point of the split: taxEnabled governs the
+// document, chargeTaxToClient governs the card.
+test('a tax-enabled profile with chargeTaxToClient off never reaches the card, even through resolveTaxConfig', async () => {
+  const prisma = {
+    user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: 9, billingMode: 'platform' }) },
+    billingProfile: {
+      findUnique: async () => ({ id: 5, ownerId: 9, taxEnabled: true, chargeTaxToClient: false, taxRate: 27, taxLabel: 'ITBIS' }),
+    },
+  };
+  const cfg = await resolveTaxConfig(prisma, 1, { partnerId: 9, mode: 'own_stripe' });
+  const c = computeCharge(250, cfg);
+  assert.strictEqual(c.subtotal, 250);
+  assert.strictEqual(c.taxAmount, 0);
+  assert.strictEqual(c.total, 250);
+  assert.strictEqual(c.taxRate, 27);
+  assert.strictEqual(c.taxLabel, 'ITBIS');
 });
 
 test('a profile with the tax switched off resolves to rate 0', async () => {
@@ -119,6 +198,7 @@ test('the tax is gated off anything but own_stripe, even with the partner inject
   for (const mode of ['own_whop', 'manual', 'platform']) {
     const cfg = await resolveTaxConfig(prisma, 1, { partnerId: 9, mode });
     assert.strictEqual(cfg.taxEnabled, false, `${mode} must not be taxed`);
+    assert.strictEqual(cfg.chargeTaxToClient, false, `${mode} must not charge a tax`);
     assert.strictEqual(cfg.taxRate, 0, `${mode} must resolve to rate 0`);
     assert.strictEqual(cfg.profile, null, `${mode} must resolve to no profile`);
   }

@@ -3,10 +3,26 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI, platformSettingsAPI, authAPI } from '../../services/api'
+import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI, platformSettingsAPI, authAPI, invoicesAPI } from '../../services/api'
 import ChatAssistant from './ChatAssistant'
 import NotificationToasts from './NotificationToasts'
 import WhopCheckoutModal from './WhopCheckoutModal'
+import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
+
+// THIS MODAL IS THE ONLY PLACE A CLIENT TOPS UP. The screen that looks like the
+// top-up page, Credits.jsx, has been orphaned since February and was deleted
+// with this change — so every amount taken or committed to below has to quote
+// its tax here, or it is quoted nowhere. A client asking for $100 under a
+// partner that collects 27% pays $127, and must read that before committing.
+//
+// Renders nothing at all when no tax reaches the card: the quote endpoint
+// answers `taxAmount: 0` and every block below is guarded on `taxAmount > 0`.
+// That covers two cases now — an account under no tax-collecting partner, and
+// one under a partner that SHOWS the tax on its invoices without charging it
+// (BillingProfile.chargeTaxToClient, see server/src/utils/taxes.js). In both,
+// the client is charged exactly what it typed, so there is nothing to warn
+// about and these screens look as they did before any of this existed.
+const quoteCharge = (amount) => creditsAPI.quote(amount).then(({ data }) => data)
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -127,6 +143,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
     </svg>
   ),
+  Invoice: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  ),
   Training: () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -161,11 +182,28 @@ export default function DashboardLayout() {
   const [openaiBalance, setOpenaiBalance] = useState(null)
   const [userCredits, setUserCredits] = useState(null)
   const [showCreditModal, setShowCreditModal] = useState(false)
+  // Does this account bill with tax? It is the only thing the Facturas entry
+  // needs, and GET /api/invoices already answers it, so the flag is read from
+  // there instead of growing a second endpoint for one boolean.
+  //
+  // ONCE, ON MOUNT, and with limit=1 so the sidebar never pulls a payments
+  // page it does not render: the answer changes only when the OWNER edits the
+  // partner's invoicing profile, which a reload picks up. Starts false, so the
+  // entry appears when the answer lands rather than flashing for everyone.
+  const [billsWithTax, setBillsWithTax] = useState(false)
   useEffect(() => {
     fetchBalances()
     fetchCredits()
     fetchOpenaiBalance()
   }, [location.pathname])
+
+  useEffect(() => {
+    invoicesAPI.list(1)
+      .then(({ data }) => setBillsWithTax(!!data?.billsWithTax))
+      // Not an error worth surfacing in a sidebar: the entry simply stays
+      // hidden, which is the right answer for almost every account.
+      .catch(() => setBillsWithTax(false))
+  }, [user?.id])
 
   // Poll credits every 30s so sidebar stays up to date after calls
   useEffect(() => {
@@ -314,6 +352,9 @@ export default function DashboardLayout() {
         { id: 'billing-periods', path: '/dashboard/billing-periods', label: 'Períodos y reportes', icon: Icons.Reports, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'other-charges', path: '/dashboard/other-charges', label: 'Otros cobros', icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'budgets', path: '/dashboard/budgets', label: 'Presupuestos', icon: Icons.Payments, featureKey: 'budgets', roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        // Hidden for every account that does not bill with tax: it would have
+        // no invoices and never will, so the entry would advertise a dead page.
+        { id: 'invoices', path: '/dashboard/invoices', label: 'Facturas', icon: Icons.Invoice, featureKey: 'invoices', roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'chatbot-costs', path: '/dashboard/chatbot-costs', label: 'Chatbot Costs', icon: Icons.Chatbot, roles: [ROLES.OWNER] },
       ]
     },
@@ -355,6 +396,11 @@ export default function DashboardLayout() {
     // Managers always see it (to set up their accounts); everyone else only when
     // budgets are on for them or for a partner above them.
     if (key === 'budgets') return ['OWNER', 'WHITELABEL', 'AGENCY'].includes(user?.role) || user?.budgetsActive === true
+    // Managers always see it, like budgets: a partner issuing invoices to its
+    // clients needs to reach this page to check and support them, and the OWNER
+    // needs it to verify the feature at all. A plain client only sees it once
+    // its own account actually bills with tax.
+    if (key === 'invoices') return ['OWNER', 'WHITELABEL', 'AGENCY'].includes(user?.role) || billsWithTax === true
     return true
   }
 
@@ -764,6 +810,16 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
   const [rechargeLoading, setRechargeLoading] = useState(false)
   const [arMsg, setArMsg] = useState('')
   const [confirmRecharge, setConfirmRecharge] = useState(null) // amount pending confirmation
+  // The quote behind the amount in that confirmation, when there is a tax.
+  const [confirmQuote, setConfirmQuote] = useState(null)
+  const [quoting, setQuoting] = useState(false)
+
+  // What the amount in the field will really cost. ONE quote for BOTH buttons
+  // under it, because both charge that same field: "Buy Credits" (hosted
+  // checkout) and "Recargar ahora" (saved card, off-session).
+  const amountQuote = useChargeQuote(amount, quoteCharge, { enabled: config.enabled && !ar.selfServiceDisabled })
+  // What the automation will take every time it fires, and what it will credit.
+  const autoRechargeQuote = useChargeQuote(ar.amount, quoteCharge, { enabled: ar.hasCard && ar.enabled })
 
   const fetchAr = () => {
     creditsAPI.getAutoRecharge()
@@ -885,18 +941,31 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
 
   // "Recharge now" uses the top amount field (same as Buy Credits) and asks for
   // confirmation before charging the saved card off-session.
-  const requestRecharge = () => {
+  const requestRecharge = async () => {
     const amt = parseFloat(amount)
     if (!Number.isFinite(amt) || amt < config.min || amt > config.max) {
       setError(`Ingresa un monto entre $${config.min} y $${config.max}.`); return
     }
     setError('')
+    // The confirmation is the last thing read before money moves, so it asks
+    // for its OWN quote rather than trusting the debounced one, which may
+    // still be in flight for an amount typed a second ago — the one case where
+    // a stale breakdown would let the surprise through.
+    //
+    // A FAILED QUOTE MUST NEVER BLOCK A PAYMENT: the catch leaves confirmQuote
+    // null and the dialog then reads exactly as it did before this existed.
+    setQuoting(true)
+    let quote = null
+    try { quote = await quoteCharge(amt) } catch { quote = null }
+    setQuoting(false)
+    setConfirmQuote(quote)
     setConfirmRecharge(amt)
   }
 
   const confirmRechargeNow = async () => {
     const amt = confirmRecharge
     setConfirmRecharge(null)
+    setConfirmQuote(null)
     setRechargeLoading(true)
     setError('')
     try {
@@ -1016,6 +1085,13 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                   ))}
                 </div>
               )}
+              {/* What the two buttons below will really take off the card. Both
+                  charge the amount above, so one breakdown serves both. */}
+              {amountQuote.quote?.taxAmount > 0 && (
+                <div className="mb-4">
+                  <ChargeBreakdown {...amountQuote} />
+                </div>
+              )}
               {/* While auto-recharge is about to charge (or is charging) the card, a
                   manual top-up would charge it twice — so both buttons wait. */}
               {ar.manualTopUpBlocked && (
@@ -1039,11 +1115,11 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                 {ar.hasCard && (
                   <button
                     onClick={requestRecharge}
-                    disabled={rechargeLoading || !amount || !!ar.manualTopUpBlocked}
+                    disabled={rechargeLoading || quoting || !amount || !!ar.manualTopUpBlocked}
                     title={t('credits.rechargeNowHint') || 'Cobra el monto de arriba a tu tarjeta guardada'}
                     className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {rechargeLoading && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>}
+                    {(rechargeLoading || quoting) && <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>}
                     {t('credits.rechargeNowBtn') || 'Recargar ahora'}
                   </button>
                 )}
@@ -1118,6 +1194,7 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                     </label>
 
                     {ar.enabled && (
+                      <>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -1148,6 +1225,19 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                           </div>
                         </div>
                       </div>
+                      {/* What the automation will take each time it fires, and
+                          what it will credit — the client never sees this
+                          charge happen, so it has to be legible before it is
+                          switched on. */}
+                      {autoRechargeQuote.quote?.taxAmount > 0 && (
+                        <div>
+                          <ChargeBreakdown {...autoRechargeQuote} />
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                            Cada recarga automática cobrará el total a tu tarjeta y acreditará el subtotal a tu saldo.
+                          </p>
+                        </div>
+                      )}
+                      </>
                     )}
 
                     <button
@@ -1175,17 +1265,30 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
 
     {/* Confirm off-session charge */}
     {confirmRecharge != null && (
-      <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setConfirmRecharge(null) }}>
+      <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) { setConfirmRecharge(null); setConfirmQuote(null) } }}>
         <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
           <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
             {t('credits.confirmRechargeTitle') || 'Confirmar recarga'}
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-5">
-            {(t('credits.confirmRechargeBody') || 'Se cobrarán ${amount} a tu tarjeta guardada.').replace('{amount}', confirmRecharge)}
+          {/* THE AMOUNT NAMED HERE IS WHAT THE CARD IS CHARGED, never the
+              subtotal: this sentence and the button next to it are the consent.
+              With no tax (or no quote) `confirmQuote` is null and both read
+              exactly as they did before, naming `confirmRecharge` itself. */}
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+            {(t('credits.confirmRechargeBody') || 'Se cobrarán ${amount} a tu tarjeta guardada.')
+              .replace('{amount}', confirmQuote?.taxAmount > 0 ? confirmQuote.total.toFixed(2) : confirmRecharge)}
           </p>
-          <div className="flex gap-2">
+          {confirmQuote?.taxAmount > 0 && (
+            <div className="mb-3">
+              <ChargeBreakdown quote={confirmQuote} />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                Se acreditarán ${confirmQuote.subtotal.toFixed(2)} a tu saldo.
+              </p>
+            </div>
+          )}
+          <div className="flex gap-2 mt-5">
             <button
-              onClick={() => setConfirmRecharge(null)}
+              onClick={() => { setConfirmRecharge(null); setConfirmQuote(null) }}
               className="flex-1 py-2.5 border border-gray-300 dark:border-dark-border rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors"
             >
               {t('common.cancel') || 'Cancelar'}
@@ -1194,7 +1297,8 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
               onClick={confirmRechargeNow}
               className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              {(t('credits.confirmRechargeBtn') || 'Cobrar ${amount}').replace('{amount}', confirmRecharge)}
+              {(t('credits.confirmRechargeBtn') || 'Cobrar ${amount}')
+                .replace('{amount}', confirmQuote?.taxAmount > 0 ? confirmQuote.total.toFixed(2) : confirmRecharge)}
             </button>
           </div>
         </div>

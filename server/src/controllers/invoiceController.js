@@ -53,6 +53,13 @@ function present(invoice) {
     taxAmount: invoice.taxAmount,
     retention: invoice.retention,
     total: invoice.total,
+    // What was ACTUALLY collected for this document. Below `total` whenever the
+    // issuer shows the tax without charging it to the client - which is the
+    // whole reason the column exists, since the document then asks for more
+    // than the money that came in and has to say so. Null on an invoice issued
+    // before the column existed: that means "unknown", not "nothing paid", and
+    // the renderer must not print a shortfall for it.
+    amountPaid: invoice.amountPaid ?? null,
     totalInWords: invoice.totalInWords,
     issuedAt: invoice.issuedAt,
     dueAt: invoice.dueAt ?? null,
@@ -112,18 +119,24 @@ async function canReadInvoice(prisma, requester, invoice) {
  * One settled payment, with its invoice attached when there is one.
  *
  * `invoiceExpected` is the difference between a document that FAILED to be
- * issued and one that was never due. Issuing is gated on the partner's profile,
- * not on the payment, so within a tax-collecting partner any completed payment
- * CAN be issued an invoice - "can never have one" is not quite the real
- * distinction. What separates the two cases, and it is free because the column
- * is already on the row, is whether the payment itself carried tax: taxAmount
- * above zero means it was charged under the tax and an invoice was due, so a
- * null invoice there is a failed emission to repair. taxAmount of zero means
- * the payment predates the partner switching its tax on; an invoice can still
- * be issued for it (a tax-free one) but nothing went wrong, so the client can
- * offer that as optional instead of flagging it as broken.
+ * issued and one that was never due, and it keys on `billsWithTax` - whether
+ * THE ACCOUNT bills with tax at all, which is exactly the gate
+ * issueInvoiceForPurchase applies.
+ *
+ * It used to key on `taxAmount > 0` on the payment itself, on the reasoning
+ * that a payment carrying tax was charged under the tax and so was due a
+ * document. That reasoning died with BillingProfile.chargeTaxToClient: a
+ * partner can now show the tax on its invoices without charging it, so every
+ * payment carries taxAmount 0 and every row would read "predates the tax" while
+ * the account is in fact invoicing all of them. The account-level flag is the
+ * honest question: if this account bills with tax, each of its settled payments
+ * is due an invoice, and a null one is a failed emission to repair.
+ *
+ * `billsWithTax` false keeps the quiet third state for a caller that lists
+ * payments for an account that does not invoice at all - nothing went wrong
+ * there, so an invoice can be offered rather than flagged.
  */
-function presentPayment(purchase) {
+function presentPayment(purchase, billsWithTax = false) {
   const taxAmount = purchase.taxAmount || 0;
   return {
     purchaseId: purchase.id,
@@ -135,17 +148,23 @@ function presentPayment(purchase) {
     // The same Spanish text the invoice's DESCRIPCIÓN row carries, from the same
     // helper, so the list and the document cannot describe one payment two ways.
     concept: conceptFor(purchase),
-    // What the card paid.
+    // What the card paid. With the tax shown but not charged this equals
+    // `credits`, and the invoice's own `total` below is HIGHER than it - the two
+    // are reported side by side on purpose so that gap is visible in the list.
     amount: purchase.amount,
     // The pre-tax subtotal - what actually reached the balance.
     credits: purchase.credits,
+    // The rate and the tax the CARD paid, which is 0 unless the partner charges
+    // the tax on top. The tax the DOCUMENT shows is on the invoice, computed
+    // from the issuer's profile at issue time.
     taxRate: purchase.taxRate || 0,
     taxAmount,
-    invoiceExpected: taxAmount > 0,
+    invoiceExpected: !!billsWithTax,
     invoice: purchase.invoice
       ? {
         id: purchase.invoice.id,
         number: purchase.invoice.number,
+        // What the DOCUMENT asks for, which may exceed `amount` above.
         total: purchase.invoice.total,
         issuedAt: purchase.invoice.issuedAt,
       }
@@ -154,9 +173,9 @@ function presentPayment(purchase) {
 }
 
 /**
- * The requester's own settled PAYMENTS, newest first, each with its invoice
+ * The settled PAYMENTS of one account, newest first, each with its invoice
  * attached or null.
- * GET /api/invoices?limit=50
+ * GET /api/invoices?limit=50[&forUserId=42]
  *
  * Payments rather than invoices because an invoice that was never issued is
  * exactly the one that needs issuing, and it cannot appear in a list of
@@ -165,22 +184,60 @@ function presentPayment(purchase) {
  * document. Listed this way, that payment is visible with `invoice: null` and
  * its `purchaseId` is what GET /api/invoices/by-purchase/:purchaseId needs to
  * repair it. There is no other surface in the app that carries a purchase id.
+ *
+ * `forUserId` lists ANOTHER account's payments instead of the caller's, which
+ * is what the Facturas page needs the moment the person opening it is the one
+ * who ISSUES: the platform OWNER has no payments of his own and a partner's
+ * clients are the ones who paid, so for both of them their own list is empty
+ * and there is nothing to invoice from. Allowed only for the OWNER or a partner
+ * above that account - the same rule, from the same helper, that
+ * /by-purchase/:purchaseId already applies before it issues, so what can be
+ * listed and what can be issued cannot drift apart. A refusal is 403 and not an
+ * empty list: an empty list reads as "this client never paid", which is a lie
+ * that would have a manager hunting for payments that are simply not his to
+ * see.
+ *
+ * Every answer ECHOES the account it is about, as `accountId`. The response is
+ * then self-describing: a client switching accounts twice has two requests in
+ * flight and no way, from the payload alone, to tell which pick the slower
+ * answer belongs to. Rows shown under the wrong account's name are how a
+ * manager issues a fiscal document for the wrong client, and that needs no bad
+ * write to happen - the server would allow the click, because the manager may
+ * legitimately read both accounts. The echo is what lets the page refuse to
+ * pair them.
  */
 const listMine = async (req, res) => {
   try {
     const requested = parseInt(req.query.limit);
     const limit = Math.min(Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_LIMIT, MAX_LIMIT);
 
+    // Absent, this lists the caller and behaves exactly as it always did.
+    let subjectId = req.user.id;
+    if (req.query.forUserId !== undefined) {
+      subjectId = parseInt(req.query.forUserId);
+      if (!Number.isFinite(subjectId)) return res.status(400).json({ error: 'Cuenta no válida.' });
+
+      if (!(await canReadAccount(req.prisma, req.user, subjectId))) {
+        return res.status(403).json({ error: 'No puedes ver las facturas de esta cuenta.' });
+      }
+    }
+
     // The same gate issueInvoiceForPurchase applies: a profile AND its tax
     // switched on. An account that bills without tax has no invoices and never
     // will, so its screen gets an empty list and stays exactly as it is today
     // rather than growing a payments table it has no use for. resolveTaxConfig
     // never throws - it reads as "no tax" on any failure.
-    const { profile, taxEnabled } = await resolveTaxConfig(req.prisma, req.user.id);
-    if (!profile || !taxEnabled) return res.json({ billsWithTax: false, payments: [] });
+    //
+    // RESOLVED FOR THE ACCOUNT BEING VIEWED, never for whoever is looking. The
+    // flag answers "does THIS account bill with tax", and the manager asking is
+    // typically one whose own account does not - LM's own payments carry no tax
+    // - so reading it off the caller would tell a partner that its client's
+    // payments cannot be invoiced while issuance happily invoices them.
+    const { profile, taxEnabled } = await resolveTaxConfig(req.prisma, subjectId);
+    if (!profile || !taxEnabled) return res.json({ accountId: subjectId, billsWithTax: false, payments: [] });
 
     const purchases = await req.prisma.creditPurchase.findMany({
-      where: { userId: req.user.id, status: 'completed' },
+      where: { userId: subjectId, status: 'completed' },
       // By id, not createdAt: ids are monotonic and two payments in the same
       // second would otherwise come back in an arbitrary order.
       orderBy: { id: 'desc' },
@@ -203,7 +260,9 @@ const listMine = async (req, res) => {
       },
     });
 
-    res.json({ billsWithTax: true, payments: purchases.map(presentPayment) });
+    // `true` here, not a per-payment guess: this account bills with tax, so
+    // every settled payment on it is due a document.
+    res.json({ accountId: subjectId, billsWithTax: true, payments: purchases.map((p) => presentPayment(p, true)) });
   } catch (error) {
     console.error('Error listing payments:', error.message);
     res.status(500).json({ error: 'No se pudieron cargar los pagos' });

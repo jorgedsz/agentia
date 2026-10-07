@@ -1,7 +1,24 @@
-// The tax a partner adds on top of everything it charges its clients.
+// The tax a partner shows on its invoices, and — separately — the tax it adds
+// on top of everything it charges its clients.
 //
-// LM Consulting Group bills from the Dominican Republic and collects 27% on
-// every charge. The rule hangs off the partner (BillingProfile), and the whole
+// LM Consulting Group bills from the Dominican Republic and its invoices carry
+// 27% ITBIS. THOSE ARE TWO DIFFERENT DECISIONS and the BillingProfile keeps two
+// flags for them:
+//
+//   · taxEnabled        the partner's invoices show the tax (see
+//                       services/invoiceService.js, which computes it from the
+//                       profile at issue time).
+//   · chargeTaxToClient the tax is ALSO charged on top of every payment, so
+//                       $100 of balance costs the client $127.
+//
+// ONLY the second one reaches a card. It defaults to false, so a partner that
+// turns its invoicing on charges its clients exactly what they asked for while
+// its documents still print the 27% — deliberately leaving the invoice total
+// above what was collected. Everything below that computes a CHARGE honours
+// chargeTaxToClient; `taxRate`/`taxLabel` stay on the result regardless, for
+// display.
+//
+// The rule hangs off the partner (BillingProfile), and the whole
 // subtree under it inherits. That inheritance is resolved via getEffectiveBilling
 // below, which governs only a CLIENT through its direct provider (gated by that
 // provider's billing mode) — NOT the full ancestor chain that resolveReceiptEmail
@@ -54,6 +71,13 @@ function round2(n) {
  * balance — and the tax goes ON TOP of it. What reaches the balance is the
  * subtotal; what the card pays is the total.
  *
+ * THE TAX ONLY GOES ON TOP WHEN `taxConfig.chargeTaxToClient` IS TRUE. Without
+ * it this returns `taxAmount: 0` and `total === subtotal` — the client pays
+ * exactly what it asked for — while `taxRate` and `taxLabel` still describe the
+ * partner's tax so a caller can display it. That is the default: a partner's
+ * invoices can show a tax nobody was charged (see the file header), and only
+ * flipping chargeTaxToClient on makes the card pay it.
+ *
  * Everything is computed in whole cents and divided back to dollars only at
  * the very end. Multiplying a float subtotal by a float rate and rounding the
  * result (the previous approach) loses precision for ordinary amounts — e.g.
@@ -68,9 +92,15 @@ function round2(n) {
  */
 function computeCharge(subtotal, taxConfig) {
   assertFiniteNumber(subtotal, 'computeCharge(subtotal, ...)');
+  // The partner's rate, for display and for the invoice. Reported on the result
+  // even when nothing is charged for it.
   const rate = taxConfig?.taxEnabled ? (taxConfig.taxRate || 0) : 0;
+  // The rate that actually reaches the card. Gated on the second flag, so the
+  // whole charging behaviour below comes back by flipping it — nothing here is
+  // removed, only switched off by default.
+  const chargedRate = taxConfig?.chargeTaxToClient ? rate : 0;
   const subtotalCents = Math.round(subtotal * 100);
-  const taxCents = Math.round((subtotalCents * rate) / 100);
+  const taxCents = Math.round((subtotalCents * chargedRate) / 100);
   const totalCents = subtotalCents + taxCents;
   return {
     subtotal: subtotalCents / 100,
@@ -112,7 +142,9 @@ function computeCharge(subtotal, taxConfig) {
  * gate only together with that unification.
  */
 async function resolveTaxConfig(prisma, userId, options = {}) {
-  const NO_TAX = { profile: null, taxEnabled: false, taxRate: 0, taxLabel: 'ITBIS' };
+  const NO_TAX = {
+    profile: null, taxEnabled: false, chargeTaxToClient: false, taxRate: 0, taxLabel: 'ITBIS',
+  };
   try {
     let partnerId = options.partnerId;
     let mode = options.mode;
@@ -132,6 +164,11 @@ async function resolveTaxConfig(prisma, userId, options = {}) {
     return {
       profile,
       taxEnabled: !!profile.taxEnabled,
+      // Gated on taxEnabled as well: charging a client a tax that appears on no
+      // invoice is never what anyone means, so the second flag alone does
+      // nothing. The two are stored separately but read as "show it" and "also
+      // collect it", in that order.
+      chargeTaxToClient: !!(profile.taxEnabled && profile.chargeTaxToClient),
       taxRate: profile.taxEnabled ? (profile.taxRate || 0) : 0,
       taxLabel: profile.taxLabel || 'ITBIS',
     };
@@ -153,6 +190,10 @@ async function resolveTaxConfig(prisma, userId, options = {}) {
  */
 async function resolveCharge(prisma, userId, subtotal) {
   const taxConfig = await resolveTaxConfig(prisma, userId);
+  // computeCharge honours taxConfig.chargeTaxToClient, so with that flag off
+  // `taxAmount` is 0 and `total` is `subtotal`: every caller then charges,
+  // records and reports exactly the amount that was asked for, as it did before
+  // this tax existed. `taxRate`/`taxLabel` still come through for display.
   return { ...computeCharge(subtotal, taxConfig), profile: taxConfig.profile };
 }
 

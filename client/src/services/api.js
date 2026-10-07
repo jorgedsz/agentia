@@ -232,10 +232,21 @@ export const creditsAPI = {
 export const invoicesAPI = {
   // Lists settled PAYMENTS, each with its invoice attached or null — an invoice
   // that was never issued is exactly the one that needs issuing, and it cannot
-  // appear in a list of invoices. Returns `{ billsWithTax, payments }`; an
+  // appear in a list of invoices. Returns `{ accountId, billsWithTax, payments }`
+  // — `accountId` is the account the answer is ABOUT, echoed so a caller with
+  // two requests in flight can drop the one that is not about its current
+  // pick instead of showing one account's rows under another's name; an
   // account not under a tax-collecting partner gets `billsWithTax: false`.
   // Capped (50 by default, 200 max) with no cursor, so it is never complete.
-  list: (limit) => api.get('/invoices', { params: limit ? { limit } : {} }),
+  //
+  // Lists the caller's own payments; `forUserId` lists another account's
+  // instead, which is what the OWNER and an issuing partner need (their own
+  // payments are not the ones to invoice). Only the OWNER or a partner above
+  // that account may (403 otherwise), and `billsWithTax` then describes THAT
+  // account, not the caller.
+  list: (limit, forUserId) => api.get('/invoices', {
+    params: { ...(limit ? { limit } : {}), ...(forUserId ? { forUserId } : {}) },
+  }),
   get: (id) => api.get(`/invoices/${id}`),
   // The invoice for one payment, issued on the spot when a settlement missed
   // it. Answers 409 when the payment is not completed yet and 404 when the
@@ -244,7 +255,9 @@ export const invoicesAPI = {
 }
 
 // A partner's invoicing profile: its tax, its invoice numbering, and everything
-// printed on the documents it issues. OWNER only, both ways.
+// printed on the documents it issues. The OWNER may read and write any
+// account's; a WHITELABEL or an AGENCY only its own (`userId` = its own id, from
+// the Facturas page); a CLIENT none at all.
 export const billingProfileAPI = {
   get: (userId) => api.get(`/billing-profile/${userId}`),
   save: (userId, data) => api.put(`/billing-profile/${userId}`, data),

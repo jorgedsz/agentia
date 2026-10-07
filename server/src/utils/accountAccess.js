@@ -40,4 +40,40 @@ async function managedAccountIds(prisma, requester) {
   return [...ids];
 }
 
-module.exports = { canManageAccount, managedAccountIds };
+/**
+ * May this requester configure the invoicing profile of that account?
+ *
+ * A different question from canManageAccount above, and deliberately NOT the
+ * same answer. A BillingProfile is not something done TO an account from above:
+ * it is the issuer identity of the partner it hangs off — its RNC, its bank
+ * account, its numbering sequence — and the tax it defines applies to that
+ * partner's whole subtree. So:
+ *
+ *   · the OWNER may read and write any account's profile (platform support);
+ *   · a WHITELABEL or an AGENCY may read and write ONLY ITS OWN — which is the
+ *     opposite of canManageAccount, that refuses self on purpose, and narrower
+ *     than invoiceController's canReadAccount, that also allows the partners
+ *     ABOVE the account (a provider's bank details are not its reseller's
+ *     business, and the subtree rule would let a whitelabel mint an issuer
+ *     under any agency it hosts);
+ *   · a CLIENT may not touch any profile at all, not even its own. A client has
+ *     no subtree and issues nothing, so a profile on a client row would be a
+ *     dead issuer resolveTaxConfig never consults, plus a way to put a tax
+ *     label on an account that cannot invoice.
+ *
+ * Refused BY ROLE first and by id second, and synchronous on purpose: it needs
+ * no database, so it can be called as the very first thing a handler does —
+ * before the upsert that would otherwise create a row under somebody else's id.
+ */
+const BILLING_PROFILE_SELF_ROLES = ['WHITELABEL', 'AGENCY'];
+
+function canConfigureBillingProfile(requester, targetId) {
+  if (!requester || !requester.role) return false;
+  const target = Number(targetId);
+  if (!Number.isInteger(target)) return false;
+  if (requester.role === 'OWNER') return true;
+  if (!BILLING_PROFILE_SELF_ROLES.includes(requester.role)) return false;
+  return Number(requester.id) === target;
+}
+
+module.exports = { canManageAccount, managedAccountIds, canConfigureBillingProfile };

@@ -38,6 +38,13 @@ const fmtDate = (iso) => {
 // 27 prints as "27", never "27.00".
 const rateOf = (n) => String(Number(n) || 0)
 
+// To the cent, so 127 - 100 is 27.00 and never 26.999999999999996. Only ever
+// used on two numbers that are already frozen cent values on the invoice row.
+const toCent = (n) => Math.round((Number(n) || 0) * 100) / 100
+
+// Under a cent is nothing to chase on a fiscal document.
+const CENT = 0.01
+
 const S = {
   page: {
     background: '#ffffff',
@@ -87,6 +94,26 @@ export default function InvoiceDocument({ invoice, onClose }) {
   const currency = invoice.currency
   const blanks = Math.max(0, TABLE_ROWS - lines.length)
   const hasTax = invoice.taxAmount > 0
+
+  // WHAT WAS ACTUALLY COLLECTED, when the row records it.
+  //
+  // An issuer can show the tax on its invoices without charging it to the
+  // client (BillingProfile.chargeTaxToClient), and then this document asks for
+  // $127 while $100 came in. A page claiming $127 is payable with no hint that
+  // $100 already arrived is the thing to avoid, so the shortfall is printed
+  // below, in the document itself — not in a tooltip, not in the modal chrome —
+  // and therefore in the PDF too, since the PDF is this node.
+  //
+  // `amountPaid` null means UNKNOWN (an invoice issued before the column
+  // existed), not zero: nothing is printed for it rather than claiming the
+  // whole total is outstanding.
+  const paid = invoice.amountPaid === null || invoice.amountPaid === undefined
+    ? null
+    : toCent(invoice.amountPaid)
+  const outstanding = paid === null ? 0 : toCent(invoice.total - paid)
+  // Only when money is genuinely missing. A fully-paid invoice prints exactly
+  // what it always printed.
+  const showShortfall = paid !== null && outstanding >= CENT
 
   // The PDF is this very node printed, so what the client receives and what the
   // screen shows can never drift apart. Same pattern as the period report.
@@ -270,6 +297,29 @@ export default function InvoiceDocument({ invoice, onClose }) {
                 </tbody>
               </table>
             </div>
+
+            {/* Some of the TOTAL A PAGAR above was never collected. Said here,
+                immediately under the figure it contradicts, because that is the
+                one place a reader cannot skip on the way to the total. Bordered
+                rather than filled so it prints legibly in black and white and
+                does not read as a third orange band. */}
+            {showShortfall && (
+              <div style={{
+                marginTop: '10px',
+                border: `2px solid ${ORANGE}`,
+                padding: '8px 10px',
+                fontSize: '11px',
+                color: INK,
+              }}>
+                <div style={{ fontWeight: 'bold' }}>
+                  RECIBIDO: {money(paid, currency)} · PENDIENTE: {money(outstanding, currency)}
+                </div>
+                <div style={{ marginTop: '3px' }}>
+                  De los {money(invoice.total, currency)} de esta factura ya se recibieron{' '}
+                  {money(paid, currency)}. Quedan {money(outstanding, currency)} por cobrar.
+                </div>
+              </div>
+            )}
 
             {/* The amount spelled out, as the format requires */}
             <div style={{

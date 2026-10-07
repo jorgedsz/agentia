@@ -810,8 +810,22 @@ model BillingProfile {
   // (a foreign-key error) rather than silently erase its fiscal history —
   // the owner must be reassigned or the profile removed by hand first.
   owner             User      @relation("BillingProfileOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  // Tax
+  // Tax — TWO SEPARATE SWITCHES, deliberately:
+  //
+  //   · taxEnabled        this partner's INVOICES show the tax as its own line,
+  //                       and its clients' payments produce invoices at all.
+  //   · chargeTaxToClient the tax is ALSO added on top of every charge, so a
+  //                       client asking for $100 of balance pays $127.
+  //
+  // With taxEnabled on and chargeTaxToClient off (the default), the client pays
+  // exactly what it asked for — $100 buys 100 credits — while the invoice still
+  // totals subtotal + tax. The document therefore reads TOTAL A PAGAR $127
+  // against $100 collected, and Invoice.amountPaid records what really came in
+  // so that 27% gap is visible on the document instead of silent. Switching
+  // chargeTaxToClient on restores the original behaviour, where the invoice
+  // total and the card charge are the same number.
   taxEnabled        Boolean   @default(false)
+  chargeTaxToClient Boolean   @default(false)
   taxRate           Float     @default(0) // percent, e.g. 27
   taxLabel          String    @default("ITBIS")
   retentionRate     Float     @default(0) // the RETENCIÓN row; 0 leaves it empty
@@ -889,6 +903,13 @@ model Invoice {
   taxAmount        Float
   retention        Float           @default(0) // the RETENCIÓN row; v1 always writes 0. total = subtotal + taxAmount - retention
   total            Float
+  // What was ACTUALLY collected for this document — CreditPurchase.amount at
+  // issue time. It equals `total` when BillingProfile.chargeTaxToClient was on,
+  // and equals `subtotal` (the tax was shown but never charged) when it was off.
+  // Nullable because invoices issued before this column existed never recorded
+  // it; a null means "unknown", not "nothing paid", so the document must not
+  // print a shortfall for it.
+  amountPaid       Float?
   totalInWords     String
   conceptLines     String // JSON: the DESCRIPCIÓN rows
   issuerSnapshot   String // JSON

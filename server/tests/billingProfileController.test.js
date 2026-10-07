@@ -37,6 +37,7 @@ test('rates and integers arrive coerced from the strings a form posts', () => {
     invoicePadding: '8',
     dueDays: '30',
     taxEnabled: 'yes',
+    chargeTaxToClient: '',
   });
   assert.strictEqual(data.taxRate, 27);
   assert.strictEqual(data.retentionRate, 0);
@@ -44,6 +45,22 @@ test('rates and integers arrive coerced from the strings a form posts', () => {
   assert.strictEqual(data.invoicePadding, 8);
   assert.strictEqual(data.dueDays, 30);
   assert.strictEqual(data.taxEnabled, true);
+  assert.strictEqual(data.chargeTaxToClient, false);
+});
+
+// The two switches are independent all the way through the allow-list: the one
+// that shows the tax on the invoices, and the one that also charges it to the
+// client. Either can be posted without the other.
+test('both tax switches reach the row, and each one on its own', () => {
+  const both = sanitizeProfileInput({ taxEnabled: true, chargeTaxToClient: true }).data;
+  assert.deepStrictEqual(both, { taxEnabled: true, chargeTaxToClient: true });
+
+  const shownOnly = sanitizeProfileInput({ taxEnabled: true, chargeTaxToClient: false }).data;
+  assert.deepStrictEqual(shownOnly, { taxEnabled: true, chargeTaxToClient: false });
+
+  // A form section that posts only one of them must not blank the other.
+  assert.deepStrictEqual(sanitizeProfileInput({ taxEnabled: true }).data, { taxEnabled: true });
+  assert.deepStrictEqual(sanitizeProfileInput({ chargeTaxToClient: true }).data, { chargeTaxToClient: true });
 });
 
 test('an empty numeric field means zero (or the column default), never NaN', () => {
@@ -111,6 +128,9 @@ test('an out-of-range integer is refused with the field named', () => {
 test('shape falls back to the schema defaults when there is no profile yet', () => {
   const out = shape(null);
   assert.strictEqual(out.taxEnabled, false);
+  // Nobody is charged anything extra until this is deliberately turned on.
+  assert.strictEqual(out.chargeTaxToClient, false);
+  assert.strictEqual(DEFAULTS.chargeTaxToClient, false);
   assert.strictEqual(out.taxRate, 0);
   assert.strictEqual(out.taxLabel, 'ITBIS');
   assert.strictEqual(out.invoicePrefix, 'FAC-');
@@ -121,10 +141,186 @@ test('shape falls back to the schema defaults when there is no profile yet', () 
 });
 
 test('shape returns only profile fields, never the row id or the owner id', () => {
-  const out = shape({ id: 3, ownerId: 9, taxEnabled: true, taxRate: 27, createdAt: new Date() });
+  const out = shape({ id: 3, ownerId: 9, taxEnabled: true, chargeTaxToClient: true, taxRate: 27, createdAt: new Date() });
+  assert.strictEqual(out.chargeTaxToClient, true);
   assert.strictEqual(out.id, undefined);
   assert.strictEqual(out.ownerId, undefined);
   assert.strictEqual(out.createdAt, undefined);
   assert.strictEqual(out.taxRate, 27);
   assert.strictEqual(out.taxEnabled, true);
 });
+
+// ---------------------------------------------------------------------------
+// The permission matrix — who may configure whose invoicing
+//
+// The OWNER on any account; a WHITELABEL or an AGENCY on ITS OWN and nowhere
+// else; a CLIENT nowhere, not even on itself. No database: the rule is decided
+// from the requester and the id alone, which is exactly what lets the handlers
+// apply it before they look anything up or write anything.
+// ---------------------------------------------------------------------------
+
+const { canConfigureBillingProfile } = require('../src/utils/accountAccess');
+
+const OWNER = { id: 1, role: 'OWNER' };
+const LM = { id: 10, role: 'WHITELABEL' };       // the reseller partner
+const OTHER_PARTNER = { id: 20, role: 'WHITELABEL' };
+const AGENCY = { id: 30, role: 'AGENCY' };        // an agency under LM
+const CLIENT = { id: 40, role: 'CLIENT' };        // a client under that agency
+
+test('the OWNER may configure somebody else’s profile', () => {
+  assert.strictEqual(canConfigureBillingProfile(OWNER, LM.id), true);
+  assert.strictEqual(canConfigureBillingProfile(OWNER, CLIENT.id), true);
+  // Including its own, so the platform keeps the route it already had.
+  assert.strictEqual(canConfigureBillingProfile(OWNER, OWNER.id), true);
+});
+
+test('a partner may configure its own profile — the whole point of this change', () => {
+  assert.strictEqual(canConfigureBillingProfile(LM, LM.id), true);
+});
+
+test('a partner may NOT configure another account’s profile', () => {
+  // A sibling whitelabel: reading it would leak its bank details, writing it
+  // would mint an issuer under it.
+  assert.strictEqual(canConfigureBillingProfile(LM, OTHER_PARTNER.id), false);
+  // And not downward either: an agency inside its own subtree is still not it.
+  assert.strictEqual(canConfigureBillingProfile(LM, AGENCY.id), false);
+  assert.strictEqual(canConfigureBillingProfile(LM, CLIENT.id), false);
+});
+
+test('an agency may configure its own profile, and nothing above it', () => {
+  assert.strictEqual(canConfigureBillingProfile(AGENCY, AGENCY.id), true);
+  assert.strictEqual(canConfigureBillingProfile(AGENCY, LM.id), false);
+  assert.strictEqual(canConfigureBillingProfile(AGENCY, CLIENT.id), false);
+});
+
+test('a CLIENT may not configure a profile, not even its own', () => {
+  // Refused by ROLE, not by id: a client has no subtree and issues nothing, so
+  // a profile on its row would be a dead issuer resolveTaxConfig never reads.
+  assert.strictEqual(canConfigureBillingProfile(CLIENT, CLIENT.id), false);
+  assert.strictEqual(canConfigureBillingProfile(CLIENT, LM.id), false);
+});
+
+test('no requester, or a role nobody recognises, is refused', () => {
+  assert.strictEqual(canConfigureBillingProfile(null, LM.id), false);
+  assert.strictEqual(canConfigureBillingProfile(undefined, LM.id), false);
+  assert.strictEqual(canConfigureBillingProfile({ id: 10 }, 10), false);
+  assert.strictEqual(canConfigureBillingProfile({ id: 10, role: 'SUPPORT' }, 10), false);
+  assert.strictEqual(canConfigureBillingProfile({ id: 10, role: 'owner' }, 99), false);
+});
+
+test('a target that is not an id is refused rather than matched loosely', () => {
+  assert.strictEqual(canConfigureBillingProfile(LM, undefined), false);
+  assert.strictEqual(canConfigureBillingProfile(LM, null), false);
+  assert.strictEqual(canConfigureBillingProfile(LM, 'abc'), false);
+  assert.strictEqual(canConfigureBillingProfile(LM, 10.5), false);
+  // A path parameter arrives as a string; the same account is still the same.
+  assert.strictEqual(canConfigureBillingProfile(LM, '10'), true);
+});
+
+// ---------------------------------------------------------------------------
+// The handlers apply it, and `set` applies it BEFORE the upsert
+// ---------------------------------------------------------------------------
+
+const { get, set } = require('../src/controllers/billingProfileController');
+
+function fakeRes() {
+  return {
+    statusCode: 200,
+    body: null,
+    status(code) { this.statusCode = code; return this; },
+    json(payload) { this.body = payload; return this; },
+  };
+}
+
+// Every write path is a spy that FAILS the test if it is reached: a refusal
+// that still touched the row would pass a status-code-only assertion.
+function fakePrisma(calls) {
+  const record = (name) => (...args) => { calls.push(name); return args; };
+  return {
+    user: { findUnique: async () => { calls.push('user.findUnique'); return { id: 10 }; } },
+    billingProfile: {
+      findUnique: async () => { calls.push('profile.findUnique'); return null; },
+      upsert: async ({ create }) => { calls.push('profile.upsert'); return { id: 5, ...create }; },
+    },
+    invoice: { count: async () => { calls.push('invoice.count'); return 0; } },
+    auditLog: { create: async () => { calls.push('audit'); return {}; } },
+    $record: record,
+  };
+}
+
+function reqFor(user, userId, body = {}) {
+  const calls = [];
+  return [{ user, params: { userId: String(userId) }, body, prisma: fakePrisma(calls), headers: {}, socket: {} }, calls];
+}
+
+test('GET: a partner reading another account is refused before anything is read', async () => {
+  const [req, calls] = reqFor(LM, OTHER_PARTNER.id);
+  const res = fakeRes();
+  await get(req, res);
+  assert.strictEqual(res.statusCode, 403);
+  assert.deepStrictEqual(calls, []);
+});
+
+test('PUT: a partner writing another account is refused BEFORE the upsert', async () => {
+  const [req, calls] = reqFor(LM, OTHER_PARTNER.id, { taxEnabled: true, taxRate: 27, issuerName: 'No soy yo' });
+  const res = fakeRes();
+  await set(req, res);
+  assert.strictEqual(res.statusCode, 403);
+  // Nothing was created: the upsert keyed on that ownerId never ran, so no
+  // issuer was minted under an account this partner does not own.
+  assert.deepStrictEqual(calls, []);
+});
+
+test('PUT: a CLIENT is refused on its own id, with nothing written', async () => {
+  const [req, calls] = reqFor(CLIENT, CLIENT.id, { taxEnabled: true, taxRate: 18 });
+  const res = fakeRes();
+  await set(req, res);
+  assert.strictEqual(res.statusCode, 403);
+  assert.deepStrictEqual(calls, []);
+});
+
+test('PUT: no authenticated user is refused, with nothing written', async () => {
+  const [req, calls] = reqFor(null, LM.id, { taxRate: 27 });
+  const res = fakeRes();
+  await set(req, res);
+  assert.strictEqual(res.statusCode, 403);
+  assert.deepStrictEqual(calls, []);
+});
+
+test('PUT: a partner saving its OWN profile goes through to the upsert', async () => {
+  const [req, calls] = reqFor(LM, LM.id, { taxEnabled: true, taxRate: 27, issuerName: 'LM Consulting Group' });
+  const res = fakeRes();
+  await set(req, res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(calls.includes('profile.upsert'));
+  assert.strictEqual(res.body.profile.taxRate, 27);
+  assert.strictEqual(res.body.profile.issuerName, 'LM Consulting Group');
+});
+
+test('PUT: the OWNER still saves any account’s profile', async () => {
+  const [req, calls] = reqFor(OWNER, LM.id, { taxRate: 27 });
+  const res = fakeRes();
+  await set(req, res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(calls.includes('profile.upsert'));
+});
+
+test('PUT: the validations are untouched — an impossible rate is still refused, and before the upsert', async () => {
+  const [req, calls] = reqFor(LM, LM.id, { taxRate: 270 });
+  const res = fakeRes();
+  await set(req, res);
+  assert.strictEqual(res.statusCode, 400);
+  assert.match(res.body.error, /entre 0 y 100/);
+  assert.ok(!calls.includes('profile.upsert'));
+});
+
+test('GET: a partner reading its own profile is allowed', async () => {
+  const [req, calls] = reqFor(LM, LM.id);
+  const res = fakeRes();
+  await get(req, res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(res.body.exists, false);
+  assert.strictEqual(res.body.ownerId, LM.id);
+  assert.ok(calls.includes('profile.findUnique'));
+});
+

@@ -6,6 +6,7 @@ const {
   formatNumber,
   conceptFor,
 } = require('../src/services/invoiceService');
+const { computeCharge, round2 } = require('../src/utils/taxes');
 
 // ---------------------------------------------------------------------------
 // formatNumber
@@ -62,6 +63,10 @@ test('conceptFor: manual and manual_card both fall to the generic recharge label
 
 const PROFILE = {
   id: 5,
+  // The invoice's tax comes off THESE two, at issue time - never off the
+  // purchase, which only records what the card actually paid.
+  taxEnabled: true,
+  taxRate: 27,
   taxLabel: 'ITBIS',
   dueDays: 0,
   issuerName: 'LM Consulting Group SRL',
@@ -100,6 +105,8 @@ const CLIENT = {
   billingPhone: '809-222-2222',
 };
 
+// THE TAX WAS CHARGED: the card paid 127 for 100 credits, so the invoice total
+// and the money collected are the same number.
 const PURCHASE = {
   id: 77,
   userId: 42,
@@ -107,6 +114,19 @@ const PURCHASE = {
   taxRate: 27,
   taxAmount: 27,
   amount: 127,
+  kind: 'manual',
+};
+
+// THE TAX WAS ONLY SHOWN (BillingProfile.chargeTaxToClient off, the default):
+// the card paid exactly the 100 the client asked for, and the purchase carries
+// no tax at all. The invoice must still total 127, with 100 recorded as paid.
+const PURCHASE_TAX_NOT_CHARGED = {
+  id: 78,
+  userId: 42,
+  credits: 100,
+  taxRate: 27,
+  taxAmount: 0,
+  amount: 100,
   kind: 'manual',
 };
 
@@ -118,6 +138,8 @@ test('buildInvoiceData produces the right subtotal/tax/total breakdown', () => {
   assert.strictEqual(data.taxAmount, 27);
   assert.strictEqual(data.retention, 0);
   assert.strictEqual(data.total, 127);
+  // The tax WAS charged here, so the document and the card agree to the cent.
+  assert.strictEqual(data.amountPaid, 127);
   assert.strictEqual(data.taxRate, 27);
   assert.strictEqual(data.taxLabel, 'ITBIS');
   assert.strictEqual(data.currency, 'USD');
@@ -189,13 +211,109 @@ test('buildInvoiceData falls back company through companyName then name, and pho
   assert.strictEqual(snapshotB.phone, '');
 });
 
-test('buildInvoiceData totals correctly for an untaxed purchase (taxAmount 0)', () => {
+test('buildInvoiceData totals correctly for an issuer with no tax at all', () => {
+  const noTax = { ...PROFILE, taxEnabled: false, taxRate: 0 };
   const untaxed = { id: 88, userId: 42, credits: 50, taxRate: 0, taxAmount: 0, amount: 50, kind: 'manual' };
-  const data = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase: untaxed, number: 'FAC-000003' });
+  const data = buildInvoiceData({ profile: noTax, client: CLIENT, purchase: untaxed, number: 'FAC-000003' });
   assert.strictEqual(data.subtotal, 50);
   assert.strictEqual(data.taxAmount, 0);
   assert.strictEqual(data.total, 50);
+  assert.strictEqual(data.amountPaid, 50);
   assert.strictEqual(data.totalInWords, 'CINCUENTA DÓLARES CON 00/100');
+});
+
+// The headline case of the whole split: the client paid 100 and got 100
+// credits, and the document still asks for 127. The gap is not a bug to round
+// away - it is what the owner asked for - but `amountPaid` has to record the
+// 100 so the document can be reconciled against the payment.
+test('buildInvoiceData shows the tax on a payment that was never charged it', () => {
+  const data = buildInvoiceData({
+    profile: PROFILE, client: CLIENT, purchase: PURCHASE_TAX_NOT_CHARGED, number: 'FAC-000004',
+  });
+  assert.strictEqual(data.subtotal, 100);
+  assert.strictEqual(data.taxRate, 27);
+  assert.strictEqual(data.taxLabel, 'ITBIS');
+  assert.strictEqual(data.taxAmount, 27);
+  assert.strictEqual(data.total, 127);
+  // 27 of the 127 was never collected.
+  assert.strictEqual(data.amountPaid, 100);
+  assert.strictEqual(data.totalInWords, 'CIENTO VEINTISIETE DÓLARES CON 00/100');
+  // The DESCRIPCIÓN row still prices what the client actually bought.
+  assert.deepStrictEqual(JSON.parse(data.conceptLines), [
+    { description: 'Recarga de saldo — créditos de consumo', total: 100 },
+  ]);
+});
+
+// The purchase's own tax columns must not reach the document in either
+// direction: a row that recorded no tax still gets the issuer's 27%, and a row
+// that recorded a stale rate is ignored in favour of the profile's.
+test('buildInvoiceData ignores the purchase tax columns entirely', () => {
+  const stale = { ...PURCHASE, taxRate: 99, taxAmount: 99 };
+  const data = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase: stale, number: 'FAC-000005' });
+  assert.strictEqual(data.taxRate, 27);
+  assert.strictEqual(data.taxAmount, 27);
+  assert.strictEqual(data.total, 127);
+});
+
+test('buildInvoiceData rounds the tax to the cent, half up, like the charge path', () => {
+  // 12.50 * 27% is exactly 3.375 -> 3.38, and 15.50 * 27% is 4.185 -> 4.19
+  // (the value that used to come out a cent short in plain float arithmetic).
+  const at = (credits) => buildInvoiceData({
+    profile: PROFILE, client: CLIENT, purchase: { ...PURCHASE, credits, amount: credits }, number: 'FAC-000006',
+  });
+  assert.strictEqual(at(12.5).taxAmount, 3.38);
+  assert.strictEqual(at(12.5).total, 15.88);
+  assert.strictEqual(at(15.5).taxAmount, 4.19);
+  assert.strictEqual(at(15.5).total, 19.69);
+});
+
+// When the tax IS charged, the document must match the card to the cent - so
+// the arithmetic here and the arithmetic in the charge path have to agree at
+// every amount, not just the round ones. Two different implementations
+// (round2 on a float product here, integer cents there), swept against each
+// other.
+test('the invoice tax agrees with the charge path at every cent, so a charged invoice matches the card', () => {
+  const CHARGED = { taxEnabled: true, chargeTaxToClient: true, taxRate: 27, taxLabel: 'ITBIS' };
+  let checked = 0;
+  for (let cents = 1; cents <= 50000; cents++) {
+    const credits = cents / 100;
+    const charge = computeCharge(credits, CHARGED);
+    const data = buildInvoiceData({
+      profile: PROFILE,
+      client: CLIENT,
+      // Exactly what the charge path would have written on the purchase.
+      purchase: { ...PURCHASE, credits: charge.subtotal, taxAmount: charge.taxAmount, amount: charge.total },
+      number: 'FAC-000007',
+    });
+    assert.strictEqual(data.taxAmount, charge.taxAmount, `tax differs at ${credits}`);
+    assert.strictEqual(data.total, charge.total, `total differs at ${credits}`);
+    assert.strictEqual(data.amountPaid, data.total, `paid must equal total at ${credits}`);
+    checked++;
+  }
+  assert.strictEqual(checked, 50000);
+});
+
+// And in the other mode the shortfall is exactly the tax, at every amount.
+test('with the tax only shown, the uncollected gap is exactly the tax at every cent', () => {
+  for (let cents = 1; cents <= 50000; cents += 7) {
+    const credits = cents / 100;
+    const data = buildInvoiceData({
+      profile: PROFILE,
+      client: CLIENT,
+      purchase: { ...PURCHASE_TAX_NOT_CHARGED, credits, amount: credits },
+      number: 'FAC-000008',
+    });
+    assert.strictEqual(data.amountPaid, credits, `paid differs at ${credits}`);
+    assert.strictEqual(round2(data.total - data.amountPaid), data.taxAmount, `gap differs at ${credits}`);
+  }
+});
+
+test('buildInvoiceData records amountPaid null when the purchase carries no usable amount', () => {
+  const data = buildInvoiceData({
+    profile: PROFILE, client: CLIENT, purchase: { ...PURCHASE, amount: undefined }, number: 'FAC-000009',
+  });
+  assert.strictEqual(data.amountPaid, null);
+  assert.strictEqual(data.total, 127);
 });
 
 test('buildInvoiceData: dueAt equals issuedAt when dueDays is 0', () => {
@@ -275,6 +393,43 @@ test('issueInvoiceForPurchase takes the correlative, bumps the profile, and crea
   assert.strictEqual(prisma._calls.billingProfileUpdate, 1);
   assert.strictEqual(prisma._calls.invoiceCreate, 1);
   assert.strictEqual(prisma._billingProfileRow().invoiceNextNumber, 125);
+});
+
+// End to end through the real resolveTaxConfig: the issuer shows the tax but
+// does not charge it, so the invoice it writes totals more than the payment.
+test('issueInvoiceForPurchase writes a 127 invoice for a 100 payment when the tax is only shown', async () => {
+  const profile = {
+    ...PROFILE, ownerId: 9, invoicePrefix: 'FAC-', invoicePadding: 6, invoiceNextNumber: 7,
+    taxEnabled: true, chargeTaxToClient: false, taxRate: 27,
+  };
+  const prisma = makeFakePrisma({ client: CLIENT_UNDER_PARTNER, partner: PARTNER, profile });
+
+  const invoice = await issueInvoiceForPurchase(prisma, PURCHASE_TAX_NOT_CHARGED);
+
+  assert.ok(invoice);
+  assert.strictEqual(invoice.number, 'FAC-000007');
+  assert.strictEqual(invoice.subtotal, 100);
+  assert.strictEqual(invoice.taxAmount, 27);
+  assert.strictEqual(invoice.total, 127);
+  assert.strictEqual(invoice.amountPaid, 100);
+});
+
+// The same issuer with chargeTaxToClient on - the old behaviour, which must
+// still produce an invoice whose total is exactly what the card paid.
+test('issueInvoiceForPurchase matches the card when the tax was charged on top', async () => {
+  const profile = {
+    ...PROFILE, ownerId: 9, invoicePrefix: 'FAC-', invoicePadding: 6, invoiceNextNumber: 7,
+    taxEnabled: true, chargeTaxToClient: true, taxRate: 27,
+  };
+  const prisma = makeFakePrisma({ client: CLIENT_UNDER_PARTNER, partner: PARTNER, profile });
+
+  const invoice = await issueInvoiceForPurchase(prisma, PURCHASE);
+
+  assert.strictEqual(invoice.subtotal, 100);
+  assert.strictEqual(invoice.taxAmount, 27);
+  assert.strictEqual(invoice.total, 127);
+  assert.strictEqual(invoice.amountPaid, 127);
+  assert.strictEqual(invoice.amountPaid, invoice.total);
 });
 
 test('issueInvoiceForPurchase returns the existing invoice without taking a new number', async () => {
