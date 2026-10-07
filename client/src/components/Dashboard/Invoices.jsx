@@ -74,6 +74,26 @@ const ISSUER_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
 // this file must not have to be untangled first.
 const MANAGER_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
 
+// Who is OFFERED the «Regenerar factura» button on an open document.
+//
+// A THIRD constant, for the same reason there are two above: a third question.
+// This one is "may rewrite a document already issued", which the server answers
+// with canRegenerateInvoice — the OWNER, or the account that owns the invoice's
+// BillingProfile, and nobody else. A CLIENT is not here and the server refuses
+// it whatever this renders: it may download its own invoice and must not be able
+// to rewrite a fiscal document its provider issued.
+//
+// Note this is a ROLE filter and not the full rule. The exact identity check
+// ("is this invoice's issuer YOU?") needs the invoice's profile owner, which the
+// document payload deliberately does not carry — present() leaks neither
+// `profileId` nor `userId`, precisely so the rendered document depends on
+// nothing but its own frozen snapshots. So a partner that opens an invoice
+// issued by the partner ABOVE it is shown the button and gets the server's 403,
+// which the modal reports as the refusal it is. Hiding it instead would mean
+// putting the issuer's account id into every document response to decide the
+// colour of one button.
+const REGENERATE_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
+
 export default function Invoices() {
   const { user } = useAuth()
   // The account whose profile this edits is always the one looking at the page
@@ -84,6 +104,8 @@ export default function Invoices() {
   // page stays exactly what it was for them: their own payments, their own
   // invoices, no way to name another account.
   const canManage = MANAGER_ROLES.includes(user?.role)
+  // Whether an open document offers to rebuild itself. See REGENERATE_ROLES.
+  const canRegenerate = REGENERATE_ROLES.includes(user?.role)
   // The account whose PAYMENTS are on screen. 'me' is the viewer's own and is
   // where everyone starts, manager included: the page opens on the one account
   // nobody can mistake, and another account is only ever shown after somebody
@@ -297,6 +319,44 @@ export default function Invoices() {
       }
     } finally {
       setBusy(null)
+    }
+  }
+
+  // Rebuild the OPEN document from the configuration as it stands now, keeping
+  // its number.
+  //
+  // Handed to InvoiceDocument as a function rather than letting that component
+  // call the API itself: the document looks nothing up, and the open modal reads
+  // its invoice off THIS state, so replacing it here is what makes the screen
+  // show the rebuilt version the instant the call lands instead of a stale
+  // document next to a success message.
+  //
+  // The list is reloaded too. A rebuild recomputes the amounts from the current
+  // profile, so a row's invoice total can legitimately change — and a table
+  // still showing the old total next to a document showing the new one is the
+  // same "two answers to one question" problem the rest of this page is built
+  // against.
+  //
+  // Resolves to a note when there is something to say, and throws an Error
+  // carrying the server's own Spanish message when it fails — which is the
+  // contract InvoiceDocument expects, and keeps every HTTP detail out of it.
+  const regenerateOpenInvoice = async () => {
+    if (!invoice) return undefined
+    try {
+      const { data: res } = await invoicesAPI.regenerate(invoice.id)
+      setInvoice(res.invoice)
+      load()
+      // `amountsRebuilt` false is not a failure: the payment behind this
+      // invoice is gone, so the figures on it are the only surviving record of
+      // what was charged and were left untouched rather than recomputed to 0.
+      // Said plainly, because somebody who just asked for a rebuild would
+      // otherwise assume the totals were rebuilt too.
+      if (res.amountsRebuilt === false) {
+        return 'Se actualizaron los datos del emisor y del cliente. Los importes se dejaron como estaban: el pago de esta factura ya no existe, así que no hay de dónde volver a calcularlos.'
+      }
+      return undefined
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'No se pudo regenerar la factura')
     }
   }
 
@@ -701,8 +761,16 @@ export default function Invoices() {
         </>
       )}
 
-      {/* The document itself, with its PDF download */}
-      {invoice && <InvoiceDocument invoice={invoice} onClose={() => setInvoice(null)} />}
+      {/* The document itself, with its PDF download — and, for the roles that
+          may, the «Regenerar factura» action beside it. Passing nothing is what
+          hides that button for a CLIENT. */}
+      {invoice && (
+        <InvoiceDocument
+          invoice={invoice}
+          onClose={() => setInvoice(null)}
+          onRegenerate={canRegenerate ? regenerateOpenInvoice : undefined}
+        />
+      )}
     </div>
   )
 }

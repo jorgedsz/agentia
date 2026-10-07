@@ -15,9 +15,13 @@ import { useState } from 'react'
 // what the screen showed. Only the chrome around the document (the modal, the
 // buttons) uses the app's classes.
 
-const ORANGE = '#E8502A'
 const INK = '#111827'
 const MUTED = '#4b5563'
+
+// The document's accent: the rule beside the issuer, the invoice number, the
+// two bands and the footer line. Black, matching the ink the rest of the page
+// is set in, so a printed invoice needs no colour to read correctly.
+const ACCENT = INK
 
 // The printed format is a spreadsheet, so a one-line invoice still has the
 // height of a full page of rows. Blank ruled rows make up the difference.
@@ -44,6 +48,22 @@ const toCent = (n) => Math.round((Number(n) || 0) * 100) / 100
 
 // Under a cent is nothing to chase on a fiscal document.
 const CENT = 0.01
+
+// What the person is agreeing to before an invoice is rebuilt.
+//
+// Spelled out rather than summarised as "¿Seguro?": the number stays, the data
+// is taken again from the configuration as it is NOW, and somebody may already
+// be holding the previous copy of that same number. That last point is the one
+// that cannot be discovered afterwards, so it is the one that has to be said.
+const confirmRegenerate = (number) => [
+  `Se va a volver a generar la factura ${number || ''} con los datos de la configuración actual.`,
+  '',
+  '· Conserva el mismo número y la misma fecha de expedición.',
+  '· Los datos del emisor, los del cliente y los importes se toman de nuevo, tal como están configurados hoy.',
+  '· Quien ya tenga la copia anterior verá un documento distinto con el mismo número. La factura quedará marcada como regenerada con la fecha de hoy, para poder distinguir las dos copias.',
+  '',
+  '¿Continuar?',
+].join('\n')
 
 const S = {
   page: {
@@ -122,9 +142,23 @@ function Site({ site }) {
   )
 }
 
-export default function InvoiceDocument({ invoice, onClose }) {
+/**
+ * `onRegenerate` is optional and is what puts the «Regenerar factura» button in
+ * the chrome: absent, there is no button at all. It is a prop and not a role
+ * check or an API call made here, because this component still looks NOTHING
+ * up — the caller is the one that knows who is looking and owns the `invoice`
+ * it passes, so it is also the one that can hand back the rebuilt document and
+ * have the open modal show it immediately.
+ *
+ * Contract: it resolves to undefined, or to a note worth showing next to the
+ * button, and it THROWS an Error whose message is already in Spanish when the
+ * rebuild failed. No HTTP shape reaches this file.
+ */
+export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [regenerating, setRegenerating] = useState(false)
+  const [notice, setNotice] = useState('')
 
   if (!invoice) return null
 
@@ -187,6 +221,29 @@ export default function InvoiceDocument({ invoice, onClose }) {
     }
   }
 
+  // Rebuild this document from the configuration as it stands now, keeping its
+  // number. Confirmed first, and in words: it overwrites a document somebody
+  // may already be holding, which is the one consequence that cannot be
+  // undone afterwards.
+  const regenerate = async () => {
+    if (!onRegenerate || regenerating) return
+    if (!window.confirm(confirmRegenerate(invoice.number))) return
+    setRegenerating(true)
+    setError('')
+    setNotice('')
+    try {
+      // The caller replaces the `invoice` prop with the rebuilt one, so what is
+      // on screen is the new document the moment this resolves — never the
+      // stale copy next to a "listo" message.
+      const note = await onRegenerate()
+      if (note) setNotice(note)
+    } catch (err) {
+      setError(err?.message || 'No se pudo regenerar la factura')
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
       <div
@@ -202,6 +259,20 @@ export default function InvoiceDocument({ invoice, onClose }) {
             <p className="text-xs text-gray-500 dark:text-gray-400">{fmtDate(invoice.issuedAt)}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            {/* In the chrome, beside «Descargar PDF» — where somebody looking
+                at a wrong invoice reaches for it — and deliberately NOT inside
+                the printed node below, which has to stay exactly what it
+                prints. */}
+            {onRegenerate && (
+              <button
+                onClick={regenerate}
+                disabled={regenerating || busy}
+                title="Vuelve a generar esta factura con los datos actuales, conservando su número"
+                className="px-3 py-1.5 text-xs border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-50"
+              >
+                {regenerating ? 'Regenerando…' : 'Regenerar factura'}
+              </button>
+            )}
             <button
               onClick={downloadPdf}
               disabled={busy}
@@ -220,6 +291,12 @@ export default function InvoiceDocument({ invoice, onClose }) {
 
         {error && (
           <p className="px-5 pt-3 text-xs text-red-600 dark:text-red-400">{error}</p>
+        )}
+
+        {/* Not a failure: the rebuild went through and there is something about
+            it worth knowing (its amounts could not be recomputed, for one). */}
+        {notice && (
+          <p className="px-5 pt-3 text-xs text-amber-700 dark:text-amber-400">{notice}</p>
         )}
 
         {/* The document. White and inline-styled in both themes — it is a
@@ -245,7 +322,7 @@ export default function InvoiceDocument({ invoice, onClose }) {
                   ) : null}
                 </div>
               </div>
-              <div style={{ borderLeft: `3px solid ${ORANGE}`, paddingLeft: '14px', textAlign: 'right', minWidth: '190px' }}>
+              <div style={{ borderLeft: `3px solid ${ACCENT}`, paddingLeft: '14px', textAlign: 'right', minWidth: '190px' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{issuer.issuerName || ''}</div>
                 <div style={{ fontSize: '11px', color: MUTED, marginTop: '3px' }}>
                   RNC / ID: {issuer.issuerRnc || ''}
@@ -254,7 +331,7 @@ export default function InvoiceDocument({ invoice, onClose }) {
             </div>
 
             {/* The invoice's own number */}
-            <div style={{ marginTop: '18px', fontSize: '22px', fontWeight: 'bold', color: ORANGE }}>
+            <div style={{ marginTop: '18px', fontSize: '22px', fontWeight: 'bold', color: ACCENT }}>
               NO. {invoice.number || ''}
             </div>
 
@@ -271,6 +348,14 @@ export default function InvoiceDocument({ invoice, onClose }) {
                 <Field label="Fecha de Expedición:" value={fmtDate(invoice.issuedAt)} />
                 <Field label="Condiciones de Pago:" value={issuer.paymentTerms} />
                 <Field label="Fecha de vencimiento:" value={fmtDate(invoice.dueAt)} />
+                {/* Printed next to the issue date, and therefore in the PDF:
+                    this document was rebuilt after it was first issued, so a
+                    copy of the same number may be in somebody's hands saying
+                    something else. Absent on an invoice never regenerated,
+                    which is almost all of them. */}
+                {invoice.regeneratedAt ? (
+                  <Field label="Regenerada el:" value={fmtDate(invoice.regeneratedAt)} />
+                ) : null}
               </div>
             </div>
 
@@ -343,8 +428,8 @@ export default function InvoiceDocument({ invoice, onClose }) {
                     </td>
                   </tr>
                   <tr>
-                    <td style={{ ...S.cell, fontWeight: 'bold', background: ORANGE, color: '#ffffff' }}>TOTAL A PAGAR</td>
-                    <td style={{ ...S.cell, textAlign: 'right', fontWeight: 'bold', background: ORANGE, color: '#ffffff' }}>
+                    <td style={{ ...S.cell, fontWeight: 'bold', background: ACCENT, color: '#ffffff' }}>TOTAL A PAGAR</td>
+                    <td style={{ ...S.cell, textAlign: 'right', fontWeight: 'bold', background: ACCENT, color: '#ffffff' }}>
                       {money(invoice.total, currency)}
                     </td>
                   </tr>
@@ -360,7 +445,7 @@ export default function InvoiceDocument({ invoice, onClose }) {
             {showShortfall && (
               <div style={{
                 marginTop: '10px',
-                border: `2px solid ${ORANGE}`,
+                border: `2px solid ${ACCENT}`,
                 padding: '8px 10px',
                 fontSize: '11px',
                 color: INK,
@@ -378,7 +463,7 @@ export default function InvoiceDocument({ invoice, onClose }) {
             {/* The amount spelled out, as the format requires */}
             <div style={{
               marginTop: '14px',
-              background: ORANGE,
+              background: ACCENT,
               color: '#ffffff',
               padding: '8px 10px',
               fontWeight: 'bold',
@@ -406,7 +491,7 @@ export default function InvoiceDocument({ invoice, onClose }) {
               gap: '18px',
               marginTop: '18px',
               paddingTop: '10px',
-              borderTop: `2px solid ${ORANGE}`,
+              borderTop: `2px solid ${ACCENT}`,
               fontSize: '11px',
             }}>
               <div style={{ flex: '1 1 0', minWidth: 0 }}><Site site={issuer.site1} /></div>

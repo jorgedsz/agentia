@@ -61,6 +61,67 @@ function conceptFor(purchase) {
 }
 
 /**
+ * The issuer half of the frozen document, as the JSON string that goes in the
+ * column. Split out of buildInvoiceData so that regeneration (which refreshes
+ * the snapshots without necessarily touching the money) cannot grow a second
+ * copy of this shape that drifts from the one issuance writes.
+ *
+ * Frozen at issue time - a Dominican accountant may need to read this years
+ * after the issuer's own profile changed or the client's account was deleted
+ * (Invoice.userId is nullable + SetNull for exactly that reason). Every value
+ * defaults to '' rather than null/undefined because the renderer prints these
+ * fields directly.
+ */
+function buildIssuerSnapshot(profile) {
+  return JSON.stringify({
+    issuerName: profile.issuerName || '',
+    issuerRnc: profile.issuerRnc || '',
+    brandName: profile.brandName || '',
+    slogan: profile.slogan || '',
+    logoUrl: profile.logoUrl || '',
+    bankName: profile.bankName || '',
+    bankAccount: profile.bankAccount || '',
+    swift: profile.swift || '',
+    routingNumber: profile.routingNumber || '',
+    paymentMethod: profile.paymentMethod || '',
+    paymentTerms: profile.paymentTerms || '',
+    site1: {
+      name: profile.site1Name || '',
+      phone: profile.site1Phone || '',
+      city: profile.site1City || '',
+      address: profile.site1Address || '',
+    },
+    site2: {
+      name: profile.site2Name || '',
+      phone: profile.site2Phone || '',
+      city: profile.site2City || '',
+      address: profile.site2Address || '',
+    },
+    contactEmail: profile.contactEmail || '',
+    contactWeb: profile.contactWeb || '',
+  });
+}
+
+/**
+ * The client half, same reasoning as buildIssuerSnapshot above.
+ *
+ * client.email has no billing* counterpart on the User model (only
+ * billingCompany/Rnc/Address/City/Phone exist) - the account's own email is
+ * always present (required + unique), so it is used as-is rather than invented
+ * as a fallback chain of its own.
+ */
+function buildClientSnapshot(client) {
+  return JSON.stringify({
+    company: client.billingCompany || client.companyName || client.name || '',
+    rnc: client.billingRnc || '',
+    address: client.billingAddress || '',
+    city: client.billingCity || '',
+    phone: client.billingPhone || client.phoneNumber || '',
+    email: client.email || '',
+  });
+}
+
+/**
  * The plain object for prisma.invoice.create({ data }). Pure and synchronous:
  * every value it needs is already on `profile`, `client` and `purchase`.
  */
@@ -101,51 +162,9 @@ function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Da
 
   const dueAt = addDays(issuedAt, profile.dueDays || 0);
 
-  // Frozen now, at issue time - a Dominican accountant may need to read this
-  // years after the issuer's own profile changed or the client's account was
-  // deleted (Invoice.userId is nullable + SetNull for exactly that reason).
-  // Every value defaults to '' rather than null/undefined because the
-  // renderer prints these fields directly.
-  const issuerSnapshot = JSON.stringify({
-    issuerName: profile.issuerName || '',
-    issuerRnc: profile.issuerRnc || '',
-    brandName: profile.brandName || '',
-    slogan: profile.slogan || '',
-    logoUrl: profile.logoUrl || '',
-    bankName: profile.bankName || '',
-    bankAccount: profile.bankAccount || '',
-    swift: profile.swift || '',
-    routingNumber: profile.routingNumber || '',
-    paymentMethod: profile.paymentMethod || '',
-    paymentTerms: profile.paymentTerms || '',
-    site1: {
-      name: profile.site1Name || '',
-      phone: profile.site1Phone || '',
-      city: profile.site1City || '',
-      address: profile.site1Address || '',
-    },
-    site2: {
-      name: profile.site2Name || '',
-      phone: profile.site2Phone || '',
-      city: profile.site2City || '',
-      address: profile.site2Address || '',
-    },
-    contactEmail: profile.contactEmail || '',
-    contactWeb: profile.contactWeb || '',
-  });
-
-  // client.email has no billing* counterpart on the User model (only
-  // billingCompany/Rnc/Address/City/Phone exist) - the account's own email
-  // is always present (required + unique), so it's used as-is rather than
-  // invented as a fallback chain of its own.
-  const clientSnapshot = JSON.stringify({
-    company: client.billingCompany || client.companyName || client.name || '',
-    rnc: client.billingRnc || '',
-    address: client.billingAddress || '',
-    city: client.billingCity || '',
-    phone: client.billingPhone || client.phoneNumber || '',
-    email: client.email || '',
-  });
+  // Frozen now, at issue time - see buildIssuerSnapshot / buildClientSnapshot.
+  const issuerSnapshot = buildIssuerSnapshot(profile);
+  const clientSnapshot = buildClientSnapshot(client);
 
   return {
     number,
@@ -204,4 +223,86 @@ async function issueInvoiceForPurchase(prisma, purchase) {
   });
 }
 
-module.exports = { issueInvoiceForPurchase, buildInvoiceData, formatNumber, conceptFor };
+/**
+ * The plain object for prisma.invoice.update({ data }) when an invoice is
+ * REBUILT from current data while keeping its number.
+ *
+ * Freezing the snapshots is right once a partner is set up and wrong while it
+ * still is: a wrong RNC, a missing logo or a typo in the bank line is otherwise
+ * baked into every document already issued. This is the way out, and the owner
+ * accepted its cost - a client holding the previous copy of this number will
+ * find it changed - which is why `regeneratedAt` is part of the same write and
+ * is printed on the document.
+ *
+ * WHAT IT DELIBERATELY DOES NOT RETURN: `number`, `profileId`, `userId`,
+ * `creditPurchaseId` and `issuedAt`. It is the same document, not a new one, so
+ * its identity and its date are the caller's and are not up for recomputation -
+ * moving `issuedAt` would misdate the whole sequence. Everything else is taken
+ * again from `profile`, `client` and `purchase`.
+ *
+ * THE MONEY IS BUILT BY buildInvoiceData AND NOWHERE ELSE. That function is the
+ * one that knows the tax comes off the ISSUER and not off the payment, and that
+ * the subtotal is `purchase.credits`; a second arithmetic here could disagree
+ * with the one issuance uses, and a document whose total depends on which code
+ * path wrote it is worse than no feature at all. Its identity fields are
+ * stripped off the result rather than never computed, so this stays one source.
+ *
+ * WHEN THE PURCHASE IS GONE (creditPurchaseId null, because the payment or the
+ * whole account was deleted - the FK is SetNull so the invoice outlives it)
+ * there is nothing left to recompute the amounts FROM, and the figures stored on
+ * the row are the only surviving record of them. The party snapshots are
+ * refreshed and every money field is left exactly as it is: an invoice that
+ * suddenly totalled 0.00 because its payment was deleted would be a destroyed
+ * fiscal record, not a corrected one. `dueAt` is still recomputed, since it
+ * needs only the unchanged `issuedAt` and the profile's current `dueDays` and
+ * asks nothing of the purchase.
+ *
+ * A missing `client` (an orphaned invoice whose account was deleted) leaves
+ * `clientSnapshot` untouched for the same reason: the snapshot is all that is
+ * left of who the document was addressed to.
+ */
+function buildRegeneratedInvoiceData({ invoice, profile, client, purchase, regeneratedAt = new Date() }) {
+  const data = {
+    issuerSnapshot: buildIssuerSnapshot(profile),
+    dueAt: addDays(invoice.issuedAt, profile.dueDays || 0),
+    regeneratedAt,
+  };
+  if (client) data.clientSnapshot = buildClientSnapshot(client);
+
+  // No payment left to rebuild the amounts from: snapshots only.
+  if (!purchase || !client) return data;
+
+  const fresh = buildInvoiceData({
+    profile,
+    client,
+    purchase,
+    number: invoice.number,
+    issuedAt: invoice.issuedAt,
+  });
+
+  return {
+    ...data,
+    subtotal: fresh.subtotal,
+    taxLabel: fresh.taxLabel,
+    taxRate: fresh.taxRate,
+    taxAmount: fresh.taxAmount,
+    retention: fresh.retention,
+    total: fresh.total,
+    amountPaid: fresh.amountPaid,
+    totalInWords: fresh.totalInWords,
+    conceptLines: fresh.conceptLines,
+    clientSnapshot: fresh.clientSnapshot,
+    issuerSnapshot: fresh.issuerSnapshot,
+    dueAt: fresh.dueAt,
+  };
+}
+
+module.exports = {
+  issueInvoiceForPurchase,
+  buildInvoiceData,
+  buildRegeneratedInvoiceData,
+  buildIssuerSnapshot,
+  buildClientSnapshot,
+  formatNumber,
+  conceptFor,
+};

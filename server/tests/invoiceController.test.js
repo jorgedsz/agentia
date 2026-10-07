@@ -481,3 +481,263 @@ test('the echoed id is the resolved number, whatever the query string carried', 
   assert.strictEqual(res.body.accountId, 30);
   assert.strictEqual(typeof res.body.accountId, 'number');
 });
+
+// ---------------------------------------------------------------------------
+// POST /api/invoices/:id/regenerate — rebuilding a document, keeping its number
+//
+// DB-free: the handler reaches the database only through prisma.invoice,
+// prisma.billingProfile, prisma.user and prisma.creditPurchase, so a plain
+// object answers for all four and the whole endpoint runs here.
+//
+// The rule is NOT the read rule, and that is the point of most of these: the
+// client the invoice is addressed to may download it and must not be able to
+// rewrite a fiscal document its provider issued, and a partner ABOVE the issuer
+// may read it without being allowed to rewrite it either.
+// ---------------------------------------------------------------------------
+
+const { regenerate, canRegenerateInvoice } = require('../src/controllers/invoiceController');
+
+// Profile 7 belongs to whitelabel 1, profile 8 to agency 2 — so one tree gives
+// both "the issuer is above the reader" and "the reader is above the issuer".
+const REG_PROFILES = {
+  7: { id: 7, ownerId: 1, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS', dueDays: 0, issuerName: 'LM Consulting Group SRL', issuerRnc: '1-01-00000-1' },
+  8: { id: 8, ownerId: 2, taxEnabled: true, taxRate: 18, taxLabel: 'ITBIS', dueDays: 15, issuerName: 'Agencia SRL', issuerRnc: '1-03-00000-3' },
+};
+
+const REG_INVOICE = {
+  id: 55,
+  number: 'FAC-000124',
+  profileId: 7,
+  userId: 3,
+  creditPurchaseId: 77,
+  currency: 'USD',
+  subtotal: 100,
+  taxLabel: 'ITBIS',
+  taxRate: 27,
+  taxAmount: 27,
+  retention: 0,
+  total: 127,
+  amountPaid: 127,
+  totalInWords: 'CIENTO VEINTISIETE DÓLARES CON 00/100',
+  conceptLines: JSON.stringify([{ description: 'Recarga de saldo — créditos de consumo', total: 100 }]),
+  issuerSnapshot: JSON.stringify({ issuerName: 'LM', issuerRnc: 'EL RNC EQUIVOCADO' }),
+  clientSnapshot: JSON.stringify({ company: 'Cliente SRL' }),
+  issuedAt: new Date('2026-03-15T12:00:00.000Z'),
+  dueAt: new Date('2026-03-15T12:00:00.000Z'),
+  regeneratedAt: null,
+};
+
+const REG_PURCHASE = { id: 77, userId: 3, credits: 100, taxRate: 27, taxAmount: 27, amount: 127, kind: 'manual' };
+
+// Carries its place in the TREE above (client 3 under agency 2 under whitelabel
+// 1) as well as its billing fields, because the tests below compare what the
+// READ rule allows against what regeneration allows, and the read rule walks
+// that chain.
+const REG_CLIENT = {
+  id: 3,
+  role: 'CLIENT',
+  agencyId: 2,
+  whitelabelId: null,
+  email: 'cliente@biz.com',
+  name: 'Cliente',
+  billingCompany: 'Cliente Fiscal SRL',
+  billingRnc: '1-02-00000-2',
+};
+
+// `writes` records every invoice.update, so a refused request can be checked to
+// have written NOTHING rather than merely to have answered 403.
+function regPrisma({ invoice = REG_INVOICE, purchase = REG_PURCHASE, client = REG_CLIENT, profiles = REG_PROFILES } = {}) {
+  const writes = [];
+  return {
+    writes,
+    invoice: {
+      findUnique: async ({ where }) => (where.id === invoice.id ? invoice : null),
+      update: async ({ where, data }) => { writes.push({ where, data }); return { ...invoice, ...data }; },
+    },
+    billingProfile: { findUnique: async ({ where }) => profiles[where.id] || null },
+    user: { findUnique: async ({ where }) => (client && where.id === client.id ? client : TREE[where.id] || null) },
+    creditPurchase: { findUnique: async ({ where }) => (purchase && where.id === purchase.id ? purchase : null) },
+  };
+}
+
+async function callRegenerate(prisma, user, id = '55') {
+  const res = fakeRes();
+  await regenerate({ prisma, user, params: { id } }, res);
+  return res;
+}
+
+// --- the permission matrix, on the helper itself -------------------------
+
+test('canRegenerateInvoice: the OWNER may rebuild any invoice', async () => {
+  assert.strictEqual(await canRegenerateInvoice(regPrisma(), { id: 99, role: 'OWNER' }, REG_INVOICE), true);
+});
+
+test('canRegenerateInvoice: the partner that ISSUES it may', async () => {
+  assert.strictEqual(await canRegenerateInvoice(regPrisma(), { id: 1, role: 'WHITELABEL' }, REG_INVOICE), true);
+});
+
+// The reason canReadAccount is NOT reused. Whitelabel 1 sits above agency 2 and
+// may READ everything in its subtree; the document below was issued by the
+// agency, under the agency's RNC and out of the agency's numbering sequence, and
+// is not the whitelabel's to rewrite.
+test('canRegenerateInvoice: a partner ABOVE the issuer may read the invoice but not rebuild it', async () => {
+  const issuedByAgency = { ...REG_INVOICE, profileId: 8 };
+  const prisma = regPrisma();
+  assert.strictEqual(await canReadInvoice(prisma, { id: 1, role: 'WHITELABEL' }, issuedByAgency), true);
+  assert.strictEqual(await canRegenerateInvoice(prisma, { id: 1, role: 'WHITELABEL' }, issuedByAgency), false);
+});
+
+test('canRegenerateInvoice: a partner BELOW the issuer may not either', async () => {
+  assert.strictEqual(await canRegenerateInvoice(regPrisma(), { id: 2, role: 'AGENCY' }, REG_INVOICE), false);
+});
+
+// A client may download its own invoice and must never be able to rewrite a
+// fiscal document its provider issued — which the read rule would have allowed.
+test('canRegenerateInvoice: the client the invoice is addressed to may not rebuild it', async () => {
+  const prisma = regPrisma();
+  assert.strictEqual(await canReadInvoice(prisma, { id: 3, role: 'CLIENT' }, REG_INVOICE), true);
+  assert.strictEqual(await canRegenerateInvoice(prisma, { id: 3, role: 'CLIENT' }, REG_INVOICE), false);
+});
+
+test('canRegenerateInvoice: an unrelated account, and no account at all, are refused', async () => {
+  assert.strictEqual(await canRegenerateInvoice(regPrisma(), { id: 9, role: 'WHITELABEL' }, REG_INVOICE), false);
+  assert.strictEqual(await canRegenerateInvoice(regPrisma(), null, REG_INVOICE), false);
+  assert.strictEqual(await canRegenerateInvoice(regPrisma(), { id: 1, role: 'WHITELABEL' }, null), false);
+});
+
+// A CLIENT issues nothing, so even a profile hanging off a client row does not
+// turn its account into somebody who may rewrite documents.
+test('canRegenerateInvoice: a CLIENT that somehow owns the profile is still refused, by role', async () => {
+  const prisma = regPrisma({ profiles: { 7: { id: 7, ownerId: 3 } } });
+  assert.strictEqual(await canRegenerateInvoice(prisma, { id: 3, role: 'CLIENT' }, REG_INVOICE), false);
+});
+
+test('canRegenerateInvoice: an orphaned invoice stays rebuildable by its issuer, not by the deleted account tree', async () => {
+  const orphan = { ...REG_INVOICE, userId: null };
+  assert.strictEqual(await canRegenerateInvoice(regPrisma(), { id: 1, role: 'WHITELABEL' }, orphan), true);
+  assert.strictEqual(await canRegenerateInvoice(regPrisma(), { id: 2, role: 'AGENCY' }, orphan), false);
+});
+
+test('canRegenerateInvoice: with the issuing profile gone, nobody but the OWNER may', async () => {
+  const prisma = regPrisma({ profiles: {} });
+  assert.strictEqual(await canRegenerateInvoice(prisma, { id: 1, role: 'WHITELABEL' }, REG_INVOICE), false);
+  assert.strictEqual(await canRegenerateInvoice(prisma, { id: 99, role: 'OWNER' }, REG_INVOICE), true);
+});
+
+// --- the endpoint -------------------------------------------------------
+
+test('regenerate: the issuer gets the rebuilt document, with its number and its issue date untouched', async () => {
+  const prisma = regPrisma();
+  const res = await callRegenerate(prisma, { id: 1, role: 'WHITELABEL' });
+
+  assert.strictEqual(res.code, 200);
+  assert.strictEqual(res.body.invoice.number, 'FAC-000124');
+  assert.strictEqual(res.body.invoice.issuedAt.toISOString(), '2026-03-15T12:00:00.000Z');
+  // The corrected RNC is on the document now; the frozen wrong one is gone.
+  assert.strictEqual(res.body.invoice.issuer.issuerRnc, '1-01-00000-1');
+  assert.strictEqual(res.body.invoice.client.rnc, '1-02-00000-2');
+  assert.ok(res.body.invoice.regeneratedAt instanceof Date);
+  assert.strictEqual(res.body.amountsRebuilt, true);
+});
+
+test('regenerate: the write never carries the fields that identify the document', async () => {
+  const prisma = regPrisma();
+  await callRegenerate(prisma, { id: 99, role: 'OWNER' });
+
+  assert.strictEqual(prisma.writes.length, 1);
+  assert.strictEqual(prisma.writes[0].where.id, 55);
+  for (const key of ['number', 'profileId', 'userId', 'creditPurchaseId', 'issuedAt']) {
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(prisma.writes[0].data, key), false, `must not write ${key}`);
+  }
+});
+
+test('regenerate: the amounts come back from the profile as it is now', async () => {
+  // Same invoice, now issued under profile 8: 18% and 15 days to pay.
+  const prisma = regPrisma({ invoice: { ...REG_INVOICE, profileId: 8 } });
+  const res = await callRegenerate(prisma, { id: 2, role: 'AGENCY' });
+
+  assert.strictEqual(res.code, 200);
+  assert.strictEqual(res.body.invoice.taxRate, 18);
+  assert.strictEqual(res.body.invoice.taxAmount, 18);
+  assert.strictEqual(res.body.invoice.total, 118);
+  // Recomputed from the UNCHANGED issue date plus the profile's current dueDays.
+  assert.strictEqual(res.body.invoice.dueAt.toISOString(), '2026-03-30T12:00:00.000Z');
+  // What the card paid is a fact about the payment and does not move.
+  assert.strictEqual(res.body.invoice.amountPaid, 127);
+});
+
+// THE MISSING-PAYMENT CASE, end to end. The stored figures are the only
+// surviving record of what was charged, so they are left exactly as they are and
+// the answer says the amounts were not rebuilt.
+test('regenerate: with the payment gone, the snapshots are refreshed and no money field is written', async () => {
+  const prisma = regPrisma({ invoice: { ...REG_INVOICE, creditPurchaseId: null }, purchase: null });
+  const res = await callRegenerate(prisma, { id: 1, role: 'WHITELABEL' });
+
+  assert.strictEqual(res.code, 200);
+  assert.strictEqual(res.body.amountsRebuilt, false);
+  const written = prisma.writes[0].data;
+  for (const key of ['subtotal', 'taxLabel', 'taxRate', 'taxAmount', 'retention',
+    'total', 'amountPaid', 'totalInWords', 'conceptLines']) {
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(written, key), false, `must not rewrite ${key}`);
+  }
+  // Not invented as a zero: the document still says what it was issued saying.
+  assert.strictEqual(res.body.invoice.total, 127);
+  assert.strictEqual(res.body.invoice.amountPaid, 127);
+  // And the point of the action still happened.
+  assert.strictEqual(res.body.invoice.issuer.issuerRnc, '1-01-00000-1');
+  assert.ok(res.body.invoice.regeneratedAt instanceof Date);
+});
+
+test('regenerate: with the account gone too, the client snapshot is kept rather than emptied', async () => {
+  const prisma = regPrisma({
+    invoice: { ...REG_INVOICE, userId: null, creditPurchaseId: null },
+    purchase: null,
+    client: null,
+  });
+  const res = await callRegenerate(prisma, { id: 1, role: 'WHITELABEL' });
+
+  assert.strictEqual(res.code, 200);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(prisma.writes[0].data, 'clientSnapshot'), false);
+  assert.strictEqual(res.body.invoice.client.company, 'Cliente SRL');
+});
+
+// 403 AND NOTHING WRITTEN. A refusal that still rewrote the row would be the
+// whole risk of this feature with none of its control.
+test('regenerate: the client it is addressed to is refused with 403 and nothing is written', async () => {
+  const prisma = regPrisma();
+  const res = await callRegenerate(prisma, { id: 3, role: 'CLIENT' });
+  assert.strictEqual(res.code, 403);
+  assert.match(res.body.error, /Solo quien emite/);
+  assert.strictEqual(prisma.writes.length, 0);
+});
+
+test('regenerate: a partner above the issuer is refused with 403 and nothing is written', async () => {
+  const prisma = regPrisma({ invoice: { ...REG_INVOICE, profileId: 8 } });
+  const res = await callRegenerate(prisma, { id: 1, role: 'WHITELABEL' });
+  assert.strictEqual(res.code, 403);
+  assert.strictEqual(prisma.writes.length, 0);
+});
+
+test('regenerate: an invoice that does not exist, or a non-numeric id, is a 404 with no write', async () => {
+  const missing = regPrisma();
+  assert.strictEqual((await callRegenerate(missing, { id: 99, role: 'OWNER' }, '4242')).code, 404);
+  const bad = regPrisma();
+  assert.strictEqual((await callRegenerate(bad, { id: 99, role: 'OWNER' }, 'abc')).code, 404);
+  assert.strictEqual(missing.writes.length + bad.writes.length, 0);
+});
+
+// Impossible today (Invoice.profileId is Restrict), and answered rather than
+// crashed: there is simply nothing left to rebuild the document FROM.
+test('regenerate: an invoice whose issuing profile is gone answers 409, not 500', async () => {
+  const prisma = regPrisma({ profiles: {} });
+  const res = await callRegenerate(prisma, { id: 99, role: 'OWNER' });
+  assert.strictEqual(res.code, 409);
+  assert.match(res.body.error, /no se puede regenerar/);
+  assert.strictEqual(prisma.writes.length, 0);
+});
+
+test('present carries regeneratedAt, and null on a document never rebuilt', () => {
+  const at = new Date('2026-10-07T10:00:00.000Z');
+  assert.strictEqual(present(row({ regeneratedAt: at })).regeneratedAt, at);
+  assert.strictEqual(present(row()).regeneratedAt, null);
+});
