@@ -74,6 +74,7 @@ export const INVOICE_TEXT_KEYS = INVOICE_TEXT_GROUPS.flatMap(g => g.fields.map((
 // Mirrors the server's own DEFAULTS, as strings so the inputs are controlled.
 export const EMPTY_INVOICE_PROFILE = {
   taxEnabled: false,
+  chargeTaxToClient: false,
   taxRate: '0',
   taxLabel: 'ITBIS',
   invoicePrefix: 'FAC-',
@@ -87,6 +88,7 @@ export const EMPTY_INVOICE_PROFILE = {
 // strings, or the inputs would flip between controlled and uncontrolled.
 export const invoiceFormFrom = (profile = {}) => ({
   taxEnabled: !!profile.taxEnabled,
+  chargeTaxToClient: !!profile.chargeTaxToClient,
   taxRate: profile.taxRate != null ? String(profile.taxRate) : '0',
   taxLabel: profile.taxLabel || 'ITBIS',
   invoicePrefix: profile.invoicePrefix ?? 'FAC-',
@@ -101,6 +103,7 @@ export const invoiceFormFrom = (profile = {}) => ({
 // would re-point a whole partner's fiscal history at another account.
 export const invoicePayloadFrom = (form) => ({
   taxEnabled: !!form.taxEnabled,
+  chargeTaxToClient: !!form.chargeTaxToClient,
   taxRate: form.taxRate,
   taxLabel: form.taxLabel,
   invoicePrefix: form.invoicePrefix,
@@ -117,19 +120,33 @@ const LABEL = 'block text-xs font-medium uppercase tracking-wide text-gray-500 d
  * @param {object}   form          the form object, as invoiceFormFrom returns it
  * @param {function} onChange      called with a patch to merge into it
  * @param {boolean}  profileExists false while the account has no saved profile
- * @param {node}     taxHelp       what switching the tax on means, in the voice
- *                                 of whoever is reading it. Printed next to the
+ * @param {node}     taxHelp       what SHOWING the tax means, in the voice of
+ *                                 whoever is reading it. Printed next to the
  *                                 checkbox, never in a tooltip: it is the one
  *                                 consequence nobody should discover afterwards.
+ * @param {node}     chargeHelp    the same, for the switch that actually charges
+ *                                 the tax to the client.
  * @param {node}     notConfiguredNote  the "no profile yet" line, same reason.
  */
-export default function BillingProfileFields({ form, onChange, profileExists, taxHelp, notConfiguredNote }) {
+export default function BillingProfileFields({ form, onChange, profileExists, taxHelp, chargeHelp, notConfiguredNote }) {
   const set = (patch) => onChange(patch)
+
+  // The combination the owner asked for, and the one whose consequence is
+  // easiest to miss: the invoices carry the tax, nobody pays it. Spelled out
+  // HERE rather than in each screen's `taxHelp`, so both screens say the same
+  // thing about the same arithmetic and cannot drift apart.
+  const shownNotCharged = !!form.taxEnabled && !form.chargeTaxToClient
+  // The example below uses the rate actually typed into the field, not a
+  // hardcoded 27, so a partner on another rate reads its own arithmetic.
+  const exampleRate = Number(form.taxRate) || 0
+  const exampleTotal = (100 + exampleRate).toFixed(2)
+  const exampleTax = exampleRate.toFixed(2)
 
   return (
     <>
-      {/* The switch the whole feature hangs off. Off means the panel behaves
-          exactly as it did before this existed. */}
+      {/* TWO SWITCHES, TWO DIFFERENT DECISIONS. The first governs the
+          DOCUMENT, the second governs the CARD. Both off means the panel
+          behaves exactly as it did before any of this existed. */}
       <label className="flex gap-2 p-3 rounded-xl border border-gray-200 dark:border-dark-border cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover">
         <input
           type="checkbox"
@@ -138,10 +155,44 @@ export default function BillingProfileFields({ form, onChange, profileExists, ta
           className="mt-0.5 text-primary-600 focus:ring-primary-500"
         />
         <div>
-          <span className="text-sm font-medium text-gray-900 dark:text-white">Cobrar impuesto sobre cada pago</span>
+          <span className="text-sm font-medium text-gray-900 dark:text-white">Mostrar el impuesto en las facturas</span>
           <div className="text-xs text-gray-500 dark:text-gray-400">{taxHelp}</div>
         </div>
       </label>
+
+      <label className="flex gap-2 p-3 rounded-xl border border-gray-200 dark:border-dark-border cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover">
+        <input
+          type="checkbox"
+          checked={!!form.chargeTaxToClient}
+          onChange={(e) => set({ chargeTaxToClient: e.target.checked })}
+          className="mt-0.5 text-primary-600 focus:ring-primary-500"
+        />
+        <div>
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            Cobrarle además el impuesto al cliente
+          </span>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            {chargeHelp || <>
+              Encendido, el impuesto se suma <strong>por encima de cada pago</strong>: quien pida $100 de saldo paga
+              $127 al 27% y recibe 100 créditos. Apagado, cada cuenta paga exactamente el monto que pide.
+            </>}
+            {' '}No hace nada si el impuesto no se muestra en las facturas.
+          </div>
+        </div>
+      </label>
+
+      {/* The consequence of the combination above, where it cannot be missed:
+          next to the switches that cause it, in the same amber the panel uses
+          for "pendiente" elsewhere. */}
+      {shownNotCharged && (
+        <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+          <strong>Así está ahora:</strong> la factura muestra el impuesto pero no se le cobra a nadie. Un cliente
+          paga $100, recibe 100 créditos, y su factura dice <strong>TOTAL A PAGAR ${exampleTotal}</strong> al{' '}
+          {exampleRate}%. Esos ${exampleTax} quedan sin cobrar en cada documento: la factura indica cuánto se
+          recibió y cuánto falta, pero el dinero no entra. Para cobrarlos, enciende{' '}
+          <strong>«Cobrarle además el impuesto al cliente»</strong>.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div>

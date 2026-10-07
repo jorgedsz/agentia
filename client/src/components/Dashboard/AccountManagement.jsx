@@ -1957,7 +1957,8 @@ export default function AccountManagement() {
                     <div>
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Impuesto y facturación</h4>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Lo que este partner le cobra de impuesto a sus clientes, y los datos que se imprimen en las facturas que emite.
+                        El impuesto que este partner muestra en sus facturas — y, aparte, si además se lo cobra a sus
+                        clientes — junto con los datos que se imprimen en las facturas que emite.
                       </p>
                     </div>
 
@@ -1969,9 +1970,15 @@ export default function AccountManagement() {
                       onChange={(patch) => setInvoiceForm(f => ({ ...f, ...patch }))}
                       profileExists={invoiceProfileExists}
                       taxHelp={<>
-                        Mientras esté apagado no cambia nada: se cobra el monto exacto que el cliente pide y no se emite ninguna factura.
-                        Encendido, el impuesto se suma por encima de cada cargo a <strong>todas las cuentas que dependen de este partner</strong>
-                        {' '}(un cliente que pide $100 de saldo paga $127 al 27% y recibe 100 créditos) y cada pago confirmado genera una factura.
+                        Mientras esté apagado no cambia nada: no se emite ninguna factura. Encendido, cada pago confirmado
+                        de <strong>todas las cuentas que dependen de este partner</strong> genera una factura con su
+                        numeración, y esa factura muestra el impuesto como línea aparte.
+                        {' '}<strong>Por sí solo no le cobra nada extra a nadie</strong>: eso es la casilla siguiente.
+                      </>}
+                      chargeHelp={<>
+                        Encendido, el impuesto se suma por encima de cada cargo a <strong>todas las cuentas que dependen
+                        de este partner</strong>: quien pida $100 de saldo paga $127 al 27% y recibe 100 créditos.
+                        Apagado, cada cuenta paga exactamente el monto que pide.
                       </>}
                       notConfiguredNote="Este partner todavía no tiene perfil de facturación: lo que ves son los valores por defecto y se crean al guardar."
                     />

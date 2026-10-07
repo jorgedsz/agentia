@@ -17,6 +17,7 @@ const { canConfigureBillingProfile } = require('../utils/accountAccess');
 // time shows exactly what it would get by saving untouched.
 const DEFAULTS = {
   taxEnabled: false,
+  chargeTaxToClient: false,
   taxRate: 0,
   taxLabel: 'ITBIS',
   retentionRate: 0,
@@ -59,6 +60,10 @@ const TEXT_FIELDS = [
   'site2Name', 'site2Phone', 'site2City', 'site2Address',
   'contactEmail', 'contactWeb',
 ];
+// The two tax switches. Separate on purpose: `taxEnabled` makes this partner's
+// INVOICES show the tax, `chargeTaxToClient` also charges it on top of every
+// payment. See BillingProfile in schema.prisma and utils/taxes.js.
+const BOOL_FIELDS = ['taxEnabled', 'chargeTaxToClient'];
 const RATE_FIELDS = ['taxRate', 'retentionRate'];
 const INT_FIELDS = ['invoiceNextNumber', 'invoicePadding', 'dueDays'];
 
@@ -95,7 +100,10 @@ function shape(profile) {
 function sanitizeProfileInput(body = {}) {
   const data = {};
 
-  if (body.taxEnabled !== undefined) data.taxEnabled = Boolean(body.taxEnabled);
+  for (const key of BOOL_FIELDS) {
+    if (body[key] === undefined) continue;
+    data[key] = Boolean(body[key]);
+  }
 
   for (const key of RATE_FIELDS) {
     if (body[key] === undefined) continue;
@@ -253,7 +261,15 @@ const set = async (req, res) => {
       resourceType: 'billing_profile',
       resourceId: String(profile.id),
       // The fields touched, not their values: this row holds bank details.
-      details: { fields: Object.keys(data), taxEnabled: profile.taxEnabled, taxRate: profile.taxRate },
+      details: {
+        fields: Object.keys(data),
+        taxEnabled: profile.taxEnabled,
+        // Logged next to taxEnabled because this is the one that moves money:
+        // turning it on makes every client under this partner pay the tax on
+        // top of what it asked for.
+        chargeTaxToClient: profile.chargeTaxToClient,
+        taxRate: profile.taxRate,
+      },
       req,
     });
 
