@@ -37,6 +37,7 @@ test('rates and integers arrive coerced from the strings a form posts', () => {
     invoicePadding: '8',
     dueDays: '30',
     taxEnabled: 'yes',
+    chargeTaxToClient: '',
   });
   assert.strictEqual(data.taxRate, 27);
   assert.strictEqual(data.retentionRate, 0);
@@ -44,6 +45,22 @@ test('rates and integers arrive coerced from the strings a form posts', () => {
   assert.strictEqual(data.invoicePadding, 8);
   assert.strictEqual(data.dueDays, 30);
   assert.strictEqual(data.taxEnabled, true);
+  assert.strictEqual(data.chargeTaxToClient, false);
+});
+
+// The two switches are independent all the way through the allow-list: the one
+// that shows the tax on the invoices, and the one that also charges it to the
+// client. Either can be posted without the other.
+test('both tax switches reach the row, and each one on its own', () => {
+  const both = sanitizeProfileInput({ taxEnabled: true, chargeTaxToClient: true }).data;
+  assert.deepStrictEqual(both, { taxEnabled: true, chargeTaxToClient: true });
+
+  const shownOnly = sanitizeProfileInput({ taxEnabled: true, chargeTaxToClient: false }).data;
+  assert.deepStrictEqual(shownOnly, { taxEnabled: true, chargeTaxToClient: false });
+
+  // A form section that posts only one of them must not blank the other.
+  assert.deepStrictEqual(sanitizeProfileInput({ taxEnabled: true }).data, { taxEnabled: true });
+  assert.deepStrictEqual(sanitizeProfileInput({ chargeTaxToClient: true }).data, { chargeTaxToClient: true });
 });
 
 test('an empty numeric field means zero (or the column default), never NaN', () => {
@@ -111,6 +128,9 @@ test('an out-of-range integer is refused with the field named', () => {
 test('shape falls back to the schema defaults when there is no profile yet', () => {
   const out = shape(null);
   assert.strictEqual(out.taxEnabled, false);
+  // Nobody is charged anything extra until this is deliberately turned on.
+  assert.strictEqual(out.chargeTaxToClient, false);
+  assert.strictEqual(DEFAULTS.chargeTaxToClient, false);
   assert.strictEqual(out.taxRate, 0);
   assert.strictEqual(out.taxLabel, 'ITBIS');
   assert.strictEqual(out.invoicePrefix, 'FAC-');
@@ -121,7 +141,8 @@ test('shape falls back to the schema defaults when there is no profile yet', () 
 });
 
 test('shape returns only profile fields, never the row id or the owner id', () => {
-  const out = shape({ id: 3, ownerId: 9, taxEnabled: true, taxRate: 27, createdAt: new Date() });
+  const out = shape({ id: 3, ownerId: 9, taxEnabled: true, chargeTaxToClient: true, taxRate: 27, createdAt: new Date() });
+  assert.strictEqual(out.chargeTaxToClient, true);
   assert.strictEqual(out.id, undefined);
   assert.strictEqual(out.ownerId, undefined);
   assert.strictEqual(out.createdAt, undefined);
