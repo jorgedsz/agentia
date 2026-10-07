@@ -173,9 +173,9 @@ function presentPayment(purchase, billsWithTax = false) {
 }
 
 /**
- * The requester's own settled PAYMENTS, newest first, each with its invoice
+ * The settled PAYMENTS of one account, newest first, each with its invoice
  * attached or null.
- * GET /api/invoices?limit=50
+ * GET /api/invoices?limit=50[&forUserId=42]
  *
  * Payments rather than invoices because an invoice that was never issued is
  * exactly the one that needs issuing, and it cannot appear in a list of
@@ -184,22 +184,51 @@ function presentPayment(purchase, billsWithTax = false) {
  * document. Listed this way, that payment is visible with `invoice: null` and
  * its `purchaseId` is what GET /api/invoices/by-purchase/:purchaseId needs to
  * repair it. There is no other surface in the app that carries a purchase id.
+ *
+ * `forUserId` lists ANOTHER account's payments instead of the caller's, which
+ * is what the Facturas page needs the moment the person opening it is the one
+ * who ISSUES: the platform OWNER has no payments of his own and a partner's
+ * clients are the ones who paid, so for both of them their own list is empty
+ * and there is nothing to invoice from. Allowed only for the OWNER or a partner
+ * above that account - the same rule, from the same helper, that
+ * /by-purchase/:purchaseId already applies before it issues, so what can be
+ * listed and what can be issued cannot drift apart. A refusal is 403 and not an
+ * empty list: an empty list reads as "this client never paid", which is a lie
+ * that would have a manager hunting for payments that are simply not his to
+ * see.
  */
 const listMine = async (req, res) => {
   try {
     const requested = parseInt(req.query.limit);
     const limit = Math.min(Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_LIMIT, MAX_LIMIT);
 
+    // Absent, this lists the caller and behaves exactly as it always did.
+    let subjectId = req.user.id;
+    if (req.query.forUserId !== undefined) {
+      subjectId = parseInt(req.query.forUserId);
+      if (!Number.isFinite(subjectId)) return res.status(400).json({ error: 'Cuenta no válida.' });
+
+      if (!(await canReadAccount(req.prisma, req.user, subjectId))) {
+        return res.status(403).json({ error: 'No puedes ver las facturas de esta cuenta.' });
+      }
+    }
+
     // The same gate issueInvoiceForPurchase applies: a profile AND its tax
     // switched on. An account that bills without tax has no invoices and never
     // will, so its screen gets an empty list and stays exactly as it is today
     // rather than growing a payments table it has no use for. resolveTaxConfig
     // never throws - it reads as "no tax" on any failure.
-    const { profile, taxEnabled } = await resolveTaxConfig(req.prisma, req.user.id);
+    //
+    // RESOLVED FOR THE ACCOUNT BEING VIEWED, never for whoever is looking. The
+    // flag answers "does THIS account bill with tax", and the manager asking is
+    // typically one whose own account does not - LM's own payments carry no tax
+    // - so reading it off the caller would tell a partner that its client's
+    // payments cannot be invoiced while issuance happily invoices them.
+    const { profile, taxEnabled } = await resolveTaxConfig(req.prisma, subjectId);
     if (!profile || !taxEnabled) return res.json({ billsWithTax: false, payments: [] });
 
     const purchases = await req.prisma.creditPurchase.findMany({
-      where: { userId: req.user.id, status: 'completed' },
+      where: { userId: subjectId, status: 'completed' },
       // By id, not createdAt: ids are monotonic and two payments in the same
       // second would otherwise come back in an arbitrary order.
       orderBy: { id: 'desc' },

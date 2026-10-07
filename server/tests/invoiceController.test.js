@@ -296,3 +296,156 @@ test('presentPayment is not safe to hand straight to map, and the index proves i
   const right = rows.map((r) => presentPayment(r, true));
   assert.deepStrictEqual(right.map((r) => r.invoiceExpected), [true, true]);
 });
+
+// ---------------------------------------------------------------------------
+// GET /api/invoices?forUserId=.. — listing ANOTHER account's payments
+//
+// DB-free: resolveTaxConfig and canReadAccount both reach the database only
+// through prisma.user / prisma.billingProfile, so a plain object answers for
+// both and the whole endpoint runs here.
+// ---------------------------------------------------------------------------
+
+const { listMine } = require('../src/controllers/invoiceController');
+
+// whitelabel 10 collects through its own Stripe and has the tax switched on,
+// so its WHOLE subtree bills with tax — agency 20 and clients 30 and 31 — while
+// account 10 itself, being a partner, buys from the platform and bills with no
+// tax at all. That asymmetry is the point: it is the shape LM Consulting has.
+const BILLING_TREE = {
+  10: { id: 10, role: 'WHITELABEL', agencyId: null, whitelabelId: null, billingMode: 'own_stripe' },
+  20: { id: 20, role: 'AGENCY', agencyId: null, whitelabelId: 10, billingMode: null },
+  30: { id: 30, role: 'CLIENT', agencyId: 20, whitelabelId: null, billingMode: null },
+  31: { id: 31, role: 'CLIENT', agencyId: 20, whitelabelId: null, billingMode: null },
+  // Hangs off nobody: nothing above it, so nothing taxes it.
+  50: { id: 50, role: 'CLIENT', agencyId: null, whitelabelId: null, billingMode: null },
+};
+
+function listPrisma(purchases = []) {
+  const calls = [];
+  return {
+    calls,
+    user: { findUnique: async ({ where }) => BILLING_TREE[where.id] || null },
+    billingProfile: {
+      findUnique: async ({ where }) => (where.ownerId === 10
+        ? { id: 1, ownerId: 10, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' }
+        : null),
+    },
+    creditPurchase: {
+      findMany: async (args) => { calls.push(args); return purchases; },
+    },
+  };
+}
+
+function fakeRes() {
+  return {
+    code: 200,
+    body: null,
+    status(code) { this.code = code; return this; },
+    json(body) { this.body = body; return this; },
+  };
+}
+
+function paid(id) {
+  return {
+    id,
+    amount: 100,
+    credits: 100,
+    taxRate: 27,
+    taxAmount: 0,
+    createdAt: new Date('2026-03-15T12:00:00.000Z'),
+    kind: 'manual',
+    billingPeriodId: null,
+    periodStart: null,
+    periodEnd: null,
+    invoice: null,
+  };
+}
+
+async function callList(prisma, user, query = {}) {
+  const res = fakeRes();
+  await listMine({ prisma, user, query }, res);
+  return res;
+}
+
+test('no forUserId: unchanged — the payments of the caller, under the tax of the caller', async () => {
+  const prisma = listPrisma([paid(1)]);
+  const res = await callList(prisma, { id: 30, role: 'CLIENT' });
+  assert.strictEqual(res.code, 200);
+  assert.strictEqual(res.body.billsWithTax, true);
+  assert.strictEqual(prisma.calls[0].where.userId, 30);
+  assert.strictEqual(res.body.payments.length, 1);
+});
+
+test('forUserId: a partner above the account gets the payments of that account, not its own', async () => {
+  const prisma = listPrisma([paid(1), paid(2)]);
+  const res = await callList(prisma, { id: 10, role: 'WHITELABEL' }, { forUserId: '30' });
+  assert.strictEqual(res.code, 200);
+  assert.strictEqual(prisma.calls[0].where.userId, 30);
+  assert.strictEqual(res.body.payments.length, 2);
+});
+
+// The whole reason the tax is resolved for the subject. Account 10 bills with
+// NO tax of its own; read off the caller, this answers false and the manager is
+// told its client's payments cannot be invoiced while issuance invoices them
+// perfectly well.
+test('forUserId: billsWithTax describes the account being viewed, not the manager viewing it', async () => {
+  const viewed = await callList(listPrisma([paid(1)]), { id: 10, role: 'WHITELABEL' }, { forUserId: '30' });
+  assert.strictEqual(viewed.body.billsWithTax, true);
+  // Same caller, same page, its own account selected: no tax, as before.
+  const own = await callList(listPrisma([paid(1)]), { id: 10, role: 'WHITELABEL' });
+  assert.strictEqual(own.body.billsWithTax, false);
+  assert.deepStrictEqual(own.body.payments, []);
+});
+
+test('forUserId: the OWNER may list any account', async () => {
+  const prisma = listPrisma([paid(1)]);
+  const res = await callList(prisma, { id: 99, role: 'OWNER' }, { forUserId: '30' });
+  assert.strictEqual(res.code, 200);
+  assert.strictEqual(prisma.calls[0].where.userId, 30);
+});
+
+test('forUserId: an account under no tax-collecting partner still answers billsWithTax false, not 403', async () => {
+  const res = await callList(listPrisma([paid(1)]), { id: 99, role: 'OWNER' }, { forUserId: '50' });
+  assert.strictEqual(res.code, 200);
+  assert.strictEqual(res.body.billsWithTax, false);
+  assert.deepStrictEqual(res.body.payments, []);
+});
+
+// 403 AND NOT AN EMPTY LIST. An empty list reads as "this client never paid",
+// which would send a manager looking for payments that are simply not his.
+test('forUserId: a sibling is refused with 403, and no payment is read', async () => {
+  const prisma = listPrisma([paid(1)]);
+  const res = await callList(prisma, { id: 31, role: 'CLIENT' }, { forUserId: '30' });
+  assert.strictEqual(res.code, 403);
+  assert.match(res.body.error, /No puedes ver las facturas/);
+  assert.strictEqual(res.body.payments, undefined);
+  assert.strictEqual(prisma.calls.length, 0);
+});
+
+test('forUserId: upward is refused too — a client may not list the partner above it', async () => {
+  const res = await callList(listPrisma([paid(1)]), { id: 30, role: 'CLIENT' }, { forUserId: '20' });
+  assert.strictEqual(res.code, 403);
+});
+
+test('forUserId: a partner may not list an account outside its own tree', async () => {
+  const res = await callList(listPrisma([paid(1)]), { id: 10, role: 'WHITELABEL' }, { forUserId: '50' });
+  assert.strictEqual(res.code, 403);
+});
+
+test('forUserId: an account that does not exist is refused rather than answered empty', async () => {
+  const res = await callList(listPrisma(), { id: 10, role: 'WHITELABEL' }, { forUserId: '777' });
+  assert.strictEqual(res.code, 403);
+});
+
+test('forUserId: a non-numeric id is a 400, never silently the list of the caller', async () => {
+  const prisma = listPrisma([paid(1)]);
+  const res = await callList(prisma, { id: 10, role: 'WHITELABEL' }, { forUserId: 'abc' });
+  assert.strictEqual(res.code, 400);
+  assert.strictEqual(prisma.calls.length, 0);
+});
+
+test('forUserId: the cap still applies to the request of a manager', async () => {
+  const prisma = listPrisma([paid(1)]);
+  await callList(prisma, { id: 99, role: 'OWNER' }, { forUserId: '30', limit: '5000' });
+  assert.strictEqual(prisma.calls[0].take, 200);
+});
