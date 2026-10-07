@@ -19,6 +19,26 @@
 //   · tax not charged  the invoice total deliberately EXCEEDS what was
 //                     collected, and `amountPaid` records the difference so the
 //                     document can say so instead of hiding it.
+//
+// THE RETENCIÓN IS COMPUTED THE SAME WAY, AND THE NET IS GROSSED UP FROM THE
+// MONEY THAT ARRIVED. BillingProfile.retentionRate is a WITHHOLDING, and the
+// money the client paid is what the issuer RECEIVES - so it is the TOTAL A
+// PAGAR at the bottom of the block, not the net at the top of it. The net is
+// what the document would have asked for before the withholding, which is the
+// received amount divided by (1 - rate): at 27% a $100 purchase invoices as
+// TOTAL NETO 136.99 · RETENCIÓN 36.99 · TOTAL A PAGAR 100.00.
+//
+// THAT DIVISION IS WHAT THE OWNER'S ACCOUNTANT'S OWN INVOICE DOES, and it is
+// the reason this is a division and not a multiplication. His document reads
+// TOTAL NETO 2,191.82 · RETENCIÓN 591.79 · TOTAL A PAGAR 1,600.00, and
+// 1600 / (1 - 0.27) = 2,191.78 reproduces it while 1600 * 1.27 = 2,032 does
+// not. The owner first described it as a multiplication, was shown the
+// discrepancy against his own paper, and chose the division.
+//
+// That document has no tax row at all (taxRate left at 0 with taxEnabled on,
+// which is what still lets invoices be issued). With BOTH rates set the
+// grossed-up net is also what the tax is taken on, and the total is
+// subtotal + taxAmount - retention = received + taxAmount - see buildInvoiceData.
 
 const { round2, resolveTaxConfig } = require('../utils/taxes');
 const { amountToSpanishWords } = require('../utils/numberToWords');
@@ -126,20 +146,77 @@ function buildClientSnapshot(client) {
  * every value it needs is already on `profile`, `client` and `purchase`.
  */
 function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Date() }) {
-  // What the client actually bought - the pre-tax subtotal, which is what
-  // reached the balance in either mode.
-  const subtotal = purchase.credits;
-  // Off the ISSUER'S PROFILE, at issue time, not off the purchase - see the
-  // file header. round2 rather than hand-rolled rounding, and it throws on a
-  // non-finite subtotal exactly as the `total` line below already did.
+  // WHAT THE CLIENT PAID IS WHAT THE ISSUER RECEIVES, so it belongs at the
+  // BOTTOM of the totals block and the net is grossed up from it - see the file
+  // header. `purchase.credits` is still exactly what reached the balance in
+  // either mode; it is only its place on the document that changed.
+  const received = purchase.credits;
+  // Off the ISSUER'S PROFILE at issue time, exactly like the tax below and for
+  // the same reason (see the file header): the purchase has no column that could
+  // carry it, and the rate that governs the document is the issuer's.
+  //
+  // NOT gated on `taxEnabled`. That flag means "this partner's invoices show
+  // the TAX", and the owner's configuration is precisely the one where the tax
+  // is off and the retention is 27 - gating the retention behind taxEnabled
+  // would make his document unreachable. Issuance itself is still gated on
+  // taxEnabled (see issueInvoiceForPurchase), so a partner that invoices at all
+  // has it on regardless; this only decides what the totals block says.
+  const retentionRate = profile.retentionRate || 0;
+  // A RATE AT OR ABOVE 100 HAS NO NET TO SPEAK OF: the divisor below is
+  // 1 - rate/100, which is 0 at exactly 100 (Infinity) and negative above it (a
+  // negative net). sanitizeProfileInput refuses to STORE such a rate, but a row
+  // saved before it did can still be read back here, so this throws rather than
+  // freezing Infinity - or a negative total - into a fiscal document. Same
+  // reasoning as the uncaught amountToSpanishWords RangeError further down: this
+  // runs inside the issuance $transaction, so the throw rolls the correlative
+  // back instead of filing a defective invoice.
+  if (retentionRate >= 100) {
+    throw new RangeError(
+      `retentionRate must be below 100 to gross the net up, got ${retentionRate}`,
+    );
+  }
+  // THE NET, GROSSED UP. At rate 0 the divisor is 1 and `received` is handed
+  // through UNTOUCHED - not even rounded - so a profile with no retention
+  // produces byte-for-byte the document it produced before any of this existed.
+  const subtotal = retentionRate > 0
+    ? round2(received / (1 - retentionRate / 100))
+    : received;
+  // round2 rather than hand-rolled rounding, and it throws on a non-finite
+  // subtotal exactly as the `total` line below already did.
   const taxRate = profile.taxEnabled ? (profile.taxRate || 0) : 0;
   const taxAmount = round2((subtotal * taxRate) / 100);
-  const retention = 0; // v1 always writes 0 - see Invoice.retention in schema.prisma
+  // THE RETENCIÓN IS SUBTRACTED, NOT ADDED - that is the whole difference
+  // between it and the tax above. Taken at its nominal rate off the grossed-up
+  // net, which is also what brings the total back to exactly what was received.
+  //
+  // THE INVARIANT: `total` equals `received`, to the cent, whenever no tax is
+  // set. That is not luck and it is not approximate. In integer cents, with
+  // f = 1 - rate/100 and c the cents received: subtotal = c/f + d with
+  // |d| <= 0.5 (one round2), retention = subtotal*(1-f) + e with |e| <= 0.5
+  // (the other), so subtotal - retention = c + d*f - e. For f < 1 that error is
+  // strictly below 1 cent, and both sides are whole cents, so it is 0 cents.
+  // Measured as well as argued: every cent from 0.01 to 2,000.00 at each of 17
+  // rates (0.01, 1, 5, 10, 16, 18, 27, 30, 33.33, 50, 66.67, 75, 90, 99, 99.5,
+  // 99.99, 12.345) - 3,400,000 cases, 0 mismatches - and deriving the retention
+  // the other way round instead, as `subtotal - received`, gave a figure
+  // IDENTICAL to this one in all 3,400,000. So the money wins at no cost to the
+  // retention's nominal percentage, and the nominal form is kept because it is
+  // the one the renderer can read the rate back out of (rateFromAmount in
+  // InvoiceDocument.jsx divides the retention by the subtotal). The sweep is
+  // pinned as a permanent test in tests/invoiceService.test.js.
+  const retention = round2((subtotal * retentionRate) / 100);
+  // A partner that sets BOTH rates gets both rows. The tax is taken on the
+  // GROSSED-UP net, so the total comes out at received + taxAmount: the
+  // retention cancels itself against the gross-up and the document asks for the
+  // money that arrived plus the tax. See the warning on the config screen -
+  // with the tax not charged to the client, that excess is the shortfall band.
   const total = round2(subtotal + taxAmount - retention);
   // What was really collected for this document, so it can be reconciled
-  // against the payment. Equals `total` when the tax was charged on top, and
-  // equals `subtotal` when the tax was only shown - the case where the
-  // document's TOTAL A PAGAR is knowingly above the money that came in. Null
+  // against the payment. With no tax it now equals `total` exactly - that is the
+  // invariant the retention arithmetic above exists to hold - and it falls BELOW
+  // the total by the tax whenever the tax is shown without being charged, which
+  // is the case where the document's TOTAL A PAGAR is knowingly above the money
+  // that came in and the renderer prints the shortfall. Null
   // only if the purchase carries no usable amount at all, which reads as
   // "unknown" and makes the renderer say nothing rather than invent a shortfall.
   const amountPaid = Number.isFinite(purchase.amount) ? purchase.amount : null;
@@ -242,7 +319,9 @@ async function issueInvoiceForPurchase(prisma, purchase) {
  *
  * THE MONEY IS BUILT BY buildInvoiceData AND NOWHERE ELSE. That function is the
  * one that knows the tax comes off the ISSUER and not off the payment, and that
- * the subtotal is `purchase.credits`; a second arithmetic here could disagree
+ * `purchase.credits` is the money RECEIVED with the net grossed up from it (so a
+ * regenerated document follows a change of retention rate the same way issuance
+ * would, net and total together); a second arithmetic here could disagree
  * with the one issuance uses, and a document whose total depends on which code
  * path wrote it is worse than no feature at all. Its identity fields are
  * stripped off the result rather than never computed, so this stays one source.

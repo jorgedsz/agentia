@@ -110,9 +110,29 @@ test('a negative or unparseable rate is refused', () => {
   assert.ok(sanitizeProfileInput({ retentionRate: 101 }).error);
 });
 
-test('exactly 0 and exactly 100 are allowed', () => {
+test('exactly 0 and exactly 100 are allowed for the TAX', () => {
   assert.strictEqual(sanitizeProfileInput({ taxRate: 0 }).data.taxRate, 0);
+  // A 100% tax merely doubles the bill. Odd, not undefined, so it stays legal.
   assert.strictEqual(sanitizeProfileInput({ taxRate: 100 }).data.taxRate, 100);
+});
+
+// THE RETENTION IS THE ONE THAT CANNOT REACH 100. The invoice's net is grossed
+// up from what the client paid by dividing it by (1 - rate/100), so exactly 100
+// divides by zero - see services/invoiceService.js, which throws rather than
+// filing a document totalling Infinity. This is where it is stopped instead.
+test('a retención of exactly 100 is refused, with the reason said out loud', () => {
+  const { data, error } = sanitizeProfileInput({ retentionRate: 100 });
+  assert.strictEqual(data, undefined);
+  assert.match(error, /menor que 100/);
+  assert.match(error, /no dejaría nada que pagar/);
+});
+
+test('a retención just under 100 is still allowed', () => {
+  assert.strictEqual(sanitizeProfileInput({ retentionRate: 99.99 }).data.retentionRate, 99.99);
+});
+
+test('a retención above 100 is refused by the 0-100 range, before the division ever matters', () => {
+  assert.match(sanitizeProfileInput({ retentionRate: 120 }).error, /entre 0 y 100/);
 });
 
 test('an out-of-range integer is refused with the field named', () => {

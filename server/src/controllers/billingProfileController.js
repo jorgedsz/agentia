@@ -117,6 +117,19 @@ function sanitizeProfileInput(body = {}) {
     if (!Number.isFinite(value) || value < 0 || value > 100) {
       return { error: `${RATE_LABELS[key]} debe ser un número entre 0 y 100.` };
     }
+    // THE RETENTION IS THE ONE THAT CANNOT REACH 100, and that is arithmetic,
+    // not taste. The invoice's net is grossed up from what the client paid by
+    // dividing it by (1 - rate/100) — see services/invoiceService.js — so a rate
+    // of exactly 100 divides by zero. `taxRate` at 100 is merely a strange
+    // choice (it doubles the bill), not an undefined one, so it keeps the 0-100
+    // range above untouched.
+    if (key === 'retentionRate' && value >= 100) {
+      return {
+        error: 'La tasa de retención debe ser menor que 100: el neto de la factura se calcula '
+          + 'dividiendo lo que el cliente paga entre (1 − tasa), y una retención del 100% no '
+          + 'dejaría nada que pagar.',
+      };
+    }
     data[key] = value;
   }
 
@@ -269,6 +282,13 @@ const set = async (req, res) => {
         // top of what it asked for.
         chargeTaxToClient: profile.chargeTaxToClient,
         taxRate: profile.taxRate,
+        // Logged for the same reason as the rate above, though it moves
+        // something else: the TOTAL A PAGAR stays equal to the money that
+        // arrived whatever this says (the net is grossed up from it), so a typo
+        // here never mis-asks for money — it inflates the NETO and RETENCIÓN
+        // rows of every document issued under this partner, which is a fiscal
+        // misstatement rather than a billing one.
+        retentionRate: profile.retentionRate,
       },
       req,
     });

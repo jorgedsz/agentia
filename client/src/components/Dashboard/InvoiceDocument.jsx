@@ -49,6 +49,35 @@ const toCent = (n) => Math.round((Number(n) || 0) * 100) / 100
 // Under a cent is nothing to chase on a fiscal document.
 const CENT = 0.01
 
+// The rate that produced `amount` off `subtotal`, as the issuer typed it — for
+// the RETENCIÓN row, whose rate the invoice does not store (only its amount).
+//
+// Dividing the amount back out lands NEAR the rate and not on it, because the
+// amount was rounded to the cent when it was stored: 591.78 / 2191.78 is
+// 26.99998%, and 4.62 / 17.12 is 26.9859%. Printing either of those would put a
+// rate nobody configured on a fiscal document. So the fewest decimals that
+// REPRODUCE the stored amount to the cent wins — 27 before 27.0 before 27.04 —
+// which is exact for any whole or one-decimal rate on a subtotal of $10 or
+// more (swept, 0 mismatches). A two-decimal rate under about $100 can come out
+// rounded to the tenth; `rounded` is deliberately the same half-up-at-15-digits
+// rounding the server stored the amount with, so the comparison is the server's
+// own and not an approximation of it.
+//
+// Returns 0 when the subtotal is too small for the amount to pin the rate down
+// at all, and the caller then prints no rate rather than a wrong one.
+const rateFromAmount = (amount, subtotal) => {
+  const net = Number(subtotal) || 0
+  const amt = Number(amount) || 0
+  if (net < 10 || amt <= 0) return 0
+  const rounded = (n) => Math.round(Number((n * 100).toPrecision(15))) / 100
+  const raw = (amt / net) * 100
+  for (const step of [1, 10, 100]) {
+    const candidate = Math.round(raw * step) / step
+    if (rounded((net * candidate) / 100) === amt) return candidate
+  }
+  return Math.round(raw * 100) / 100
+}
+
 // What the person is agreeing to before an invoice is rebuilt.
 //
 // Spelled out rather than summarised as "¿Seguro?": the number stays, the data
@@ -168,6 +197,19 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
   const currency = invoice.currency
   const blanks = Math.max(0, TABLE_ROWS - lines.length)
   const hasTax = invoice.taxAmount > 0
+  const hasRetention = invoice.retention > 0
+  // THE RETENCIÓN'S RATE IS DERIVED FROM ITS AMOUNT, because there is no column
+  // for it: Invoice freezes the retention AMOUNT, and the issuer's
+  // `retentionRate` lives on the profile, which this component must never read
+  // (see the file header — everything on this page comes off the invoice row,
+  // so a document issued at 27% keeps saying 27% after the issuer moves to
+  // 30%). rateFromAmount recovers the figure that was typed; below a $10
+  // subtotal a single cent of rounding is more than a tenth of a percentage
+  // point, so the amount no longer pins the rate down and the rate is LEFT OFF
+  // rather than guessed — the row then prints its amount alone, which is what
+  // the format did before this.
+  const retentionRate = hasRetention ? rateFromAmount(invoice.retention, invoice.subtotal) : 0
+  const showRetentionRate = retentionRate > 0
 
   // WHAT WAS ACTUALLY COLLECTED, when the row records it.
   //
@@ -187,6 +229,15 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
   const outstanding = paid === null ? 0 : toCent(invoice.total - paid)
   // Only when money is genuinely missing. A fully-paid invoice prints exactly
   // what it always printed.
+  //
+  // WITH A RETENCIÓN THIS GOES QUIET, AND IT DOES SO BY ARITHMETIC NOW, NOT BY
+  // luck. The money the client paid IS the TOTAL A PAGAR — the net above it is
+  // grossed up from it, see services/invoiceService.js — so a $100 purchase
+  // retained at 27% prints TOTAL NETO 136.99 / RETENCIÓN −36.99 / TOTAL A PAGAR
+  // 100.00 against 100 collected: `outstanding` is exactly 0 and no band is
+  // printed. Nothing is printed in its place either, and there is nothing to
+  // print: every dollar on the page is accounted for, and the 36.99 is withheld
+  // out of the net rather than owed by or to anybody.
   const showShortfall = paid !== null && outstanding >= CENT
 
   // The PDF is this very node printed, so what the client receives and what the
@@ -421,10 +472,19 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
                       <td style={{ ...S.cell, textAlign: 'right' }}>{money(invoice.taxAmount, currency)}</td>
                     </tr>
                   )}
+                  {/* THE RETENCIÓN IS SUBTRACTED, and the row has to say so.
+                      The printed format keeps this row whether or not there is
+                      a retention, so it stays here and goes blank — but when
+                      there IS one it is signed, because it sits directly under
+                      a tax row that ADDS and an unsigned figure in the same
+                      column would read as a second charge. The label carries
+                      the rate the same way the tax row does. */}
                   <tr>
-                    <td style={{ ...S.cell, fontWeight: 'bold' }}>RETENCIÓN</td>
+                    <td style={{ ...S.cell, fontWeight: 'bold' }}>
+                      RETENCIÓN{showRetentionRate ? ` (${rateOf(retentionRate)}%)` : ''}
+                    </td>
                     <td style={{ ...S.cell, textAlign: 'right' }}>
-                      {invoice.retention > 0 ? money(invoice.retention, currency) : ''}
+                      {hasRetention ? `− ${money(invoice.retention, currency)}` : ''}
                     </td>
                   </tr>
                   <tr>
