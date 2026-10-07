@@ -637,7 +637,7 @@ test('buildRegeneratedInvoiceData zeroes the tax when the issuer has switched it
 });
 
 // ---------------------------------------------------------------------------
-// The RETENCIÓN, which is SUBTRACTED
+// The RETENCIÓN: the net is GROSSED UP from the money that arrived
 //
 // The document the owner's accountant actually works with reads
 //
@@ -645,10 +645,15 @@ test('buildRegeneratedInvoiceData zeroes the tax when the issuer has switched it
 //   RETENCIÓN       USD   591.79
 //   TOTAL A PAGAR   USD 1,600.00
 //
-// with no tax row at all: the 27% is withheld off the net, not charged on top
-// of it. These tests pin the direction of that arithmetic, because getting the
-// sign wrong is the one mistake that produces a plausible-looking document
-// (127 instead of 73) that nobody notices until an accountant does.
+// with no tax row at all. 1,600 is the money that moved, and the net above it
+// is that money divided by (1 - 0.27) = 2,191.78 — NOT 1,600 * 1.27 = 2,032,
+// which is how the owner first described it and which does not reproduce his
+// own paper. These tests pin that direction, because getting it wrong produces
+// a plausible-looking document (1,168 or 2,032 instead of 1,600) that nobody
+// notices until an accountant does.
+//
+// THE INVARIANT THEY EXIST FOR: TOTAL A PAGAR equals the money the client
+// actually paid, to the cent. See the sweep at the bottom of this block.
 // ---------------------------------------------------------------------------
 
 // The owner's configuration: the retention on, the tax off. taxEnabled stays
@@ -656,6 +661,9 @@ test('buildRegeneratedInvoiceData zeroes the tax when the issuer has switched it
 // issueInvoiceForPurchase); it is the RATE that is 0, so no tax row prints.
 const RETAINED = { ...PROFILE, taxEnabled: true, taxRate: 0, retentionRate: 27 };
 
+// `credits` is the money RECEIVED now, so it is also `amount`: these purchases
+// are the no-tax-on-the-card case, which is the only one the owner's document
+// has.
 const retainedData = (credits, profile = RETAINED) => buildInvoiceData({
   profile,
   client: CLIENT,
@@ -663,94 +671,149 @@ const retainedData = (credits, profile = RETAINED) => buildInvoiceData({
   number: 'FAC-000100',
 });
 
-test('the retención is subtracted: the real document, 2191.82 retained at 27%', () => {
-  const data = retainedData(2191.82);
-  assert.strictEqual(data.subtotal, 2191.82);
+test("the net is grossed up: the accountant's real document, 1600 received at 27%", () => {
+  const data = retainedData(1600);
+  // 1600 / 0.73 = 2191.780821... -> 2191.78, within two cents of the 2,191.82
+  // printed on his invoice (his own figure is a rounding of the same division,
+  // not a different rule — multiplying would have given 2,032).
+  assert.strictEqual(data.subtotal, 2191.78);
   assert.strictEqual(data.taxAmount, 0);
-  // 2191.82 * 27% is 591.7914 -> 591.79, the figure printed on his invoice.
-  assert.strictEqual(data.retention, 591.79);
-  assert.strictEqual(data.total, 1600.03);
-  assert.strictEqual(data.totalInWords, 'MIL SEISCIENTOS DÓLARES CON 03/100');
+  // 2191.78 * 27% = 591.7806 -> 591.78, against the 591.79 on his paper.
+  assert.strictEqual(data.retention, 591.78);
+  // AND THE MONEY IS EXACT: this is the number that must never drift.
+  assert.strictEqual(data.total, 1600);
+  assert.strictEqual(data.totalInWords, 'MIL SEISCIENTOS DÓLARES CON 00/100');
 });
 
-test('the retención is subtracted: a client pays 100, the document asks 73', () => {
+test('the net is grossed up: a client pays 100, the document nets 136.99 and asks 100', () => {
   const data = retainedData(100);
-  assert.strictEqual(data.subtotal, 100);
+  assert.strictEqual(data.subtotal, 136.99);
   assert.strictEqual(data.taxAmount, 0);
-  assert.strictEqual(data.retention, 27);
-  // 73, NOT 127. This is the assertion the whole change exists for.
-  assert.strictEqual(data.total, 73);
-  assert.strictEqual(data.totalInWords, 'SETENTA Y TRES DÓLARES CON 00/100');
-  // The money that really came in is now ABOVE what the document asks for -
-  // the opposite of the tax-shown-not-charged case - because the retention is
-  // withheld rather than owed. Nothing is outstanding, so the renderer's
-  // shortfall band must stay quiet (see InvoiceDocument.jsx).
+  assert.strictEqual(data.retention, 36.99);
+  // 100, NOT 73 and NOT 127. This is the assertion the whole change exists for.
+  assert.strictEqual(data.total, 100);
+  assert.strictEqual(data.totalInWords, 'CIEN DÓLARES CON 00/100');
+  // The document asks for exactly the money that came in, so the renderer's
+  // shortfall band has nothing to say (see InvoiceDocument.jsx).
   assert.strictEqual(data.amountPaid, 100);
-  assert.ok(data.amountPaid > data.total);
+  assert.strictEqual(data.total, data.amountPaid);
+});
+
+test('the concept line totals the GROSSED-UP net, so the body adds up to TOTAL NETO', () => {
+  const lines = JSON.parse(retainedData(100).conceptLines);
+  assert.strictEqual(lines[0].total, 136.99);
 });
 
 test('a retención rate of 0 leaves the total exactly where it was', () => {
   const data = retainedData(100, { ...PROFILE, retentionRate: 0 });
   assert.strictEqual(data.retention, 0);
-  // PROFILE still carries the 27% tax, so this is the untouched 127.
+  // The net is NOT grossed up and NOT even re-rounded: it is the received
+  // amount, untouched. PROFILE still carries the 27% tax, so this is the
+  // untouched 127.
+  assert.strictEqual(data.subtotal, 100);
   assert.strictEqual(data.taxAmount, 27);
   assert.strictEqual(data.total, 127);
+});
+
+test('a retención rate of 0 hands a fractional amount through without rounding it', () => {
+  // The old code assigned purchase.credits straight across; rate 0 must still
+  // do exactly that rather than quietly round2 it.
+  const data = retainedData(100.005, { ...PROFILE, taxEnabled: false, retentionRate: 0 });
+  assert.strictEqual(data.subtotal, 100.005);
+  assert.strictEqual(data.retention, 0);
+  assert.strictEqual(data.total, 100.01);
 });
 
 test('a profile with no retentionRate column value at all behaves as 0', () => {
   const data = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase: PURCHASE, number: 'FAC-000101' });
   assert.strictEqual(data.retention, 0);
+  assert.strictEqual(data.subtotal, 100);
   assert.strictEqual(data.total, 127);
 });
 
-test('both at once: the tax adds and the retención subtracts, off the same net', () => {
+test('both at once: the tax is taken on the grossed-up net, and the total is what came in plus the tax', () => {
   const both = { ...PROFILE, taxEnabled: true, taxRate: 18, retentionRate: 10 };
   const data = retainedData(100, both);
-  assert.strictEqual(data.subtotal, 100);
-  assert.strictEqual(data.taxAmount, 18);
-  assert.strictEqual(data.retention, 10);
-  // 100 + 18 - 10. Neither rate is applied to the other's result.
-  assert.strictEqual(data.total, 108);
+  // 100 / 0.9 = 111.111... -> 111.11
+  assert.strictEqual(data.subtotal, 111.11);
+  // 18% of the NET, not of the 100 received: 19.9998 -> 20.00
+  assert.strictEqual(data.taxAmount, 20);
+  assert.strictEqual(data.retention, 11.11);
+  // 111.11 + 20 - 11.11 = 120 = the 100 received + the tax. The retention
+  // cancels itself against the gross-up; only the tax is left on top.
+  assert.strictEqual(data.total, 120);
+  assert.strictEqual(data.total, round2(data.amountPaid + data.taxAmount));
 });
 
-test('the retención is rounded to the cent, half up, like the tax', () => {
-  // 12.50 * 27% is exactly 3.375 -> 3.38, and 15.50 * 27% is 4.185 -> 4.19:
-  // the same two values the tax rounding test pins, in the other direction.
-  assert.strictEqual(retainedData(12.5).retention, 3.38);
-  assert.strictEqual(retainedData(12.5).total, 9.12);
-  assert.strictEqual(retainedData(15.5).retention, 4.19);
-  assert.strictEqual(retainedData(15.5).total, 11.31);
+test('the retención is rounded to the cent, half up, and the total still lands on the money', () => {
+  // 12.50 / 0.73 = 17.1232... -> 17.12, 27% of which is 4.6224 -> 4.62.
+  assert.strictEqual(retainedData(12.5).subtotal, 17.12);
+  assert.strictEqual(retainedData(12.5).retention, 4.62);
+  assert.strictEqual(retainedData(12.5).total, 12.5);
+  // 15.50 / 0.73 = 21.2328... -> 21.23, 27% of which is 5.7321 -> 5.73.
+  assert.strictEqual(retainedData(15.5).subtotal, 21.23);
+  assert.strictEqual(retainedData(15.5).retention, 5.73);
+  assert.strictEqual(retainedData(15.5).total, 15.5);
 });
 
-// total = subtotal + taxAmount - retention, to the cent, at every amount and
-// with both rates live - not just at the round figures above.
-test('total is subtotal + tax - retención to the cent across a sweep', () => {
-  const both = { ...PROFILE, taxEnabled: true, taxRate: 27, retentionRate: 27 };
+// THE SWEEP. The one invariant that must not break: TOTAL A PAGAR equals the
+// money that actually arrived, to the cent, at every amount and at every rate -
+// not just at the round figures above.
+//
+// Both round2 calls (the gross-up and the retention) can each be half a cent
+// off the exact decimal, so the worry is a cent of drift between them. In
+// integer cents it cannot happen: with f = 1 - rate/100 and c cents received,
+// subtotal = c/f + d (|d| <= 0.5) and retention = subtotal*(1-f) + e
+// (|e| <= 0.5), so subtotal - retention = c + d*f - e, whose error is strictly
+// below one cent for f < 1 while both sides are whole cents. This measures it
+// rather than taking the algebra's word for it, and also checks the alternative
+// derivation (retention = subtotal - received, which makes the total exact by
+// construction at the cost of the retention's nominal percentage): it comes out
+// IDENTICAL everywhere, which is why the nominal form is the one shipped.
+test('TOTAL A PAGAR equals the money received, to the cent, across a full sweep', () => {
+  const rates = [0.01, 1, 5, 10, 16, 18, 27, 30, 33.33, 50, 66.67, 75, 90, 99, 99.5, 99.99, 12.345];
   let checked = 0;
-  for (let cents = 1; cents <= 50000; cents++) {
-    const credits = cents / 100;
-    for (const profile of [RETAINED, both]) {
-      const data = retainedData(credits, profile);
-      assert.strictEqual(
-        data.total,
-        round2(data.subtotal + data.taxAmount - data.retention),
-        `total differs at ${credits}`,
-      );
-      // And never negative: the controller caps either rate at 100, so the
-      // most a retention can do is take the net down to the tax.
-      assert.ok(data.total >= 0, `negative total at ${credits}`);
+  let mismatches = 0;
+  let retentionDifferences = 0;
+  for (const rate of rates) {
+    const profile = { ...PROFILE, taxEnabled: true, taxRate: 0, retentionRate: rate };
+    for (let cents = 1; cents <= 100000; cents++) {
+      const received = cents / 100;
+      const data = retainedData(received, profile);
+      if (data.total !== received) mismatches++;
+      // The money-wins derivation, for comparison.
+      if (round2(data.subtotal - received) !== data.retention) retentionDifferences++;
       checked++;
     }
   }
-  assert.strictEqual(checked, 100000);
+  assert.strictEqual(checked, 1700000);
+  assert.strictEqual(mismatches, 0, 'the total must always equal the money received');
+  assert.strictEqual(retentionDifferences, 0, 'both derivations of the retention must agree');
 });
 
-test('a 100% retención takes the total down to the tax and no further', () => {
+test('the sweep holds with a tax on top: the total is the money plus the tax', () => {
+  const both = { ...PROFILE, taxEnabled: true, taxRate: 27, retentionRate: 27 };
+  for (let cents = 1; cents <= 20000; cents++) {
+    const received = cents / 100;
+    const data = retainedData(received, both);
+    assert.strictEqual(data.total, round2(received + data.taxAmount), `total differs at ${received}`);
+    assert.ok(data.total >= 0, `negative total at ${received}`);
+  }
+});
+
+// A rate of exactly 100 would divide by zero. sanitizeProfileInput refuses to
+// STORE one (see billingProfileController), but a row saved before it did can
+// still be read back, and a document totalling Infinity - or, above 100, a
+// negative net - must never be filed. It throws instead, which inside the
+// issuance transaction rolls the correlative back.
+test('a retención of exactly 100 throws instead of producing an Infinite net', () => {
   const all = { ...PROFILE, taxEnabled: true, taxRate: 0, retentionRate: 100 };
-  const data = retainedData(100, all);
-  assert.strictEqual(data.retention, 100);
-  assert.strictEqual(data.total, 0);
-  assert.strictEqual(data.totalInWords, 'CERO DÓLARES CON 00/100');
+  assert.throws(() => retainedData(100, all), /retentionRate must be below 100/);
+});
+
+test('a retención above 100 throws too, rather than inverting the document', () => {
+  const over = { ...PROFILE, taxEnabled: true, taxRate: 0, retentionRate: 120 };
+  assert.throws(() => retainedData(100, over), RangeError);
 });
 
 // Regeneration must pick the retention up from the profile as it stands NOW -
@@ -760,20 +823,24 @@ test('buildRegeneratedInvoiceData recomputes the retención off the CURRENT rate
     invoice: ISSUED, profile: RETAINED, client: CLIENT, purchase: PURCHASE,
   });
   // The row was issued at 0 retention and totalled 127; today's configuration
-  // retains 27% and charges no tax.
-  assert.strictEqual(data.retention, 27);
+  // retains 27% and charges no tax, so the net is grossed up off the 100
+  // credits the purchase carries and the total comes back to that 100.
+  assert.strictEqual(data.subtotal, 136.99);
+  assert.strictEqual(data.retention, 36.99);
   assert.strictEqual(data.taxAmount, 0);
-  assert.strictEqual(data.total, 73);
-  assert.strictEqual(data.totalInWords, 'SETENTA Y TRES DÓLARES CON 00/100');
+  assert.strictEqual(data.total, 100);
+  assert.strictEqual(data.totalInWords, 'CIEN DÓLARES CON 00/100');
 });
 
 test('buildRegeneratedInvoiceData drops the retención back to 0 when the issuer clears the rate', () => {
   const data = buildRegeneratedInvoiceData({
-    invoice: { ...ISSUED, retention: 27, total: 73 },
+    invoice: { ...ISSUED, subtotal: 136.99, retention: 36.99, total: 100 },
     profile: { ...PROFILE, retentionRate: 0 },
     client: CLIENT,
     purchase: PURCHASE,
   });
   assert.strictEqual(data.retention, 0);
+  // The net comes back down to the money received, not left grossed up.
+  assert.strictEqual(data.subtotal, 100);
   assert.strictEqual(data.total, 127);
 });
