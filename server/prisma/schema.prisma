@@ -828,7 +828,12 @@ model BillingProfile {
   chargeTaxToClient Boolean   @default(false)
   taxRate           Float     @default(0) // percent, e.g. 27
   taxLabel          String    @default("ITBIS")
-  retentionRate     Float     @default(0) // the RETENCIÓN row; 0 leaves it empty
+  // The RETENCIÓN row, which is SUBTRACTED from the net - the mirror image of
+  // taxRate above, not another charge. At 27% a $100 purchase invoices as
+  // TOTAL NETO 100 / RETENCIÓN 27 / TOTAL A PAGAR 73; 0 leaves the row empty.
+  // Nothing about it reaches a card: it only changes what the document asks
+  // for. Read at issue time by services/invoiceService.js, like the tax.
+  retentionRate     Float     @default(0)
   // Numbering
   invoicePrefix     String    @default("FAC-")
   invoiceNextNumber Int       @default(1)
@@ -901,7 +906,7 @@ model Invoice {
   taxLabel         String
   taxRate          Float
   taxAmount        Float
-  retention        Float           @default(0) // the RETENCIÓN row; v1 always writes 0. total = subtotal + taxAmount - retention
+  retention        Float           @default(0) // the RETENCIÓN row, SUBTRACTED: total = subtotal + taxAmount - retention. Frozen from BillingProfile.retentionRate at issue time
   total            Float
   // What was ACTUALLY collected for this document — CreditPurchase.amount at
   // issue time. It equals `total` when BillingProfile.chargeTaxToClient was on,

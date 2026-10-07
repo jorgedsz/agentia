@@ -269,6 +269,10 @@ const set = async (req, res) => {
         // top of what it asked for.
         chargeTaxToClient: profile.chargeTaxToClient,
         taxRate: profile.taxRate,
+        // Logged for the same reason as the rate above: it moves what every
+        // document under this partner asks for. It is SUBTRACTED, so a typo
+        // here does not overcharge anybody - it undercharges every invoice.
+        retentionRate: profile.retentionRate,
       },
       req,
     });

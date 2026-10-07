@@ -19,6 +19,14 @@
 //   · tax not charged  the invoice total deliberately EXCEEDS what was
 //                     collected, and `amountPaid` records the difference so the
 //                     document can say so instead of hiding it.
+//
+// THE RETENCIÓN IS COMPUTED THE SAME WAY AND SUBTRACTED. BillingProfile.retentionRate
+// is a WITHHOLDING off the net, not a charge on top of it: at 27% a $100 purchase
+// invoices as TOTAL NETO 100 · RETENCIÓN 27 · TOTAL A PAGAR 73. That is the
+// document the owner's accountant works with, and it has no tax row at all
+// (taxRate left at 0 with taxEnabled on, which is what still lets invoices be
+// issued). The two rates are independent: both are taken off the same pre-tax
+// subtotal, and the total is subtotal + taxAmount - retention.
 
 const { round2, resolveTaxConfig } = require('../utils/taxes');
 const { amountToSpanishWords } = require('../utils/numberToWords');
@@ -134,7 +142,27 @@ function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Da
   // non-finite subtotal exactly as the `total` line below already did.
   const taxRate = profile.taxEnabled ? (profile.taxRate || 0) : 0;
   const taxAmount = round2((subtotal * taxRate) / 100);
-  const retention = 0; // v1 always writes 0 - see Invoice.retention in schema.prisma
+  // THE RETENCIÓN IS SUBTRACTED, NOT ADDED - that is the whole difference
+  // between it and the tax above, and it is the row the owner's accountant
+  // actually reads: TOTAL NETO 100, RETENCIÓN 27, TOTAL A PAGAR 73. It is a
+  // withholding off what is being invoiced, not a charge on top of it.
+  //
+  // Off the ISSUER'S PROFILE at issue time, exactly like the tax and for the
+  // same reason (see the file header): the purchase has no column that could
+  // carry it, and the rate that governs the document is the issuer's.
+  //
+  // NOT gated on `taxEnabled`. That flag means "this partner's invoices show
+  // the TAX", and the owner's configuration is precisely the one where the tax
+  // is off and the retention is 27 - gating the retention behind taxEnabled
+  // would make his document unreachable. Issuance itself is still gated on
+  // taxEnabled (see issueInvoiceForPurchase), so a partner that invoices at all
+  // has it on regardless; this only decides what the totals block says.
+  //
+  // A partner that sets BOTH gets both rows, each off its own rate, and the
+  // total is subtotal + tax - retention. There is no interaction between them:
+  // both are computed off the same pre-tax `subtotal`, never off each other.
+  const retentionRate = profile.retentionRate || 0;
+  const retention = round2((subtotal * retentionRate) / 100);
   const total = round2(subtotal + taxAmount - retention);
   // What was really collected for this document, so it can be reconciled
   // against the payment. Equals `total` when the tax was charged on top, and
