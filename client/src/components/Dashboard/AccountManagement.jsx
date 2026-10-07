@@ -162,9 +162,16 @@ export default function AccountManagement() {
         // invoices exist. Letting it throw puts the server's own message in
         // whopMsg below, which is the point — those are the errors the partner
         // needs to read, word for word.
-        const { data: pData } = await billingProfileAPI.save(whopTarget.id, invoicePayloadFrom(invoiceForm))
-        setInvoiceProfileExists(!!pData.exists)
-        setInvoiceForm(invoiceFormFrom(pData.profile))
+        //
+        // OWNER only, matching the form above: a partner may write its OWN
+        // profile and nobody else's, so sending this from a whitelabel editing
+        // one of its agencies would 403 and turn an otherwise good Stripe save
+        // into an error. That partner configures its own on its Facturas page.
+        if (user?.role === ROLES.OWNER) {
+          const { data: pData } = await billingProfileAPI.save(whopTarget.id, invoicePayloadFrom(invoiceForm))
+          setInvoiceProfileExists(!!pData.exists)
+          setInvoiceForm(invoiceFormFrom(pData.profile))
+        }
         setWhopMsg('Guardado.')
         setWhopSaving(false)
         return
@@ -1939,7 +1946,13 @@ export default function AccountManagement() {
                     Las tarjetas guardadas en Whop no se pueden trasladar a Stripe: al cambiar de modo, las cuentas con auto-recarga tendrán que volver a cargar su tarjeta.
                   </p>
 
-                  {/* Impuesto y facturación del partner */}
+                  {/* Impuesto y facturación del partner.
+                      OWNER only: a partner may read and write its OWN profile
+                      and nobody else's, so showing this form to a whitelabel
+                      looking at one of its agencies would render defaults it
+                      cannot see and 403 on save. That partner configures its
+                      own invoicing on its Facturas page instead. */}
+                  {user?.role === ROLES.OWNER && (
                   <div className="border-t border-gray-100 dark:border-dark-border pt-4 space-y-4">
                     <div>
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Impuesto y facturación</h4>
@@ -1963,6 +1976,7 @@ export default function AccountManagement() {
                       notConfiguredNote="Este partner todavía no tiene perfil de facturación: lo que ves son los valores por defecto y se crean al guardar."
                     />
                   </div>
+                  )}
                 </div>
               )}
 
