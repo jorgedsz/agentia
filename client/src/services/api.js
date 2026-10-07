@@ -252,6 +252,24 @@ export const invoicesAPI = {
   // it. Answers 409 when the payment is not completed yet and 404 when the
   // account does not bill with tax — both expected answers, not errors.
   forPurchase: (purchaseId) => api.get(`/invoices/by-purchase/${purchaseId}`),
+  // Rebuilds one invoice from TODAY's issuer profile and account, keeping its
+  // number, its issue date and the payment it belongs to. The way to repair a
+  // document issued while the issuer was still being set up — a wrong RNC, a
+  // missing logo — without burning a second number for the same money.
+  //
+  // It overwrites a document somebody may already hold, so ask before calling
+  // it. The server stamps `regeneratedAt` on the row and the document prints it,
+  // which is what makes two copies of one number tellable apart.
+  //
+  // Returns `{ invoice, amountsRebuilt }`. `amountsRebuilt` false means the
+  // payment behind the invoice is gone (deleted account or deleted payment), so
+  // there was nothing left to recompute the amounts from and only the issuer and
+  // client blocks were refreshed — the stored figures are the last record of
+  // them and are left untouched rather than zeroed.
+  //
+  // Only the OWNER or the partner that ISSUES may (403 otherwise); the client
+  // the invoice is addressed to may download it and never rewrite it.
+  regenerate: (id) => api.post(`/invoices/${id}/regenerate`),
 }
 
 // A partner's invoicing profile: its tax, its invoice numbering, and everything
