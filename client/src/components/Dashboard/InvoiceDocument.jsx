@@ -60,6 +60,46 @@ const S = {
   cell: { padding: '7px 8px', fontSize: '12px' },
 }
 
+// Put the logo into the page as a data URI before printing.
+//
+// html2canvas draws the document onto a canvas, and a canvas refuses to export
+// an image loaded from another origin unless that origin allowed it — which is
+// why a pasted logo shows on screen and then vanishes from the PDF. Fetching the
+// bytes ourselves and inlining them sidesteps the rule entirely: a data URI has
+// no origin to object. The fetch still needs the host's permission, so when even
+// that is refused we report it rather than handing over a logo-less invoice and
+// letting the client wonder.
+//
+// Returns { failed, restore } — restore always puts the original src back, so a
+// second download does not inherit a half-swapped node.
+async function embedLogo(node) {
+  const img = node.querySelector('img[data-invoice-logo]')
+  const src = img?.getAttribute('src') || ''
+  if (!img || !src || src.startsWith('data:')) return { failed: false, restore: () => {} }
+
+  try {
+    const res = await fetch(src, { mode: 'cors', credentials: 'omit' })
+    if (!res.ok) throw new Error(String(res.status))
+    const blob = await res.blob()
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+    // Wait for the swapped image to actually decode, or html2canvas photographs
+    // the gap between the two sources.
+    await new Promise((resolve) => {
+      img.onload = resolve
+      img.onerror = resolve
+      img.src = dataUrl
+    })
+    return { failed: false, restore: () => { img.src = src } }
+  } catch {
+    return { failed: true, restore: () => { img.src = src } }
+  }
+}
+
 // A `Label: value` line, as every block of this document is built from.
 function Field({ label, value }) {
   return (
@@ -122,17 +162,27 @@ export default function InvoiceDocument({ invoice, onClose }) {
     if (!node) return
     setBusy(true)
     setError('')
+    const logo = await embedLogo(node)
     try {
       const html2pdf = (await import('html2pdf.js')).default
       await html2pdf().set({
         margin: 8,
         filename: `${String(invoice.number || 'factura').replace(/[^\w\s-]/g, '')}.pdf`,
-        html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+        // useCORS is the second chance: it lets html2canvas draw a cross-origin
+        // image when the host sends the headers. embedLogo above is the first
+        // and better one, because a data URI needs no permission at all.
+        html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       }).from(node).save()
+      // Said only after the file is saved, so it reads as a note about the PDF
+      // the client just got rather than as a failure to produce one.
+      if (logo.failed) {
+        setError('El PDF se descargó sin el logo: el servidor donde está alojado no permite incrustarlo. Súbelo a un sitio que lo permita, o déjalo vacío para que la factura salga solo con el nombre.')
+      }
     } catch {
       setError('No se pudo generar el PDF')
     } finally {
+      logo.restore()
       setBusy(false)
     }
   }
@@ -180,7 +230,11 @@ export default function InvoiceDocument({ invoice, onClose }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               <div style={{ flex: '1 1 0', display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                 {issuer.logoUrl ? (
-                  <img src={issuer.logoUrl} alt="" style={{ height: '58px', width: 'auto', maxWidth: '150px', objectFit: 'contain' }} />
+                  // data-invoice-logo is how embedLogo finds this image to
+                  // inline it before printing; no crossOrigin here on purpose,
+                  // since that would stop it displaying on screen for exactly
+                  // the hosts that need the inlining.
+                  <img data-invoice-logo src={issuer.logoUrl} alt="" style={{ height: '58px', width: 'auto', maxWidth: '150px', objectFit: 'contain' }} />
                 ) : null}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: '26px', fontWeight: 'bold', lineHeight: 1.1, color: INK }}>
