@@ -221,6 +221,11 @@ function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Da
   // "unknown" and makes the renderer say nothing rather than invent a shortfall.
   const amountPaid = Number.isFinite(purchase.amount) ? purchase.amount : null;
   const taxLabel = profile.taxLabel || 'ITBIS';
+  // Frozen onto the document for the same reason taxLabel is: the issuer may
+  // later remit under a different form, and an invoice already in an
+  // accountant's hands must keep the name it was issued under. Blank or absent
+  // falls back to the literal the format printed before the column existed.
+  const retentionLabel = profile.retentionLabel?.trim() || 'RETENCIÓN';
   const currency = 'USD';
 
   // amountToSpanishWords throws a RangeError at/above 1,000,000 (see its own
@@ -254,6 +259,7 @@ function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Da
     taxRate,
     taxAmount,
     retention,
+    retentionLabel,
     total,
     amountPaid,
     totalInWords,
@@ -366,6 +372,7 @@ function buildRegeneratedInvoiceData({ invoice, profile, client, purchase, regen
     taxRate: fresh.taxRate,
     taxAmount: fresh.taxAmount,
     retention: fresh.retention,
+    retentionLabel: fresh.retentionLabel,
     total: fresh.total,
     amountPaid: fresh.amountPaid,
     totalInWords: fresh.totalInWords,

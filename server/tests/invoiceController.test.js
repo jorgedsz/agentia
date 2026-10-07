@@ -36,6 +36,23 @@ test('present parses the three JSON columns into lines / issuer / client', () =>
   assert.strictEqual(out.client.rnc, '130-11111-2');
 });
 
+// The RETENCIÓN's NAME, read off the row and never off the issuer's current
+// profile: the withholding is remitted on a numbered form, the issuer may
+// change forms, and a document already in an accountant's hands must keep the
+// name it was issued under.
+test('present carries the retention label the invoice was issued with', () => {
+  assert.strictEqual(present(row({ retentionLabel: 'Ret. IR-17' })).retentionLabel, 'Ret. IR-17');
+});
+
+test('present falls back to RETENCIÓN on an invoice issued before the column existed', () => {
+  // Null means "issued under the old literal", so that is what it keeps
+  // printing — never a blank row header.
+  assert.strictEqual(present(row({ retentionLabel: null })).retentionLabel, 'RETENCIÓN');
+  assert.strictEqual(present(row()).retentionLabel, 'RETENCIÓN');
+  // And a label that somehow reached the column blank does not print blank.
+  assert.strictEqual(present(row({ retentionLabel: '' })).retentionLabel, 'RETENCIÓN');
+});
+
 test('present carries every number and date the document prints', () => {
   const out = present(row());
   assert.strictEqual(out.number, 'FAC-000124');
@@ -676,7 +693,7 @@ test('regenerate: with the payment gone, the snapshots are refreshed and no mone
   assert.strictEqual(res.code, 200);
   assert.strictEqual(res.body.amountsRebuilt, false);
   const written = prisma.writes[0].data;
-  for (const key of ['subtotal', 'taxLabel', 'taxRate', 'taxAmount', 'retention',
+  for (const key of ['subtotal', 'taxLabel', 'taxRate', 'taxAmount', 'retention', 'retentionLabel',
     'total', 'amountPaid', 'totalInWords', 'conceptLines']) {
     assert.strictEqual(Object.prototype.hasOwnProperty.call(written, key), false, `must not rewrite ${key}`);
   }

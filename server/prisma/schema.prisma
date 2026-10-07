@@ -834,6 +834,15 @@ model BillingProfile {
   // Nothing about it reaches a card: it only changes what the document asks
   // for. Read at issue time by services/invoiceService.js, like the tax.
   retentionRate     Float     @default(0)
+  // What that row is CALLED on the document. Dominican withholding is remitted
+  // on a numbered form, and the bookkeeper reconciling these invoices works
+  // from a spreadsheet column headed with that form's name ("Ret. 27% IR-17"),
+  // so the row has to be able to say what its reader expects to read — and a
+  // second issuer may remit under a different form entirely. The default is the
+  // literal the document printed before this column existed, so every
+  // unconfigured issuer keeps printing exactly what it printed. Like taxLabel,
+  // it is read at issue time and FROZEN onto the Invoice.
+  retentionLabel    String    @default("RETENCIÓN")
   // Numbering
   invoicePrefix     String    @default("FAC-")
   invoiceNextNumber Int       @default(1)
@@ -907,6 +916,13 @@ model Invoice {
   taxRate          Float
   taxAmount        Float
   retention        Float           @default(0) // the RETENCIÓN row, SUBTRACTED: total = subtotal + taxAmount - retention. Frozen from BillingProfile.retentionRate at issue time
+  // What that row is CALLED, frozen here the same way taxLabel is: a document
+  // must keep saying what it said, so the renderer reads this and never the
+  // issuer's current BillingProfile.retentionLabel. Nullable because invoices
+  // issued before this column existed never recorded one; a null means "this
+  // document was issued under the old literal", so the renderer falls back to
+  // 'RETENCIÓN' and those invoices print exactly as they always have.
+  retentionLabel   String?
   total            Float
   // What was ACTUALLY collected for this document — CreditPurchase.amount at
   // issue time. It equals `total` when BillingProfile.chargeTaxToClient was on,
