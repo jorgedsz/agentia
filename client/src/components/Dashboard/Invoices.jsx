@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { invoicesAPI, billingProfileAPI } from '../../services/api'
+import { invoicesAPI, billingProfileAPI, authAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import InvoiceDocument from './InvoiceDocument'
 import BillingProfileFields, { EMPTY_INVOICE_PROFILE, invoiceFormFrom, invoicePayloadFrom } from './BillingProfileFields'
@@ -62,12 +62,35 @@ const fmtDate = (iso) => {
 // CLIENT is not here, and the server refuses it by role whatever this renders.
 const ISSUER_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
 
+// Who may look at ANOTHER account's payments from this page.
+//
+// The same three roles as ISSUER_ROLES, and deliberately a SECOND constant:
+// they answer two different questions that must never be collapsed into one.
+// ISSUER_ROLES is "may configure MY OWN issuer data" (the server checks it with
+// canConfigureBillingProfile, against the viewer's own id and no other).
+// MANAGER_ROLES is "may read the payments of the accounts below me" (the server
+// checks it with canReadAccount, against the selected id). A partner that gains
+// one of these must not silently gain the other, and the day the roles diverge
+// this file must not have to be untangled first.
+const MANAGER_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
+
 export default function Invoices() {
   const { user } = useAuth()
   // The account whose profile this edits is always the one looking at the page
   // — never an id typed in from somewhere — which is also the only id the
   // server will accept from a partner.
   const canConfigureIssuer = ISSUER_ROLES.includes(user?.role)
+  // Whether the account picker renders at all. A CLIENT never sees it and this
+  // page stays exactly what it was for them: their own payments, their own
+  // invoices, no way to name another account.
+  const canManage = MANAGER_ROLES.includes(user?.role)
+  // The account whose PAYMENTS are on screen. 'me' is the viewer's own and is
+  // where everyone starts, manager included: the page opens on the one account
+  // nobody can mistake, and another account is only ever shown after somebody
+  // deliberately picks it. Never confused with `user.id` above - that one is the
+  // issuer panel's subject and is not this.
+  const [accountId, setAccountId] = useState('me')
+  const [accounts, setAccounts] = useState([])
   // `billsWithTax` starts false and the page says nothing until the first
   // answer lands, so an account with no invoicing never flashes a table.
   const [data, setData] = useState({ billsWithTax: false, payments: [] })
@@ -88,21 +111,42 @@ export default function Invoices() {
   const [issuerSaving, setIssuerSaving] = useState(false)
   const [issuerMsg, setIssuerMsg] = useState('')
   const [issuerError, setIssuerError] = useState('')
+  const [accountsError, setAccountsError] = useState('')
 
   useEffect(() => {
+    // `load()` with no argument reads whichever account is selected, which at
+    // mount is always the viewer's own.
     load()
-  }, [])
+    // The accounts a manager may act on, from the endpoint that already answers
+    // that for all three manager roles - the same list the account switcher and
+    // SubAccounts read. A failure here only costs the picker its options; the
+    // viewer's own payments below are already loading.
+    if (canManage) {
+      authAPI.getAccessibleAccounts()
+        .then(({ data }) => setAccounts(Array.isArray(data.accounts) ? data.accounts : []))
+        .catch(() => setAccountsError('No se pudieron cargar las cuentas'))
+    }
+  }, [canManage])
 
-  const load = async () => {
+  // The payments of ONE account: the viewer's own ('me', which sends no id and
+  // behaves exactly as this page always did) or the selected one.
+  //
+  // `billsWithTax` is re-read from every answer because it describes THAT
+  // account: a partner whose own account bills with no tax gets false for
+  // itself and true for the client it just selected, and the page has to follow
+  // the account rather than remember the viewer.
+  const load = async (id = accountId) => {
     setLoading(true)
     try {
-      const { data: res } = await invoicesAPI.list()
+      const { data: res } = await invoicesAPI.list(undefined, id === 'me' ? undefined : id)
       setData({
         billsWithTax: !!res.billsWithTax,
         payments: Array.isArray(res.payments) ? res.payments : [],
       })
       setError('')
     } catch (err) {
+      // Includes the server's 403 for an account this viewer may not read,
+      // which is shown as the refusal it is and never as an empty list.
       setError(err.response?.data?.error || 'No se pudieron cargar los pagos')
       setData({ billsWithTax: false, payments: [] })
     } finally {
@@ -111,12 +155,32 @@ export default function Invoices() {
     }
   }
 
+  // Switching account: the table, the totals and `billsWithTax` all belong to
+  // the account chosen, so they are all re-read. The issuer panel is NOT
+  // touched - see loadIssuer.
+  const selectAccount = (value) => {
+    setAccountId(value)
+    setNotice('')
+    load(value)
+  }
+
   const toggleIssuer = () => {
     const opening = !issuerOpen
     setIssuerOpen(opening)
     if (opening && !issuerLoaded) loadIssuer()
   }
 
+  // ALWAYS `user.id`, THE VIEWER - never `accountId`.
+  //
+  // This panel is the viewer's own issuer: its tax, its invoice numbering and
+  // the emisor details printed on the documents IT issues. The picker above
+  // chooses whose PAYMENTS are listed, which is a different question with a
+  // different permission (canReadAccount on the server, against the selected
+  // id; canConfigureBillingProfile against this one). Pointing this at the
+  // selected account would put another account's fiscal identity in an editable
+  // form and have a manager overwrite somebody else's RNC and numbering - the
+  // server refuses a partner on any id but its own, so it would only ever be a
+  // blank form and a 403 on save, but the form must not ask in the first place.
   const loadIssuer = async () => {
     try {
       const { data } = await billingProfileAPI.get(user.id)
@@ -220,14 +284,79 @@ export default function Invoices() {
   )
   const uncollected = cent(totals.invoiced - totals.invoicedCharged)
 
+  // WHOSE INVOICES ARE ON SCREEN. Issuing one is signing a fiscal document in
+  // somebody's name, so the answer is spelled out on the page and never left to
+  // be read off a dropdown.
+  const viewingOwn = accountId === 'me'
+  const selected = accounts.find((a) => String(a.id) === String(accountId))
+  // A selected account that is not in the list (a stale picker, a list that
+  // failed to load) still has to be named, so the id is the last resort - never
+  // a blank where a client's name belongs.
+  const subjectName = viewingOwn
+    ? (user?.name || user?.email || 'Mi cuenta')
+    : (selected?.name || selected?.email || `Cuenta #${accountId}`)
+  const subjectEmail = viewingOwn ? (user?.name ? user?.email : '') : (selected?.name ? selected?.email : '')
+  // How the account is named inside a sentence. A CLIENT keeps the wording it
+  // has today, word for word, because nothing about its page changed.
+  const subjectPhrase = !canManage ? 'Esta cuenta' : viewingOwn ? 'Tu cuenta' : subjectName
+
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Facturas</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Facturas{canManage && <span className="text-gray-400 dark:text-gray-500 font-normal"> · {subjectName}</span>}
+        </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Cada pago confirmado lleva su factura. Ábrela para verla o descargarla en PDF.
+          {canManage && !viewingOwn
+            ? 'Cada pago confirmado de esta cuenta lleva su factura. Ábrela para verla o descargarla en PDF.'
+            : 'Cada pago confirmado lleva su factura. Ábrela para verla o descargarla en PDF.'}
         </p>
       </div>
+
+      {/* Whose payments to list. Only a manager sees this: the OWNER has no
+          payments of his own and a partner's clients are the ones who paid, so
+          for both of them their own list is empty and there is nothing to
+          invoice from. */}
+      {canManage && (
+        <div className="mb-6">
+          <div className="max-w-md">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cuenta</label>
+            <select
+              value={accountId}
+              onChange={(e) => selectAccount(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white"
+            >
+              <option value="me">Mi cuenta ({user?.name || user?.email})</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name || a.email} · {a.role}
+                </option>
+              ))}
+            </select>
+            {accountsError && (
+              <p className="mt-2 text-xs text-red-600 dark:text-red-400">{accountsError}</p>
+            )}
+          </div>
+
+          {/* The one line that has to be impossible to miss: every «Emitir
+              factura» button below signs a document in this account's name. Not
+              a subtle dropdown value - a banner, with the name and the email,
+              in the same amber the page uses for "act on this". */}
+          {!viewingOwn ? (
+            <div className="mt-3 px-4 py-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
+              <p className="text-sm text-amber-800 dark:text-amber-300">
+                Estás viendo y emitiendo las facturas de <strong>{subjectName}</strong>
+                {subjectEmail ? <span className="font-normal"> ({subjectEmail})</span> : null}, no las tuyas.
+              </p>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+              Estás viendo <strong className="font-semibold text-gray-700 dark:text-gray-300">tu propia cuenta</strong>.
+              Elige otra arriba para ver y emitir sus facturas.
+            </p>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm">{error}</div>
@@ -239,7 +368,12 @@ export default function Invoices() {
       {/* The issuer side of invoicing, for the partner that issues. Above the
           payments table on purpose: when the tax is off there is no table, and
           this panel is the thing to act on. Independent of `loading`, so it is
-          reachable even if the payments list failed. */}
+          reachable even if the payments list failed.
+
+          IT IS THE VIEWER'S OWN PROFILE AND NOTHING ELSE. It does not move when
+          the picker does, and it says so on screen whenever another account is
+          selected, because a form that looked like the selected client's would
+          invite a manager to rewrite that client's RNC and numbering. */}
       {canConfigureIssuer && (
         <div className="mb-6 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
           <button
@@ -251,6 +385,12 @@ export default function Invoices() {
               <span className="block text-xs text-gray-500 dark:text-gray-400">
                 Tu impuesto, la numeración de tus facturas y los datos del emisor que se imprimen en ellas.
               </span>
+              {canManage && !viewingOwn && (
+                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Son <strong>tus</strong> datos de emisor, no los de {subjectName}: la cuenta elegida arriba solo
+                  cambia qué pagos se listan.
+                </span>
+              )}
             </span>
             <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{issuerOpen ? 'Ocultar' : 'Configurar'}</span>
           </button>
@@ -317,16 +457,21 @@ export default function Invoices() {
           that reads as "nothing yet". */}
       {loaded && !loading && !data.billsWithTax && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-8 text-center">
-          <p className="text-sm text-gray-700 dark:text-gray-300">Esta cuenta no emite facturas.</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{subjectPhrase} no emite facturas.</p>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-            Sus pagos no se facturan con impuesto, así que no hay documentos que mostrar aquí. Tu consumo y tus
-            períodos siguen estando en «Períodos y reportes».
+            {!canManage || !viewingOwn ? 'Sus pagos' : 'Tus pagos'} no se facturan con impuesto, así que no hay
+            documentos que mostrar aquí.
+            {viewingOwn && ' Tu consumo y tus períodos siguen estando en «Períodos y reportes».'}
           </p>
           {/* For a partner this is not a dead end: the switch that changes it
-              is the panel right above, on this same page. */}
+              is the panel right above, on this same page — and it is the
+              partner's OWN switch that decides this for the subtree under it,
+              which is why the wording points at «tu impuesto» even when
+              somebody else's account is on screen. */}
           {canConfigureIssuer && (
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-              Si eres tú quien factura a tus clientes, enciende el impuesto en <strong>«Datos de facturación»</strong> arriba.
+              Si eres tú quien {viewingOwn ? 'factura a tus clientes' : `factura a ${subjectName}`}, enciende el
+              impuesto en <strong>«Datos de facturación»</strong> arriba.
             </p>
           )}
         </div>
@@ -487,7 +632,8 @@ export default function Invoices() {
                   {data.payments.length === 0 && (
                     <tr>
                       <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-                        Todavía no hay pagos. Cuando se haga el primero, su factura aparecerá aquí.
+                        {viewingOwn ? 'Todavía no hay pagos.' : `${subjectName} todavía no tiene pagos.`} Cuando se
+                        haga el primero, su factura aparecerá aquí.
                       </td>
                     </tr>
                   )}

@@ -235,7 +235,15 @@ export const invoicesAPI = {
   // appear in a list of invoices. Returns `{ billsWithTax, payments }`; an
   // account not under a tax-collecting partner gets `billsWithTax: false`.
   // Capped (50 by default, 200 max) with no cursor, so it is never complete.
-  list: (limit) => api.get('/invoices', { params: limit ? { limit } : {} }),
+  //
+  // Lists the caller's own payments; `forUserId` lists another account's
+  // instead, which is what the OWNER and an issuing partner need (their own
+  // payments are not the ones to invoice). Only the OWNER or a partner above
+  // that account may (403 otherwise), and `billsWithTax` then describes THAT
+  // account, not the caller.
+  list: (limit, forUserId) => api.get('/invoices', {
+    params: { ...(limit ? { limit } : {}), ...(forUserId ? { forUserId } : {}) },
+  }),
   get: (id) => api.get(`/invoices/${id}`),
   // The invoice for one payment, issued on the spot when a settlement missed
   // it. Answers 409 when the payment is not completed yet and 404 when the
