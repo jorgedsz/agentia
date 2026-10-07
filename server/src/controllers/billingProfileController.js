@@ -1,13 +1,16 @@
 // The issuer side of invoicing: a partner's tax, its invoice numbering, and
 // everything printed on the documents it issues.
 //
-// OWNER-only, both ways. This is where the tax rate charged on top of every
-// client payment under a partner is set, and where the numbering sequence that
-// gives every invoice its legal correlative lives — neither is something a
-// partner may change about itself, and nothing below a partner may read it (a
-// client has no business knowing its provider's bank account).
+// Who may touch this, read and write alike, is canConfigureBillingProfile in
+// utils/accountAccess: the OWNER on any account, a WHITELABEL or an AGENCY on
+// ITS OWN and nowhere else, a CLIENT nowhere. A partner configures its own
+// issuer identity — nobody should have to ask the platform owner to fix their
+// own RNC — but nothing below a partner may read it (a client has no business
+// knowing its provider's bank account) and no partner may write one under an
+// account it does not own.
 
 const { logAudit } = require('../utils/auditLog');
+const { canConfigureBillingProfile } = require('../utils/accountAccess');
 
 // What a profile looks like before anyone has configured one. Mirrors the
 // column defaults in schema.prisma, so the form a partner opens for the first
@@ -145,6 +148,11 @@ function sanitizeProfileInput(body = {}) {
   return { data };
 }
 
+// The 403 both handlers answer with. Worded the same way whether the account
+// exists or not, and checked BEFORE the account is looked up, so an id that is
+// refused tells the caller nothing about whether that account is real.
+const FORBIDDEN = 'No puedes configurar la facturación de esta cuenta.';
+
 /**
  * The partner's invoicing profile, or the defaults when it has none yet.
  * GET /api/billing-profile/:userId
@@ -153,6 +161,12 @@ const get = async (req, res) => {
   try {
     const ownerId = parseInt(req.params.userId);
     if (!Number.isFinite(ownerId)) return res.status(400).json({ error: 'Cuenta no válida.' });
+
+    // Before any lookup: a profile carries bank details and an RNC, so reading
+    // somebody else's is as much of a leak as writing it.
+    if (!canConfigureBillingProfile(req.user, ownerId)) {
+      return res.status(403).json({ error: FORBIDDEN });
+    }
 
     const owner = await req.prisma.user.findUnique({ where: { id: ownerId }, select: { id: true } });
     if (!owner) return res.status(404).json({ error: 'Cuenta no encontrada.' });
@@ -179,6 +193,17 @@ const set = async (req, res) => {
   try {
     const ownerId = parseInt(req.params.userId);
     if (!Number.isFinite(ownerId)) return res.status(400).json({ error: 'Cuenta no válida.' });
+
+    // FIRST, and before the upsert below for a reason: the write is keyed on
+    // `ownerId` taken from the path, so an unguarded :userId is not merely a
+    // way to edit somebody else's profile — upsert would CREATE one, minting an
+    // issuer identity (RNC, bank account, numbering) under an account the
+    // requester does not own, and switching on a tax that would then apply to
+    // that account's whole subtree. Nothing is parsed, looked up or written
+    // until this passes.
+    if (!canConfigureBillingProfile(req.user, ownerId)) {
+      return res.status(403).json({ error: FORBIDDEN });
+    }
 
     const owner = await req.prisma.user.findUnique({ where: { id: ownerId }, select: { id: true } });
     if (!owner) return res.status(404).json({ error: 'Cuenta no encontrada.' });

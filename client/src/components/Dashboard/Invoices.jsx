@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { invoicesAPI } from '../../services/api'
+import { invoicesAPI, billingProfileAPI } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
 import InvoiceDocument from './InvoiceDocument'
+import BillingProfileFields, { EMPTY_INVOICE_PROFILE, invoiceFormFrom, invoicePayloadFrom } from './BillingProfileFields'
 
 // The invoices of this account, read through the PAYMENTS that produced them.
 //
@@ -29,7 +31,26 @@ const fmtDate = (iso) => {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-DO')
 }
 
+// Who gets the "Datos de facturación" panel on this page.
+//
+// A WHITELABEL or an AGENCY because this is the ONLY screen where a partner can
+// see its own account: AccountManagement, where the OWNER edits this, lists the
+// accounts BELOW the viewer and never the viewer, so until now a partner had to
+// ask the platform owner to switch on its own tax or fix its own RNC.
+//
+// The OWNER is included too, even though it already has the other route. It
+// loses nothing by having it here, the server lets it through on any id, and
+// leaving it out would mean the OWNER looking at this page sees a page that is
+// missing a panel its partners have — a difference nobody could explain. A
+// CLIENT is not here, and the server refuses it by role whatever this renders.
+const ISSUER_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
+
 export default function Invoices() {
+  const { user } = useAuth()
+  // The account whose profile this edits is always the one looking at the page
+  // — never an id typed in from somewhere — which is also the only id the
+  // server will accept from a partner.
+  const canConfigureIssuer = ISSUER_ROLES.includes(user?.role)
   // `billsWithTax` starts false and the page says nothing until the first
   // answer lands, so an account with no invoicing never flashes a table.
   const [data, setData] = useState({ billsWithTax: false, payments: [] })
@@ -39,6 +60,17 @@ export default function Invoices() {
   const [notice, setNotice] = useState('')
   const [invoice, setInvoice] = useState(null)
   const [busy, setBusy] = useState(null)
+
+  // The issuer panel. Collapsed by default — this page is read first and
+  // configured once — and its profile is fetched the first time it is opened,
+  // so an account that never touches it costs no request.
+  const [issuerOpen, setIssuerOpen] = useState(false)
+  const [issuerForm, setIssuerForm] = useState(EMPTY_INVOICE_PROFILE)
+  const [issuerExists, setIssuerExists] = useState(false)
+  const [issuerLoaded, setIssuerLoaded] = useState(false)
+  const [issuerSaving, setIssuerSaving] = useState(false)
+  const [issuerMsg, setIssuerMsg] = useState('')
+  const [issuerError, setIssuerError] = useState('')
 
   useEffect(() => {
     load()
@@ -59,6 +91,53 @@ export default function Invoices() {
     } finally {
       setLoaded(true)
       setLoading(false)
+    }
+  }
+
+  const toggleIssuer = () => {
+    const opening = !issuerOpen
+    setIssuerOpen(opening)
+    if (opening && !issuerLoaded) loadIssuer()
+  }
+
+  const loadIssuer = async () => {
+    try {
+      const { data } = await billingProfileAPI.get(user.id)
+      setIssuerExists(!!data.exists)
+      setIssuerForm(invoiceFormFrom(data.profile))
+      setIssuerError('')
+    } catch (err) {
+      // A refusal here is worth showing: it is either a role that may not
+      // configure this or a session that expired, and both read as a blank
+      // form otherwise.
+      setIssuerError(err.response?.data?.error || 'No se pudieron cargar los datos de facturación')
+    } finally {
+      setIssuerLoaded(true)
+    }
+  }
+
+  const saveIssuer = async () => {
+    setIssuerSaving(true)
+    setIssuerMsg('')
+    setIssuerError('')
+    try {
+      const { data } = await billingProfileAPI.save(user.id, invoicePayloadFrom(issuerForm))
+      setIssuerExists(!!data.exists)
+      // Re-seeded from what the server actually stored, not from what was
+      // typed: coerced rates and the default tax label come back here.
+      setIssuerForm(invoiceFormFrom(data.profile))
+      setIssuerMsg('Datos de facturación guardados.')
+      // Switching the tax on is what makes this account bill with tax, which is
+      // the same flag the payments list below is gated on — so the list has to
+      // be re-read rather than keep saying there is nothing to show.
+      load()
+    } catch (err) {
+      // The server's own refusals, word for word: a rate over 100, a numbering
+      // sequence moved backwards under invoices that already exist. They must
+      // never be swallowed — the partner would believe it saved.
+      setIssuerError(err.response?.data?.error || 'No se pudieron guardar los datos de facturación')
+    } finally {
+      setIssuerSaving(false)
     }
   }
 
@@ -130,6 +209,70 @@ export default function Invoices() {
         <div className="mb-4 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 text-sm">{notice}</div>
       )}
 
+      {/* The issuer side of invoicing, for the partner that issues. Above the
+          payments table on purpose: when the tax is off there is no table, and
+          this panel is the thing to act on. Independent of `loading`, so it is
+          reachable even if the payments list failed. */}
+      {canConfigureIssuer && (
+        <div className="mb-6 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
+          <button
+            onClick={toggleIssuer}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-dark-hover"
+          >
+            <span>
+              <span className="block text-sm font-semibold text-gray-900 dark:text-white">Datos de facturación</span>
+              <span className="block text-xs text-gray-500 dark:text-gray-400">
+                Tu impuesto, la numeración de tus facturas y los datos del emisor que se imprimen en ellas.
+              </span>
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{issuerOpen ? 'Ocultar' : 'Configurar'}</span>
+          </button>
+
+          {issuerOpen && (
+            <div className="px-4 pb-4 pt-2 space-y-4 border-t border-gray-100 dark:border-dark-border">
+              {!issuerLoaded && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Cargando…</p>
+              )}
+
+              {issuerLoaded && (
+                <>
+                  <BillingProfileFields
+                    form={issuerForm}
+                    onChange={(patch) => setIssuerForm(f => ({ ...f, ...patch }))}
+                    profileExists={issuerExists}
+                    taxHelp={<>
+                      Apagado no cambia nada: cada cuenta paga el monto exacto que pide y no se emite ninguna factura.
+                      <strong> Encendido, el impuesto se suma por encima de cada cargo a todas las cuentas que dependen de ti</strong>
+                      {' '}(un cliente que pide $100 de saldo paga $127 al 27% y recibe 100 créditos de saldo), y cada pago
+                      confirmado genera una factura con tu numeración. No hay forma de activarlo para unos clientes y no para otros.
+                    </>}
+                    notConfiguredNote="Todavía no tienes perfil de facturación: lo que ves son los valores por defecto y se crean al guardar."
+                  />
+
+                  {/* The server's refusals, in the panel that caused them. */}
+                  {issuerError && (
+                    <p className="text-sm text-red-600 dark:text-red-400">{issuerError}</p>
+                  )}
+                  {issuerMsg && !issuerError && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{issuerMsg}</p>
+                  )}
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={saveIssuer}
+                      disabled={issuerSaving}
+                      className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                    >
+                      {issuerSaving ? 'Guardando…' : 'Guardar datos de facturación'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {loading && (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -147,6 +290,13 @@ export default function Invoices() {
             Sus pagos no se facturan con impuesto, así que no hay documentos que mostrar aquí. Tu consumo y tus
             períodos siguen estando en «Períodos y reportes».
           </p>
+          {/* For a partner this is not a dead end: the switch that changes it
+              is the panel right above, on this same page. */}
+          {canConfigureIssuer && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+              Si eres tú quien factura a tus clientes, enciende el impuesto en <strong>«Datos de facturación»</strong> arriba.
+            </p>
+          )}
         </div>
       )}
 

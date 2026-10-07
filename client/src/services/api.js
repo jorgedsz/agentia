@@ -244,7 +244,9 @@ export const invoicesAPI = {
 }
 
 // A partner's invoicing profile: its tax, its invoice numbering, and everything
-// printed on the documents it issues. OWNER only, both ways.
+// printed on the documents it issues. The OWNER may read and write any
+// account's; a WHITELABEL or an AGENCY only its own (`userId` = its own id, from
+// the Facturas page); a CLIENT none at all.
 export const billingProfileAPI = {
   get: (userId) => api.get(`/billing-profile/${userId}`),
   save: (userId, data) => api.put(`/billing-profile/${userId}`, data),
