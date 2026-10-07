@@ -140,10 +140,20 @@ export default function BillingProfileFields({ form, onChange, profileExists, ta
   const exampleTotal = (100 + exampleRate).toFixed(2)
   const exampleTax = exampleRate.toFixed(2)
   // The RETENCIÓN is the mirror image of the tax: it comes OFF the net instead
-  // of going on top of it.
+  // of going on top of it, and the money the client pays is the TOTAL A PAGAR
+  // at the bottom of the block — so the net is the $100 GROSSED UP, 100 / (1 −
+  // tasa), exactly as the server computes it (services/invoiceService.js). The
+  // old text here said TOTAL NETO $100 / RETENCIÓN $27 / TOTAL A PAGAR $73,
+  // which was the arithmetic the other way round.
+  //
+  // A rate at or above 100 has no net at all (the divisor is 0 or negative) and
+  // the server refuses to store one, so the example simply goes quiet instead of
+  // printing Infinity while the field is being typed into.
   const retRate = Number(form.retentionRate) || 0
-  const retAmount = retRate.toFixed(2)
-  const retPayable = (100 - retRate).toFixed(2)
+  const retUsable = retRate > 0 && retRate < 100
+  const retNet = retUsable ? 100 / (1 - retRate / 100) : 0
+  const retNeto = retNet.toFixed(2)
+  const retAmount = (retNet - 100).toFixed(2)
   // The combination the owner asked for, and the one whose consequence is
   // easiest to miss: the invoices carry the tax, nobody pays it. Spelled out
   // HERE rather than in each screen's `taxHelp`, so both screens say the same
@@ -155,9 +165,13 @@ export default function BillingProfileFields({ form, onChange, profileExists, ta
   // retention field says what happens in that case instead, so there is one
   // explanation of one total rather than two that contradict each other.
   const shownNotCharged = !!form.taxEnabled && !form.chargeTaxToClient && retRate === 0
-  // Both rows on one document: the tax adds, the retention subtracts.
-  const taxAndRetention = !!form.taxEnabled && exampleRate > 0 && retRate > 0
-  const bothTotal = (100 + exampleRate - retRate).toFixed(2)
+  // Both rows on one document: the tax adds, the retention subtracts — and the
+  // tax is taken on the GROSSED-UP net, so it is no longer ${exampleRate} on
+  // $100. The retention cancels itself against the gross-up and the total lands
+  // on the $100 received PLUS that tax.
+  const taxAndRetention = !!form.taxEnabled && exampleRate > 0 && retUsable
+  const bothTax = ((retNet * exampleRate) / 100).toFixed(2)
+  const bothTotal = (100 + (retNet * exampleRate) / 100).toFixed(2)
 
   return (
     <>
@@ -234,25 +248,31 @@ export default function BillingProfileFields({ form, onChange, profileExists, ta
           nobody can check afterwards without issuing a real invoice. */}
       <div>
         <label className={LABEL}>Tasa de retención (%)</label>
-        <input type="number" min="0" max="100" step="0.01" value={form.retentionRate}
+        <input type="number" min="0" max="99.99" step="0.01" value={form.retentionRate}
           onChange={(e) => set({ retentionRate: e.target.value })}
           placeholder="27" className={INPUT} />
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          La retención <strong>se resta</strong> del neto de la factura: no se le cobra nada de más al cliente,
-          se descuenta de lo que la factura pide. Déjala en 0 y la fila sale vacía, como hasta ahora.
-          {retRate > 0 && <>
+          La retención <strong>se resta</strong> del neto de la factura: no se le cobra nada de más al cliente.
+          Lo que el cliente paga es lo que tú <strong>recibes</strong>, así que va abajo, en el
+          <strong> TOTAL A PAGAR</strong>, y el neto se calcula hacia arriba desde ahí —
+          dividiéndolo entre (1 − tasa). Déjala en 0 y la fila sale vacía, como hasta ahora.
+          {retUsable && <>
             {' '}Al {retRate}%, un cliente que paga $100 recibirá una factura que dice{' '}
-            <strong>TOTAL NETO $100.00</strong>, <strong>RETENCIÓN −${retAmount}</strong> y{' '}
-            <strong>TOTAL A PAGAR ${retPayable}</strong>.
+            <strong>TOTAL NETO ${retNeto}</strong>, <strong>RETENCIÓN −${retAmount}</strong> y{' '}
+            <strong>TOTAL A PAGAR $100.00</strong>: los $100 que entraron, ni un centavo más ni menos.
           </>}
+          {' '}Tiene que ser menor que 100: al 100% no habría neto del que restar.
         </p>
         {taxAndRetention && (
           <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 mt-2">
-            <strong>Ojo, tienes las dos cosas puestas:</strong> sobre los mismos $100 la factura llevará una
-            fila de {form.taxLabel || 'impuesto'} que <strong>suma</strong> ${exampleTax} y una de retención
-            que <strong>resta</strong> ${retAmount}, y el <strong>TOTAL A PAGAR</strong> saldría{' '}
-            <strong>${bothTotal}</strong>. Si lo que quieres es el documento que usa tu contable — solo
-            TOTAL NETO, RETENCIÓN y TOTAL A PAGAR — deja la <strong>tasa de impuesto en 0</strong>.
+            <strong>Ojo, tienes las dos cosas puestas:</strong> sobre un pago de $100 el neto sube a{' '}
+            <strong>${retNeto}</strong>, la retención <strong>resta</strong> ${retAmount} y la fila de{' '}
+            {form.taxLabel || 'impuesto'} <strong>suma</strong> ${bothTax} —el {exampleRate}% se calcula
+            sobre ese neto, no sobre los $100—, así que el <strong>TOTAL A PAGAR</strong> saldría{' '}
+            <strong>${bothTotal}</strong>: los $100 que entraron más el impuesto. Si el impuesto no se le
+            cobra al cliente, esos ${bothTax} quedan sin cobrar en cada documento. Si lo que quieres es el
+            documento que usa tu contable — solo TOTAL NETO, RETENCIÓN y TOTAL A PAGAR — deja la{' '}
+            <strong>tasa de impuesto en 0</strong>.
           </p>
         )}
       </div>

@@ -53,8 +53,8 @@ const CENT = 0.01
 // the RETENCIÓN row, whose rate the invoice does not store (only its amount).
 //
 // Dividing the amount back out lands NEAR the rate and not on it, because the
-// amount was rounded to the cent when it was stored: 591.79 / 2191.82 is
-// 26.9996%, and 3.38 / 12.50 is 27.04%. Printing either of those would put a
+// amount was rounded to the cent when it was stored: 591.78 / 2191.78 is
+// 26.99998%, and 4.62 / 17.12 is 26.9859%. Printing either of those would put a
 // rate nobody configured on a fiscal document. So the fewest decimals that
 // REPRODUCE the stored amount to the cent wins — 27 before 27.0 before 27.04 —
 // which is exact for any whole or one-decimal rate on a subtotal of $10 or
@@ -230,17 +230,14 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
   // Only when money is genuinely missing. A fully-paid invoice prints exactly
   // what it always printed.
   //
-  // WITH A RETENCIÓN THIS GOES QUIET, AND THAT IS THE RIGHT ANSWER. A $100
-  // purchase retained at 27% totals 73 against 100 collected, so `outstanding`
-  // is -27 and the condition below is false: no band, and in particular no
-  // negative figure and no "PENDIENTE −27.00". Nothing is printed in its place
-  // either, deliberately — the 27 is WITHHELD, not overpaid. The client's money
-  // arrived in full; the retention is the part the issuer does not keep. A band
-  // reading "RECIBIDO 100 · SOBRANTE 27" would describe it as a surplus owed
-  // back to the client, which is false and is exactly the kind of line an
-  // accountant would have to undo by hand. The owner's own document says
-  // nothing here, and TOTAL NETO 100 / RETENCIÓN 27 / TOTAL A PAGAR 73 already
-  // accounts for every dollar on the page.
+  // WITH A RETENCIÓN THIS GOES QUIET, AND IT DOES SO BY ARITHMETIC NOW, NOT BY
+  // luck. The money the client paid IS the TOTAL A PAGAR — the net above it is
+  // grossed up from it, see services/invoiceService.js — so a $100 purchase
+  // retained at 27% prints TOTAL NETO 136.99 / RETENCIÓN −36.99 / TOTAL A PAGAR
+  // 100.00 against 100 collected: `outstanding` is exactly 0 and no band is
+  // printed. Nothing is printed in its place either, and there is nothing to
+  // print: every dollar on the page is accounted for, and the 36.99 is withheld
+  // out of the net rather than owed by or to anybody.
   const showShortfall = paid !== null && outstanding >= CENT
 
   // The PDF is this very node printed, so what the client receives and what the
