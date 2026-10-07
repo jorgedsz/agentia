@@ -78,6 +78,7 @@ export const EMPTY_INVOICE_PROFILE = {
   taxRate: '0',
   taxLabel: 'ITBIS',
   retentionRate: '0',
+  retentionLabel: 'RETENCIÓN',
   invoicePrefix: 'FAC-',
   invoiceNextNumber: '1',
   invoicePadding: '6',
@@ -93,6 +94,7 @@ export const invoiceFormFrom = (profile = {}) => ({
   taxRate: profile.taxRate != null ? String(profile.taxRate) : '0',
   taxLabel: profile.taxLabel || 'ITBIS',
   retentionRate: profile.retentionRate != null ? String(profile.retentionRate) : '0',
+  retentionLabel: profile.retentionLabel || 'RETENCIÓN',
   invoicePrefix: profile.invoicePrefix ?? 'FAC-',
   invoiceNextNumber: profile.invoiceNextNumber != null ? String(profile.invoiceNextNumber) : '1',
   invoicePadding: profile.invoicePadding != null ? String(profile.invoicePadding) : '6',
@@ -109,6 +111,7 @@ export const invoicePayloadFrom = (form) => ({
   taxRate: form.taxRate,
   taxLabel: form.taxLabel,
   retentionRate: form.retentionRate,
+  retentionLabel: form.retentionLabel,
   invoicePrefix: form.invoicePrefix,
   invoiceNextNumber: form.invoiceNextNumber,
   invoicePadding: form.invoicePadding,
@@ -151,6 +154,10 @@ export default function BillingProfileFields({ form, onChange, profileExists, ta
   // printing Infinity while the field is being typed into.
   const retRate = Number(form.retentionRate) || 0
   const retUsable = retRate > 0 && retRate < 100
+  // What the row will actually be HEADED on the document, so the worked example
+  // below shows the line the accountant will read rather than a literal this
+  // issuer may have renamed. Blank falls back exactly as the server does.
+  const retLabel = (form.retentionLabel || '').trim() || 'RETENCIÓN'
   const retNet = retUsable ? 100 / (1 - retRate / 100) : 0
   const retNeto = retNet.toFixed(2)
   const retAmount = (retNet - 100).toFixed(2)
@@ -247,10 +254,23 @@ export default function BillingProfileFields({ form, onChange, profileExists, ta
           and shows the resulting document, because that is the only part
           nobody can check afterwards without issuing a real invoice. */}
       <div>
-        <label className={LABEL}>Tasa de retención (%)</label>
-        <input type="number" min="0" max="99.99" step="0.01" value={form.retentionRate}
-          onChange={(e) => set({ retentionRate: e.target.value })}
-          placeholder="27" className={INPUT} />
+        {/* The rate and the NAME of the row, side by side like the tax pair
+            above: one says how much comes off, the other says what the
+            accountant reading the document will see it called. */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={LABEL}>Tasa de retención (%)</label>
+            <input type="number" min="0" max="99.99" step="0.01" value={form.retentionRate}
+              onChange={(e) => set({ retentionRate: e.target.value })}
+              placeholder="27" className={INPUT} />
+          </div>
+          <div>
+            <label className={LABEL}>Nombre de la retención</label>
+            <input type="text" value={form.retentionLabel}
+              onChange={(e) => set({ retentionLabel: e.target.value })}
+              placeholder="RETENCIÓN" className={INPUT} />
+          </div>
+        </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           La retención <strong>se resta</strong> del neto de la factura: no se le cobra nada de más al cliente.
           Lo que el cliente paga es lo que tú <strong>recibes</strong>, así que va abajo, en el
@@ -258,10 +278,16 @@ export default function BillingProfileFields({ form, onChange, profileExists, ta
           dividiéndolo entre (1 − tasa). Déjala en 0 y la fila sale vacía, como hasta ahora.
           {retUsable && <>
             {' '}Al {retRate}%, un cliente que paga $100 recibirá una factura que dice{' '}
-            <strong>TOTAL NETO ${retNeto}</strong>, <strong>RETENCIÓN −${retAmount}</strong> y{' '}
+            <strong>TOTAL NETO ${retNeto}</strong>, <strong>{retLabel} −${retAmount}</strong> y{' '}
             <strong>TOTAL A PAGAR $100.00</strong>: los $100 que entraron, ni un centavo más ni menos.
           </>}
           {' '}Tiene que ser menor que 100: al 100% no habría neto del que restar.
+          {' '}El <strong>nombre</strong> de al lado es el título de esa fila en el documento: si tu
+          contable cuadra por el formulario en que se remite, escríbelo como lo tiene él
+          — <strong>Ret. IR-17</strong> se imprime como{' '}
+          <strong>Ret. IR-17{retUsable ? ` (${retRate}%)` : ''}</strong>. En blanco vuelve a{' '}
+          <strong>RETENCIÓN</strong>. Cada factura guarda el nombre con el que se emitió, así que
+          cambiarlo no reescribe las que ya están hechas.
         </p>
         {taxAndRetention && (
           <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 mt-2">
@@ -271,7 +297,7 @@ export default function BillingProfileFields({ form, onChange, profileExists, ta
             sobre ese neto, no sobre los $100—, así que el <strong>TOTAL A PAGAR</strong> saldría{' '}
             <strong>${bothTotal}</strong>: los $100 que entraron más el impuesto. Si el impuesto no se le
             cobra al cliente, esos ${bothTax} quedan sin cobrar en cada documento. Si lo que quieres es el
-            documento que usa tu contable — solo TOTAL NETO, RETENCIÓN y TOTAL A PAGAR — deja la{' '}
+            documento que usa tu contable — solo TOTAL NETO, {retLabel} y TOTAL A PAGAR — deja la{' '}
             <strong>tasa de impuesto en 0</strong>.
           </p>
         )}
