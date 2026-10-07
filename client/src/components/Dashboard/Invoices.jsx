@@ -15,14 +15,31 @@ import BillingProfileFields, { EMPTY_INVOICE_PROFILE, invoiceFormFrom, invoicePa
 //
 // The three row states are deliberately different in tone:
 //   · invoice present            → read it, nothing to do
-//   · null + invoiceExpected     → charged under the tax, its document failed
-//                                  to issue: something still TO DO, not an
-//                                  error to apologise for
-//   · null + !invoiceExpected    → predates the tax being switched on. An
-//                                  invoice can still be issued, but nothing
+//   · null + invoiceExpected     → this account bills with tax, so the
+//                                  document was due and failed to issue:
+//                                  something still TO DO, not an error to
+//                                  apologise for
+//   · null + !invoiceExpected    → the account does not bill with tax at all.
+//                                  An invoice can still be issued, but nothing
 //                                  went wrong, so it is offered quietly.
+//
+// AND THE TWO MONEY COLUMNS CAN DISAGREE. An issuer can show the tax on its
+// invoices without charging it to the client
+// (BillingProfile.chargeTaxToClient), and then a $100 payment carries a $127
+// invoice. Both figures are on the row, and the uncollected difference is
+// spelled out next to the invoice number rather than left for the reader to
+// subtract.
 
 const money = (n) => `$${(Number(n) || 0).toFixed(2)}`
+
+// To the cent, so 127 - 100 is 27 and never 26.999999999999996.
+const cent = (n) => Math.round((Number(n) || 0) * 100) / 100
+
+// Under a cent is not a difference worth naming.
+const CENT = 0.01
+
+// What an invoice asks for beyond what its payment collected, or 0.
+const gapOf = (p) => (p.invoice ? Math.max(0, cent((Number(p.invoice.total) || 0) - (Number(p.amount) || 0))) : 0)
 
 // The payment's own date, not a settlement timestamp — so it is shown to the
 // day and never to the minute as if it were one.
@@ -183,15 +200,25 @@ export default function Invoices() {
   // The server caps the list (50 by default) with no cursor, so an account past
   // that cap has payments these figures do not count — which is why the cards
   // say so instead of presenting a number that looks like a lifetime total.
+  //
+  // `charged` is what the cards actually paid and `invoiced` is what the
+  // documents ask for. They are the same number only when the tax is charged on
+  // top; with the tax merely shown, `invoiced` is the higher of the two and the
+  // difference is what the issuer has not collected.
   const totals = data.payments.reduce(
     (acc, p) => ({
       charged: acc.charged + (Number(p.amount) || 0),
       tax: acc.tax + (Number(p.taxAmount) || 0),
+      invoiced: acc.invoiced + (p.invoice ? (Number(p.invoice.total) || 0) : 0),
+      // Only over the rows that HAVE an invoice, so the gap is never inflated
+      // by a payment whose document was simply never issued.
+      invoicedCharged: acc.invoicedCharged + (p.invoice ? (Number(p.amount) || 0) : 0),
       issued: acc.issued + (p.invoice ? 1 : 0),
       pending: acc.pending + (!p.invoice && p.invoiceExpected ? 1 : 0),
     }),
-    { charged: 0, tax: 0, issued: 0, pending: 0 },
+    { charged: 0, tax: 0, invoiced: 0, invoicedCharged: 0, issued: 0, pending: 0 },
   )
+  const uncollected = cent(totals.invoiced - totals.invoicedCharged)
 
   return (
     <div className="p-6">
@@ -241,10 +268,15 @@ export default function Invoices() {
                     onChange={(patch) => setIssuerForm(f => ({ ...f, ...patch }))}
                     profileExists={issuerExists}
                     taxHelp={<>
-                      Apagado no cambia nada: cada cuenta paga el monto exacto que pide y no se emite ninguna factura.
-                      <strong> Encendido, el impuesto se suma por encima de cada cargo a todas las cuentas que dependen de ti</strong>
-                      {' '}(un cliente que pide $100 de saldo paga $127 al 27% y recibe 100 créditos de saldo), y cada pago
-                      confirmado genera una factura con tu numeración. No hay forma de activarlo para unos clientes y no para otros.
+                      Apagado no cambia nada: no se emite ninguna factura. Encendido, cada pago confirmado de
+                      <strong> todas las cuentas que dependen de ti</strong> genera una factura con tu numeración, y esa
+                      factura muestra el impuesto como línea aparte. <strong>Por sí solo no le cobra nada extra a
+                      nadie</strong>: eso es la casilla siguiente. No hay forma de activarlo para unos clientes y no para otros.
+                    </>}
+                    chargeHelp={<>
+                      Encendido, el impuesto se suma por encima de cada cargo a <strong>todas las cuentas que dependen
+                      de ti</strong>: quien pida $100 de saldo paga $127 al 27% y recibe 100 créditos de saldo.
+                      Apagado, cada cuenta paga exactamente el monto que pide.
                     </>}
                     notConfiguredNote="Todavía no tienes perfil de facturación: lo que ves son los valores por defecto y se crean al guardar."
                   />
@@ -313,10 +345,24 @@ export default function Invoices() {
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{money(totals.charged)}</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">en los pagos mostrados</p>
             </div>
+            {/* What the DOCUMENTS ask for, which is not what was collected
+                whenever the tax is shown without being charged. Counted over
+                the invoiced rows only, so the gap underneath means "not
+                collected", never "not invoiced yet". */}
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
-              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Impuesto incluido</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{money(totals.tax)}</p>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">dentro de lo cobrado arriba</p>
+              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Facturado</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{money(totals.invoiced)}</p>
+              {uncollected >= CENT ? (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                  {money(uncollected)} más de lo cobrado: impuesto facturado y no cobrado
+                </p>
+              ) : totals.tax >= CENT ? (
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                  incluye {money(totals.tax)} de impuesto, ya cobrado
+                </p>
+              ) : (
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">en las facturas emitidas</p>
+              )}
             </div>
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
               <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Facturas emitidas</p>
@@ -339,7 +385,7 @@ export default function Invoices() {
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-dark-hover">
                   <tr>
-                    {['Fecha', 'Concepto', 'Cobrado', 'Impuesto', 'Factura', ''].map((h) => (
+                    {['Fecha', 'Concepto', 'Cobrado', 'Impuesto cobrado', 'Factura', ''].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{h}</th>
                     ))}
                   </tr>
@@ -357,6 +403,10 @@ export default function Invoices() {
                           </span>
                         )}
                       </td>
+                      {/* The tax THE CARD PAID. A dash here next to an invoice
+                          that carries a tax line is not a contradiction: the
+                          issuer showed the tax without charging it, which the
+                          Factura column spells out. */}
                       <td className="px-4 py-3 text-sm whitespace-nowrap text-gray-600 dark:text-gray-400">
                         {p.taxAmount > 0 ? (
                           <>
@@ -374,20 +424,29 @@ export default function Invoices() {
                               {p.invoice.number}
                             </span>
                             <span className="block mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                              {fmtDate(p.invoice.issuedAt)}
+                              {fmtDate(p.invoice.issuedAt)} · total {money(p.invoice.total)}
                             </span>
+                            {/* The document asks for more than the payment
+                                brought in. Stated on the row, not left to be
+                                worked out from two columns. */}
+                            {gapOf(p) >= CENT && (
+                              <span className="block mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+                                faltan {money(gapOf(p))} por cobrar
+                              </span>
+                            )}
                           </>
                         ) : p.invoiceExpected ? (
-                          // Charged under the tax, so its document was due and
-                          // failed to issue. Something still to do, in the same
-                          // amber the panel uses for "pendiente" elsewhere —
-                          // not red, nothing is broken for the client.
+                          // This account bills with tax, so the document was
+                          // due and failed to issue. Something still to do, in
+                          // the same amber the panel uses for "pendiente"
+                          // elsewhere — not red, nothing is broken for the
+                          // client.
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                             Por emitir
                           </span>
                         ) : (
-                          // Predates the tax being switched on: no document was
-                          // ever due, so this is stated flatly and in grey.
+                          // The account does not bill with tax, so no document
+                          // was ever due: stated flatly and in grey.
                           <span className="text-xs text-gray-500 dark:text-gray-400">Sin factura</span>
                         )}
                       </td>
@@ -413,7 +472,7 @@ export default function Invoices() {
                             <button
                               onClick={() => openInvoice(p.purchaseId)}
                               disabled={busy === p.purchaseId}
-                              title="Este pago es anterior a la facturación con impuesto. Puedes emitir su factura si la necesitas."
+                              title="Esta cuenta no factura con impuesto. Puedes emitir la factura de este pago si la necesitas."
                               className="text-xs text-gray-500 dark:text-gray-400 underline hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50"
                             >
                               {busy === p.purchaseId ? 'Emitiendo…' : 'Emitir factura'}

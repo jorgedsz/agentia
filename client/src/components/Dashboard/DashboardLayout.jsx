@@ -15,8 +15,13 @@ import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
 // its tax here, or it is quoted nowhere. A client asking for $100 under a
 // partner that collects 27% pays $127, and must read that before committing.
 //
-// Renders nothing at all for an untaxed account: the quote endpoint answers
-// `taxAmount: 0` and every block below is guarded on `taxAmount > 0`.
+// Renders nothing at all when no tax reaches the card: the quote endpoint
+// answers `taxAmount: 0` and every block below is guarded on `taxAmount > 0`.
+// That covers two cases now — an account under no tax-collecting partner, and
+// one under a partner that SHOWS the tax on its invoices without charging it
+// (BillingProfile.chargeTaxToClient, see server/src/utils/taxes.js). In both,
+// the client is charged exactly what it typed, so there is nothing to warn
+// about and these screens look as they did before any of this existed.
 const quoteCharge = (amount) => creditsAPI.quote(amount).then(({ data }) => data)
 
 const ROLES = {
