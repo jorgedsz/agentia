@@ -196,6 +196,15 @@ function presentPayment(purchase, billsWithTax = false) {
  * empty list: an empty list reads as "this client never paid", which is a lie
  * that would have a manager hunting for payments that are simply not his to
  * see.
+ *
+ * Every answer ECHOES the account it is about, as `accountId`. The response is
+ * then self-describing: a client switching accounts twice has two requests in
+ * flight and no way, from the payload alone, to tell which pick the slower
+ * answer belongs to. Rows shown under the wrong account's name are how a
+ * manager issues a fiscal document for the wrong client, and that needs no bad
+ * write to happen - the server would allow the click, because the manager may
+ * legitimately read both accounts. The echo is what lets the page refuse to
+ * pair them.
  */
 const listMine = async (req, res) => {
   try {
@@ -225,7 +234,7 @@ const listMine = async (req, res) => {
     // - so reading it off the caller would tell a partner that its client's
     // payments cannot be invoiced while issuance happily invoices them.
     const { profile, taxEnabled } = await resolveTaxConfig(req.prisma, subjectId);
-    if (!profile || !taxEnabled) return res.json({ billsWithTax: false, payments: [] });
+    if (!profile || !taxEnabled) return res.json({ accountId: subjectId, billsWithTax: false, payments: [] });
 
     const purchases = await req.prisma.creditPurchase.findMany({
       where: { userId: subjectId, status: 'completed' },
@@ -253,7 +262,7 @@ const listMine = async (req, res) => {
 
     // `true` here, not a per-payment guess: this account bills with tax, so
     // every settled payment on it is due a document.
-    res.json({ billsWithTax: true, payments: purchases.map((p) => presentPayment(p, true)) });
+    res.json({ accountId: subjectId, billsWithTax: true, payments: purchases.map((p) => presentPayment(p, true)) });
   } catch (error) {
     console.error('Error listing payments:', error.message);
     res.status(500).json({ error: 'No se pudieron cargar los pagos' });

@@ -449,3 +449,35 @@ test('forUserId: the cap still applies to the request of a manager', async () =>
   await callList(prisma, { id: 99, role: 'OWNER' }, { forUserId: '30', limit: '5000' });
   assert.strictEqual(prisma.calls[0].take, 200);
 });
+
+// Every answer says which account it is about, so a page with two requests in
+// flight can refuse to show one account's rows under another's name.
+test('the answer echoes the account it is about, so a slow answer can be told apart', async () => {
+  const mine = await callList(listPrisma([paid(1)]), { id: 30, role: 'CLIENT' });
+  assert.strictEqual(mine.body.accountId, 30);
+
+  const theirs = await callList(listPrisma([paid(1)]), { id: 10, role: 'WHITELABEL' }, { forUserId: '30' });
+  assert.strictEqual(theirs.body.accountId, 30);
+
+  // A different pick by the same viewer is a different echo - which is the
+  // whole point: these two answers are no longer interchangeable.
+  const other = await callList(listPrisma([paid(1)]), { id: 10, role: 'WHITELABEL' }, { forUserId: '31' });
+  assert.strictEqual(other.body.accountId, 31);
+});
+
+// The echo has to be on the empty answer too, or the one case that renders a
+// sentence about a named account ("X no emite facturas") is the one case that
+// cannot be checked against the pick.
+test('the account with no tax echoes its id as well, not just the populated answer', async () => {
+  const res = await callList(listPrisma([paid(1)]), { id: 99, role: 'OWNER' }, { forUserId: '50' });
+  assert.strictEqual(res.body.billsWithTax, false);
+  assert.strictEqual(res.body.accountId, 50);
+});
+
+// A string id from the query string must come back as the number the client
+// compares against, never '30' where 30 is expected.
+test('the echoed id is the resolved number, whatever the query string carried', async () => {
+  const res = await callList(listPrisma([paid(1)]), { id: 99, role: 'OWNER' }, { forUserId: '30' });
+  assert.strictEqual(res.body.accountId, 30);
+  assert.strictEqual(typeof res.body.accountId, 'number');
+});

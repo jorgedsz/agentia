@@ -232,7 +232,10 @@ export const creditsAPI = {
 export const invoicesAPI = {
   // Lists settled PAYMENTS, each with its invoice attached or null — an invoice
   // that was never issued is exactly the one that needs issuing, and it cannot
-  // appear in a list of invoices. Returns `{ billsWithTax, payments }`; an
+  // appear in a list of invoices. Returns `{ accountId, billsWithTax, payments }`
+  // — `accountId` is the account the answer is ABOUT, echoed so a caller with
+  // two requests in flight can drop the one that is not about its current
+  // pick instead of showing one account's rows under another's name; an
   // account not under a tax-collecting partner gets `billsWithTax: false`.
   // Capped (50 by default, 200 max) with no cursor, so it is never complete.
   //

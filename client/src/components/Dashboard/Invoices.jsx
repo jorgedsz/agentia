@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { invoicesAPI, billingProfileAPI, authAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import InvoiceDocument from './InvoiceDocument'
@@ -93,7 +93,13 @@ export default function Invoices() {
   const [accounts, setAccounts] = useState([])
   // `billsWithTax` starts false and the page says nothing until the first
   // answer lands, so an account with no invoicing never flashes a table.
-  const [data, setData] = useState({ billsWithTax: false, payments: [] })
+  //
+  // `subject` IS WHOSE PAYMENTS THESE ARE, stored with them and set in the same
+  // breath, so the rows cannot be separated from the account they belong to.
+  // The table is rendered only while it matches the picker (`describesSelection`
+  // below): that is what makes "rows under the wrong account's name"
+  // structurally impossible rather than merely unlikely.
+  const [data, setData] = useState({ subject: 'me', billsWithTax: false, payments: [] })
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -112,6 +118,9 @@ export default function Invoices() {
   const [issuerMsg, setIssuerMsg] = useState('')
   const [issuerError, setIssuerError] = useState('')
   const [accountsError, setAccountsError] = useState('')
+  // Which payments request is the current one. A ref and not state: it is read
+  // and written inside one async call and must never trigger a render.
+  const loadSeq = useRef(0)
 
   useEffect(() => {
     // `load()` with no argument reads whichever account is selected, which at
@@ -135,23 +144,57 @@ export default function Invoices() {
   // account: a partner whose own account bills with no tax gets false for
   // itself and true for the client it just selected, and the page has to follow
   // the account rather than remember the viewer.
+  //
+  // TWO SWITCHES IN A ROW LEAVE TWO REQUESTS IN FLIGHT, and the first can land
+  // second. Nothing server-side stops it: a manager may legitimately read both
+  // accounts, so both answers are 200s. Rendered, that is one account's
+  // payments under the other account's name with an «Emitir factura» button on
+  // every row — the exact human failure this page is built against, and it
+  // needs no bad write to happen. Two guards, and the stale answer is simply
+  // dropped rather than shown:
+  //   · the sequence token, which only the newest request holds. It covers the
+  //     FAILURE path too, which the echo cannot: a 403 from the account just
+  //     left would otherwise blank the rows of the account now on screen and
+  //     post a refusal about neither of them.
+  //   · the echoed `accountId`, which makes the answer self-describing: it is
+  //     checked against what was asked, so a payload that is about the wrong
+  //     account is refused even if it arrives in perfect order.
+  // A dropped answer leaves `loading` alone on purpose: the newer request is
+  // still in flight and owns the spinner, so the page shows nothing rather than
+  // the previous account's rows.
   const load = async (id = accountId) => {
+    const seq = ++loadSeq.current
     setLoading(true)
     try {
       const { data: res } = await invoicesAPI.list(undefined, id === 'me' ? undefined : id)
+      if (loadSeq.current !== seq) return
+      // 'me' sends no id, so the server answers with the viewer's own. An older
+      // server that echoes nothing is not treated as a mismatch.
+      const expected = id === 'me' ? user?.id : id
+      if (res.accountId !== undefined && Number(res.accountId) !== Number(expected)) {
+        setData({ subject: String(id), billsWithTax: false, payments: [] })
+        setError('La respuesta no corresponde a la cuenta seleccionada. Vuelve a elegirla.')
+        return
+      }
       setData({
+        subject: String(id),
         billsWithTax: !!res.billsWithTax,
         payments: Array.isArray(res.payments) ? res.payments : [],
       })
       setError('')
     } catch (err) {
+      if (loadSeq.current !== seq) return
       // Includes the server's 403 for an account this viewer may not read,
       // which is shown as the refusal it is and never as an empty list.
       setError(err.response?.data?.error || 'No se pudieron cargar los pagos')
-      setData({ billsWithTax: false, payments: [] })
+      setData({ subject: String(id), billsWithTax: false, payments: [] })
     } finally {
-      setLoaded(true)
-      setLoading(false)
+      // Only the newest request may end the loading state, for the same reason
+      // it is the only one allowed to set the rows.
+      if (loadSeq.current === seq) {
+        setLoaded(true)
+        setLoading(false)
+      }
     }
   }
 
@@ -299,6 +342,11 @@ export default function Invoices() {
   // How the account is named inside a sentence. A CLIENT keeps the wording it
   // has today, word for word, because nothing about its page changed.
   const subjectPhrase = !canManage ? 'Esta cuenta' : viewingOwn ? 'Tu cuenta' : subjectName
+  // Do the rows on hand belong to the account named above them? Everything that
+  // describes an account — the table, the totals, both empty states — is gated
+  // on this, so the answer to "whose invoices are these" is the same in every
+  // place on the page or the page shows none of them.
+  const describesSelection = String(data.subject) === String(accountId)
 
   return (
     <div className="p-6">
@@ -445,7 +493,9 @@ export default function Invoices() {
         </div>
       )}
 
-      {loading && (
+      {/* Also while an answer on hand belongs to the account just left: there
+          is nothing honest to show until the current one lands. */}
+      {(loading || !describesSelection) && (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
         </div>
@@ -455,7 +505,7 @@ export default function Invoices() {
           will. The menu hides this entry for exactly these accounts; landing
           here by URL has to say so plainly instead of showing an empty table
           that reads as "nothing yet". */}
-      {loaded && !loading && !data.billsWithTax && (
+      {loaded && !loading && describesSelection && !data.billsWithTax && (
         <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-8 text-center">
           <p className="text-sm text-gray-700 dark:text-gray-300">{subjectPhrase} no emite facturas.</p>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
@@ -477,7 +527,7 @@ export default function Invoices() {
         </div>
       )}
 
-      {loaded && !loading && data.billsWithTax && (
+      {loaded && !loading && describesSelection && data.billsWithTax && (
         <>
           {data.payments.length > 0 && (
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
