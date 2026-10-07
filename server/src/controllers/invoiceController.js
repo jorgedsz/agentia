@@ -9,9 +9,10 @@
 // for exactly that reason). Any renderer added later must read `issuer` and
 // `client` from here and look nothing up.
 
-const { issueInvoiceForPurchase, conceptFor } = require('../services/invoiceService');
+const { issueInvoiceForPurchase, buildRegeneratedInvoiceData, conceptFor } = require('../services/invoiceService');
 const { resolveTaxConfig } = require('../utils/taxes');
 const { getAncestorPartners } = require('../utils/whopConfig');
+const { canConfigureBillingProfile } = require('../utils/accountAccess');
 
 // A client's own invoice list is a side panel, not an accounting export: a cap
 // keeps one account with years of auto-recharges from returning thousands of
@@ -63,6 +64,12 @@ function present(invoice) {
     totalInWords: invoice.totalInWords,
     issuedAt: invoice.issuedAt,
     dueAt: invoice.dueAt ?? null,
+    // When this document was last REBUILT from current data, keeping its
+    // number. Null on a document that still says what it said at issue time,
+    // which is almost all of them. It is part of what the document PRINTS, not
+    // a panel detail: somebody may be holding the previous copy of this same
+    // number, and this line is how the two are told apart.
+    regeneratedAt: invoice.regeneratedAt ?? null,
     // The payment this invoice was issued for, when it still exists. Null on an
     // invoice whose purchase was deleted (SetNull) — the invoice survives it.
     // Spelled `purchaseId` here and in the payments list, and it is the same id
@@ -113,6 +120,41 @@ async function canReadInvoice(prisma, requester, invoice) {
 
   const profile = await prisma.billingProfile.findUnique({ where: { id: invoice.profileId } });
   return !!profile && profile.ownerId === requester.id;
+}
+
+/**
+ * May this requester REBUILD this invoice from current data?
+ *
+ * A much narrower question than canReadInvoice above, and answered with a
+ * different helper on purpose. canReadAccount (which canReadInvoice leans on)
+ * allows the account itself and every partner ABOVE it, because reading is what
+ * it decides. Reused here it would let the CLIENT the invoice is addressed to
+ * rewrite a fiscal document its provider issued, and it would let a whitelabel
+ * rewrite one issued by an agency hosted under it — neither is its document.
+ *
+ * The rule is: the OWNER, or the account that ISSUES — the one that owns the
+ * invoice's BillingProfile, whose RNC is printed on it and whose numbering
+ * sequence produced its number. That is exactly the question
+ * canConfigureBillingProfile already answers, asked about the profile's owner
+ * rather than about a URL parameter: OWNER anything, a WHITELABEL or an AGENCY
+ * only its own, a CLIENT nothing. So it is REUSED rather than extended or
+ * copied — "who may change what this issuer's documents say" and "who may
+ * change this issuer's data" must stay one answer, because regenerating is how
+ * a change to that data reaches a document already issued. A CLIENT that somehow
+ * owns a profile is refused by role there, which is also right: a client issues
+ * nothing.
+ *
+ * Note it never consults invoice.userId. An orphaned invoice (its account
+ * deleted) is regenerable by its issuer exactly like any other, and an invoice
+ * whose issuing profile is gone — impossible today, Invoice.profileId is
+ * Restrict — is regenerable by nobody but the OWNER.
+ */
+async function canRegenerateInvoice(prisma, requester, invoice) {
+  if (!requester || !invoice) return false;
+  if (requester.role === 'OWNER') return true;
+  const profile = await prisma.billingProfile.findUnique({ where: { id: invoice.profileId } });
+  if (!profile) return false;
+  return canConfigureBillingProfile(requester, profile.ownerId);
 }
 
 /**
@@ -341,12 +383,81 @@ const getOne = async (req, res) => {
   }
 };
 
+/**
+ * REBUILD one invoice from current data, keeping its number.
+ * POST /api/invoices/:id/regenerate
+ *
+ * The snapshots on an invoice are frozen on purpose, and that is right once a
+ * partner is set up. While it still is, it bakes a wrong RNC, a missing logo or
+ * a typo in the bank line into every document already issued, and the only way
+ * out was to issue a second number for the same money. This is the way out the
+ * owner asked for, with the cost he accepted: whoever already holds the old
+ * copy of this number will find it changed.
+ *
+ * KEPT, never recomputed: `number`, `profileId`, `userId`, `creditPurchaseId`
+ * and `issuedAt`. It is the same document, so its identity is not up for
+ * revision and its date least of all — moving `issuedAt` would misdate the
+ * whole numbering sequence and make the correction look like a new emission.
+ * `dueAt` is recomputed FROM that unchanged `issuedAt`, so a profile that now
+ * says 15 days moves the due date without moving the issue date.
+ *
+ * The amounts come back from buildInvoiceData, through the service, and are
+ * never recomputed here — see buildRegeneratedInvoiceData. When the payment is
+ * gone the money is left exactly as it was found and `amountsRebuilt` says so,
+ * so the caller can tell a full rebuild from a snapshots-only one instead of
+ * reporting both as the same thing.
+ */
+const regenerate = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!Number.isFinite(id)) return res.status(404).json({ error: 'Factura no encontrada.' });
+
+    const invoice = await req.prisma.invoice.findUnique({ where: { id } });
+    if (!invoice) return res.status(404).json({ error: 'Factura no encontrada.' });
+
+    // The ISSUER's rule, not the reader's: the client this invoice is addressed
+    // to may download it and may not rewrite it.
+    if (!(await canRegenerateInvoice(req.prisma, req.user, invoice))) {
+      return res.status(403).json({ error: 'Solo quien emite esta factura puede regenerarla.' });
+    }
+
+    const profile = await req.prisma.billingProfile.findUnique({ where: { id: invoice.profileId } });
+    // Impossible today — Invoice.profileId is Restrict, so the issuer cannot be
+    // deleted out from under a document it issued. Answered rather than crashed
+    // because there is nothing to rebuild FROM, and that is not a server fault.
+    if (!profile) {
+      return res.status(409).json({ error: 'Esta factura ya no tiene un emisor configurado, así que no se puede regenerar.' });
+    }
+
+    // Either may legitimately be gone: both FKs are SetNull precisely so the
+    // document outlives a deleted account or a deleted payment.
+    const [client, purchase] = await Promise.all([
+      invoice.userId
+        ? req.prisma.user.findUnique({ where: { id: invoice.userId } })
+        : null,
+      invoice.creditPurchaseId
+        ? req.prisma.creditPurchase.findUnique({ where: { id: invoice.creditPurchaseId } })
+        : null,
+    ]);
+
+    const data = buildRegeneratedInvoiceData({ invoice, profile, client, purchase });
+    const updated = await req.prisma.invoice.update({ where: { id: invoice.id }, data });
+
+    res.json({ invoice: present(updated), amountsRebuilt: !!(purchase && client) });
+  } catch (error) {
+    console.error('Error regenerating an invoice:', error.message);
+    res.status(500).json({ error: 'No se pudo regenerar la factura' });
+  }
+};
+
 module.exports = {
   listMine,
   presentPayment,
   getOne,
   getByPurchase,
+  regenerate,
   present,
   canReadInvoice,
   canReadAccount,
+  canRegenerateInvoice,
 };

@@ -916,6 +916,16 @@ model Invoice {
   clientSnapshot   String // JSON
   issuedAt         DateTime        @default(now())
   dueAt            DateTime?
+  // When this document was last REBUILT from current data, keeping its number
+  // (POST /api/invoices/:id/regenerate). Null on every invoice that still says
+  // exactly what it said at issue time, which is almost all of them.
+  //
+  // Regenerating is deliberately a documented act and not a silent one: a
+  // client may already hold the previous copy of this same number, so the two
+  // have to be tellable apart by whoever is holding them. That is why this
+  // column is printed on the document itself ("Regenerada el ...") rather than
+  // only kept for the panel.
+  regeneratedAt    DateTime?
   createdAt        DateTime        @default(now())
 
   @@unique([profileId, number])

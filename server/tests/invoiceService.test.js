@@ -3,6 +3,7 @@ const assert = require('node:assert');
 const {
   issueInvoiceForPurchase,
   buildInvoiceData,
+  buildRegeneratedInvoiceData,
   formatNumber,
   conceptFor,
 } = require('../src/services/invoiceService');
@@ -467,4 +468,170 @@ test('issueInvoiceForPurchase returns null when there is no profile at all', asy
   assert.strictEqual(invoice, null);
   assert.strictEqual(prisma._calls.billingProfileUpdate, 0);
   assert.strictEqual(prisma._calls.invoiceCreate, 0);
+});
+
+// ---------------------------------------------------------------------------
+// buildRegeneratedInvoiceData — rebuilding a document that already exists
+//
+// The document keeps its number and its date; everything else is taken again
+// from the configuration as it stands now. The two things these tests exist to
+// pin down are that the identity is never touched, and that the money comes out
+// of buildInvoiceData and not out of a second arithmetic that could disagree
+// with the one issuance uses.
+// ---------------------------------------------------------------------------
+
+// The row as it was issued in March, under an issuer whose RNC was wrong.
+const ISSUED = {
+  id: 9,
+  number: 'FAC-000124',
+  profileId: 5,
+  userId: 42,
+  creditPurchaseId: 77,
+  currency: 'USD',
+  subtotal: 100,
+  taxLabel: 'ITBIS',
+  taxRate: 27,
+  taxAmount: 27,
+  retention: 0,
+  total: 127,
+  amountPaid: 127,
+  totalInWords: 'CIENTO VEINTISIETE DÓLARES CON 00/100',
+  conceptLines: JSON.stringify([{ description: 'Recarga de saldo — créditos de consumo', total: 100 }]),
+  issuerSnapshot: JSON.stringify({ issuerName: 'LM Consulting Group SRL', issuerRnc: 'EL RNC EQUIVOCADO' }),
+  clientSnapshot: JSON.stringify({ company: 'Cliente Prueba Fiscal SRL' }),
+  issuedAt: new Date('2026-03-15T12:00:00.000Z'),
+  dueAt: new Date('2026-03-15T12:00:00.000Z'),
+  regeneratedAt: null,
+};
+
+test('buildRegeneratedInvoiceData never returns the fields that identify the document', () => {
+  const data = buildRegeneratedInvoiceData({ invoice: ISSUED, profile: PROFILE, client: CLIENT, purchase: PURCHASE });
+  // It is the same document: its number, its parties, its payment and above all
+  // its DATE are the caller's. Recomputing issuedAt would misdate the sequence.
+  for (const key of ['number', 'profileId', 'userId', 'creditPurchaseId', 'issuedAt']) {
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(data, key), false, `must not write ${key}`);
+  }
+});
+
+test('buildRegeneratedInvoiceData refreshes the issuer snapshot from the profile as it is now', () => {
+  const data = buildRegeneratedInvoiceData({ invoice: ISSUED, profile: PROFILE, client: CLIENT, purchase: PURCHASE });
+  const issuer = JSON.parse(data.issuerSnapshot);
+  assert.strictEqual(issuer.issuerRnc, '1-01-00000-1');
+  assert.strictEqual(issuer.logoUrl, 'https://example.com/logo.png');
+  assert.strictEqual(issuer.bankAccount, '1234567890');
+  // And the client half, from the account as it is now.
+  assert.strictEqual(JSON.parse(data.clientSnapshot).rnc, '1-02-00000-2');
+});
+
+test('buildRegeneratedInvoiceData recomputes the money off the CURRENT profile, not the frozen row', () => {
+  // The issuer's rate was corrected from 27% to 18% after this was issued.
+  const corrected = { ...PROFILE, taxRate: 18, taxLabel: 'IVA' };
+  const data = buildRegeneratedInvoiceData({ invoice: ISSUED, profile: corrected, client: CLIENT, purchase: PURCHASE });
+  assert.strictEqual(data.subtotal, 100);
+  assert.strictEqual(data.taxLabel, 'IVA');
+  assert.strictEqual(data.taxRate, 18);
+  assert.strictEqual(data.taxAmount, 18);
+  assert.strictEqual(data.total, 118);
+  assert.strictEqual(data.retention, 0);
+  assert.strictEqual(data.amountPaid, 127); // what the card really paid, unchanged
+  assert.match(data.totalInWords, /^CIENTO DIECIOCHO/);
+});
+
+// The whole reason regeneration delegates to buildInvoiceData: one arithmetic,
+// so a rebuilt document and a freshly issued one cannot disagree about the same
+// payment.
+test('buildRegeneratedInvoiceData agrees with buildInvoiceData field by field', () => {
+  const fresh = buildInvoiceData({
+    profile: PROFILE,
+    client: CLIENT,
+    purchase: PURCHASE,
+    number: ISSUED.number,
+    issuedAt: ISSUED.issuedAt,
+  });
+  const again = buildRegeneratedInvoiceData({ invoice: ISSUED, profile: PROFILE, client: CLIENT, purchase: PURCHASE });
+  for (const key of ['subtotal', 'taxLabel', 'taxRate', 'taxAmount', 'retention', 'total',
+    'amountPaid', 'totalInWords', 'conceptLines', 'issuerSnapshot', 'clientSnapshot']) {
+    assert.deepStrictEqual(again[key], fresh[key], `${key} must match what issuance would write`);
+  }
+  assert.strictEqual(again.dueAt.getTime(), fresh.dueAt.getTime());
+});
+
+test('buildRegeneratedInvoiceData recomputes dueAt from the UNCHANGED issuedAt and the current dueDays', () => {
+  const fifteen = { ...PROFILE, dueDays: 15 };
+  const data = buildRegeneratedInvoiceData({ invoice: ISSUED, profile: fifteen, client: CLIENT, purchase: PURCHASE });
+  // 15 March + 15 days, and not 15 days from today.
+  assert.strictEqual(data.dueAt.toISOString(), '2026-03-30T12:00:00.000Z');
+});
+
+test('buildRegeneratedInvoiceData stamps regeneratedAt, which is what tells two copies of one number apart', () => {
+  const at = new Date('2026-10-07T10:00:00.000Z');
+  const data = buildRegeneratedInvoiceData({ invoice: ISSUED, profile: PROFILE, client: CLIENT, purchase: PURCHASE, regeneratedAt: at });
+  assert.strictEqual(data.regeneratedAt, at);
+  // And by default it is simply now, never left unset.
+  assert.ok(buildRegeneratedInvoiceData({ invoice: ISSUED, profile: PROFILE, client: CLIENT, purchase: PURCHASE }).regeneratedAt instanceof Date);
+});
+
+test('buildRegeneratedInvoiceData describes the payment with the same concept helper', () => {
+  const data = buildRegeneratedInvoiceData({
+    invoice: ISSUED,
+    profile: PROFILE,
+    client: CLIENT,
+    purchase: { ...PURCHASE, kind: 'auto_recharge' },
+  });
+  assert.deepStrictEqual(JSON.parse(data.conceptLines), [{ description: 'Recarga automática de saldo', total: 100 }]);
+});
+
+// THE MISSING-PAYMENT CASE. creditPurchaseId is SetNull, so an invoice outlives
+// the payment and the account that made it. There is then nothing to recompute
+// the amounts FROM, and the figures on the row are the only surviving record of
+// them: a document that suddenly totalled 0.00 because its payment was deleted
+// would be a destroyed fiscal record, not a corrected one.
+test('with no purchase, buildRegeneratedInvoiceData touches no money field at all', () => {
+  const orphan = { ...ISSUED, creditPurchaseId: null };
+  const data = buildRegeneratedInvoiceData({ invoice: orphan, profile: PROFILE, client: CLIENT, purchase: null });
+
+  for (const key of ['subtotal', 'taxLabel', 'taxRate', 'taxAmount', 'retention',
+    'total', 'amountPaid', 'totalInWords', 'conceptLines']) {
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(data, key), false, `must not rewrite ${key}`);
+  }
+  // Not a zero, not a null: the column is simply not in the update.
+  assert.strictEqual(data.total, undefined);
+  assert.strictEqual(data.amountPaid, undefined);
+});
+
+test('with no purchase, the two party snapshots are still refreshed — that is the point of the action', () => {
+  const orphan = { ...ISSUED, creditPurchaseId: null };
+  const data = buildRegeneratedInvoiceData({ invoice: orphan, profile: PROFILE, client: CLIENT, purchase: null });
+  assert.strictEqual(JSON.parse(data.issuerSnapshot).issuerRnc, '1-01-00000-1');
+  assert.strictEqual(JSON.parse(data.clientSnapshot).company, 'Cliente Prueba Fiscal SRL');
+  assert.ok(data.regeneratedAt instanceof Date);
+  // dueAt needs only the unchanged issuedAt and the profile's current dueDays,
+  // so it is recomputed here too: it asks nothing of the purchase.
+  assert.strictEqual(data.dueAt.toISOString(), ISSUED.issuedAt.toISOString());
+});
+
+test('with no client left either, the client snapshot is the last record of who it was for and is kept', () => {
+  const orphan = { ...ISSUED, userId: null, creditPurchaseId: null };
+  const data = buildRegeneratedInvoiceData({ invoice: orphan, profile: PROFILE, client: null, purchase: null });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(data, 'clientSnapshot'), false);
+  // The issuer half still is refreshable, and is.
+  assert.strictEqual(JSON.parse(data.issuerSnapshot).issuerRnc, '1-01-00000-1');
+});
+
+// A deleted ACCOUNT takes its payments with it, so a surviving purchase with no
+// client is not a shape the database produces — but if it ever reached here,
+// rebuilding the money off a client that no longer exists would write an empty
+// client block onto the document. Snapshots-only is the safe answer.
+test('a purchase with no client falls back to snapshots only rather than emptying the client block', () => {
+  const data = buildRegeneratedInvoiceData({ invoice: ISSUED, profile: PROFILE, client: null, purchase: PURCHASE });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(data, 'total'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(data, 'clientSnapshot'), false);
+});
+
+test('buildRegeneratedInvoiceData zeroes the tax when the issuer has switched it off since', () => {
+  const noTax = { ...PROFILE, taxEnabled: false };
+  const data = buildRegeneratedInvoiceData({ invoice: ISSUED, profile: noTax, client: CLIENT, purchase: PURCHASE });
+  assert.strictEqual(data.taxRate, 0);
+  assert.strictEqual(data.taxAmount, 0);
+  assert.strictEqual(data.total, 100);
 });
