@@ -15,9 +15,13 @@ import { useState } from 'react'
 // what the screen showed. Only the chrome around the document (the modal, the
 // buttons) uses the app's classes.
 
-const ORANGE = '#E8502A'
 const INK = '#111827'
 const MUTED = '#4b5563'
+
+// The document's accent: the rule beside the issuer, the invoice number, the
+// two bands and the footer line. Black, matching the ink the rest of the page
+// is set in, so a printed invoice needs no colour to read correctly.
+const ACCENT = INK
 
 // The printed format is a spreadsheet, so a one-line invoice still has the
 // height of a full page of rows. Blank ruled rows make up the difference.
@@ -318,7 +322,7 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
                   ) : null}
                 </div>
               </div>
-              <div style={{ borderLeft: `3px solid ${ORANGE}`, paddingLeft: '14px', textAlign: 'right', minWidth: '190px' }}>
+              <div style={{ borderLeft: `3px solid ${ACCENT}`, paddingLeft: '14px', textAlign: 'right', minWidth: '190px' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{issuer.issuerName || ''}</div>
                 <div style={{ fontSize: '11px', color: MUTED, marginTop: '3px' }}>
                   RNC / ID: {issuer.issuerRnc || ''}
@@ -327,7 +331,7 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
             </div>
 
             {/* The invoice's own number */}
-            <div style={{ marginTop: '18px', fontSize: '22px', fontWeight: 'bold', color: ORANGE }}>
+            <div style={{ marginTop: '18px', fontSize: '22px', fontWeight: 'bold', color: ACCENT }}>
               NO. {invoice.number || ''}
             </div>
 
@@ -424,8 +428,8 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
                     </td>
                   </tr>
                   <tr>
-                    <td style={{ ...S.cell, fontWeight: 'bold', background: ORANGE, color: '#ffffff' }}>TOTAL A PAGAR</td>
-                    <td style={{ ...S.cell, textAlign: 'right', fontWeight: 'bold', background: ORANGE, color: '#ffffff' }}>
+                    <td style={{ ...S.cell, fontWeight: 'bold', background: ACCENT, color: '#ffffff' }}>TOTAL A PAGAR</td>
+                    <td style={{ ...S.cell, textAlign: 'right', fontWeight: 'bold', background: ACCENT, color: '#ffffff' }}>
                       {money(invoice.total, currency)}
                     </td>
                   </tr>
@@ -441,7 +445,7 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
             {showShortfall && (
               <div style={{
                 marginTop: '10px',
-                border: `2px solid ${ORANGE}`,
+                border: `2px solid ${ACCENT}`,
                 padding: '8px 10px',
                 fontSize: '11px',
                 color: INK,
@@ -459,7 +463,7 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
             {/* The amount spelled out, as the format requires */}
             <div style={{
               marginTop: '14px',
-              background: ORANGE,
+              background: ACCENT,
               color: '#ffffff',
               padding: '8px 10px',
               fontWeight: 'bold',
@@ -487,7 +491,7 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
               gap: '18px',
               marginTop: '18px',
               paddingTop: '10px',
-              borderTop: `2px solid ${ORANGE}`,
+              borderTop: `2px solid ${ACCENT}`,
               fontSize: '11px',
             }}>
               <div style={{ flex: '1 1 0', minWidth: 0 }}><Site site={issuer.site1} /></div>
