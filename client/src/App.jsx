@@ -23,6 +23,7 @@ import WalletPage from './components/Public/WalletPage'
 import BillingPeriods from './components/Dashboard/BillingPeriods'
 import OtherCharges from './components/Dashboard/OtherCharges'
 import Budgets from './components/Dashboard/Budgets'
+import Invoices from './components/Dashboard/Invoices'
 import AccountManagement from './components/Dashboard/AccountManagement'
 import VoiceLibrary from './components/Dashboard/VoiceLibrary'
 import Analytics from './components/Dashboard/Analytics'
@@ -198,6 +199,7 @@ function App() {
           <Route path="billing-periods" element={<BillingPeriods />} />
           <Route path="other-charges" element={<OtherCharges />} />
           <Route path="budgets" element={<Budgets />} />
+          <Route path="invoices" element={<Invoices />} />
           <Route path="clients" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="agencies" element={<Navigate to="/dashboard/accounts" replace />} />
           <Route path="all-users" element={<Navigate to="/dashboard/accounts" replace />} />

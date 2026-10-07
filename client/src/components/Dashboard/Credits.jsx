@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { creditsAPI, whopAPI, invoicesAPI } from '../../services/api'
+import { creditsAPI, whopAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 import WhopCheckoutModal from './WhopCheckoutModal'
 import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
-import InvoiceDocument from './InvoiceDocument'
 
 // Every surface here that takes money quotes the amount the client typed, so
 // they see the tax before paying it. Renders nothing for an untaxed account.
@@ -41,19 +40,6 @@ export default function Credits() {
   const [rechargeAmount, setRechargeAmount] = useState('')
   const [rechargeLoading, setRechargeLoading] = useState(false)
 
-  // This account's settled payments, each with its invoice attached or null,
-  // plus the document being read. PAYMENTS rather than invoices because an
-  // invoice that was never issued is exactly the one that needs issuing, and it
-  // cannot appear in a list of invoices.
-  //
-  // `billsWithTax` is false for every account not under a tax-collecting
-  // partner, and the section below renders nothing at all in that case — not
-  // even an empty state.
-  const [billing, setBilling] = useState({ billsWithTax: false, payments: [] })
-  const [invoice, setInvoice] = useState(null)
-  const [invoiceBusy, setInvoiceBusy] = useState(null)
-  const [invoiceNotice, setInvoiceNotice] = useState('')
-
   // What each of the three amounts on this page will really cost. Quoted only
   // while the field can be acted on, so a closed modal asks for nothing.
   const buyQuote = useChargeQuote(buyAmount, quoteCharge, { enabled: buyModalOpen })
@@ -64,7 +50,6 @@ export default function Credits() {
     fetchCredits()
     fetchTiers()
     fetchAutoRecharge()
-    fetchPayments()
   }, [])
 
   // Detect card-setup success from redirect fallback
@@ -99,56 +84,6 @@ export default function Credits() {
       setError(err.response?.data?.error || 'Failed to load credits')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const fetchPayments = async () => {
-    try {
-      const { data } = await invoicesAPI.list()
-      setBilling({
-        billsWithTax: !!data.billsWithTax,
-        payments: Array.isArray(data.payments) ? data.payments : [],
-      })
-    } catch {
-      // Nothing to show is the normal case for most accounts, not an error
-      // worth a banner. Falls back to "does not bill with tax", which renders
-      // nothing rather than an empty table.
-      setBilling({ billsWithTax: false, payments: [] })
-    }
-  }
-
-  // Open the invoice for one payment, ISSUING it if a settlement missed it.
-  //
-  // Always through `forPurchase`, never by invoice id, so reading a document
-  // and repairing a missing one are the same action and not two code paths that
-  // can drift. It is idempotent server-side and takes its number inside the
-  // transaction that bumps the sequence, so double-clicking cannot produce two
-  // invoices or burn a number.
-  //
-  // Its two non-200 answers are NOT failures and must not read like one: 404
-  // means this payment does not generate an invoice, 409 that the payment is
-  // not confirmed yet. Both are shown as a message instead of an empty modal.
-  const openInvoice = async (purchaseId) => {
-    setInvoiceBusy(purchaseId)
-    setInvoiceNotice('')
-    setError(null)
-    try {
-      const { data } = await invoicesAPI.forPurchase(purchaseId)
-      setInvoice(data.invoice)
-      // `issued` true means this call repaired a missing document rather than
-      // reading one already on file — the row has to stop offering to issue it.
-      if (data.issued) fetchPayments()
-    } catch (err) {
-      const status = err.response?.status
-      if (status === 404) {
-        setInvoiceNotice(err.response?.data?.error || 'Este pago no genera factura.')
-      } else if (status === 409) {
-        setInvoiceNotice(err.response?.data?.error || 'El pago todavía no se ha confirmado, así que aún no tiene factura.')
-      } else {
-        setError(err.response?.data?.error || 'No se pudo cargar la factura')
-      }
-    } finally {
-      setInvoiceBusy(null)
     }
   }
 
@@ -590,114 +525,6 @@ export default function Credits() {
           )}
         </div>
       )}
-
-      {/* This account's payments and their invoices.
-          GATED ON billsWithTax, NOT on payments.length: an account that bills
-          with tax but has not paid yet gets the empty state below, while an
-          account that does not bill with tax renders nothing here at all. */}
-      {billing.billsWithTax && (
-        <div className="mb-6 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-200 dark:border-dark-border">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Pagos y facturas</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Cada pago confirmado lleva su factura. Ábrela para verla o descargarla en PDF.
-            </p>
-          </div>
-          {invoiceNotice && (
-            <p className="px-5 pt-3 text-sm text-amber-700 dark:text-amber-400">{invoiceNotice}</p>
-          )}
-          {billing.payments.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-              Todavía no hay pagos. Cuando hagas el primero, su factura aparecerá aquí.
-            </p>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-dark-hover">
-                    <tr>
-                      {['Fecha', 'Concepto', 'Cobrado', ''].map((h) => (
-                        <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-dark-border">
-                    {billing.payments.map((p) => (
-                      <tr key={p.purchaseId} className="hover:bg-gray-50 dark:hover:bg-dark-hover">
-                        {/* The date only: this is the payment's own date, not a
-                            settlement timestamp, so it must not be shown to
-                            the minute as if it were one. */}
-                        <td className="px-5 py-3 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                          {new Date(p.paidAt).toLocaleDateString('es-DO')}
-                        </td>
-                        <td className="px-5 py-3 text-sm text-gray-900 dark:text-white">
-                          {p.concept}
-                          {p.invoice && (
-                            <span className="block text-xs text-gray-500 dark:text-gray-400">Factura {p.invoice.number}</span>
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-sm whitespace-nowrap">
-                          <span className="text-gray-900 dark:text-white">${(p.amount || 0).toFixed(2)}</span>
-                          {p.taxAmount > 0 && (
-                            <span className="block text-xs text-gray-500 dark:text-gray-400">
-                              ${(p.credits || 0).toFixed(2)} de saldo + ${p.taxAmount.toFixed(2)} de impuesto
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          {p.invoice ? (
-                            <button
-                              onClick={() => openInvoice(p.purchaseId)}
-                              disabled={invoiceBusy === p.purchaseId}
-                              className="px-3 py-1.5 text-xs border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-50"
-                            >
-                              {invoiceBusy === p.purchaseId ? 'Abriendo…' : 'Factura'}
-                            </button>
-                          ) : p.invoiceExpected ? (
-                            // Charged under the tax, so its document was due and
-                            // failed to issue. A repair the client can ask for —
-                            // not an error to apologise for.
-                            <div className="flex flex-col items-end gap-1">
-                              <button
-                                onClick={() => openInvoice(p.purchaseId)}
-                                disabled={invoiceBusy === p.purchaseId}
-                                className="px-3 py-1.5 text-xs border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-50"
-                              >
-                                {invoiceBusy === p.purchaseId ? 'Emitiendo…' : 'Emitir factura'}
-                              </button>
-                              <span className="text-[11px] text-gray-500 dark:text-gray-400">Su factura quedó pendiente</span>
-                            </div>
-                          ) : (
-                            // Predates the tax being switched on: an invoice can
-                            // still be issued, but nothing went wrong, so it is
-                            // offered quietly instead of flagged.
-                            <button
-                              onClick={() => openInvoice(p.purchaseId)}
-                              disabled={invoiceBusy === p.purchaseId}
-                              title="Este pago es anterior a la facturación con impuesto. Puedes emitir su factura si la necesitas."
-                              className="text-xs text-gray-500 dark:text-gray-400 underline hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50"
-                            >
-                              {invoiceBusy === p.purchaseId ? 'Emitiendo…' : 'Emitir factura'}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {/* The list is capped and has no paging, so it must never read as
-                  the complete history. */}
-              <p className="px-5 py-3 text-[11px] text-gray-400 dark:text-gray-500 border-t border-gray-200 dark:border-dark-border">
-                Se muestran los pagos más recientes.
-              </p>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* The invoice itself, with its PDF download */}
-      {invoice && <InvoiceDocument invoice={invoice} onClose={() => setInvoice(null)} />}
 
       {/* Buy Credits Modal — Variable Amount */}
       {buyModalOpen && (

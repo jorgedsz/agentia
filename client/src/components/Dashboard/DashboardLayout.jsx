@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI, platformSettingsAPI, authAPI } from '../../services/api'
+import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI, platformSettingsAPI, authAPI, invoicesAPI } from '../../services/api'
 import ChatAssistant from './ChatAssistant'
 import NotificationToasts from './NotificationToasts'
 import WhopCheckoutModal from './WhopCheckoutModal'
@@ -127,6 +127,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
     </svg>
   ),
+  Invoice: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  ),
   Training: () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -161,11 +166,28 @@ export default function DashboardLayout() {
   const [openaiBalance, setOpenaiBalance] = useState(null)
   const [userCredits, setUserCredits] = useState(null)
   const [showCreditModal, setShowCreditModal] = useState(false)
+  // Does this account bill with tax? It is the only thing the Facturas entry
+  // needs, and GET /api/invoices already answers it, so the flag is read from
+  // there instead of growing a second endpoint for one boolean.
+  //
+  // ONCE, ON MOUNT, and with limit=1 so the sidebar never pulls a payments
+  // page it does not render: the answer changes only when the OWNER edits the
+  // partner's invoicing profile, which a reload picks up. Starts false, so the
+  // entry appears when the answer lands rather than flashing for everyone.
+  const [billsWithTax, setBillsWithTax] = useState(false)
   useEffect(() => {
     fetchBalances()
     fetchCredits()
     fetchOpenaiBalance()
   }, [location.pathname])
+
+  useEffect(() => {
+    invoicesAPI.list(1)
+      .then(({ data }) => setBillsWithTax(!!data?.billsWithTax))
+      // Not an error worth surfacing in a sidebar: the entry simply stays
+      // hidden, which is the right answer for almost every account.
+      .catch(() => setBillsWithTax(false))
+  }, [user?.id])
 
   // Poll credits every 30s so sidebar stays up to date after calls
   useEffect(() => {
@@ -314,6 +336,9 @@ export default function DashboardLayout() {
         { id: 'billing-periods', path: '/dashboard/billing-periods', label: 'Períodos y reportes', icon: Icons.Reports, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'other-charges', path: '/dashboard/other-charges', label: 'Otros cobros', icon: Icons.Payments, roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'budgets', path: '/dashboard/budgets', label: 'Presupuestos', icon: Icons.Payments, featureKey: 'budgets', roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
+        // Hidden for every account that does not bill with tax: it would have
+        // no invoices and never will, so the entry would advertise a dead page.
+        { id: 'invoices', path: '/dashboard/invoices', label: 'Facturas', icon: Icons.Invoice, featureKey: 'invoices', roles: [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY, ROLES.CLIENT] },
         { id: 'chatbot-costs', path: '/dashboard/chatbot-costs', label: 'Chatbot Costs', icon: Icons.Chatbot, roles: [ROLES.OWNER] },
       ]
     },
@@ -355,6 +380,10 @@ export default function DashboardLayout() {
     // Managers always see it (to set up their accounts); everyone else only when
     // budgets are on for them or for a partner above them.
     if (key === 'budgets') return ['OWNER', 'WHITELABEL', 'AGENCY'].includes(user?.role) || user?.budgetsActive === true
+    // Unlike budgets, this one has NO manager exemption: a partner that does
+    // not bill with tax has no invoices of its own to look at either, and the
+    // page is about this account's own payments, not the accounts below it.
+    if (key === 'invoices') return billsWithTax === true
     return true
   }
 
