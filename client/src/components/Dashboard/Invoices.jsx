@@ -99,6 +99,11 @@ export default function Invoices() {
 
   // Answers "how much has this account paid, and how much of it was tax"
   // without the reader adding up a column.
+  //
+  // THESE ARE THE TOTALS OF THE ROWS ON SCREEN, NOT OF THE ACCOUNT'S HISTORY.
+  // The server caps the list (50 by default) with no cursor, so an account past
+  // that cap has payments these figures do not count — which is why the cards
+  // say so instead of presenting a number that looks like a lifetime total.
   const totals = data.payments.reduce(
     (acc, p) => ({
       charged: acc.charged + (Number(p.amount) || 0),
@@ -147,28 +152,35 @@ export default function Invoices() {
 
       {loaded && !loading && data.billsWithTax && (
         <>
+          {data.payments.length > 0 && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              Totales de los pagos mostrados abajo (los más recientes), no de todo el historial de la cuenta.
+            </p>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
-              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Total cobrado</p>
+              <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Cobrado</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{money(totals.charged)}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">en los pagos mostrados</p>
             </div>
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
               <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Impuesto incluido</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{money(totals.tax)}</p>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">ya dentro del total cobrado</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">dentro de lo cobrado arriba</p>
             </div>
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
               <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Facturas emitidas</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{totals.issued}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">de los pagos mostrados</p>
             </div>
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
               <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Por emitir</p>
               <p className={`text-2xl font-bold ${totals.pending > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-white'}`}>
                 {totals.pending}
               </p>
-              {totals.pending > 0 && (
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">puedes emitirlas desde la tabla</p>
-              )}
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
+                {totals.pending > 0 ? 'puedes emitirlas desde la tabla' : 'de los pagos mostrados'}
+              </p>
             </div>
           </div>
 
