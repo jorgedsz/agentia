@@ -391,10 +391,11 @@ export default function DashboardLayout() {
     // Managers always see it (to set up their accounts); everyone else only when
     // budgets are on for them or for a partner above them.
     if (key === 'budgets') return ['OWNER', 'WHITELABEL', 'AGENCY'].includes(user?.role) || user?.budgetsActive === true
-    // Unlike budgets, this one has NO manager exemption: a partner that does
-    // not bill with tax has no invoices of its own to look at either, and the
-    // page is about this account's own payments, not the accounts below it.
-    if (key === 'invoices') return billsWithTax === true
+    // Managers always see it, like budgets: a partner issuing invoices to its
+    // clients needs to reach this page to check and support them, and the OWNER
+    // needs it to verify the feature at all. A plain client only sees it once
+    // its own account actually bills with tax.
+    if (key === 'invoices') return ['OWNER', 'WHITELABEL', 'AGENCY'].includes(user?.role) || billsWithTax === true
     return true
   }
 
