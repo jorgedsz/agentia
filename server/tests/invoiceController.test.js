@@ -18,6 +18,7 @@ function row(overrides = {}) {
     taxAmount: 27,
     retention: 0,
     total: 127,
+    amountPaid: 127,
     totalInWords: 'CIENTO VEINTISIETE DÓLARES CON 00/100',
     conceptLines: JSON.stringify([{ description: 'Recarga de saldo', total: 100 }]),
     issuerSnapshot: JSON.stringify({ issuerName: 'LM Consulting Group', issuerRnc: '131-00000-1' }),
@@ -44,9 +45,25 @@ test('present carries every number and date the document prints', () => {
   assert.strictEqual(out.taxAmount, 27);
   assert.strictEqual(out.retention, 0);
   assert.strictEqual(out.total, 127);
+  assert.strictEqual(out.amountPaid, 127);
   assert.strictEqual(out.totalInWords, 'CIENTO VEINTISIETE DÓLARES CON 00/100');
   assert.strictEqual(out.currency, 'USD');
   assert.strictEqual(out.dueAt, null);
+});
+
+// The document asks for 127 and 100 came in: present() has to carry both
+// numbers, or the renderer has no way to say so.
+test('present carries an amountPaid below the total, for an invoice whose tax was never collected', () => {
+  const out = present(row({ amountPaid: 100 }));
+  assert.strictEqual(out.total, 127);
+  assert.strictEqual(out.amountPaid, 100);
+});
+
+// An invoice issued before the column existed. Null means UNKNOWN, not zero:
+// reporting 0 would make the renderer claim nothing was ever paid.
+test('present reports amountPaid null on an invoice that never recorded one', () => {
+  assert.strictEqual(present(row({ amountPaid: null })).amountPaid, null);
+  assert.strictEqual(present(row({ amountPaid: undefined })).amountPaid, null);
 });
 
 test('present never leaks the owning account id or the issuer profile id', () => {
@@ -193,6 +210,24 @@ test('presentPayment keeps the charged total and the pre-tax subtotal apart', ()
   assert.strictEqual(out.taxRate, 27);
 });
 
+// THE DEFAULT MODE. The payment carries no tax at all, because none was
+// charged, and its invoice still totals 127. Both numbers have to come back:
+// what the card paid and what the document asks for.
+test('presentPayment reports a payment of 100 against an invoice of 127', () => {
+  const out = presentPayment(purchase({
+    amount: 100,
+    taxRate: 27,
+    taxAmount: 0,
+    invoice: { id: 9, number: 'FAC-000124', total: 127, issuedAt: new Date('2026-03-15T12:00:05.000Z') },
+  }), true);
+  assert.strictEqual(out.amount, 100);
+  assert.strictEqual(out.credits, 100);
+  assert.strictEqual(out.taxAmount, 0);
+  assert.strictEqual(out.invoice.total, 127);
+  // The gap the document leaves open, visible from the row alone.
+  assert.strictEqual(out.invoice.total - out.amount, 27);
+});
+
 test('presentPayment uses the same id spelling as present() and the by-purchase route', () => {
   assert.strictEqual(presentPayment(purchase()).purchaseId, 412);
   assert.strictEqual(presentPayment(purchase()).id, undefined);
@@ -201,21 +236,38 @@ test('presentPayment uses the same id spelling as present() and the by-purchase 
 test('presentPayment attaches the invoice when there is one, trimmed to what a list row shows', () => {
   const out = presentPayment(purchase({
     invoice: { id: 9, number: 'FAC-000124', total: 127, issuedAt: new Date('2026-03-15T12:00:05.000Z'), clientSnapshot: '{}' },
-  }));
+  }), true);
   assert.deepStrictEqual(Object.keys(out.invoice), ['id', 'number', 'total', 'issuedAt']);
   assert.strictEqual(out.invoice.number, 'FAC-000124');
 });
 
-test('a taxed payment with no invoice is a failed emission: invoice null, invoiceExpected true', () => {
-  const out = presentPayment(purchase({ invoice: null }));
+test('a payment with no invoice on an invoicing account is a failed emission: invoiceExpected true', () => {
+  const out = presentPayment(purchase({ invoice: null }), true);
   assert.strictEqual(out.invoice, null);
   assert.strictEqual(out.invoiceExpected, true);
 });
 
-test('a payment from before the tax was switched on is not flagged as broken', () => {
-  const out = presentPayment(purchase({ amount: 100, taxRate: 0, taxAmount: 0, invoice: null }));
+// The regression the split would otherwise have caused. The account invoices
+// with tax, but the tax is only SHOWN, so the payment carries taxAmount 0.
+// Keyed on the payment's own tax this read "predates the tax" and the missing
+// document was offered quietly instead of flagged; keyed on the account it is
+// correctly a failed emission.
+test('a payment that was never charged tax is still expected to have an invoice', () => {
+  const out = presentPayment(purchase({ amount: 100, taxRate: 27, taxAmount: 0, invoice: null }), true);
+  assert.strictEqual(out.taxAmount, 0);
+  assert.strictEqual(out.invoiceExpected, true);
+});
+
+test('an account that does not bill with tax expects no invoice', () => {
+  const out = presentPayment(purchase({ amount: 100, taxRate: 0, taxAmount: 0, invoice: null }), false);
   assert.strictEqual(out.invoice, null);
   assert.strictEqual(out.invoiceExpected, false);
+});
+
+// The flag has to be passed in, and absent it must not claim a document was
+// due: the quiet state is the safe default.
+test('presentPayment defaults to expecting no invoice when nobody says the account bills with tax', () => {
+  assert.strictEqual(presentPayment(purchase()).invoiceExpected, false);
 });
 
 test('presentPayment describes the payment with the same helper the invoice line uses', () => {
@@ -229,4 +281,18 @@ test('presentPayment tolerates the default-zero tax columns being absent on an o
   assert.strictEqual(out.taxAmount, 0);
   assert.strictEqual(out.taxRate, 0);
   assert.strictEqual(out.invoiceExpected, false);
+});
+
+// map() hands its callback (element, index, array). presentPayment's second
+// parameter is the account-level flag, so listMine must wrap the call rather
+// than pass the function straight to map - an index of 0 would silently turn
+// the flag off for the first row and on for every other.
+test('presentPayment is not safe to hand straight to map, and the index proves it', () => {
+  const rows = [purchase({ invoice: null }), purchase({ invoice: null })];
+  const wrong = rows.map(presentPayment);
+  assert.strictEqual(wrong[0].invoiceExpected, false);
+  assert.strictEqual(wrong[1].invoiceExpected, true);
+  // What listMine actually does.
+  const right = rows.map((r) => presentPayment(r, true));
+  assert.deepStrictEqual(right.map((r) => r.invoiceExpected), [true, true]);
 });

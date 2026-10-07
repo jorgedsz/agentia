@@ -5,6 +5,20 @@
 // but taxEnabled: false keeps behaving exactly as it did before this feature
 // existed: no tax, no invoice. That's deliberate: it's what lets this whole
 // feature ship dark, one partner at a time, by flipping a single flag.
+//
+// THE TAX ON THE DOCUMENT IS COMPUTED HERE, FROM THE PROFILE - never read off
+// the purchase. CreditPurchase.taxAmount is what the CARD paid in tax, and that
+// is 0 whenever the partner only SHOWS the tax instead of charging it
+// (BillingProfile.chargeTaxToClient, see utils/taxes.js). Reading the purchase
+// would then print a document with no tax row at all, which is the opposite of
+// what taxEnabled means. Computing it from the profile is correct in both
+// modes:
+//
+//   · tax charged     purchase.amount already equals credits + taxAmount, so
+//                     the invoice total matches the card to the cent.
+//   · tax not charged  the invoice total deliberately EXCEEDS what was
+//                     collected, and `amountPaid` records the difference so the
+//                     document can say so instead of hiding it.
 
 const { round2, resolveTaxConfig } = require('../utils/taxes');
 const { amountToSpanishWords } = require('../utils/numberToWords');
@@ -51,11 +65,23 @@ function conceptFor(purchase) {
  * every value it needs is already on `profile`, `client` and `purchase`.
  */
 function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Date() }) {
+  // What the client actually bought - the pre-tax subtotal, which is what
+  // reached the balance in either mode.
   const subtotal = purchase.credits;
-  const taxAmount = purchase.taxAmount || 0;
+  // Off the ISSUER'S PROFILE, at issue time, not off the purchase - see the
+  // file header. round2 rather than hand-rolled rounding, and it throws on a
+  // non-finite subtotal exactly as the `total` line below already did.
+  const taxRate = profile.taxEnabled ? (profile.taxRate || 0) : 0;
+  const taxAmount = round2((subtotal * taxRate) / 100);
   const retention = 0; // v1 always writes 0 - see Invoice.retention in schema.prisma
   const total = round2(subtotal + taxAmount - retention);
-  const taxRate = purchase.taxRate || 0;
+  // What was really collected for this document, so it can be reconciled
+  // against the payment. Equals `total` when the tax was charged on top, and
+  // equals `subtotal` when the tax was only shown - the case where the
+  // document's TOTAL A PAGAR is knowingly above the money that came in. Null
+  // only if the purchase carries no usable amount at all, which reads as
+  // "unknown" and makes the renderer say nothing rather than invent a shortfall.
+  const amountPaid = Number.isFinite(purchase.amount) ? purchase.amount : null;
   const taxLabel = profile.taxLabel || 'ITBIS';
   const currency = 'USD';
 
@@ -133,6 +159,7 @@ function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Da
     taxAmount,
     retention,
     total,
+    amountPaid,
     totalInWords,
     conceptLines,
     issuerSnapshot,

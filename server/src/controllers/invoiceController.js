@@ -53,6 +53,13 @@ function present(invoice) {
     taxAmount: invoice.taxAmount,
     retention: invoice.retention,
     total: invoice.total,
+    // What was ACTUALLY collected for this document. Below `total` whenever the
+    // issuer shows the tax without charging it to the client - which is the
+    // whole reason the column exists, since the document then asks for more
+    // than the money that came in and has to say so. Null on an invoice issued
+    // before the column existed: that means "unknown", not "nothing paid", and
+    // the renderer must not print a shortfall for it.
+    amountPaid: invoice.amountPaid ?? null,
     totalInWords: invoice.totalInWords,
     issuedAt: invoice.issuedAt,
     dueAt: invoice.dueAt ?? null,
@@ -112,18 +119,24 @@ async function canReadInvoice(prisma, requester, invoice) {
  * One settled payment, with its invoice attached when there is one.
  *
  * `invoiceExpected` is the difference between a document that FAILED to be
- * issued and one that was never due. Issuing is gated on the partner's profile,
- * not on the payment, so within a tax-collecting partner any completed payment
- * CAN be issued an invoice - "can never have one" is not quite the real
- * distinction. What separates the two cases, and it is free because the column
- * is already on the row, is whether the payment itself carried tax: taxAmount
- * above zero means it was charged under the tax and an invoice was due, so a
- * null invoice there is a failed emission to repair. taxAmount of zero means
- * the payment predates the partner switching its tax on; an invoice can still
- * be issued for it (a tax-free one) but nothing went wrong, so the client can
- * offer that as optional instead of flagging it as broken.
+ * issued and one that was never due, and it keys on `billsWithTax` - whether
+ * THE ACCOUNT bills with tax at all, which is exactly the gate
+ * issueInvoiceForPurchase applies.
+ *
+ * It used to key on `taxAmount > 0` on the payment itself, on the reasoning
+ * that a payment carrying tax was charged under the tax and so was due a
+ * document. That reasoning died with BillingProfile.chargeTaxToClient: a
+ * partner can now show the tax on its invoices without charging it, so every
+ * payment carries taxAmount 0 and every row would read "predates the tax" while
+ * the account is in fact invoicing all of them. The account-level flag is the
+ * honest question: if this account bills with tax, each of its settled payments
+ * is due an invoice, and a null one is a failed emission to repair.
+ *
+ * `billsWithTax` false keeps the quiet third state for a caller that lists
+ * payments for an account that does not invoice at all - nothing went wrong
+ * there, so an invoice can be offered rather than flagged.
  */
-function presentPayment(purchase) {
+function presentPayment(purchase, billsWithTax = false) {
   const taxAmount = purchase.taxAmount || 0;
   return {
     purchaseId: purchase.id,
@@ -135,17 +148,23 @@ function presentPayment(purchase) {
     // The same Spanish text the invoice's DESCRIPCIÓN row carries, from the same
     // helper, so the list and the document cannot describe one payment two ways.
     concept: conceptFor(purchase),
-    // What the card paid.
+    // What the card paid. With the tax shown but not charged this equals
+    // `credits`, and the invoice's own `total` below is HIGHER than it - the two
+    // are reported side by side on purpose so that gap is visible in the list.
     amount: purchase.amount,
     // The pre-tax subtotal - what actually reached the balance.
     credits: purchase.credits,
+    // The rate and the tax the CARD paid, which is 0 unless the partner charges
+    // the tax on top. The tax the DOCUMENT shows is on the invoice, computed
+    // from the issuer's profile at issue time.
     taxRate: purchase.taxRate || 0,
     taxAmount,
-    invoiceExpected: taxAmount > 0,
+    invoiceExpected: !!billsWithTax,
     invoice: purchase.invoice
       ? {
         id: purchase.invoice.id,
         number: purchase.invoice.number,
+        // What the DOCUMENT asks for, which may exceed `amount` above.
         total: purchase.invoice.total,
         issuedAt: purchase.invoice.issuedAt,
       }
@@ -203,7 +222,9 @@ const listMine = async (req, res) => {
       },
     });
 
-    res.json({ billsWithTax: true, payments: purchases.map(presentPayment) });
+    // `true` here, not a per-payment guess: this account bills with tax, so
+    // every settled payment on it is due a document.
+    res.json({ billsWithTax: true, payments: purchases.map((p) => presentPayment(p, true)) });
   } catch (error) {
     console.error('Error listing payments:', error.message);
     res.status(500).json({ error: 'No se pudieron cargar los pagos' });
