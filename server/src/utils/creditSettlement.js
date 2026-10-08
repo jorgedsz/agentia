@@ -11,16 +11,37 @@
  * credited it, false if it was already settled by another path.
  */
 async function settleCreditPurchase(prisma, purchase, { paymentIntentId, payload } = {}) {
+  // WHEN THE PAYMENT WAS COLLECTED, written in the SAME conditional update that
+  // claims the row - not in a second update afterwards. This is the moment the
+  // money becomes balance, and only one caller ever gets here with count 1, so
+  // the timestamp inherits that exactly-once guarantee: a webhook arriving
+  // moments after the synchronous charge finds the row no longer pending and
+  // cannot move the date. A separate update would have neither property.
+  //
+  // The row's own `createdAt` is when the checkout or the charge was STARTED,
+  // and `updatedAt` moves on any later write (the usage report stamping
+  // reportSentAt, for one) - neither is a payment date. See the column's
+  // comment in prisma/schema.prisma.
+  const settledAt = new Date();
   const claimed = await prisma.creditPurchase.updateMany({
     where: { id: purchase.id, status: 'pending' },
     data: {
       status: 'completed',
+      settledAt,
       ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
       ...(payload ? { rawPayload: JSON.stringify(payload).slice(0, 10000) } : {}),
     },
   });
 
   if (claimed.count !== 1) return false; // another path already credited it
+
+  // The row in the database now carries `settledAt`; the `purchase` OBJECT this
+  // was called with does not, because updateMany returns a count and not the
+  // row. Everything downstream reads this object, and the invoice issued below
+  // snapshots the payment date off it - so hand them the settled view rather
+  // than a stale one that would make a brand-new invoice fall back to
+  // `createdAt`. A copy, not a mutation of the caller's object.
+  const settled = { ...purchase, status: 'completed', settledAt };
 
   await prisma.user.update({
     where: { id: purchase.userId },
@@ -59,7 +80,7 @@ async function settleCreditPurchase(prisma, purchase, { paymentIntentId, payload
   // would escape past the balance update above - exactly what this comment
   // promises cannot happen - and answer 500 on a charge that succeeded.
   Promise.resolve()
-    .then(() => require('../services/paymentReport').sendPaymentReport(prisma, purchase))
+    .then(() => require('../services/paymentReport').sendPaymentReport(prisma, settled))
     .catch((err) => console.error('[Credits] Payment report failed:', err.message));
 
   // Issue the fiscal document for this payment, for the partners that need one
@@ -75,7 +96,7 @@ async function settleCreditPurchase(prisma, purchase, { paymentIntentId, payload
   // it is what makes the `require` failing count as a rejection instead of a
   // synchronous throw that no .catch() here could ever see.
   Promise.resolve()
-    .then(() => require('../services/invoiceService').issueInvoiceForPurchase(prisma, purchase))
+    .then(() => require('../services/invoiceService').issueInvoiceForPurchase(prisma, settled))
     .catch((err) => console.error('[Credits] Could not issue the invoice:', err.message));
 
   return true;

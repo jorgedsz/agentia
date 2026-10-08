@@ -904,3 +904,94 @@ test('with no purchase, buildRegeneratedInvoiceData leaves the retention label a
   // Not in the update at all: the row is the only surviving record of it.
   assert.strictEqual(Object.prototype.hasOwnProperty.call(data, 'retentionLabel'), false);
 });
+
+// ---------------------------------------------------------------------------
+// paidAt — WHEN THE CLIENT ACTUALLY PAID
+//
+// CreditPurchase.settledAt is stamped by utils/creditSettlement.js at the
+// moment the money becomes balance. Rows settled before that column existed
+// have it null, so the reader falls back to `createdAt` — when the checkout or
+// the charge was STARTED, which is seconds away for an off-session charge and
+// minutes away at worst. What is never used is `updatedAt`, which moves on any
+// later write to the purchase and is therefore not a payment date at all.
+// ---------------------------------------------------------------------------
+
+const SETTLED_AT = new Date('2026-04-01T15:42:07.000Z');
+const STARTED_AT = new Date('2026-04-01T15:39:00.000Z');
+
+test('buildInvoiceData takes paidAt from settledAt when the purchase has one', () => {
+  const purchase = { ...PURCHASE, createdAt: STARTED_AT, settledAt: SETTLED_AT };
+  const data = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase, number: 'FAC-000001' });
+
+  assert.strictEqual(data.paidAt, SETTLED_AT);
+});
+
+test('buildInvoiceData falls back to createdAt when settledAt is null (every row settled before the column existed)', () => {
+  const purchase = { ...PURCHASE, createdAt: STARTED_AT, settledAt: null };
+  const data = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase, number: 'FAC-000001' });
+
+  assert.strictEqual(data.paidAt, STARTED_AT);
+});
+
+test('buildInvoiceData never reads updatedAt for paidAt — it moves on any later write', () => {
+  // The usage report was emailed an hour after the payment, which is exactly
+  // the kind of write that drags updatedAt away from the collection moment.
+  const purchase = {
+    ...PURCHASE,
+    createdAt: STARTED_AT,
+    settledAt: null,
+    updatedAt: new Date('2026-04-02T09:00:00.000Z'),
+  };
+  const data = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase, number: 'FAC-000001' });
+
+  assert.strictEqual(data.paidAt, STARTED_AT);
+  assert.notStrictEqual(data.paidAt, purchase.updatedAt);
+});
+
+test('paidAt is independent of issuedAt — the payment date is not the emission date', () => {
+  const purchase = { ...PURCHASE, createdAt: STARTED_AT, settledAt: SETTLED_AT };
+  const issuedAt = new Date('2026-05-10T12:00:00.000Z');
+  const data = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase, number: 'FAC-000001', issuedAt });
+
+  assert.strictEqual(data.issuedAt, issuedAt);
+  assert.strictEqual(data.paidAt, SETTLED_AT);
+});
+
+test('a regeneration WITH its purchase re-reads paidAt off that purchase', () => {
+  const purchase = { ...PURCHASE, createdAt: STARTED_AT, settledAt: SETTLED_AT };
+  const data = buildRegeneratedInvoiceData({ invoice: ISSUED, profile: PROFILE, client: CLIENT, purchase });
+
+  assert.strictEqual(data.paidAt, SETTLED_AT);
+});
+
+// The same rule the money fields follow, and for the same reason: the date was
+// read off a purchase that no longer exists, so the value stored on the row is
+// the only surviving record of it. An invoice that lost its payment date
+// because its payment was deleted would be a damaged fiscal record.
+test('with no purchase, a regeneration leaves paidAt exactly as it is', () => {
+  const orphan = { ...ISSUED, creditPurchaseId: null, paidAt: SETTLED_AT };
+  const data = buildRegeneratedInvoiceData({ invoice: orphan, profile: PROFILE, client: CLIENT, purchase: null });
+
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(data, 'paidAt'), false, 'must not rewrite paidAt');
+  assert.strictEqual(data.paidAt, undefined);
+});
+
+test('with no client left either, paidAt is still left alone', () => {
+  const orphan = { ...ISSUED, userId: null, creditPurchaseId: null, paidAt: SETTLED_AT };
+  const data = buildRegeneratedInvoiceData({ invoice: orphan, profile: PROFILE, client: null, purchase: null });
+
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(data, 'paidAt'), false);
+});
+
+test('issueInvoiceForPurchase writes the payment date onto the row it creates', async () => {
+  const profile = {
+    ...PROFILE, ownerId: 9, invoicePrefix: 'FAC-', invoicePadding: 6, invoiceNextNumber: 31,
+    taxEnabled: true, taxRate: 27,
+  };
+  const prisma = makeFakePrisma({ client: CLIENT_UNDER_PARTNER, partner: PARTNER, profile });
+  const purchase = { ...PURCHASE, createdAt: STARTED_AT, settledAt: SETTLED_AT };
+
+  const invoice = await issueInvoiceForPurchase(prisma, purchase);
+
+  assert.strictEqual(invoice.paidAt, SETTLED_AT);
+});

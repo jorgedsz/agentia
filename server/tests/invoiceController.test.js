@@ -758,3 +758,11 @@ test('present carries regeneratedAt, and null on a document never rebuilt', () =
   assert.strictEqual(present(row({ regeneratedAt: at })).regeneratedAt, at);
   assert.strictEqual(present(row()).regeneratedAt, null);
 });
+
+test('present carries paidAt, and null on an invoice issued before the column existed', () => {
+  const at = new Date('2026-04-01T15:42:07.000Z');
+  assert.strictEqual(present(row({ paidAt: at })).paidAt, at);
+  // The renderer omits the line on a null rather than printing an empty label.
+  assert.strictEqual(present(row()).paidAt, null);
+  assert.strictEqual(present(row({ paidAt: null })).paidAt, null);
+});

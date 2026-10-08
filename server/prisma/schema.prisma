@@ -790,6 +790,22 @@ model CreditPurchase {
   periodStart           DateTime? // Usage this payment settles: from here…
   periodEnd             DateTime? // …to here. Frozen when the checkout is created, so the emailed report matches the amount charged even if the account keeps consuming while it pays.
   reportSentAt          DateTime? // When the usage report for this payment was emailed
+  // WHEN THE PAYMENT WAS ACTUALLY COLLECTED - stamped by
+  // utils/creditSettlement.js in the same conditional update that claims the
+  // row and flips it to "completed", so it inherits that write's exactly-once
+  // guarantee and can never move again afterwards.
+  //
+  // NEITHER OF THE TWO TIMESTAMPS BELOW IS THIS DATE. `createdAt` is when the
+  // checkout or the charge was STARTED (seconds before the money for an
+  // off-session charge, however long the client spent on a hosted Stripe page
+  // otherwise), and `updatedAt` moves on ANY later write to the row - the usage
+  // report stamping reportSentAt, for one - so it drifts away from the payment
+  // the moment anything else touches the purchase. This column exists because
+  // the payment date goes on a fiscal document and must be the real one.
+  //
+  // Null on every row settled before this column existed, which is why readers
+  // fall back to `createdAt` (see services/invoiceService.js).
+  settledAt             DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -937,6 +953,15 @@ model Invoice {
   clientSnapshot   String // JSON
   issuedAt         DateTime        @default(now())
   dueAt            DateTime?
+  // WHEN THE CLIENT ACTUALLY PAID, snapshotted at issue time like every other
+  // fact on this document, from CreditPurchase.settledAt falling back to that
+  // purchase's createdAt (see services/invoiceService.js for why the fallback
+  // is the right answer rather than a null). Nullable because an invoice issued
+  // before this column existed never recorded one, and because the purchase
+  // this was taken from may since have been deleted (creditPurchaseId is
+  // SetNull) - then this stored value is the only surviving record of the date
+  // and is left exactly as it is.
+  paidAt           DateTime?
   // When this document was last REBUILT from current data, keeping its number
   // (POST /api/invoices/:id/regenerate). Null on every invoice that still says
   // exactly what it said at issue time, which is almost all of them.
