@@ -333,6 +333,10 @@ const listMine = async (req, res) => {
  * transaction that bumps the sequence, so two clients asking at once cannot
  * produce two invoices or burn a number.
  *
+ * A document issued HERE is also handed to the delivery webhook, fire-and-forget
+ * — see the comment at that call. One that was already on file is not: that is
+ * what `issued` decides, so asking twice answers twice and mails once.
+ *
  * GET /api/invoices/by-purchase/:purchaseId
  */
 const getByPurchase = async (req, res) => {
@@ -363,6 +367,32 @@ const getByPurchase = async (req, res) => {
     // Null means this payment is not one that gets invoiced at all — the
     // account bills with no tax, so there is no issuer and no document.
     if (!invoice) return res.status(404).json({ error: 'Este pago no genera factura.' });
+
+    // HAND IT OVER, because this is the case where delivery matters most: the
+    // document reaching this branch is one settlement failed to produce, so
+    // something already went wrong once and the client is the one who would
+    // otherwise silently never receive their invoice.
+    //
+    // ONLY WHEN THIS CALL ACTUALLY ISSUED IT. `existing` returned above, so
+    // reaching here means the invoice was just created - a client clicking
+    // «Ver factura» twice takes the early return and mails nothing.
+    // Invoice.deliveredAt is the backstop behind that, not the mechanism.
+    //
+    // FIRE-AND-FORGET, exactly as utils/creditSettlement.js does it and for a
+    // sharper reason: a person is waiting on a screen for this response, and a
+    // webhook that is slow or down must not keep the invoice from opening. The
+    // document is already written and the number already taken; delivery is
+    // the only part left, and it reports its own failures (deliverInvoice logs
+    // every not-sent reason itself, so a webhook quietly rejecting everything
+    // shows up in the log rather than only in nobody receiving mail).
+    //
+    // The require is INSIDE the chain, like the settlement path's: it makes a
+    // module that fails to load a rejection instead of a synchronous throw no
+    // .catch() could see, and it keeps services/invoiceDelivery.js - which
+    // imports `present` from this file - out of this module's load-time cycle.
+    Promise.resolve()
+      .then(() => require('../services/invoiceDelivery').deliverInvoice(req.prisma, invoice))
+      .catch((err) => console.error('[Invoices] Could not deliver the invoice just issued:', err.message));
 
     res.json({ invoice: present(invoice), issued: true });
   } catch (error) {

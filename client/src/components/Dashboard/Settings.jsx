@@ -3100,6 +3100,9 @@ function WebhooksTab() {
   const [reportWebhookUrl, setReportWebhookUrl] = useState('')
   const [hasReportWebhook, setHasReportWebhook] = useState(false)
   const [reportMaskedUrl, setReportMaskedUrl] = useState('')
+  const [invoiceWebhookUrl, setInvoiceWebhookUrl] = useState('')
+  const [hasInvoiceWebhook, setHasInvoiceWebhook] = useState(false)
+  const [invoiceMaskedUrl, setInvoiceMaskedUrl] = useState('')
   const [hasRecurringWebhook, setHasRecurringWebhook] = useState(false)
   const [recurringMaskedUrl, setRecurringMaskedUrl] = useState('')
   const [failureWebhookUrl, setFailureWebhookUrl] = useState('')
@@ -3121,6 +3124,8 @@ function WebhooksTab() {
       setRecurringMaskedUrl(data.recurringPaymentWebhookUrl || '')
       setHasReportWebhook(data.hasPaymentReportWebhook)
       setReportMaskedUrl(data.paymentReportWebhookUrl || '')
+      setHasInvoiceWebhook(data.hasInvoiceWebhook)
+      setInvoiceMaskedUrl(data.invoiceWebhookUrl || '')
       setHasFailureWebhook(data.hasFailureWebhook)
       setFailureMaskedUrl(data.failureWebhookUrl || '')
     } catch (err) {
@@ -3423,6 +3428,81 @@ function WebhooksTab() {
             className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
           >
             {saving ? 'Saving...' : hasReportWebhook ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {/* Invoice webhook — where every newly issued invoice is handed over.
+          Immediately after the payment-report webhook above, because the two
+          fire on the same event (a payment settling) and are configured the
+          same way; somebody setting one up will want the other. */}
+      <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white">Invoice Webhook URL</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Recibe cada factura en el momento en que se emite, con un <code>html</code> listo para enviar y todos
+              los datos del documento (número, fechas, importes, emisor, cliente y conceptos). Trae también{' '}
+              <code>to</code> (el cliente) y <code>cc</code> (la copia del emisor, configurada en{' '}
+              <strong>Copia de facturas</strong> dentro del perfil de facturación). Si lo dejas vacío{' '}
+              <strong>no se envía ninguna factura automáticamente</strong>: a diferencia del reporte de consumo,
+              aquí no hay envío por Gmail de respaldo.
+            </p>
+          </div>
+          {hasInvoiceWebhook && (
+            <span className="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full">Active</span>
+          )}
+        </div>
+
+        {hasInvoiceWebhook && (
+          <div className="mb-4 flex items-center justify-between bg-gray-50 dark:bg-dark-hover p-3 rounded-lg">
+            <code className="text-sm text-gray-600 dark:text-gray-300 font-mono">{invoiceMaskedUrl}</code>
+            <button
+              onClick={async () => {
+                setSaving(true)
+                try {
+                  const { data } = await platformSettingsAPI.update({ invoiceWebhookUrl: '' })
+                  setHasInvoiceWebhook(data.hasInvoiceWebhook)
+                  setInvoiceMaskedUrl('')
+                  setInvoiceWebhookUrl('')
+                  setSuccess('Webhook de facturas eliminado')
+                } catch (err) {
+                  setError(err.response?.data?.error || 'No se pudo eliminar')
+                } finally { setSaving(false) }
+              }}
+              disabled={saving}
+              className="ml-3 px-3 py-1.5 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 text-xs font-medium disabled:opacity-50"
+            >
+              Remove
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <input
+            type="password"
+            value={invoiceWebhookUrl}
+            onChange={(e) => setInvoiceWebhookUrl(e.target.value)}
+            placeholder={hasInvoiceWebhook ? 'Enter new URL to replace...' : 'https://tu-n8n.com/webhook/factura'}
+            className="flex-1 px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono text-sm"
+          />
+          <button
+            onClick={async () => {
+              setSaving(true)
+              try {
+                const { data } = await platformSettingsAPI.update({ invoiceWebhookUrl })
+                setHasInvoiceWebhook(data.hasInvoiceWebhook)
+                setInvoiceMaskedUrl(data.invoiceWebhookUrl || '')
+                setInvoiceWebhookUrl('')
+                setSuccess('Webhook de facturas guardado')
+              } catch (err) {
+                setError(err.response?.data?.error || 'No se pudo guardar')
+              } finally { setSaving(false) }
+            }}
+            disabled={saving || !invoiceWebhookUrl.trim()}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 text-sm font-medium"
+          >
+            {saving ? 'Saving...' : hasInvoiceWebhook ? 'Update' : 'Save'}
           </button>
         </div>
       </div>

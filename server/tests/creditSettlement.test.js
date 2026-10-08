@@ -15,9 +15,11 @@ const { settleCreditPurchase } = require('../src/utils/creditSettlement');
 
 // `reportSentAt` is set so sendPaymentReport returns early, and the fake's
 // invoice.findUnique answers with an already-issued invoice so
-// issueInvoiceForPurchase does too. Both are fire-and-forget inside the
-// function under test; short-circuiting them keeps these tests about the
-// settlement write itself instead of about e-mail and numbering.
+// issueInvoiceForPurchase does too — one that is already DELIVERED, so the
+// webhook hand-off (services/invoiceDelivery.js) returns at its own guard as
+// well. All three are fire-and-forget inside the function under test;
+// short-circuiting them keeps these tests about the settlement write itself
+// instead of about e-mail, numbering and delivery.
 const PURCHASE = {
   id: 77,
   userId: 42,
@@ -50,8 +52,15 @@ function makeFakePrisma({ status = 'pending' } = {}) {
         return {};
       },
     },
-    // Already issued, so the fire-and-forget invoice path exits immediately.
-    invoice: { findUnique: async () => ({ id: 1, number: 'FAC-000124' }) },
+    // Already issued AND already delivered, so both fire-and-forget invoice
+    // paths exit immediately.
+    invoice: {
+      findUnique: async () => ({
+        id: 1,
+        number: 'FAC-000124',
+        deliveredAt: new Date('2026-04-01T12:01:00.000Z'),
+      }),
+    },
   };
 }
 
@@ -148,4 +157,77 @@ test('the purchase handed to invoice issuance carries the settledAt just written
   // Everything else about the purchase is passed through unchanged.
   assert.strictEqual(seen.id, PURCHASE.id);
   assert.strictEqual(seen.credits, PURCHASE.credits);
+});
+
+// ---------------------------------------------------------------------------
+// HANDING THE DOCUMENT OVER. The invoice issuance's return value used to be
+// thrown away here; delivery is the reason it is not.
+// ---------------------------------------------------------------------------
+
+/** Run `fn` with both invoice modules stubbed, and restore them afterwards. */
+async function withInvoiceStubs({ issued }, fn) {
+  const invoiceService = require('../src/services/invoiceService');
+  const invoiceDelivery = require('../src/services/invoiceDelivery');
+  const realIssue = invoiceService.issueInvoiceForPurchase;
+  const realDeliver = invoiceDelivery.deliverInvoice;
+  const delivered = [];
+  invoiceService.issueInvoiceForPurchase = async () => issued;
+  invoiceDelivery.deliverInvoice = async (_prisma, invoice) => {
+    delivered.push(invoice);
+    return { sent: true };
+  };
+  try {
+    return await fn(delivered);
+  } finally {
+    invoiceService.issueInvoiceForPurchase = realIssue;
+    invoiceDelivery.deliverInvoice = realDeliver;
+  }
+}
+
+test('the invoice just issued is handed to the delivery webhook — the same row, no second lookup', async () => {
+  const prisma = makeFakePrisma();
+  const issued = { id: 5, number: 'FAC-000200', deliveredAt: null };
+
+  await withInvoiceStubs({ issued }, async (delivered) => {
+    const credited = await settleCreditPurchase(prisma, PURCHASE);
+    await new Promise(setImmediate);
+    assert.strictEqual(credited, true);
+    assert.strictEqual(delivered.length, 1);
+    // The ROW issuance returned, not a re-read of it.
+    assert.strictEqual(delivered[0], issued);
+  });
+});
+
+test('an account that is not invoiced at all delivers nothing', async () => {
+  // issueInvoiceForPurchase returns null when no tax-enabled issuer governs the
+  // account — which is most of them. Nothing may be sent for that.
+  const prisma = makeFakePrisma();
+
+  await withInvoiceStubs({ issued: null }, async (delivered) => {
+    await settleCreditPurchase(prisma, PURCHASE);
+    await new Promise(setImmediate);
+    assert.strictEqual(delivered.length, 0);
+  });
+});
+
+test('a delivery that rejects cannot turn a good payment into an error', async () => {
+  const prisma = makeFakePrisma();
+  const invoiceService = require('../src/services/invoiceService');
+  const invoiceDelivery = require('../src/services/invoiceDelivery');
+  const realIssue = invoiceService.issueInvoiceForPurchase;
+  const realDeliver = invoiceDelivery.deliverInvoice;
+  invoiceService.issueInvoiceForPurchase = async () => ({ id: 5, number: 'FAC-000200', deliveredAt: null });
+  invoiceDelivery.deliverInvoice = async () => { throw new Error('webhook exploded'); };
+
+  try {
+    const credited = await settleCreditPurchase(prisma, PURCHASE);
+    await new Promise(setImmediate);
+    // The balance was credited and the caller was told so; the rejection was
+    // swallowed by the chain's own .catch().
+    assert.strictEqual(credited, true);
+    assert.strictEqual(prisma._calls.userUpdate.length, 1);
+  } finally {
+    invoiceService.issueInvoiceForPurchase = realIssue;
+    invoiceDelivery.deliverInvoice = realDeliver;
+  }
 });
