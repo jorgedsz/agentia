@@ -65,6 +65,19 @@ export const INVOICE_TEXT_GROUPS = [
     fields: [
       ['contactEmail', 'Email', 'facturacion@empresa.com'],
       ['contactWeb', 'Web', 'www.empresa.com'],
+      // NOT printed on the document, unlike every other field in this list:
+      // it is where a COPY of each invoice is emailed — the issuer's own
+      // bookkeeper. It sits here because it is the same kind of fact as the
+      // two above (an address belonging to the issuer), and the help text
+      // says so, since a field in a group headed «Contacto» would otherwise
+      // read as something the client sees on the paper.
+      [
+        'invoiceCopyTo',
+        'Copia de facturas',
+        'contabilidad@empresa.com',
+        'Cada factura emitida se envía también a esta dirección, además del cliente. '
+          + 'No se imprime en el documento. En blanco, la factura va solo al cliente.',
+      ],
     ],
   },
 ]
@@ -337,12 +350,15 @@ export default function BillingProfileFields({ form, onChange, profileExists, ta
         <div key={group.title} className="space-y-2">
           <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{group.title}</p>
           <div className="grid grid-cols-2 gap-3">
-            {group.fields.map(([key, label, placeholder]) => (
+            {group.fields.map(([key, label, placeholder, help]) => (
               <div key={key}>
                 <label className={LABEL}>{label}</label>
                 <input type="text" value={form[key]}
                   onChange={(e) => set({ [key]: e.target.value })}
                   placeholder={placeholder} className={INPUT} />
+                {/* Optional fourth element of the tuple: for a field whose
+                    effect is not obvious from its label. */}
+                {help && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">{help}</p>}
               </div>
             ))}
           </div>
