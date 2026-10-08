@@ -288,8 +288,8 @@ test('presentPayment defaults to expecting no invoice when nobody says the accou
 });
 
 test('presentPayment describes the payment with the same helper the invoice line uses', () => {
-  assert.strictEqual(presentPayment(purchase()).concept, 'Recarga de saldo — créditos de consumo');
-  assert.strictEqual(presentPayment(purchase({ kind: 'auto_recharge' })).concept, 'Recarga automática de saldo');
+  assert.strictEqual(presentPayment(purchase()).concept, 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI');
+  assert.strictEqual(presentPayment(purchase({ kind: 'auto_recharge' })).concept, 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI');
   assert.strictEqual(presentPayment(purchase({ billingPeriodId: 3 })).concept, 'Liquidación del periodo facturado');
 });
 
@@ -536,7 +536,7 @@ const REG_INVOICE = {
   total: 127,
   amountPaid: 127,
   totalInWords: 'CIENTO VEINTISIETE DÓLARES CON 00/100',
-  conceptLines: JSON.stringify([{ description: 'Recarga de saldo — créditos de consumo', total: 100 }]),
+  conceptLines: JSON.stringify([{ description: 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI', total: 100 }]),
   issuerSnapshot: JSON.stringify({ issuerName: 'LM', issuerRnc: 'EL RNC EQUIVOCADO' }),
   clientSnapshot: JSON.stringify({ company: 'Cliente SRL' }),
   issuedAt: new Date('2026-03-15T12:00:00.000Z'),

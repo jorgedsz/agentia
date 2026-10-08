@@ -66,18 +66,24 @@ function formatNumber(profile, correlative) {
  * over `kind` whenever it's set - a payment that settles a billing period is
  * described as that settlement regardless of how it was collected.
  */
+// What a balance top-up is called on the invoice, in the issuer's own words.
+// Both kinds of top-up read the same because the client bought the same thing;
+// whether the card was charged by hand or by the automation is our bookkeeping,
+// not something a DESCRIPCIÓN row should explain to a payer.
+const TOPUP_CONCEPT = 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI';
+
 function conceptFor(purchase) {
   if (purchase.billingPeriodId) return 'Liquidación del periodo facturado';
-  if (purchase.kind === 'auto_recharge') return 'Recarga automática de saldo';
   if (purchase.kind === 'cycle_topup') {
     if (!purchase.periodStart || !purchase.periodEnd) return 'Consumo del periodo';
     const start = PERIOD_DATE_FORMAT.format(new Date(purchase.periodStart));
     const end = PERIOD_DATE_FORMAT.format(new Date(purchase.periodEnd));
     return `Consumo del periodo ${start} – ${end}`;
   }
-  // "manual" (hosted checkout) and "manual_card" (off-session 1-click) both
-  // land here - a plain balance top-up with nothing more specific to say.
-  return 'Recarga de saldo — créditos de consumo';
+  // "manual" (hosted checkout), "manual_card" (off-session 1-click) and
+  // "auto_recharge" all land here: every one of them is the client buying
+  // balance, and the invoice says so the same way.
+  return TOPUP_CONCEPT;
 }
 
 /**
