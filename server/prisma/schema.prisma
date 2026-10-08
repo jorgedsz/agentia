@@ -953,6 +953,15 @@ model Invoice {
   clientSnapshot   String // JSON
   issuedAt         DateTime        @default(now())
   dueAt            DateTime?
+  // WHEN THE CLIENT ACTUALLY PAID, snapshotted at issue time like every other
+  // fact on this document, from CreditPurchase.settledAt falling back to that
+  // purchase's createdAt (see services/invoiceService.js for why the fallback
+  // is the right answer rather than a null). Nullable because an invoice issued
+  // before this column existed never recorded one, and because the purchase
+  // this was taken from may since have been deleted (creditPurchaseId is
+  // SetNull) - then this stored value is the only surviving record of the date
+  // and is left exactly as it is.
+  paidAt           DateTime?
   // When this document was last REBUILT from current data, keeping its number
   // (POST /api/invoices/:id/regenerate). Null on every invoice that still says
   // exactly what it said at issue time, which is almost all of them.

@@ -399,6 +399,23 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
                 <Field label="Fecha de Expedición:" value={fmtDate(invoice.issuedAt)} />
                 <Field label="Condiciones de Pago:" value={issuer.paymentTerms} />
                 <Field label="Fecha de vencimiento:" value={fmtDate(invoice.dueAt)} />
+                {/* WHEN THE CLIENT ACTUALLY PAID, last of the three real dates
+                    on purpose: expedición says when the document was raised,
+                    condiciones and vencimiento say when the money was owed, and
+                    this closes that sequence by saying when it arrived. Splitting
+                    the terms/due pair to sit higher would read worse, and
+                    "Regenerada el" stays below it because that is provenance of
+                    the paper rather than a date on the transaction.
+
+                    Through the same fmtDate as the rest of the block so the
+                    format cannot drift from the dates beside it. Omitted
+                    entirely when there is nothing to show - an invoice issued
+                    before the column existed, or one whose payment was since
+                    deleted - rather than printing a label with a blank after
+                    it. */}
+                {invoice.paidAt ? (
+                  <Field label="Fecha de pago:" value={fmtDate(invoice.paidAt)} />
+                ) : null}
                 {/* Printed next to the issue date, and therefore in the PDF:
                     this document was rebuilt after it was first issued, so a
                     copy of the same number may be in somebody's hands saying

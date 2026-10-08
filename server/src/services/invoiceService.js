@@ -244,6 +244,24 @@ function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Da
 
   const dueAt = addDays(issuedAt, profile.dueDays || 0);
 
+  // WHEN THE CLIENT ACTUALLY PAID, frozen onto the document like everything
+  // else on it. `settledAt` is stamped by utils/creditSettlement.js in the one
+  // conditional update that turns the payment into balance, so from now on this
+  // is the real collection moment.
+  //
+  // THE FALLBACK IS `createdAt` AND NOT A NULL. Every purchase settled before
+  // that column existed has settledAt null, and `createdAt` is when the
+  // checkout or the charge was STARTED: seconds before the money for an
+  // off-session charge, and at most the minutes a client spent on a hosted
+  // Stripe page otherwise. So for history this is accurate to within minutes
+  // and never wrong by a day - which is the unit a fiscal document is read in -
+  // whereas printing nothing at all would leave the owner with a document that
+  // answers the question for new payments and refuses to for old ones. What is
+  // deliberately NOT used is `updatedAt`: it moves on any later write to the
+  // purchase (the usage report stamping reportSentAt, for one), so it is not a
+  // payment date at all and would drift arbitrarily far from one.
+  const paidAt = purchase.settledAt ?? purchase.createdAt;
+
   // Frozen now, at issue time - see buildIssuerSnapshot / buildClientSnapshot.
   const issuerSnapshot = buildIssuerSnapshot(profile);
   const clientSnapshot = buildClientSnapshot(client);
@@ -268,6 +286,7 @@ function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Da
     clientSnapshot,
     issuedAt,
     dueAt,
+    paidAt,
   };
 }
 
@@ -338,9 +357,11 @@ async function issueInvoiceForPurchase(prisma, purchase) {
  * the row are the only surviving record of them. The party snapshots are
  * refreshed and every money field is left exactly as it is: an invoice that
  * suddenly totalled 0.00 because its payment was deleted would be a destroyed
- * fiscal record, not a corrected one. `dueAt` is still recomputed, since it
- * needs only the unchanged `issuedAt` and the profile's current `dueDays` and
- * asks nothing of the purchase.
+ * fiscal record, not a corrected one. `paidAt` follows the same rule and for
+ * the same reason - the date the client paid was read off that purchase, so
+ * with the purchase gone the stored date is all that is left of it. `dueAt` is
+ * still recomputed, since it needs only the unchanged `issuedAt` and the
+ * profile's current `dueDays` and asks nothing of the purchase.
  *
  * A missing `client` (an orphaned invoice whose account was deleted) leaves
  * `clientSnapshot` untouched for the same reason: the snapshot is all that is
@@ -380,6 +401,11 @@ function buildRegeneratedInvoiceData({ invoice, profile, client, purchase, regen
     clientSnapshot: fresh.clientSnapshot,
     issuerSnapshot: fresh.issuerSnapshot,
     dueAt: fresh.dueAt,
+    // Taken again off the purchase, so it is listed HERE and never in `data`
+    // above: with no purchase left there is nothing to read the payment date
+    // from, and the value stored on the row is the only surviving record of it -
+    // exactly the rule the money fields follow, for exactly the same reason.
+    paidAt: fresh.paidAt,
   };
 }
 

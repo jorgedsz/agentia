@@ -69,6 +69,12 @@ function present(invoice) {
     totalInWords: invoice.totalInWords,
     issuedAt: invoice.issuedAt,
     dueAt: invoice.dueAt ?? null,
+    // When the client ACTUALLY paid, frozen at issue time off
+    // CreditPurchase.settledAt (falling back to that purchase's createdAt — see
+    // services/invoiceService.js). Null on an invoice issued before the column
+    // existed, and the renderer then omits the line rather than printing an
+    // empty label.
+    paidAt: invoice.paidAt ?? null,
     // When this document was last REBUILT from current data, keeping its
     // number. Null on a document that still says what it said at issue time,
     // which is almost all of them. It is part of what the document PRINTS, not
