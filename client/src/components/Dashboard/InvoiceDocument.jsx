@@ -415,14 +415,15 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
                 {invoice.paidAt ? (
                   <Field label="Fecha de pago:" value={fmtDate(invoice.paidAt)} />
                 ) : null}
-                {/* Printed next to the issue date, and therefore in the PDF:
-                    this document was rebuilt after it was first issued, so a
-                    copy of the same number may be in somebody's hands saying
-                    something else. Absent on an invoice never regenerated,
-                    which is almost all of them. */}
-                {invoice.regeneratedAt ? (
-                  <Field label="Regenerada el:" value={fmtDate(invoice.regeneratedAt)} />
-                ) : null}
+                {/* `regeneratedAt` is deliberately NOT printed. The issuer
+                    asked for the payment date to be the only date on the page.
+
+                    It is still recorded on every regeneration and still comes
+                    back from the API, so the panel can show it — it just does
+                    not reach the paper. Know what that costs: regenerating an
+                    invoice already handed to a client leaves two documents
+                    bearing the same number with nothing on either saying which
+                    is the later one. That was the trade the issuer chose. */}
               </div>
             </div>
 
