@@ -33,7 +33,7 @@ test('conceptFor: a purchase carrying billingPeriodId always wins, regardless of
 });
 
 test('conceptFor: auto_recharge', () => {
-  assert.strictEqual(conceptFor({ kind: 'auto_recharge' }), 'Recarga automática de saldo');
+  assert.strictEqual(conceptFor({ kind: 'auto_recharge' }), 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI');
 });
 
 test('conceptFor: cycle_topup with both dates formats the period in es-DO / Santo Domingo', () => {
@@ -54,8 +54,8 @@ test('conceptFor: cycle_topup missing either date falls back to the bare label',
 });
 
 test('conceptFor: manual and manual_card both fall to the generic recharge label', () => {
-  assert.strictEqual(conceptFor({ kind: 'manual' }), 'Recarga de saldo — créditos de consumo');
-  assert.strictEqual(conceptFor({ kind: 'manual_card' }), 'Recarga de saldo — créditos de consumo');
+  assert.strictEqual(conceptFor({ kind: 'manual' }), 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI');
+  assert.strictEqual(conceptFor({ kind: 'manual_card' }), 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI');
 });
 
 // ---------------------------------------------------------------------------
@@ -158,7 +158,7 @@ test('buildInvoiceData spells the total in words', () => {
 test('buildInvoiceData writes conceptLines as JSON with the concept + subtotal', () => {
   const data = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase: PURCHASE, number: 'FAC-000001' });
   const lines = JSON.parse(data.conceptLines);
-  assert.deepStrictEqual(lines, [{ description: 'Recarga de saldo — créditos de consumo', total: 100 }]);
+  assert.deepStrictEqual(lines, [{ description: 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI', total: 100 }]);
 });
 
 test('buildInvoiceData freezes the issuer snapshot, defaulting every absent field to empty string', () => {
@@ -241,7 +241,7 @@ test('buildInvoiceData shows the tax on a payment that was never charged it', ()
   assert.strictEqual(data.totalInWords, 'CIENTO VEINTISIETE DÓLARES CON 00/100');
   // The DESCRIPCIÓN row still prices what the client actually bought.
   assert.deepStrictEqual(JSON.parse(data.conceptLines), [
-    { description: 'Recarga de saldo — créditos de consumo', total: 100 },
+    { description: 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI', total: 100 },
   ]);
 });
 
@@ -496,7 +496,7 @@ const ISSUED = {
   total: 127,
   amountPaid: 127,
   totalInWords: 'CIENTO VEINTISIETE DÓLARES CON 00/100',
-  conceptLines: JSON.stringify([{ description: 'Recarga de saldo — créditos de consumo', total: 100 }]),
+  conceptLines: JSON.stringify([{ description: 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI', total: 100 }]),
   issuerSnapshot: JSON.stringify({ issuerName: 'LM Consulting Group SRL', issuerRnc: 'EL RNC EQUIVOCADO' }),
   clientSnapshot: JSON.stringify({ company: 'Cliente Prueba Fiscal SRL' }),
   issuedAt: new Date('2026-03-15T12:00:00.000Z'),
@@ -578,7 +578,7 @@ test('buildRegeneratedInvoiceData describes the payment with the same concept he
     client: CLIENT,
     purchase: { ...PURCHASE, kind: 'auto_recharge' },
   });
-  assert.deepStrictEqual(JSON.parse(data.conceptLines), [{ description: 'Recarga automática de saldo', total: 100 }]);
+  assert.deepStrictEqual(JSON.parse(data.conceptLines), [{ description: 'Recarga de Saldo - Créditos de Consumos para Ecosistema de AI', total: 100 }]);
 });
 
 // THE MISSING-PAYMENT CASE. creditPurchaseId is SetNull, so an invoice outlives
