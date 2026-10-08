@@ -396,23 +396,22 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
                 <Field label="Teléfono:" value={client.phone} />
               </div>
               <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                <Field label="Fecha de Expedición:" value={fmtDate(invoice.issuedAt)} />
-                <Field label="Condiciones de Pago:" value={issuer.paymentTerms} />
-                <Field label="Fecha de vencimiento:" value={fmtDate(invoice.dueAt)} />
-                {/* WHEN THE CLIENT ACTUALLY PAID, last of the three real dates
-                    on purpose: expedición says when the document was raised,
-                    condiciones and vencimiento say when the money was owed, and
-                    this closes that sequence by saying when it arrived. Splitting
-                    the terms/due pair to sit higher would read worse, and
-                    "Regenerada el" stays below it because that is provenance of
-                    the paper rather than a date on the transaction.
+                {/* THE ONLY DATE ON THE DOCUMENT, by the issuer's decision.
+                    Expedición, condiciones de pago and vencimiento were dropped:
+                    every invoice here is raised for a payment that has already
+                    been collected, so a due date and payment terms describe an
+                    obligation that never existed. One date that is true beats
+                    three that invite the question of why the money arrived
+                    before it was owed.
 
-                    Through the same fmtDate as the rest of the block so the
-                    format cannot drift from the dates beside it. Omitted
-                    entirely when there is nothing to show - an invoice issued
-                    before the column existed, or one whose payment was since
-                    deleted - rather than printing a label with a blank after
-                    it. */}
+                    `issuedAt` and `dueAt` are still stored and still drive the
+                    numbering sequence and the profile's dueDays - they simply
+                    are not printed.
+
+                    Omitted entirely when there is nothing to show - an invoice
+                    issued before the column existed, or one whose payment was
+                    since deleted - rather than printing a label with a blank
+                    after it. */}
                 {invoice.paidAt ? (
                   <Field label="Fecha de pago:" value={fmtDate(invoice.paidAt)} />
                 ) : null}
