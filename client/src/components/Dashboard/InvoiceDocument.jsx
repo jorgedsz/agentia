@@ -396,7 +396,13 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
                 <Field label="Teléfono:" value={client.phone} />
               </div>
               <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                {/* THE ONLY DATE ON THE DOCUMENT, by the issuer's decision.
+                {/* THE ONLY DATE ON THE DOCUMENT, by the issuer's decision, and
+                    labelled plainly "Fecha" for the same reason: with nothing
+                    to tell it apart from, qualifying it is noise. The value is
+                    `paidAt` — when the client's money actually arrived — so
+                    anyone changing this label should know it is not the issue
+                    date, whatever the word on the page says.
+
                     Expedición, condiciones de pago and vencimiento were dropped:
                     every invoice here is raised for a payment that has already
                     been collected, so a due date and payment terms describe an
@@ -413,7 +419,7 @@ export default function InvoiceDocument({ invoice, onClose, onRegenerate }) {
                     since deleted - rather than printing a label with a blank
                     after it. */}
                 {invoice.paidAt ? (
-                  <Field label="Fecha de pago:" value={fmtDate(invoice.paidAt)} />
+                  <Field label="Fecha:" value={fmtDate(invoice.paidAt)} />
                 ) : null}
                 {/* `regeneratedAt` is deliberately NOT printed. The issuer
                     asked for the payment date to be the only date on the page.
