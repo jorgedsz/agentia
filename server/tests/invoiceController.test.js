@@ -788,6 +788,16 @@ const MANUAL_TREE = {
   31: { id: 31, role: 'CLIENT', agencyId: 20, whitelabelId: null, billingMode: null, email: 'c31@biz.com', name: 'Cliente 31' },
   50: { id: 50, role: 'CLIENT', agencyId: null, whitelabelId: null, billingMode: null, email: 'c50@biz.com', name: 'Cliente 50' },
   60: { id: 60, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: null },
+  // Partners on the two modes resolveTaxConfig refuses, each with a client.
+  // Partner 70 bills MANUALLY: it never produces a CreditPurchase, so client 71
+  // can be invoiced in no way other than by hand.
+  70: { id: 70, role: 'WHITELABEL', agencyId: null, whitelabelId: null, billingMode: 'manual' },
+  71: { id: 71, role: 'CLIENT', agencyId: 70, whitelabelId: null, billingMode: null, email: 'c71@biz.com', name: 'Cliente 71' },
+  80: { id: 80, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_whop' },
+  81: { id: 81, role: 'CLIENT', agencyId: 80, whitelabelId: null, billingMode: null, email: 'c81@biz.com', name: 'Cliente 81' },
+  // Bills manually and has NO profile: no issuer, in any mode.
+  90: { id: 90, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'manual' },
+  91: { id: 91, role: 'CLIENT', agencyId: 90, whitelabelId: null, billingMode: null, email: 'c91@biz.com', name: 'Cliente 91' },
 };
 
 // The issuer's real configuration: no tax row, a 27% withholding.
@@ -1044,4 +1054,55 @@ test('createManual: a profile sitting on a client row is never the issuer', asyn
   assert.strictEqual(res.code, 409);
   assert.strictEqual(prisma.created.length, 0);
   assert.strictEqual(prisma.profile.invoiceNextNumber, 300);
+});
+
+// --- the billing mode of the issuer is not the issuer's right to issue -------
+//
+// A hand-made invoice resolves its issuer without resolveTaxConfig's
+// `own_stripe` gate, because that gate protects charging and automatic
+// issuance and this charges nothing and settles nothing. These four cases are
+// the distinction, through the endpoint.
+
+test('createManual: a client under an own_stripe partner is invoiced, as it always was', async () => {
+  const res = await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount: 100 });
+  assert.strictEqual(res.code, 201);
+});
+
+// THE CASE THAT USED TO BE REFUSED, and the one the feature exists for: this
+// partner's clients produce no payments at all, so by hand is the only way.
+test('createManual: a client under a MANUAL-billing partner with a profile is now invoiced', async () => {
+  const prisma = manualCtrlPrisma({ ownerId: 70 });
+  const res = await callManual(prisma, { id: 70, role: 'WHITELABEL' }, { userId: 71, amount: 1600 });
+
+  assert.strictEqual(res.code, 201);
+  assert.strictEqual(res.body.invoice.total, 1600);
+  assert.strictEqual(prisma.created.length, 1);
+});
+
+test('createManual: a client under an own_whop partner with a profile is now invoiced too', async () => {
+  const prisma = manualCtrlPrisma({ ownerId: 80 });
+  const res = await callManual(prisma, { id: 80, role: 'AGENCY' }, { userId: 81, amount: 250 });
+
+  assert.strictEqual(res.code, 201);
+  assert.strictEqual(prisma.created.length, 1);
+});
+
+// Dropping the MODE condition did not drop the PROFILE condition.
+test('createManual: a client whose governing partner has no profile is still refused, whatever the mode', async () => {
+  const prisma = manualCtrlPrisma({ ownerId: 10 });
+  const res = await callManual(prisma, { id: 99, role: 'OWNER' }, { userId: 91, amount: 100 });
+
+  assert.strictEqual(res.code, 409);
+  assert.strictEqual(prisma.created.length, 0);
+  assert.strictEqual(prisma.profile.invoiceNextNumber, 300);
+});
+
+// And the permission rule is untouched by any of it: a looser ISSUER lookup
+// must not become a looser answer to "may you issue".
+test('createManual: the looser issuer lookup did not loosen who may issue - a client under a manual partner still may not invoice itself', async () => {
+  const prisma = manualCtrlPrisma({ ownerId: 70 });
+  const res = await callManual(prisma, { id: 71, role: 'CLIENT' }, { userId: 71, amount: 100 });
+
+  assert.strictEqual(res.code, 403);
+  assert.strictEqual(prisma.created.length, 0);
 });

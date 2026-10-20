@@ -10,7 +10,8 @@
 // `client` from here and look nothing up.
 
 const {
-  issueInvoiceForPurchase, issueManualInvoice, buildRegeneratedInvoiceData, conceptFor,
+  issueInvoiceForPurchase, issueManualInvoice, resolveManualIssuerProfile,
+  buildRegeneratedInvoiceData, conceptFor,
 } = require('../services/invoiceService');
 const { resolveTaxConfig } = require('../utils/taxes');
 const { getAncestorPartners } = require('../utils/whopConfig');
@@ -555,14 +556,23 @@ const createManual = async (req, res) => {
     const client = await req.prisma.user.findUnique({ where: { id: userId } });
     if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
 
-    // WHICH ISSUER GOVERNS THIS CLIENT, resolved by the one helper that answers
-    // that question for invoicing - so a hand-made invoice can never be issued
-    // from a profile the automatic path would not have used. It hands back the
-    // profile whether or not `taxEnabled` is on: that flag decides what the
-    // totals block SAYS (buildInvoiceData reads it), and gating issuance on it
-    // is right for an automatic emission and wrong here, where a human is
-    // deliberately asking for this one document.
-    const { profile } = await resolveTaxConfig(req.prisma, userId);
+    // WHICH ISSUER GOVERNS THIS CLIENT.
+    //
+    // Resolved by resolveManualIssuerProfile and NOT by resolveTaxConfig, which
+    // is what every automatic emission uses. The difference is one condition and
+    // the whole reasoning for it is on that function: resolveTaxConfig refuses
+    // any billing mode but `own_stripe`, a gate that exists to protect charging
+    // and automatic issuance, and a hand-made invoice does neither. Applied here
+    // it would refuse exactly the accounts this feature is for - a partner on
+    // `manual` billing produces no CreditPurchase at all, so its clients can be
+    // invoiced in no other way. The gate itself is left untouched where it
+    // guards the paths it was written for.
+    //
+    // Either way the profile comes back whether or not `taxEnabled` is on: that
+    // flag decides what the totals block SAYS (buildInvoiceData reads it), and
+    // gating issuance on it is right for an automatic emission and wrong here,
+    // where a human is deliberately asking for this one document.
+    const profile = await resolveManualIssuerProfile(req.prisma, userId);
     if (!profile) {
       return res.status(409).json({
         error: 'Este cliente no tiene un emisor de facturas configurado, así que no hay con qué numerarla ni qué imprimir como emisor.',

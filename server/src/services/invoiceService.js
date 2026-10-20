@@ -41,6 +41,7 @@
 // subtotal + taxAmount - retention = received + taxAmount - see buildInvoiceData.
 
 const { round2, resolveTaxConfig } = require('../utils/taxes');
+const { getEffectiveBilling } = require('../utils/whopConfig');
 const { amountToSpanishWords } = require('../utils/numberToWords');
 
 function addDays(date, days) {
@@ -355,6 +356,62 @@ async function issueInvoiceForPurchase(prisma, purchase) {
 }
 
 /**
+ * THE ISSUER THAT GOVERNS AN ACCOUNT, for a HAND-MADE invoice only.
+ *
+ * WHY THIS DOES NOT GO THROUGH resolveTaxConfig, which answers the same
+ * question for every automatic emission.
+ *
+ * That helper gates on `own_stripe` and returns no profile for any other
+ * billing mode. Its own comment says exactly what that gate is for, and both
+ * reasons are about MONEY MOVING: a taxed charge must be able to produce the
+ * invoice that accompanies it, and the Whop settlement path in
+ * controllers/whopController.js never calls settleCreditPurchase, so a taxed
+ * `own_whop` account would be charged the taxed total and issued no document at
+ * all. A hand-made invoice does neither of those things. It charges no card and
+ * it settles no payment: it records a document for money that was arranged
+ * somewhere else entirely.
+ *
+ * AND THE GATE IS NOT MERELY HARMLESS HERE - IT IS BACKWARDS HERE. A partner on
+ * `manual` billing never produces a CreditPurchase at all, so none of its
+ * clients can ever be invoiced by the automatic path. A hand-made invoice is the
+ * ONLY way one of them could ever receive a document, which makes them the very
+ * accounts this function exists to serve, and resolveTaxConfig would refuse
+ * precisely those. A partner's billing mode says how its clients PAY; it says
+ * nothing about whether that partner is entitled to issue a fiscal document,
+ * which is a question about its RNC and its numbering sequence and about nothing
+ * else.
+ *
+ * SO THE GATE IS LEFT WHERE IT IS, UNTOUCHED AND UNFLAGGED. Adding a bypass
+ * parameter to resolveTaxConfig would put the one thing protecting the charge
+ * and auto-issuance paths one accidental argument away from being switched off;
+ * this is a separate function so that an automatic caller cannot reach the
+ * looser rule even by mistake. Do not "simplify" the two into one.
+ *
+ * WHAT IT SHARES. Who governs an account is still asked of getEffectiveBilling,
+ * the same helper resolveTaxConfig asks - that walk (own_stripe anywhere up the
+ * chain, otherwise a client's direct provider) is not re-spelled here. Only the
+ * mode condition is dropped: getEffectiveBilling hands back a partner for
+ * `own_whop` and `manual` too, and that partner is read as the issuer instead of
+ * being discarded.
+ *
+ * Returns the BillingProfile, or null when there is no governing partner or it
+ * has no profile - which is the caller's cue to refuse: no profile means no
+ * numbering to spend and nothing to put in issuerSnapshot.
+ *
+ * NOT exception-safe, deliberately, and that is the other difference from
+ * resolveTaxConfig. That one swallows everything because a tax that cannot be
+ * resolved must never block a payment that is already going through. Nothing is
+ * going through here: this runs before anything is written and before any
+ * correlative is spent, so a database failure should surface as a failure rather
+ * than as "this client has no issuer".
+ */
+async function resolveManualIssuerProfile(prisma, userId) {
+  const { partner } = await getEffectiveBilling(prisma, userId);
+  if (!partner) return null;
+  return prisma.billingProfile.findUnique({ where: { ownerId: partner.id } });
+}
+
+/**
  * Issue an invoice NOBODY PAID FOR - the issuer typed the figure.
  *
  * WHAT THE ISSUER TYPES IS THE TOTAL A PAGAR, never the net. That is the same
@@ -508,6 +565,7 @@ function buildRegeneratedInvoiceData({ invoice, profile, client, purchase, regen
 module.exports = {
   issueInvoiceForPurchase,
   issueManualInvoice,
+  resolveManualIssuerProfile,
   buildInvoiceData,
   buildRegeneratedInvoiceData,
   buildIssuerSnapshot,

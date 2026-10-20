@@ -3,12 +3,13 @@ const assert = require('node:assert');
 const {
   issueInvoiceForPurchase,
   issueManualInvoice,
+  resolveManualIssuerProfile,
   buildInvoiceData,
   buildRegeneratedInvoiceData,
   formatNumber,
   conceptFor,
 } = require('../src/services/invoiceService');
-const { computeCharge, round2 } = require('../src/utils/taxes');
+const { computeCharge, round2, resolveTaxConfig } = require('../src/utils/taxes');
 
 // ---------------------------------------------------------------------------
 // formatNumber
@@ -1181,4 +1182,100 @@ test('buildInvoiceData with no options is byte-for-byte what it was before the m
     applyProfileRates: true, concept: null,
   });
   assert.deepStrictEqual(explicit, bare);
+});
+
+// ---------------------------------------------------------------------------
+// resolveManualIssuerProfile - who may issue BY HAND
+//
+// THE SUBTLE PART OF THE WHOLE FEATURE, and the reason these tests are
+// explicit about what they are protecting. A hand-made invoice resolves its
+// issuer WITHOUT resolveTaxConfig's `own_stripe` gate, because that gate exists
+// to protect charging and automatic issuance and a hand-made invoice does
+// neither. Every test below pairs the two helpers on the SAME account, so the
+// day somebody "simplifies" the manual path back onto resolveTaxConfig - or
+// widens resolveTaxConfig to suit it - one of these fails.
+// ---------------------------------------------------------------------------
+
+// The same shape for all four modes: one partner, one client under it.
+function issuerPrisma(partner, profile) {
+  const rows = { [partner.id]: partner, 42: { ...CLIENT, role: 'CLIENT', agencyId: partner.id, whitelabelId: null, billingMode: null } };
+  return {
+    user: { findUnique: async ({ where }) => rows[where.id] || null },
+    billingProfile: {
+      findUnique: async ({ where }) => (profile && where.ownerId === profile.ownerId ? profile : null),
+    },
+  };
+}
+
+const PROFILE_OF_9 = { ...PROFILE, ownerId: 9, invoicePrefix: 'FAC-', invoicePadding: 6, invoiceNextNumber: 400 };
+
+test('resolveManualIssuerProfile finds the issuer of a client under an own_stripe partner, as it always did', async () => {
+  const partner = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_stripe' };
+  const prisma = issuerPrisma(partner, PROFILE_OF_9);
+
+  assert.strictEqual((await resolveManualIssuerProfile(prisma, 42))?.ownerId, 9);
+  // And here the two helpers agree, because own_stripe is the mode the gate
+  // lets through - so this case proves the looser rule did not LOSE anything.
+  assert.strictEqual((await resolveTaxConfig(prisma, 42)).profile?.ownerId, 9);
+});
+
+// THE CASE THE FEATURE EXISTS FOR. A partner on `manual` billing produces no
+// CreditPurchase at all, so none of its clients can ever be invoiced
+// automatically - a hand-made invoice is the only document they could ever
+// receive, and it was the one case being refused.
+test('resolveManualIssuerProfile finds the issuer of a client under a MANUAL-billing partner, where the automatic path finds none', async () => {
+  const partner = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'manual' };
+  const prisma = issuerPrisma(partner, PROFILE_OF_9);
+
+  assert.strictEqual((await resolveManualIssuerProfile(prisma, 42))?.ownerId, 9);
+  // THE GATE IS STILL THERE on the automatic side, on this very account.
+  assert.strictEqual((await resolveTaxConfig(prisma, 42)).profile, null);
+});
+
+test('resolveManualIssuerProfile finds the issuer of a client under an own_whop partner, where the automatic path finds none', async () => {
+  const partner = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_whop' };
+  const prisma = issuerPrisma(partner, PROFILE_OF_9);
+
+  assert.strictEqual((await resolveManualIssuerProfile(prisma, 42))?.ownerId, 9);
+  assert.strictEqual((await resolveTaxConfig(prisma, 42)).profile, null);
+});
+
+// NO PROFILE IS STILL NO ISSUER, in every mode. Dropping the mode condition
+// did not drop this one: there is no numbering to spend and nothing to put in
+// issuerSnapshot.
+test('resolveManualIssuerProfile returns null when the governing partner has no profile, in any mode', async () => {
+  for (const billingMode of ['own_stripe', 'manual', 'own_whop']) {
+    const partner = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode };
+    assert.strictEqual(await resolveManualIssuerProfile(issuerPrisma(partner, null), 42), null, billingMode);
+  }
+});
+
+test('resolveManualIssuerProfile returns null when nothing governs the account at all', async () => {
+  const orphan = { id: 42, role: 'CLIENT', agencyId: null, whitelabelId: null, billingMode: null };
+  const prisma = {
+    user: { findUnique: async () => orphan },
+    billingProfile: { findUnique: async () => { throw new Error('must not be asked'); } },
+  };
+  assert.strictEqual(await resolveManualIssuerProfile(prisma, 42), null);
+});
+
+// THE TEST THAT PROVES THE GATE WAS NOT QUIETLY WIDENED FOR EVERYONE. The
+// automatic path is the thing that must not have moved: a Whop or manual
+// payment still issues NO invoice on its own, profile or no profile, which is
+// what utils/taxes.js's gate is there to guarantee.
+test('the AUTOMATIC path is unchanged: a settled payment under a non-Stripe partner still issues nothing, even with a profile on file', async () => {
+  for (const billingMode of ['manual', 'own_whop']) {
+    const partner = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode };
+    const profile = { ...PROFILE_OF_9, taxEnabled: true, taxRate: 27 };
+    const prisma = makeFakePrisma({
+      client: { ...CLIENT, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: null },
+      partner,
+      profile,
+    });
+
+    assert.strictEqual(await issueInvoiceForPurchase(prisma, PURCHASE), null, billingMode);
+    // And no number was taken for the document that was not issued.
+    assert.strictEqual(prisma._calls.billingProfileUpdate, 0, billingMode);
+    assert.strictEqual(prisma._calls.invoiceCreate, 0, billingMode);
+  }
 });
