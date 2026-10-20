@@ -766,3 +766,343 @@ test('present carries paidAt, and null on an invoice issued before the column ex
   assert.strictEqual(present(row()).paidAt, null);
   assert.strictEqual(present(row({ paidAt: null })).paidAt, null);
 });
+
+// ---------------------------------------------------------------------------
+// POST /api/invoices/manual - an invoice raised by hand
+//
+// DB-free like the list tests above: the handler reaches the database only
+// through prisma.user, prisma.billingProfile and the $transaction that issues,
+// so a plain object answers for all of it and the whole endpoint runs here.
+// ---------------------------------------------------------------------------
+
+const { createManual } = require('../src/controllers/invoiceController');
+
+// whitelabel 10 collects through its own Stripe and owns the only billing
+// profile, so it is the ISSUER for its whole subtree: agency 20 and clients 30
+// and 31. Client 50 hangs off nobody, so nothing governs it and there is no
+// issuer for it at all. Partner 60 is unrelated to any of them.
+const MANUAL_TREE = {
+  10: { id: 10, role: 'WHITELABEL', agencyId: null, whitelabelId: null, billingMode: 'own_stripe' },
+  20: { id: 20, role: 'AGENCY', agencyId: null, whitelabelId: 10, billingMode: null },
+  30: { id: 30, role: 'CLIENT', agencyId: 20, whitelabelId: null, billingMode: null, email: 'c30@biz.com', name: 'Cliente 30', billingCompany: 'Cliente 30 SRL', billingRnc: '1-02-00000-2' },
+  31: { id: 31, role: 'CLIENT', agencyId: 20, whitelabelId: null, billingMode: null, email: 'c31@biz.com', name: 'Cliente 31' },
+  50: { id: 50, role: 'CLIENT', agencyId: null, whitelabelId: null, billingMode: null, email: 'c50@biz.com', name: 'Cliente 50' },
+  60: { id: 60, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: null },
+  // Partners on the two modes resolveTaxConfig refuses, each with a client.
+  // Partner 70 bills MANUALLY: it never produces a CreditPurchase, so client 71
+  // can be invoiced in no way other than by hand.
+  70: { id: 70, role: 'WHITELABEL', agencyId: null, whitelabelId: null, billingMode: 'manual' },
+  71: { id: 71, role: 'CLIENT', agencyId: 70, whitelabelId: null, billingMode: null, email: 'c71@biz.com', name: 'Cliente 71' },
+  80: { id: 80, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_whop' },
+  81: { id: 81, role: 'CLIENT', agencyId: 80, whitelabelId: null, billingMode: null, email: 'c81@biz.com', name: 'Cliente 81' },
+  // Bills manually and has NO profile: no issuer, in any mode.
+  90: { id: 90, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'manual' },
+  91: { id: 91, role: 'CLIENT', agencyId: 90, whitelabelId: null, billingMode: null, email: 'c91@biz.com', name: 'Cliente 91' },
+};
+
+// The issuer's real configuration: no tax row, a 27% withholding.
+const MANUAL_PROFILE = {
+  id: 1,
+  ownerId: 10,
+  taxEnabled: true,
+  taxRate: 0,
+  taxLabel: 'ITBIS',
+  retentionRate: 27,
+  retentionLabel: 'RETENCION',
+  invoicePrefix: 'FAC-',
+  invoicePadding: 6,
+  invoiceNextNumber: 300,
+  dueDays: 0,
+  issuerName: 'LM Consulting Group SRL',
+  issuerRnc: '1-01-00000-1',
+};
+
+function manualCtrlPrisma(profileOverrides = {}) {
+  const profile = { ...MANUAL_PROFILE, ...profileOverrides };
+  const created = [];
+  return {
+    created,
+    profile,
+    user: { findUnique: async ({ where }) => MANUAL_TREE[where.id] || null },
+    billingProfile: {
+      findUnique: async ({ where }) => (where.ownerId === profile.ownerId ? profile : null),
+    },
+    $transaction: async (fn) => fn({
+      billingProfile: {
+        update: async ({ data }) => {
+          profile.invoiceNextNumber += data.invoiceNextNumber.increment;
+          return { ...profile };
+        },
+      },
+      invoice: {
+        create: async ({ data }) => {
+          created.push(data);
+          return { id: 1000 + created.length, regeneratedAt: null, ...data };
+        },
+      },
+    }),
+  };
+}
+
+async function callManual(prisma, user, body) {
+  const res = fakeRes();
+  await createManual({ prisma, user, body }, res);
+  return res;
+}
+
+const ISSUER = { id: 10, role: 'WHITELABEL' };
+
+// THE HEADLINE CASE, end to end through the endpoint: the box ticked, the
+// figures the owner named.
+test('createManual with the box ticked applies the issuer profile: 1600 typed gives NETO 2,191.78 / RETENCION 591.78 / TOTAL 1,600.00', async () => {
+  const prisma = manualCtrlPrisma();
+  const res = await callManual(prisma, ISSUER, { userId: 30, amount: 1600, applyTaxes: true });
+
+  assert.strictEqual(res.code, 201);
+  assert.strictEqual(res.body.invoice.subtotal, 2191.78);
+  assert.strictEqual(res.body.invoice.retention, 591.78);
+  assert.strictEqual(res.body.invoice.total, 1600);
+  assert.strictEqual(res.body.invoice.taxAmount, 0);
+  assert.strictEqual(res.body.invoice.number, 'FAC-000300');
+});
+
+test('createManual with the box unticked gives the amount and nothing else', async () => {
+  const prisma = manualCtrlPrisma();
+  const res = await callManual(prisma, ISSUER, { userId: 30, amount: 1600, applyTaxes: false });
+
+  assert.strictEqual(res.code, 201);
+  assert.strictEqual(res.body.invoice.subtotal, 1600);
+  assert.strictEqual(res.body.invoice.total, 1600);
+  assert.strictEqual(res.body.invoice.retention, 0);
+  assert.strictEqual(res.body.invoice.taxAmount, 0);
+  assert.strictEqual(res.body.invoice.taxRate, 0);
+});
+
+// A missing `applyTaxes` must not quietly drop a tax the issuer is required to
+// show: the safer silence is the document the profile is configured to produce.
+test('createManual with applyTaxes absent applies the profile, like an automatic invoice', async () => {
+  const res = await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount: 1600 });
+  assert.strictEqual(res.code, 201);
+  assert.strictEqual(res.body.invoice.subtotal, 2191.78);
+});
+
+// NOTHING WAS COLLECTED THROUGH US. Null is what keeps the RECIBIDO / PENDIENTE
+// band off the document: InvoiceDocument prints it only for a non-null
+// amountPaid, and present() passes the null straight through.
+test('createManual leaves amountPaid and purchaseId both null on the created document', async () => {
+  const prisma = manualCtrlPrisma();
+  const res = await callManual(prisma, ISSUER, { userId: 30, amount: 500 });
+
+  assert.strictEqual(res.body.invoice.amountPaid, null);
+  assert.strictEqual(res.body.invoice.purchaseId, null);
+  // And on the row itself, not only in the presented shape.
+  assert.strictEqual(prisma.created[0].amountPaid, null);
+  assert.strictEqual(prisma.created[0].creditPurchaseId, null);
+});
+
+test('createManual snapshots the chosen client, exactly as an automatic invoice does', async () => {
+  const res = await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount: 100 });
+  assert.strictEqual(res.body.invoice.client.company, 'Cliente 30 SRL');
+  assert.strictEqual(res.body.invoice.client.rnc, '1-02-00000-2');
+  assert.strictEqual(res.body.invoice.issuer.issuerRnc, '1-01-00000-1');
+});
+
+test('createManual carries the typed concept, trimmed', async () => {
+  const res = await callManual(manualCtrlPrisma(), ISSUER, {
+    userId: 30, amount: 100, concept: '  Consultoria de octubre  ',
+  });
+  assert.strictEqual(res.body.invoice.lines[0].description, 'Consultoria de octubre');
+});
+
+test('createManual falls back to the plain top-up concept when the field is blank', async () => {
+  const { conceptFor } = require('../src/services/invoiceService');
+  for (const concept of ['', '   ', undefined]) {
+    const res = await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount: 100, concept });
+    assert.strictEqual(res.body.invoice.lines[0].description, conceptFor({ kind: 'manual' }));
+  }
+});
+
+test('createManual writes the chosen date as paidAt, and defaults it to today', async () => {
+  const dated = await callManual(manualCtrlPrisma(), ISSUER, {
+    userId: 30, amount: 100, paidAt: '2026-01-09T12:00:00.000Z',
+  });
+  assert.strictEqual(new Date(dated.body.invoice.paidAt).toISOString(), '2026-01-09T12:00:00.000Z');
+
+  const undated = await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount: 100 });
+  assert.ok(Math.abs(new Date(undated.body.invoice.paidAt).getTime() - Date.now()) < 10000);
+});
+
+// --- validation -------------------------------------------------------------
+
+test('createManual refuses a missing or unparseable client', async () => {
+  for (const userId of [undefined, null, '', 'abc']) {
+    const res = await callManual(manualCtrlPrisma(), ISSUER, { userId, amount: 100 });
+    assert.strictEqual(res.code, 400, `userId ${JSON.stringify(userId)} must be refused`);
+  }
+});
+
+test('createManual refuses an amount that is not a finite number above zero', async () => {
+  for (const amount of [undefined, null, '', 0, -5, 'abc', NaN, Infinity]) {
+    const res = await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount });
+    assert.strictEqual(res.code, 400, `amount ${String(amount)} must be refused`);
+  }
+});
+
+test('createManual refuses an amount above the ceiling, so a slipped keystroke is not a fiscal document', async () => {
+  const res = await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount: 500000.01 });
+  assert.strictEqual(res.code, 400);
+  // And exactly at the ceiling it goes through.
+  assert.strictEqual((await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount: 500000 })).code, 201);
+});
+
+test('createManual refuses an unparseable date instead of freezing an Invalid Date onto the document', async () => {
+  const res = await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount: 100, paidAt: 'no es fecha' });
+  assert.strictEqual(res.code, 400);
+});
+
+test('createManual refuses a concept longer than the row can carry', async () => {
+  const res = await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount: 100, concept: 'x'.repeat(301) });
+  assert.strictEqual(res.code, 400);
+});
+
+test('createManual refuses a client that does not exist', async () => {
+  const res = await callManual(manualCtrlPrisma(), ISSUER, { userId: 777, amount: 100 });
+  assert.strictEqual(res.code, 404);
+});
+
+// NO ISSUER, NO INVOICE. Client 50 hangs off nobody, so nothing governs it:
+// there is no numbering sequence to spend and nothing to put in issuerSnapshot.
+test('createManual refuses a client whose governing partner has no billing profile', async () => {
+  const prisma = manualCtrlPrisma();
+  const res = await callManual(prisma, { id: 99, role: 'OWNER' }, { userId: 50, amount: 100 });
+
+  assert.strictEqual(res.code, 409);
+  assert.match(res.body.error, /emisor/);
+  // Nothing was written, and no correlative was spent.
+  assert.strictEqual(prisma.created.length, 0);
+  assert.strictEqual(prisma.profile.invoiceNextNumber, 300);
+});
+
+// --- the permission matrix --------------------------------------------------
+
+// The OWNER may issue for anyone, which is how platform support fixes a
+// partner's paperwork.
+test('createManual: the OWNER may raise an invoice for any client', async () => {
+  const res = await callManual(manualCtrlPrisma(), { id: 99, role: 'OWNER' }, { userId: 30, amount: 100 });
+  assert.strictEqual(res.code, 201);
+});
+
+// A CLIENT ISSUES NOTHING, LEAST OF ALL TO ITSELF. Refused by role, before
+// canReadAccount - which would happily allow it, since an account may READ
+// itself - and before anything is written.
+test('createManual: a client may not raise an invoice for itself', async () => {
+  const prisma = manualCtrlPrisma();
+  const res = await callManual(prisma, { id: 30, role: 'CLIENT' }, { userId: 30, amount: 100 });
+
+  assert.strictEqual(res.code, 403);
+  assert.strictEqual(prisma.created.length, 0);
+  assert.strictEqual(prisma.profile.invoiceNextNumber, 300, 'no correlative may be spent on a refusal');
+});
+
+test('createManual: a client may not raise an invoice for a sibling either', async () => {
+  const res = await callManual(manualCtrlPrisma(), { id: 31, role: 'CLIENT' }, { userId: 30, amount: 100 });
+  assert.strictEqual(res.code, 403);
+});
+
+// THE AGENCY IN BETWEEN IS NOT THE ISSUER. Agency 20 may READ client 30 - it is
+// its own client - but the document would print whitelabel 10's RNC and spend
+// 10's numbering, so it is 10's to raise and not 20's. This is the case that
+// canReadAccount alone would have let through.
+test('createManual: a partner that is not the issuer is refused even for an account it may read', async () => {
+  const prisma = manualCtrlPrisma();
+  const res = await callManual(prisma, { id: 20, role: 'AGENCY' }, { userId: 30, amount: 100 });
+
+  assert.strictEqual(res.code, 403);
+  assert.match(res.body.error, /emite/);
+  assert.strictEqual(prisma.created.length, 0);
+});
+
+test('createManual: an unrelated partner is refused', async () => {
+  const res = await callManual(manualCtrlPrisma(), { id: 60, role: 'AGENCY' }, { userId: 30, amount: 100 });
+  assert.strictEqual(res.code, 403);
+});
+
+// THE ISSUER CHECK ALONE IS NOT ENOUGH EITHER. Here the requester IS the
+// profile's owner, so the first check passes - and the second one refuses,
+// because client 50 is outside its subtree and it may not reach that account at
+// all. Both checks exist because each one lets through what the other stops.
+test('createManual: the issuer is still refused for a client it may not reach', async () => {
+  // Profile owned by partner 60, which governs nobody: resolving client 50
+  // finds no profile at all, so the honest refusal is 409 and not a 403 that
+  // would tell 60 something about an account it cannot see.
+  const prisma = manualCtrlPrisma({ ownerId: 60 });
+  const res = await callManual(prisma, { id: 60, role: 'AGENCY' }, { userId: 50, amount: 100 });
+  assert.strictEqual(res.code, 409);
+  assert.strictEqual(prisma.created.length, 0);
+});
+
+// A PROFILE SITTING ON A CLIENT ROW IS A DEAD ISSUER, and this is the proof it
+// is not a way in. The profile here is owned by client 30 itself, yet asking
+// for 30's invoice resolves the partner that GOVERNS 30 - whitelabel 10 - and
+// finds no profile there, so the answer is 409 and the client's own profile is
+// never consulted at all. It never reaches canConfigureBillingProfile, which
+// would have refused it by role anyway: a client issues nothing, and the two
+// mechanisms refuse it independently.
+test('createManual: a profile sitting on a client row is never the issuer', async () => {
+  const prisma = manualCtrlPrisma({ ownerId: 30 });
+  const res = await callManual(prisma, { id: 30, role: 'CLIENT' }, { userId: 30, amount: 100 });
+  assert.strictEqual(res.code, 409);
+  assert.strictEqual(prisma.created.length, 0);
+  assert.strictEqual(prisma.profile.invoiceNextNumber, 300);
+});
+
+// --- the billing mode of the issuer is not the issuer's right to issue -------
+//
+// A hand-made invoice resolves its issuer without resolveTaxConfig's
+// `own_stripe` gate, because that gate protects charging and automatic
+// issuance and this charges nothing and settles nothing. These four cases are
+// the distinction, through the endpoint.
+
+test('createManual: a client under an own_stripe partner is invoiced, as it always was', async () => {
+  const res = await callManual(manualCtrlPrisma(), ISSUER, { userId: 30, amount: 100 });
+  assert.strictEqual(res.code, 201);
+});
+
+// THE CASE THAT USED TO BE REFUSED, and the one the feature exists for: this
+// partner's clients produce no payments at all, so by hand is the only way.
+test('createManual: a client under a MANUAL-billing partner with a profile is now invoiced', async () => {
+  const prisma = manualCtrlPrisma({ ownerId: 70 });
+  const res = await callManual(prisma, { id: 70, role: 'WHITELABEL' }, { userId: 71, amount: 1600 });
+
+  assert.strictEqual(res.code, 201);
+  assert.strictEqual(res.body.invoice.total, 1600);
+  assert.strictEqual(prisma.created.length, 1);
+});
+
+test('createManual: a client under an own_whop partner with a profile is now invoiced too', async () => {
+  const prisma = manualCtrlPrisma({ ownerId: 80 });
+  const res = await callManual(prisma, { id: 80, role: 'AGENCY' }, { userId: 81, amount: 250 });
+
+  assert.strictEqual(res.code, 201);
+  assert.strictEqual(prisma.created.length, 1);
+});
+
+// Dropping the MODE condition did not drop the PROFILE condition.
+test('createManual: a client whose governing partner has no profile is still refused, whatever the mode', async () => {
+  const prisma = manualCtrlPrisma({ ownerId: 10 });
+  const res = await callManual(prisma, { id: 99, role: 'OWNER' }, { userId: 91, amount: 100 });
+
+  assert.strictEqual(res.code, 409);
+  assert.strictEqual(prisma.created.length, 0);
+  assert.strictEqual(prisma.profile.invoiceNextNumber, 300);
+});
+
+// And the permission rule is untouched by any of it: a looser ISSUER lookup
+// must not become a looser answer to "may you issue".
+test('createManual: the looser issuer lookup did not loosen who may issue - a client under a manual partner still may not invoice itself', async () => {
+  const prisma = manualCtrlPrisma({ ownerId: 70 });
+  const res = await callManual(prisma, { id: 71, role: 'CLIENT' }, { userId: 71, amount: 100 });
+
+  assert.strictEqual(res.code, 403);
+  assert.strictEqual(prisma.created.length, 0);
+});

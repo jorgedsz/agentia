@@ -270,6 +270,24 @@ export const invoicesAPI = {
   // Only the OWNER or the partner that ISSUES may (403 otherwise); the client
   // the invoice is addressed to may download it and never rewrite it.
   regenerate: (id) => api.post(`/invoices/${id}/regenerate`),
+  // RAISE ONE BY HAND, with no payment behind it: an amount the issuer types
+  // for a client he picks. `amount` is always the TOTAL A PAGAR — the same
+  // thing the automatic path means by the amount it starts from — so
+  // `applyTaxes` only decides whether the issuer's tax and retention are
+  // applied to it, never what the figure itself means. With it on, the
+  // document reads NETO / RETENCIÓN / TOTAL for the profile's configured
+  // rates; with it off, the amount and nothing else.
+  //
+  // `concept` blank falls back to the plain top-up sentence, and `paidAt`
+  // absent to today — the date the document prints as «Fecha:».
+  //
+  // The invoice comes back with `amountPaid` and `purchaseId` both null,
+  // because nothing was collected through us. Only the OWNER or the partner
+  // that ISSUES this client's invoices may (403), and a client whose
+  // governing partner has no billing profile is refused with 409: there is no
+  // numbering to spend and nothing to print as emisor.
+  createManual: ({ userId, amount, applyTaxes, concept, paidAt }) =>
+    api.post('/invoices/manual', { userId, amount, applyTaxes, concept, paidAt }),
 }
 
 // A partner's invoicing profile: its tax, its invoice numbering, and everything

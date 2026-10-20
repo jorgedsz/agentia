@@ -9,7 +9,10 @@
 // for exactly that reason). Any renderer added later must read `issuer` and
 // `client` from here and look nothing up.
 
-const { issueInvoiceForPurchase, buildRegeneratedInvoiceData, conceptFor } = require('../services/invoiceService');
+const {
+  issueInvoiceForPurchase, issueManualInvoice, resolveManualIssuerProfile,
+  buildRegeneratedInvoiceData, conceptFor,
+} = require('../services/invoiceService');
 const { resolveTaxConfig } = require('../utils/taxes');
 const { getAncestorPartners } = require('../utils/whopConfig');
 const { canConfigureBillingProfile } = require('../utils/accountAccess');
@@ -19,6 +22,17 @@ const { canConfigureBillingProfile } = require('../utils/accountAccess');
 // rows to a browser.
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+
+// The ceiling on a HAND-TYPED invoice amount.
+//
+// Not a policy about how much anyone may bill - a guard against a typo and
+// against a document that cannot legally be completed. amountToSpanishWords
+// throws at and above 1,000,000 (a fiscal document must carry its TOTAL EN
+// LETRAS), and the figure typed here is the TOTAL A PAGAR, which the tax raises
+// above itself: at this ceiling with a 27% tax on a 27% grossed-up net the total
+// is ~684,932, comfortably inside that limit. So a slipped keystroke is refused
+// with a sentence instead of a 500 from deep inside the words helper.
+const MAX_MANUAL_AMOUNT = 500000;
 
 /**
  * Parse one of the frozen JSON snapshot columns. A column that cannot be
@@ -461,8 +475,133 @@ const regenerate = async (req, res) => {
   }
 };
 
+/**
+ * RAISE AN INVOICE BY HAND, for an amount the issuer types and a client he
+ * picks, with no payment behind it.
+ * POST /api/invoices/manual
+ *
+ * Every invoice until now existed because a Stripe payment settled. This is the
+ * other way in the owner asked for: «Permíteme crearla libremente con o sin
+ * impuestos con un check y seleccionar el cliente.» The model already allowed it
+ * - Invoice.creditPurchaseId is nullable and @unique, which in Postgres permits
+ * as many NULLs as there are hand-made invoices.
+ *
+ * WHAT IS TYPED IS THE TOTAL A PAGAR. Always, in both states of the box, and it
+ * is the same thing the automatic path means by the amount it starts from, so
+ * neither way in can mean something different by a figure. With the box ticked
+ * the issuer's profile is applied exactly as issuance applies it; without it
+ * both rates are 0 and the document reads the amount and nothing else. The
+ * arithmetic is buildInvoiceData's in both cases - nothing here computes money.
+ *
+ * TWO PERMISSIONS, IN THIS ORDER.
+ *
+ * First, MAY YOU ISSUE AT ALL. Creating an invoice spends a number from the
+ * issuer's correlative sequence and prints the issuer's RNC, so it is the
+ * issuer's act, not the client's and not that of a partner hosting the issuer.
+ * That is exactly the rule canRegenerateInvoice applies, and it applies it
+ * through canConfigureBillingProfile - so the SAME helper is called here, asked
+ * about the resolved profile's owner. canRegenerateInvoice itself cannot be
+ * reused literally: it takes an invoice, and there is no invoice yet. A CLIENT
+ * is refused by role there, including on its own account: a client issues
+ * nothing, least of all to itself.
+ *
+ * Second, MAY YOU REACH THIS CLIENT. canReadAccount, the same helper the list
+ * and the by-purchase route use, so what can be listed and what can be invoiced
+ * cannot drift apart. The issuer check alone would let a partner raise an
+ * invoice against an account outside its own subtree.
+ *
+ * Both answered before anything is written - the correlative is spent by the
+ * write itself, so a refusal after it would leave a gap in the sequence.
+ */
+const createManual = async (req, res) => {
+  try {
+    const userId = parseInt(req.body?.userId);
+    if (!Number.isFinite(userId)) return res.status(400).json({ error: 'Elige el cliente de la factura.' });
+
+    // The TOTAL A PAGAR. A blank field is Number('') === 0 and is refused here
+    // by the same test that refuses a negative: an invoice for nothing is not a
+    // document anyone can use.
+    const amount = Number(req.body?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'El monto debe ser un número mayor que cero.' });
+    }
+    if (amount > MAX_MANUAL_AMOUNT) {
+      return res.status(400).json({ error: `El monto no puede pasar de ${MAX_MANUAL_AMOUNT}.` });
+    }
+
+    // Trimmed, and blank falls back to the default the form opens with - the
+    // same sentence conceptFor gives a plain top-up, so the two ways in describe
+    // the same thing with the same words.
+    const rawConcept = typeof req.body?.concept === 'string' ? req.body.concept.trim() : '';
+    if (rawConcept.length > 300) {
+      return res.status(400).json({ error: 'El concepto es demasiado largo (máximo 300 caracteres).' });
+    }
+    const concept = rawConcept || conceptFor({ kind: 'manual' });
+
+    // What the document prints as `Fecha:` - the paidAt column. Absent means
+    // today; present and unparseable is a refusal rather than an Invalid Date
+    // frozen onto a fiscal document.
+    let paidAt = new Date();
+    if (req.body?.paidAt !== undefined && req.body?.paidAt !== null && req.body?.paidAt !== '') {
+      paidAt = new Date(req.body.paidAt);
+      if (Number.isNaN(paidAt.getTime())) return res.status(400).json({ error: 'La fecha no es válida.' });
+    }
+
+    // The box. Absent defaults to APPLYING the profile, which is the safer of
+    // the two silences: a caller that forgot the field gets the document its
+    // issuer is configured to produce, rather than one quietly missing a tax it
+    // is required to show.
+    const applyTaxes = req.body?.applyTaxes !== false;
+
+    const client = await req.prisma.user.findUnique({ where: { id: userId } });
+    if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
+
+    // WHICH ISSUER GOVERNS THIS CLIENT.
+    //
+    // Resolved by resolveManualIssuerProfile and NOT by resolveTaxConfig, which
+    // is what every automatic emission uses. The difference is one condition and
+    // the whole reasoning for it is on that function: resolveTaxConfig refuses
+    // any billing mode but `own_stripe`, a gate that exists to protect charging
+    // and automatic issuance, and a hand-made invoice does neither. Applied here
+    // it would refuse exactly the accounts this feature is for - a partner on
+    // `manual` billing produces no CreditPurchase at all, so its clients can be
+    // invoiced in no other way. The gate itself is left untouched where it
+    // guards the paths it was written for.
+    //
+    // Either way the profile comes back whether or not `taxEnabled` is on: that
+    // flag decides what the totals block SAYS (buildInvoiceData reads it), and
+    // gating issuance on it is right for an automatic emission and wrong here,
+    // where a human is deliberately asking for this one document.
+    const profile = await resolveManualIssuerProfile(req.prisma, userId);
+    if (!profile) {
+      return res.status(409).json({
+        error: 'Este cliente no tiene un emisor de facturas configurado, así que no hay con qué numerarla ni qué imprimir como emisor.',
+      });
+    }
+
+    if (!canConfigureBillingProfile(req.user, profile.ownerId)) {
+      return res.status(403).json({ error: 'Solo quien emite las facturas de este cliente puede crearle una.' });
+    }
+    if (!(await canReadAccount(req.prisma, req.user, userId))) {
+      return res.status(403).json({ error: 'No puedes ver las facturas de esta cuenta.' });
+    }
+
+    const invoice = await issueManualInvoice(req.prisma, {
+      profile, client, amount, concept, applyTaxes, paidAt,
+    });
+
+    // Through the same present() every other route uses, so a hand-made invoice
+    // reaches the renderer in exactly the shape a settled one does.
+    res.status(201).json({ invoice: present(invoice) });
+  } catch (error) {
+    console.error('Error creating an invoice by hand:', error.message);
+    res.status(500).json({ error: 'No se pudo crear la factura' });
+  }
+};
+
 module.exports = {
   listMine,
+  createManual,
   presentPayment,
   getOne,
   getByPurchase,
