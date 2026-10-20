@@ -12,6 +12,13 @@ router.get('/', controller.listMine);
 // invoice id.
 router.get('/by-purchase/:purchaseId', controller.getByPurchase);
 
+// Raise one BY HAND, for a typed amount and no payment at all. A literal
+// path, and POSTed before '/:id/regenerate' is declared for the same reason
+// 'by-purchase' is declared before '/:id': nothing below may parse "manual" as
+// an invoice id. The narrow rule of an ISSUER, never the client (see
+// createManual).
+router.post('/manual', controller.createManual);
+
 router.get('/:id', controller.getOne);
 
 // Rebuilds the document from today's profile and account, KEEPING its number.
