@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   issueInvoiceForPurchase,
+  issueManualInvoice,
   buildInvoiceData,
   buildRegeneratedInvoiceData,
   formatNumber,
@@ -994,4 +995,190 @@ test('issueInvoiceForPurchase writes the payment date onto the row it creates', 
   const invoice = await issueInvoiceForPurchase(prisma, purchase);
 
   assert.strictEqual(invoice.paidAt, SETTLED_AT);
+});
+
+// ---------------------------------------------------------------------------
+// issueManualInvoice - an invoice nobody paid for
+//
+// The owner's words: «Permíteme crearla libremente con o sin impuestos con un
+// check y seleccionar el cliente.» WHAT HE TYPES IS THE TOTAL A PAGAR, in both
+// states of the box, which is the same thing the automatic path means by the
+// amount it starts from.
+// ---------------------------------------------------------------------------
+
+// His accountant's own paper: no tax row at all, a 27% withholding.
+const RETENTION_PROFILE = {
+  ...PROFILE, ownerId: 9, invoicePrefix: 'FAC-', invoicePadding: 6, invoiceNextNumber: 200,
+  taxEnabled: true, taxRate: 0, retentionRate: 27,
+};
+
+function manualPrisma(profile) {
+  return makeFakePrisma({ client: CLIENT_UNDER_PARTNER, partner: PARTNER, profile: { ...profile } });
+}
+
+// THE HEADLINE CASE, with the figures the owner himself named: 1600 typed with
+// the box ticked, at his 27%.
+test('issueManualInvoice with taxes on: typing 1600 at 27% retention gives NETO 2,191.78 / RETENCION 591.78 / TOTAL 1,600.00', async () => {
+  const prisma = manualPrisma(RETENTION_PROFILE);
+  const invoice = await issueManualInvoice(prisma, { profile: RETENTION_PROFILE, client: CLIENT, amount: 1600 });
+
+  assert.strictEqual(invoice.subtotal, 2191.78);
+  assert.strictEqual(invoice.retention, 591.78);
+  assert.strictEqual(invoice.total, 1600);
+  assert.strictEqual(invoice.taxAmount, 0);
+});
+
+// The box unticked is not "a different kind of invoice": it is the SAME
+// arithmetic with both rates at 0. Nothing is grossed up, nothing is withheld,
+// and both rows carry no figure (InvoiceDocument hides the tax row at taxAmount
+// 0 and blanks the retention row at retention 0).
+test('issueManualInvoice with taxes off: the amount is the net, the total, and nothing else', async () => {
+  const prisma = manualPrisma(RETENTION_PROFILE);
+  const invoice = await issueManualInvoice(prisma, {
+    profile: RETENTION_PROFILE, client: CLIENT, amount: 1600, applyTaxes: false,
+  });
+
+  assert.strictEqual(invoice.subtotal, 1600);
+  assert.strictEqual(invoice.total, 1600);
+  assert.strictEqual(invoice.retention, 0);
+  assert.strictEqual(invoice.taxAmount, 0);
+  assert.strictEqual(invoice.taxRate, 0);
+});
+
+// A profile that HAS a tax gets it, on the grossed-up net, exactly as issuance
+// would - "apply the issuer's profile as an automatic invoice does" is not a
+// figure of speech.
+test('issueManualInvoice with taxes on applies the tax too, on the grossed-up net', async () => {
+  const both = { ...RETENTION_PROFILE, taxRate: 18 };
+  const prisma = manualPrisma(both);
+  const invoice = await issueManualInvoice(prisma, { profile: both, client: CLIENT, amount: 1600 });
+
+  assert.strictEqual(invoice.subtotal, 2191.78);
+  assert.strictEqual(invoice.taxAmount, round2(2191.78 * 0.18));
+  assert.strictEqual(invoice.retention, 591.78);
+  // subtotal + tax - retention, i.e. the typed figure plus the tax, which is
+  // the same identity the automatic path holds.
+  assert.strictEqual(invoice.total, round2(1600 + invoice.taxAmount));
+});
+
+// THE RULE THAT MAKES THE BOX EASY TO REASON ABOUT: what is typed is the TOTAL
+// A PAGAR. With no tax configured that is true to the cent at every amount and
+// in BOTH states of the box, which is the invariant the whole feature rests on.
+test('what is typed is the total, at every cent and in both states of the box', () => {
+  const when = new Date('2026-10-20T12:00:00.000Z');
+  for (let cents = 1; cents <= 200000; cents += 1) {
+    const amount = cents / 100;
+    const on = buildInvoiceData({
+      profile: RETENTION_PROFILE, client: CLIENT, number: 'FAC-X',
+      purchase: { id: null, credits: amount, amount: null, kind: 'manual', settledAt: when },
+    });
+    assert.strictEqual(on.total, amount, `box ticked: total differs at ${amount}`);
+    const off = buildInvoiceData({
+      profile: RETENTION_PROFILE, client: CLIENT, number: 'FAC-X', applyProfileRates: false,
+      purchase: { id: null, credits: amount, amount: null, kind: 'manual', settledAt: when },
+    });
+    assert.strictEqual(off.total, amount, `box unticked: total differs at ${amount}`);
+    assert.strictEqual(off.subtotal, amount, `box unticked: net differs at ${amount}`);
+  }
+});
+
+// NOTHING WAS COLLECTED THROUGH US, so claiming a figure would be a lie. Null
+// is also exactly what keeps the RECIBIDO / PENDIENTE band off the document:
+// InvoiceDocument prints it only when amountPaid is non-null.
+test('issueManualInvoice leaves amountPaid and creditPurchaseId both null', async () => {
+  const prisma = manualPrisma(RETENTION_PROFILE);
+  const invoice = await issueManualInvoice(prisma, { profile: RETENTION_PROFILE, client: CLIENT, amount: 500 });
+
+  assert.strictEqual(invoice.amountPaid, null);
+  assert.strictEqual(invoice.creditPurchaseId, null);
+});
+
+test('issueManualInvoice takes the correlative the way issuance does, bumping the profile once', async () => {
+  const prisma = manualPrisma(RETENTION_PROFILE);
+  const invoice = await issueManualInvoice(prisma, { profile: RETENTION_PROFILE, client: CLIENT, amount: 100 });
+
+  assert.strictEqual(invoice.number, 'FAC-000200');
+  assert.strictEqual(prisma._calls.billingProfileUpdate, 1);
+  assert.strictEqual(prisma._calls.invoiceCreate, 1);
+  assert.strictEqual(prisma._billingProfileRow().invoiceNextNumber, 201);
+});
+
+test('issueManualInvoice writes the chosen date as paidAt, which is what the document prints as Fecha', async () => {
+  const when = new Date('2026-01-09T12:00:00.000Z');
+  const prisma = manualPrisma(RETENTION_PROFILE);
+  const invoice = await issueManualInvoice(prisma, {
+    profile: RETENTION_PROFILE, client: CLIENT, amount: 100, paidAt: when,
+  });
+
+  assert.strictEqual(invoice.paidAt, when);
+});
+
+test('issueManualInvoice carries the typed concept, and falls back to the plain top-up sentence', async () => {
+  const prisma = manualPrisma(RETENTION_PROFILE);
+  const typed = await issueManualInvoice(prisma, {
+    profile: RETENTION_PROFILE, client: CLIENT, amount: 100, concept: 'Consultoria de octubre',
+  });
+  // The row's figure is the NET, exactly as it is on an automatic invoice: the
+  // typed 100 is the TOTAL A PAGAR, and at 27% the net above it is 136.99.
+  assert.deepStrictEqual(JSON.parse(typed.conceptLines), [
+    { description: 'Consultoria de octubre', total: 136.99 },
+  ]);
+
+  const blank = await issueManualInvoice(prisma, {
+    profile: RETENTION_PROFILE, client: CLIENT, amount: 100, concept: '   ',
+  });
+  assert.strictEqual(JSON.parse(blank.conceptLines)[0].description, conceptFor({ kind: 'manual' }));
+});
+
+test('issueManualInvoice snapshots the client exactly as issuance does', async () => {
+  const prisma = manualPrisma(RETENTION_PROFILE);
+  const invoice = await issueManualInvoice(prisma, { profile: RETENTION_PROFILE, client: CLIENT, amount: 100 });
+  const automatic = buildInvoiceData({ profile: RETENTION_PROFILE, client: CLIENT, purchase: PURCHASE, number: 'FAC-Y' });
+
+  assert.strictEqual(invoice.clientSnapshot, automatic.clientSnapshot);
+  assert.strictEqual(invoice.issuerSnapshot, automatic.issuerSnapshot);
+});
+
+// ONE ARITHMETIC, AND THIS IS WHAT PINS IT. A manual invoice for 100 and an
+// automatic one for a 100 payment are the SAME document everywhere the money
+// and the parties are concerned; they differ only where a payment is involved,
+// and the assertions below name every one of those differences rather than
+// leaving them unchecked.
+test('a manual and an automatic invoice for the same figures are identical where they should be', () => {
+  const purchase = { ...PURCHASE, credits: 100, amount: 127, settledAt: new Date('2026-05-02T10:00:00.000Z') };
+  const issuedAt = new Date('2026-05-02T10:00:00.000Z');
+
+  const automatic = buildInvoiceData({
+    profile: RETENTION_PROFILE, client: CLIENT, purchase, number: 'FAC-000200', issuedAt,
+  });
+  const manual = buildInvoiceData({
+    profile: RETENTION_PROFILE, client: CLIENT, number: 'FAC-000200', issuedAt,
+    purchase: { id: null, credits: 100, amount: null, kind: 'manual', settledAt: purchase.settledAt },
+  });
+
+  for (const key of ['subtotal', 'taxLabel', 'taxRate', 'taxAmount', 'retention', 'retentionLabel',
+    'total', 'totalInWords', 'conceptLines', 'issuerSnapshot', 'clientSnapshot', 'currency',
+    'number', 'profileId', 'userId']) {
+    assert.deepStrictEqual(manual[key], automatic[key], `${key} must be the same on both ways in`);
+  }
+  assert.strictEqual(manual.dueAt.getTime(), automatic.dueAt.getTime());
+  assert.strictEqual(manual.paidAt.getTime(), automatic.paidAt.getTime());
+
+  // And the two differences, both of them about a payment that does not exist.
+  assert.strictEqual(automatic.creditPurchaseId, 77);
+  assert.strictEqual(manual.creditPurchaseId, null);
+  assert.strictEqual(automatic.amountPaid, 127);
+  assert.strictEqual(manual.amountPaid, null);
+});
+
+// The options must change NOTHING for the callers that do not pass them, or the
+// automatic path has been touched after all.
+test('buildInvoiceData with no options is byte-for-byte what it was before the manual path existed', () => {
+  const issuedAt = new Date('2026-04-01T12:00:00.000Z');
+  const bare = buildInvoiceData({ profile: PROFILE, client: CLIENT, purchase: PURCHASE, number: 'FAC-000001', issuedAt });
+  const explicit = buildInvoiceData({
+    profile: PROFILE, client: CLIENT, purchase: PURCHASE, number: 'FAC-000001', issuedAt,
+    applyProfileRates: true, concept: null,
+  });
+  assert.deepStrictEqual(explicit, bare);
 });
