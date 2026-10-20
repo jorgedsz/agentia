@@ -151,7 +151,28 @@ function buildClientSnapshot(client) {
  * The plain object for prisma.invoice.create({ data }). Pure and synchronous:
  * every value it needs is already on `profile`, `client` and `purchase`.
  */
-function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Date() }) {
+/**
+ * `applyProfileRates` false is THE WHOLE OF "sin impuestos" for a hand-made
+ * invoice: both rates are forced to 0 and every formula below is left exactly
+ * as it is. It is an option and not a second function on purpose - a manual
+ * invoice must not become a third set of rules next to issuance and
+ * regeneration, and the one test that compares those two field by field would
+ * never catch a drift in a copy of the formulas. With both rates 0 the net is
+ * handed through untouched, the tax and the retention are 0, and the total is
+ * the amount: the document then prints TOTAL NETO = TOTAL A PAGAR with no
+ * figure on either row (InvoiceDocument hides the tax row at taxAmount 0 and
+ * blanks the retention row at retention 0), which is byte-for-byte what an
+ * issuer with neither rate configured has always produced.
+ *
+ * `concept` overrides the DESCRIPCIÓN row text, for the one caller that lets a
+ * human type it. Blank or absent falls back to conceptFor(purchase), so the
+ * default a manual invoice opens with is the same sentence an automatic top-up
+ * carries - described once, in one helper.
+ */
+function buildInvoiceData({
+  profile, client, purchase, number, issuedAt = new Date(),
+  applyProfileRates = true, concept = null,
+}) {
   // WHAT THE CLIENT PAID IS WHAT THE ISSUER RECEIVES, so it belongs at the
   // BOTTOM of the totals block and the net is grossed up from it - see the file
   // header. `purchase.credits` is still exactly what reached the balance in
@@ -167,7 +188,7 @@ function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Da
   // would make his document unreachable. Issuance itself is still gated on
   // taxEnabled (see issueInvoiceForPurchase), so a partner that invoices at all
   // has it on regardless; this only decides what the totals block says.
-  const retentionRate = profile.retentionRate || 0;
+  const retentionRate = applyProfileRates ? (profile.retentionRate || 0) : 0;
   // A RATE AT OR ABOVE 100 HAS NO NET TO SPEAK OF: the divisor below is
   // 1 - rate/100, which is 0 at exactly 100 (Infinity) and negative above it (a
   // negative net). sanitizeProfileInput refuses to STORE such a rate, but a row
@@ -189,7 +210,7 @@ function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Da
     : received;
   // round2 rather than hand-rolled rounding, and it throws on a non-finite
   // subtotal exactly as the `total` line below already did.
-  const taxRate = profile.taxEnabled ? (profile.taxRate || 0) : 0;
+  const taxRate = applyProfileRates && profile.taxEnabled ? (profile.taxRate || 0) : 0;
   const taxAmount = round2((subtotal * taxRate) / 100);
   // THE RETENCIÓN IS SUBTRACTED, NOT ADDED - that is the whole difference
   // between it and the tax above. Taken at its nominal rate off the grossed-up
@@ -246,7 +267,9 @@ function buildInvoiceData({ profile, client, purchase, number, issuedAt = new Da
   // surfaces that immediately instead of shipping a defective invoice.
   const totalInWords = amountToSpanishWords(total);
 
-  const conceptLines = JSON.stringify([{ description: conceptFor(purchase), total: subtotal }]);
+  const conceptLines = JSON.stringify([
+    { description: concept?.trim() || conceptFor(purchase), total: subtotal },
+  ]);
 
   const dueAt = addDays(issuedAt, profile.dueDays || 0);
 
@@ -327,6 +350,73 @@ async function issueInvoiceForPurchase(prisma, purchase) {
     const correlative = bumped.invoiceNextNumber - 1;
     const number = formatNumber(bumped, correlative);
     const data = buildInvoiceData({ profile: bumped, client, purchase, number });
+    return tx.invoice.create({ data });
+  });
+}
+
+/**
+ * Issue an invoice NOBODY PAID FOR - the issuer typed the figure.
+ *
+ * WHAT THE ISSUER TYPES IS THE TOTAL A PAGAR, never the net. That is the same
+ * thing the amount an automatic invoice starts from means (`purchase.credits` is
+ * the money that ARRIVED, and the net above it is grossed up from it - see the
+ * file header), so the two ways in cannot disagree about what a figure means.
+ * With `applyTaxes` the issuer's profile is applied exactly as issuance applies
+ * it: the tax if the profile has one, and the retention grossed up, so at 27%
+ * typing 1600 invoices as NETO 2,191.78 · RETENCIÓN −591.78 · TOTAL 1,600.00.
+ * Without it both rates are forced to 0 and the document reads the amount and
+ * nothing else.
+ *
+ * THE ARITHMETIC IS buildInvoiceData'S AND NOTHING HERE RECOMPUTES ANY OF IT,
+ * for the same reason buildRegeneratedInvoiceData delegates to it: a total that
+ * depended on which code path wrote it would be worse than no feature at all.
+ * What this function does instead is describe a payment-shaped nothing for it to
+ * read:
+ *
+ *   · `id: null`      → `creditPurchaseId` null on the row. The column is
+ *                        nullable and @unique, which in Postgres permits as many
+ *                        NULLs as there are hand-made invoices.
+ *   · `credits`       → the typed figure, i.e. the money "received", which is
+ *                        where the TOTAL A PAGAR comes from.
+ *   · `amount: null`  → `amountPaid` null, because nothing was collected through
+ *                        us and claiming a figure would be a lie. Null reads as
+ *                        UNKNOWN downstream, which is exactly what keeps the
+ *                        RECIBIDO / PENDIENTE band off a document that has no
+ *                        payment behind it (InvoiceDocument only prints it when
+ *                        amountPaid is non-null).
+ *   · `settledAt`     → the date the document prints as `Fecha:`, which is the
+ *                        `paidAt` column.
+ *   · `kind: 'manual'`→ only so conceptFor() has something to describe when the
+ *                        issuer leaves the concept blank: the plain top-up
+ *                        sentence, which is the default the form opens with.
+ *
+ * The correlative is taken the way issuance takes it and for the same reason:
+ * bumped inside this same transaction, so a failed insert rolls the increment
+ * back instead of burning a number nobody used.
+ *
+ * `profile` and `client` are resolved and PERMISSION-CHECKED by the caller -
+ * this function issues, it does not decide who may.
+ */
+async function issueManualInvoice(prisma, {
+  profile, client, amount, concept = null, applyTaxes = true,
+  paidAt = new Date(), issuedAt = new Date(),
+}) {
+  return prisma.$transaction(async (tx) => {
+    const bumped = await tx.billingProfile.update({
+      where: { id: profile.id },
+      data: { invoiceNextNumber: { increment: 1 } },
+    });
+    const correlative = bumped.invoiceNextNumber - 1;
+    const number = formatNumber(bumped, correlative);
+    const data = buildInvoiceData({
+      profile: bumped,
+      client,
+      purchase: { id: null, credits: amount, amount: null, kind: 'manual', settledAt: paidAt },
+      number,
+      issuedAt,
+      applyProfileRates: applyTaxes,
+      concept,
+    });
     return tx.invoice.create({ data });
   });
 }
@@ -417,6 +507,7 @@ function buildRegeneratedInvoiceData({ invoice, profile, client, purchase, regen
 
 module.exports = {
   issueInvoiceForPurchase,
+  issueManualInvoice,
   buildInvoiceData,
   buildRegeneratedInvoiceData,
   buildIssuerSnapshot,
