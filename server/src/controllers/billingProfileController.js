@@ -47,6 +47,7 @@ const DEFAULTS = {
   site2Address: null,
   contactEmail: null,
   contactWeb: null,
+  invoiceCopyTo: null,
 };
 
 // The editable fields, by kind. This allow-list IS the write surface: `req.body`
@@ -164,6 +165,25 @@ function sanitizeProfileInput(body = {}) {
   // kept as the empty string rather than reset to the default.
   if (body.invoicePrefix !== undefined) {
     data.invoicePrefix = String(body.invoicePrefix ?? '').trim();
+  }
+
+  // WHERE A COPY OF EVERY INVOICE IS EMAILED — the issuer's bookkeeper. Not in
+  // TEXT_FIELDS below because it is the one field in this profile that has to
+  // be a valid ADDRESS: it is handed to the delivery webhook as `cc` (see
+  // services/invoiceDelivery.js), and a typo there is discovered only when
+  // somebody notices the bookkeeper never got a document. Validated exactly as
+  // userController.updateUserBilling validates `receiptEmail`, down to the
+  // pattern and the lower-casing, so an address that is accepted in one place
+  // is accepted in the other.
+  //
+  // Empty means NO COPY, not an error — the invoice then goes to the client
+  // alone, which is how every profile behaves until this is filled in.
+  if (body.invoiceCopyTo !== undefined) {
+    const email = String(body.invoiceCopyTo ?? '').trim().toLowerCase();
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return { error: 'La dirección para la copia de las facturas no parece un correo electrónico.' };
+    }
+    data.invoiceCopyTo = email || null;
   }
 
   for (const key of TEXT_FIELDS) {

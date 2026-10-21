@@ -402,6 +402,7 @@ model PlatformSettings {
   accountWebhookUrl             String? // Encrypted - Webhook URL for new account creation
   recurringPaymentWebhookUrl    String? // Encrypted - Webhook URL for recurring payment notifications
   paymentReportWebhookUrl       String? // Encrypted - Webhook that receives the usage report after each payment, so it can be emailed from n8n (where the Google account already lives). When empty, the report is sent by Gmail from a connected Google account instead.
+  invoiceWebhookUrl             String? // Encrypted - Webhook that receives every invoice the moment it is issued, with a ready-to-send `html` plus the document's structured data, so the mail goes out from n8n (client + the issuer's bookkeeper). EMPTY MEANS NO AUTOMATIC DELIVERY AT ALL: unlike paymentReportWebhookUrl above there is no Gmail fallback, because the owner asked for the receipt to be handed to n8n and for nothing to be sent by us.
   failureWebhookUrl             String? // Encrypted - Central webhook that receives every agent/server failure across all clients
   openaiBalance                 Float     @default(0) // Manually-seeded OpenAI credit. Topping up overwrites this and clears OpenAiUsageLog so remaining = openaiBalance - SUM(costUsd).
   openaiBalanceUpdatedAt        DateTime? // When the owner last set the balance (display only).
@@ -888,6 +889,14 @@ model BillingProfile {
   site2Address      String?
   contactEmail      String?
   contactWeb        String?
+  // Where a COPY of every invoice issued under this profile is sent — the
+  // issuer's own bookkeeper. Beside the contact fields above because it is the
+  // same kind of fact (an address that belongs to the issuer, not to the
+  // client), but it is NOT printed on the document and is NOT frozen into
+  // Invoice.issuerSnapshot: it says where the mail goes, not what the paper
+  // says, so the address in force at DELIVERY time is the right one. Null or
+  // blank means no copy, and the invoice then goes to the client alone.
+  invoiceCopyTo     String?
   invoices          Invoice[]
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -972,6 +981,15 @@ model Invoice {
   // column is printed on the document itself ("Regenerada el ...") rather than
   // only kept for the panel.
   regeneratedAt    DateTime?
+  // When this document was HANDED TO THE DELIVERY WEBHOOK, stamped once and
+  // never again. issueInvoiceForPurchase is idempotent and hands back the
+  // invoice ALREADY ON FILE when there is one — and it is called again by the
+  // on-demand repair route — so without a marker here a second visit would
+  // re-send a receipt the client already has. Null means "never delivered",
+  // which is also every invoice issued before this column existed and every
+  // invoice issued while no delivery webhook was configured. A failed delivery
+  // deliberately leaves it null, so the invoice is still eligible later.
+  deliveredAt      DateTime?
   createdAt        DateTime        @default(now())
 
   @@unique([profileId, number])

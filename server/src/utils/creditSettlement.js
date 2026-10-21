@@ -95,9 +95,25 @@ async function settleCreditPurchase(prisma, purchase, { paymentIntentId, payload
   // Same Promise.resolve() wrapper as the report above, for the same reason:
   // it is what makes the `require` failing count as a rejection instead of a
   // synchronous throw that no .catch() here could ever see.
+  //
+  // AND THEN HAND THE DOCUMENT OVER. The invoice issuance above returns the
+  // row, which used to be thrown away: it is needed here so the receipt is
+  // delivered only for the invoice this payment just produced. Null means this
+  // account is not invoiced at all, and nothing is delivered either.
+  //
+  // `issueInvoiceForPurchase` is idempotent and hands back the invoice ALREADY
+  // ON FILE when there is one, so "just issued" is not something the return
+  // value can tell us on its own - deliverInvoice refuses an invoice whose
+  // `deliveredAt` is already stamped, which is the marker that makes handing
+  // over exactly-once regardless of which path got here. One lookup, not two:
+  // the row this chain already has is the row the delivery reads.
   Promise.resolve()
-    .then(() => require('../services/invoiceService').issueInvoiceForPurchase(prisma, settled))
-    .catch((err) => console.error('[Credits] Could not issue the invoice:', err.message));
+    .then(async () => {
+      const invoice = await require('../services/invoiceService').issueInvoiceForPurchase(prisma, settled);
+      if (!invoice) return;
+      await require('../services/invoiceDelivery').deliverInvoice(prisma, invoice);
+    })
+    .catch((err) => console.error('[Credits] Could not issue or deliver the invoice:', err.message));
 
   return true;
 }
