@@ -93,6 +93,13 @@ export default function WalletPage() {
   // Stripe and Whop refuse to run inside an iframe, so from an embed the
   // checkout opens in a new tab.
   const goTo = (url) => {
+    // Refuse an empty url instead of navigating to `/undefined`. A missing
+    // checkout link means a real Stripe session and a pending purchase were
+    // already created, so it has to be visible, not a dead click.
+    if (!url) {
+      setError('No pudimos abrir la pasarela de pago. Vuelve a intentarlo y, si sigue igual, avisa a tu proveedor.')
+      return
+    }
     if (window.top !== window.self) window.open(url, '_blank', 'noopener')
     else window.location.href = url
   }
@@ -112,7 +119,7 @@ export default function WalletPage() {
     setWorking('topup'); setError('')
     try {
       const { data: res } = await payAPI.topUp(token, topUpAmount)
-      goTo(res.url)
+      goTo(res.checkoutUrl || res.purchaseUrl)
     } catch (err) {
       setError(err.response?.data?.error || 'No pudimos iniciar la carga de saldo.')
     } finally { setWorking('') }

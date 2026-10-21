@@ -383,7 +383,12 @@ const startTopUp = async (req, res) => {
       successUrl: `${back}?pago=ok`,
       cancelUrl: `${back}?pago=cancelado`,
     });
-    res.json({ url: result.url, sessionId: result.id || null });
+    // The same shape startCheckout returns, which is what the page already
+    // reads. Hand-picking `url` and `id` here named fields that
+    // createCreditCheckout has never returned, so this answered
+    // {url: undefined} and the button went nowhere — after creating a real
+    // Stripe session and a pending CreditPurchase on every click.
+    res.json(result);
   } catch (error) {
     if (error instanceof CheckoutError) return res.status(error.status || 400).json({ error: error.message });
     console.error('Wallet top-up error:', error.message);
