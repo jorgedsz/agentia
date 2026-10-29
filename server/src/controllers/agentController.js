@@ -218,7 +218,7 @@ const createAgent = async (req, res) => {
       req
     });
 
-    const isOwner = req.user.role === 'OWNER';
+    const isOwner = req.user.role === 'OWNER' || req.originalUserRole === 'OWNER';
     res.status(201).json({
       message: vapiWarning ? (isOwner ? vapiWarning : 'Agent saved') : 'Agent created successfully',
       vapiWarning: isOwner ? vapiWarning : (vapiWarning ? 'Agent saved' : null),
@@ -418,7 +418,7 @@ const updateAgent = async (req, res) => {
       req
     });
 
-    const isOwner = req.user.role === 'OWNER';
+    const isOwner = req.user.role === 'OWNER' || req.originalUserRole === 'OWNER';
     // For non-owners we hide the detailed VAPI diagnostics, but the save
     // itself succeeded — route it through vapiNotice (green) so the UI
     // doesn't render "Agent saved" in red.
@@ -504,7 +504,7 @@ const duplicateAgent = async (req, res) => {
       req
     });
 
-    const isOwner = req.user.role === 'OWNER';
+    const isOwner = req.user.role === 'OWNER' || req.originalUserRole === 'OWNER';
     res.status(201).json({
       message: vapiWarning ? (isOwner ? vapiWarning : 'Agent duplicated') : 'Agent duplicated successfully',
       vapiWarning: isOwner ? vapiWarning : (vapiWarning ? 'Agent duplicated' : null),
@@ -584,7 +584,7 @@ const importAgent = async (req, res) => {
       req
     });
 
-    const isOwner = req.user.role === 'OWNER';
+    const isOwner = req.user.role === 'OWNER' || req.originalUserRole === 'OWNER';
     res.status(201).json({
       message: vapiWarning ? (isOwner ? vapiWarning : 'Agent imported') : 'Agent imported successfully',
       vapiWarning: isOwner ? vapiWarning : (vapiWarning ? 'Agent imported' : null),
