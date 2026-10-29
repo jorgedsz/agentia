@@ -10,6 +10,7 @@ const http = require('http');
 
 const { getValidToken, ghlRequest, findGhlConnection } = require('./ghlController');
 const { reportFailure } = require('../services/failureReporter');
+const { LIVE_EVENT_TYPES } = require('../services/vapiService');
 
 const prisma = new PrismaClient();
 
@@ -612,6 +613,25 @@ const triggerChatbotPostCall = async (chatbotTriggerConfig, callData, prisma) =>
  * Handle VAPI webhook events
  * POST /api/vapi/events
  */
+const relayLiveEvent = async (payload, messageType) => {
+  const assistantId = payload.message?.call?.assistantId || payload.message?.assistant?.id;
+  if (!assistantId) return;
+
+  const agent = await prisma.agent.findFirst({ where: { vapiId: assistantId }, select: { id: true, config: true } });
+  if (!agent?.config) return;
+
+  let config;
+  try { config = JSON.parse(agent.config); } catch { return; }
+  if (!config.liveEventsUrl || !Array.isArray(config.liveEvents) || !config.liveEvents.includes(messageType)) return;
+
+  const response = await fetch(config.liveEventsUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  console.log(`[VAPI Webhook] Relayed ${messageType} for agent ${agent.id} to live events webhook: ${response.status}`);
+};
+
 const handleEvent = async (req, res) => {
   try {
     // Verify VAPI webhook secret if configured
@@ -628,6 +648,16 @@ const handleEvent = async (req, res) => {
     const messageType = payload.message?.type;
 
     console.log('[VAPI Webhook] Received event:', messageType);
+
+    // In-call events: relay VAPI's payload untouched to the agent's live
+    // events webhook. Answer VAPI first — these fire several times per call.
+    if (LIVE_EVENT_TYPES.includes(messageType)) {
+      res.status(200).json({ ok: true });
+      relayLiveEvent(payload, messageType).catch(err => {
+        console.error(`[VAPI Webhook] Live event relay failed (${messageType}):`, err.message);
+      });
+      return;
+    }
 
     // Only process end-of-call-report
     if (messageType !== 'end-of-call-report') {

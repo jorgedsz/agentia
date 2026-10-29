@@ -1127,6 +1127,8 @@
     "min": "min",
     "webhookSecret": "Secreto del Webhook (Opcional)",
     "receivesCallData": "Recibe datos de llamada al finalizar cada llamada",
+    "liveEventsUrlLabel": "Webhook de eventos en vivo",
+    "liveEventsHint": "Recibe el payload original de VAPI de los eventos marcados mientras la llamada está en curso",
     "secretForAuth": "Secreto para autenticación",
     "structuredDataFullDesc": "Extrae información estructurada de llamadas usando un esquema JSON. La IA llenará los campos del esquema basándose en los datos de conversación.",
     "enableStructuredDataToggle": "Habilitar Datos Estructurados",

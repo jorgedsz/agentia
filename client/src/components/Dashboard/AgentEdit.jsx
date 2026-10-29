@@ -623,6 +623,8 @@ export default function AgentEdit() {
     serverUrl: '',
     serverUrlSecret: '',
     serverMessages: ['end-of-call-report'],
+    liveEventsUrl: '',
+    liveEvents: ['status-update'],
     summaryPrompt: '',
     successEvaluationEnabled: false,
     successEvaluationRubric: '',
@@ -1162,12 +1164,14 @@ export default function AgentEdit() {
       setTools(savedTools)
 
       // Load server config
-      if (agentData.config?.serverUrl || agentData.config?.serverConfig || agentData.config?.structuredDataEnabled || agentData.config?.ghlCustomFields) {
+      if (agentData.config?.serverUrl || agentData.config?.liveEventsUrl || agentData.config?.serverConfig || agentData.config?.structuredDataEnabled || agentData.config?.ghlCustomFields) {
         const cfg = agentData.config
         setServerConfig({
           serverUrl: cfg.serverUrl || '',
           serverUrlSecret: cfg.serverUrlSecret || '',
           serverMessages: cfg.serverMessages || ['end-of-call-report'],
+          liveEventsUrl: cfg.liveEventsUrl || '',
+          liveEvents: cfg.liveEvents || ['status-update'],
           summaryPrompt: cfg.summaryPrompt || '',
           successEvaluationEnabled: cfg.successEvaluationEnabled || false,
           successEvaluationRubric: cfg.successEvaluationRubric || '',
@@ -2033,6 +2037,10 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
             serverUrl: serverConfig.serverUrl,
             serverUrlSecret: serverConfig.serverUrlSecret,
             serverMessages: serverConfig.serverMessages,
+          }),
+          ...(serverConfig.liveEventsUrl && {
+            liveEventsUrl: serverConfig.liveEventsUrl,
+            liveEvents: serverConfig.liveEvents,
           })
         }
       })
@@ -6060,6 +6068,38 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                       placeholder={ta('webhookSecretPlaceholder')}
                       className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
                     />
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-dark-border">
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      {ta('liveEventsUrlLabel')}
+                    </label>
+                    <input
+                      type="url"
+                      value={serverConfig.liveEventsUrl}
+                      onChange={(e) => setServerConfig({ ...serverConfig, liveEventsUrl: e.target.value })}
+                      placeholder={ta('webhookUrlPlaceholder')}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                    />
+                    <p className="text-xs text-gray-400 mt-1.5">{ta('liveEventsHint')}</p>
+                    <div className="mt-3 space-y-1.5">
+                      {['status-update', 'conversation-update', 'transcript', 'speech-update', 'hang'].map(evt => (
+                        <label key={evt} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={serverConfig.liveEvents.includes(evt)}
+                            onChange={(e) => setServerConfig({
+                              ...serverConfig,
+                              liveEvents: e.target.checked
+                                ? [...serverConfig.liveEvents, evt]
+                                : serverConfig.liveEvents.filter(x => x !== evt)
+                            })}
+                            className="rounded border-gray-300 dark:border-dark-border text-primary-500 focus:ring-primary-500"
+                          />
+                          <code className="text-xs">{evt}</code>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </>
