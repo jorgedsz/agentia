@@ -51,6 +51,19 @@ const resolveCartesiaModel = (modelName) => {
   return modelName;
 };
 
+// In-call events an agent can have relayed, untouched, to its own "live
+// events" webhook (config.liveEventsUrl). VAPI keeps sending them to us —
+// pointing the assistant's server.url anywhere else would lose the
+// end-of-call-report that call logs, billing and follow-ups depend on.
+const LIVE_EVENT_TYPES = ['status-update', 'conversation-update', 'transcript', 'speech-update', 'hang'];
+
+const buildServerMessages = (config) => {
+  const live = config?.liveEventsUrl && Array.isArray(config.liveEvents)
+    ? config.liveEvents.filter(t => LIVE_EVENT_TYPES.includes(t))
+    : [];
+  return ['end-of-call-report', ...live];
+};
+
 class VapiService {
   constructor() {
     this.baseUrl = 'https://api.vapi.ai';
@@ -321,7 +334,7 @@ class VapiService {
     if (ourServerUrl) {
       agentConfig.server = { url: ourServerUrl, timeoutSeconds: 20 };
       agentConfig.serverUrl = ourServerUrl;
-      agentConfig.serverMessages = ['end-of-call-report'];
+      agentConfig.serverMessages = buildServerMessages(config);
     } else if (config.serverUrl) {
       // Fallback: if we can't determine our URL, use user's directly
       agentConfig.server = { url: config.serverUrl, timeoutSeconds: 20 };
@@ -653,7 +666,7 @@ class VapiService {
     if (ourServerUrl) {
       updateData.server = { url: ourServerUrl, timeoutSeconds: 20 };
       updateData.serverUrl = ourServerUrl;
-      updateData.serverMessages = ['end-of-call-report'];
+      updateData.serverMessages = buildServerMessages(config);
     } else if (config.serverUrl) {
       // Fallback: if we can't determine our URL, use user's directly
       updateData.server = { url: config.serverUrl, timeoutSeconds: 20 };
@@ -1000,3 +1013,4 @@ class VapiService {
 }
 
 module.exports = new VapiService();
+module.exports.LIVE_EVENT_TYPES = LIVE_EVENT_TYPES;

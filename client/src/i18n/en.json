@@ -1127,6 +1127,8 @@
     "min": "min",
     "webhookSecret": "Webhook Secret (Optional)",
     "receivesCallData": "Receives call data after each call ends",
+    "liveEventsUrlLabel": "Live events webhook",
+    "liveEventsHint": "Receives the raw VAPI payload for the checked events while the call is in progress",
     "secretForAuth": "Secret for authentication",
     "structuredDataFullDesc": "Extract structured information from calls using a JSON schema. The AI will populate the schema fields based on conversation data.",
     "enableStructuredDataToggle": "Enable Structured Data",
