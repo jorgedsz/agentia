@@ -31,6 +31,26 @@ const resolveModelName = (provider, modelName) => {
   return modelName;
 };
 
+// Cartesia voice models VAPI no longer accepts ("Retired models cannot be
+// saved. cartesia/sonic-2 (voice) was retired on 2026-10-20; use sonic-3.6
+// instead"). Agents saved before then still carry them in their config, so
+// remap on the way out instead of failing every create/update.
+const RETIRED_CARTESIA_MODEL_MAP = {
+  'sonic-2': 'sonic-3.6',
+  'sonic-turbo': 'sonic-3.6',
+  'sonic-multilingual': 'sonic-3.6',
+  'sonic-english': 'sonic-3.6',
+};
+
+const resolveCartesiaModel = (modelName) => {
+  if (modelName && RETIRED_CARTESIA_MODEL_MAP[modelName]) {
+    const mapped = RETIRED_CARTESIA_MODEL_MAP[modelName];
+    console.log(`[VAPI] Remapped retired Cartesia model ${modelName} -> ${mapped}`);
+    return mapped;
+  }
+  return modelName;
+};
+
 class VapiService {
   constructor() {
     this.baseUrl = 'https://api.vapi.ai';
@@ -494,7 +514,7 @@ class VapiService {
         provider: 'cartesia',
         voiceId: config.voiceId || ''
       };
-      if (config.cartesiaModel) voiceConfig.model = config.cartesiaModel;
+      if (config.cartesiaModel) voiceConfig.model = resolveCartesiaModel(config.cartesiaModel);
       if (config.cartesiaLanguage) voiceConfig.language = config.cartesiaLanguage;
       // Cartesia speed is NOT a top-level `speed` — it goes under experimentalControls
       // (accepts "slowest"|"slow"|"normal"|"fast"|"fastest" or a number -1..1).

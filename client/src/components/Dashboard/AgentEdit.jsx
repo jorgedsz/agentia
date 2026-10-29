@@ -1112,7 +1112,7 @@ export default function AgentEdit() {
       if (agentData.config) {
         setVoiceSettings({
           model: savedProvider === 'cartesia'
-            ? (agentData.config.cartesiaModel || 'sonic-2')
+            ? (agentData.config.cartesiaModel || 'sonic-3.6')
             : (agentData.config.elevenLabsModel || 'eleven_multilingual_v2'),
           cartesiaLanguage: agentData.config.cartesiaLanguage || '',
           cartesiaSpeed: agentData.config.cartesiaSpeed || '',
@@ -5242,10 +5242,7 @@ When the customer asks to be called back (e.g. "call me in 5 minutes", "call me 
                 )}
                 <div className="px-5 pb-5 space-y-3">
                   {(voiceProvider === 'cartesia' ? [
-                    { value: 'sonic-2', label: 'Sonic 2', desc: 'Última · multilingüe · baja latencia' },
-                    { value: 'sonic-turbo', label: 'Sonic Turbo', desc: 'La más rápida' },
-                    { value: 'sonic-multilingual', label: 'Sonic Multilingual', desc: 'Multilingüe' },
-                    { value: 'sonic-english', label: 'Sonic English', desc: 'Solo inglés' },
+                    { value: 'sonic-3.6', label: 'Sonic 3.6', desc: 'Última · multilingüe · baja latencia' },
                   ] : [
                     { value: 'eleven_multilingual_v2', label: ta('voiceModelMultilingualV2'), desc: ta('voiceModelMultilingualV2Desc') },
                     { value: 'eleven_flash_v2_5', label: ta('voiceModelFlashV25'), desc: ta('voiceModelFlashV25Desc') },
