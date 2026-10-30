@@ -2,6 +2,7 @@ const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
 const { logAudit } = require('../utils/auditLog');
 const { appendPlaybook } = require('../utils/playbook');
+const { structuredOutputName } = require('../utils/structuredOutputName');
 
 // Get the public base URL for this server (VAPI needs publicly reachable URLs)
 const getPublicBaseUrl = () => {
@@ -67,7 +68,7 @@ const ensureStructuredOutput = async (vapiApiKey, existingId, config, agentName)
   if (!hasFields) return { id: existingId || null };
 
   vapiService.setApiKey(vapiApiKey);
-  const name = `${agentName || 'Agent'} extraction`.slice(0, 80);
+  const name = structuredOutputName(agentName);
   const description = (config.structuredDataPrompt || `Post-call structured data extraction for ${agentName || 'agent'}`).slice(0, 1000);
 
   if (existingId) {
