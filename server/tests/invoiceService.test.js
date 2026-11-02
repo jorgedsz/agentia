@@ -352,7 +352,7 @@ function makeFakePrisma({ client, partner, profile, existingInvoice = null }) {
       findUnique: async ({ where }) => usersById.get(where.id) || null,
     },
     billingProfile: {
-      findUnique: async ({ where }) => (billingProfileRow && where.ownerId === billingProfileRow.ownerId ? billingProfileRow : null),
+      findFirst: async ({ where }) => (billingProfileRow && where.ownerId === billingProfileRow.ownerId ? billingProfileRow : null),
     },
     invoice: {
       findUnique: async ({ where }) => (where.creditPurchaseId != null && existingInvoice && existingInvoice.creditPurchaseId === where.creditPurchaseId ? existingInvoice : null),
@@ -1202,7 +1202,7 @@ function issuerPrisma(partner, profile) {
   return {
     user: { findUnique: async ({ where }) => rows[where.id] || null },
     billingProfile: {
-      findUnique: async ({ where }) => (profile && where.ownerId === profile.ownerId ? profile : null),
+      findFirst: async ({ where }) => (profile && where.ownerId === profile.ownerId ? profile : null),
     },
   };
 }
@@ -1254,7 +1254,7 @@ test('resolveManualIssuerProfile returns null when nothing governs the account a
   const orphan = { id: 42, role: 'CLIENT', agencyId: null, whitelabelId: null, billingMode: null };
   const prisma = {
     user: { findUnique: async () => orphan },
-    billingProfile: { findUnique: async () => { throw new Error('must not be asked'); } },
+    billingProfile: { findFirst: async () => { throw new Error('must not be asked'); } },
   };
   assert.strictEqual(await resolveManualIssuerProfile(prisma, 42), null);
 });
@@ -1278,4 +1278,57 @@ test('the AUTOMATIC path is unchanged: a settled payment under a non-Stripe part
     assert.strictEqual(prisma._calls.billingProfileUpdate, 0, billingMode);
     assert.strictEqual(prisma._calls.invoiceCreate, 0, billingMode);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Several companies per issuer
+// ---------------------------------------------------------------------------
+
+// A complete profile so buildInvoiceData has every field it reads.
+const BASE_MANUAL_PROFILE_FOR_NUMBERING = {
+  ownerId: 10, taxEnabled: false, taxRate: 0, taxLabel: 'ITBIS', retentionRate: 0,
+  retentionLabel: 'RETENCIÓN', dueDays: 0, issuerName: 'Empresa', issuerRnc: '1-01-00000-1',
+};
+
+test('resolveManualIssuerProfile picks the client\'s assigned company', async () => {
+  const A = { id: 1, ownerId: 10, isDefault: true };
+  const B = { id: 2, ownerId: 10, isDefault: false };
+  const users = {
+    10: { id: 10, role: 'WHITELABEL', agencyId: null, whitelabelId: null, billingMode: 'own_stripe' },
+    30: { id: 30, role: 'CLIENT', agencyId: 10, whitelabelId: null, billingMode: null },
+  };
+  const prisma = {
+    user: { findUnique: async ({ where }) => users[where.id] || null },
+    billingProfile: {
+      findFirst: async ({ where }) => {
+        if (where.assignedClients) return where.assignedClients.some.id === 30 ? B : null;
+        return where.ownerId === 10 ? A : null;
+      },
+    },
+  };
+  assert.strictEqual((await resolveManualIssuerProfile(prisma, 30)).id, 2);
+});
+
+test('each company spends its own correlative: A, B, A gives A-1, B-1, A-2', async () => {
+  const profiles = {
+    1: { ...BASE_MANUAL_PROFILE_FOR_NUMBERING, id: 1, invoicePrefix: 'A-', invoicePadding: 1, invoiceNextNumber: 1 },
+    2: { ...BASE_MANUAL_PROFILE_FOR_NUMBERING, id: 2, invoicePrefix: 'B-', invoicePadding: 1, invoiceNextNumber: 1 },
+  };
+  const numbers = [];
+  const prisma = {
+    $transaction: async (fn) => fn({
+      billingProfile: {
+        update: async ({ where, data }) => {
+          profiles[where.id].invoiceNextNumber += data.invoiceNextNumber.increment;
+          return { ...profiles[where.id] };
+        },
+      },
+      invoice: { create: async ({ data }) => { numbers.push(data.number); return { id: numbers.length, ...data }; } },
+    }),
+  };
+  const client = { id: 30, name: 'Cliente 30', email: 'c30@biz.com' };
+  for (const id of [1, 2, 1]) {
+    await issueManualInvoice(prisma, { profile: profiles[id], client, amount: 100, applyTaxes: false });
+  }
+  assert.deepStrictEqual(numbers, ['A-1', 'B-1', 'A-2']);
 });

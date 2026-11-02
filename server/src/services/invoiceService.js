@@ -42,6 +42,7 @@
 
 const { round2, resolveTaxConfig } = require('../utils/taxes');
 const { getEffectiveBilling } = require('../utils/whopConfig');
+const { pickIssuerProfile } = require('../utils/issuerProfile');
 const { amountToSpanishWords } = require('../utils/numberToWords');
 
 function addDays(date, days) {
@@ -404,11 +405,15 @@ async function issueInvoiceForPurchase(prisma, purchase) {
  * going through here: this runs before anything is written and before any
  * correlative is spent, so a database failure should surface as a failure rather
  * than as "this client has no issuer".
+ *
+ * The COMPANY among the issuer's profiles is picked by utils/issuerProfile.js -
+ * the client's assignment, else the default - the same rule resolveTaxConfig uses.
  */
 async function resolveManualIssuerProfile(prisma, userId) {
   const { partner } = await getEffectiveBilling(prisma, userId);
   if (!partner) return null;
-  return prisma.billingProfile.findUnique({ where: { ownerId: partner.id } });
+  // Which of that partner's companies: the client's own, else the default.
+  return pickIssuerProfile(prisma, partner.id, userId);
 }
 
 /**
