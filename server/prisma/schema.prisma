@@ -135,7 +135,14 @@ model User {
   billingPeriods              BillingPeriod[]
   creditAdjustments           CreditAdjustment[]
   budgets                     Budget[]
-  billingProfile              BillingProfile?       @relation("BillingProfileOwner")
+  // The issuer companies this account owns (one per legal entity it invoices
+  // from). Was a single optional profile until an issuer could hold several.
+  billingProfiles             BillingProfile[]      @relation("BillingProfileOwner")
+  // The company that issues THIS account's invoices, chosen by its issuer.
+  // Null = that issuer's default company. SetNull: deleting a company sends its
+  // clients back to the default instead of failing.
+  issuerProfileId             Int?
+  issuerProfile               BillingProfile?       @relation("ClientIssuerProfile", fields: [issuerProfileId], references: [id], onDelete: SetNull)
   invoices                    Invoice[]
 }
 
@@ -819,13 +826,24 @@ model CreditPurchase {
 // inherits the tax; see utils/taxes.js.
 model BillingProfile {
   id                Int       @id @default(autoincrement())
-  ownerId           Int       @unique
+  ownerId           Int
   // Restrict, not Cascade: a partner's tax configuration and numbering
   // sequence must not disappear because its User row was deleted. Once a
   // profile has issued invoices, deleting the owner should fail loudly
   // (a foreign-key error) rather than silently erase its fiscal history —
   // the owner must be reassigned or the profile removed by hand first.
   owner             User      @relation("BillingProfileOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  // The name the issuer knows this company by in the panel ("Nebo AI",
+  // "Sword"). Never printed on a document - issuerName/brandName are.
+  label             String    @default("Principal")
+  // Exactly one per owner, kept so in code (billingProfileController). The
+  // column default is TRUE on purpose: `prisma db push` then turns every profile
+  // that existed before this column - at most one per owner - into its owner's
+  // default, with no backfill. Every company created after the first is written
+  // with isDefault: false explicitly.
+  isDefault         Boolean   @default(true)
+  // Clients whose invoices this company issues (User.issuerProfileId).
+  assignedClients   User[]    @relation("ClientIssuerProfile")
   // Tax — TWO SEPARATE SWITCHES, deliberately:
   //
   //   · taxEnabled        this partner's INVOICES show the tax as its own line,
@@ -891,6 +909,8 @@ model BillingProfile {
   invoices          Invoice[]
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  @@index([ownerId])
 }
 
 // One invoice per settled payment. Both parties are snapshotted at issue time:
