@@ -272,24 +272,38 @@ function fakeRes() {
 }
 
 // Every write path is a spy that FAILS the test if it is reached: a refusal
-// that still touched the row would pass a status-code-only assertion.
-function fakePrisma(calls) {
-  const record = (name) => (...args) => { calls.push(name); return args; };
+// that still touched the row would pass a status-code-only assertion. The
+// profiles live in an in-memory store so the company handlers can be run end
+// to end (`req.prisma.store` is what a test inspects afterwards).
+function fakePrisma(calls, rows = []) {
+  const store = rows.map((r) => ({ ...r }));
+  let nextId = 100;
+  const match = (r, where = {}) => (where.ownerId === undefined || r.ownerId === where.ownerId)
+    && (where.id === undefined || r.id === where.id);
+  const sorted = (list) => [...list].sort((a, b) => (Number(b.isDefault) - Number(a.isDefault)) || (a.id - b.id));
   return {
+    store,
     user: { findUnique: async () => { calls.push('user.findUnique'); return { id: 10 }; } },
     billingProfile: {
-      findUnique: async () => { calls.push('profile.findUnique'); return null; },
-      upsert: async ({ create }) => { calls.push('profile.upsert'); return { id: 5, ...create }; },
+      findFirst: async ({ where }) => { calls.push('profile.findFirst'); return sorted(store.filter((r) => match(r, where)))[0] || null; },
+      findMany: async ({ where }) => { calls.push('profile.findMany'); return sorted(store.filter((r) => match(r, where))); },
+      count: async ({ where }) => store.filter((r) => match(r, where)).length,
+      create: async ({ data }) => { calls.push('profile.create'); const row = { id: nextId++, isDefault: true, label: 'Principal', ...data }; store.push(row); return row; },
+      update: async ({ where, data }) => { calls.push('profile.update'); const row = store.find((r) => r.id === where.id); Object.assign(row, data); return row; },
+      updateMany: async ({ where, data }) => { calls.push('profile.updateMany'); store.filter((r) => match(r, where)).forEach((r) => Object.assign(r, data)); return { count: 1 }; },
+      delete: async ({ where }) => { calls.push('profile.delete'); const i = store.findIndex((r) => r.id === where.id); return store.splice(i, 1)[0]; },
     },
     invoice: { count: async () => { calls.push('invoice.count'); return 0; } },
     auditLog: { create: async () => { calls.push('audit'); return {}; } },
-    $record: record,
+    // makeDefault passes an array of already-started operations.
+    $transaction: async (ops) => Promise.all(ops),
   };
 }
 
-function reqFor(user, userId, body = {}) {
+function reqFor(user, userId, body = {}, { profileId, rows } = {}) {
   const calls = [];
-  return [{ user, params: { userId: String(userId) }, body, prisma: fakePrisma(calls), headers: {}, socket: {} }, calls];
+  const params = { userId: String(userId), ...(profileId !== undefined ? { profileId: String(profileId) } : {}) };
+  return [{ user, params, body, prisma: fakePrisma(calls, rows), headers: {}, socket: {} }, calls];
 }
 
 test('GET: a partner reading another account is refused before anything is read', async () => {
@@ -331,7 +345,7 @@ test('PUT: a partner saving its OWN profile goes through to the upsert', async (
   const res = fakeRes();
   await set(req, res);
   assert.strictEqual(res.statusCode, 200);
-  assert.ok(calls.includes('profile.upsert'));
+  assert.ok(calls.includes('profile.create') || calls.includes('profile.update'));
   assert.strictEqual(res.body.profile.taxRate, 27);
   assert.strictEqual(res.body.profile.issuerName, 'LM Consulting Group');
 });
@@ -341,7 +355,7 @@ test('PUT: the OWNER still saves any account’s profile', async () => {
   const res = fakeRes();
   await set(req, res);
   assert.strictEqual(res.statusCode, 200);
-  assert.ok(calls.includes('profile.upsert'));
+  assert.ok(calls.includes('profile.create') || calls.includes('profile.update'));
 });
 
 test('PUT: the validations are untouched — an impossible rate is still refused, and before the upsert', async () => {
@@ -350,7 +364,7 @@ test('PUT: the validations are untouched — an impossible rate is still refused
   await set(req, res);
   assert.strictEqual(res.statusCode, 400);
   assert.match(res.body.error, /entre 0 y 100/);
-  assert.ok(!calls.includes('profile.upsert'));
+  assert.ok(!calls.includes('profile.create') && !calls.includes('profile.update'));
 });
 
 test('GET: a partner reading its own profile is allowed', async () => {
@@ -360,6 +374,117 @@ test('GET: a partner reading its own profile is allowed', async () => {
   assert.strictEqual(res.statusCode, 200);
   assert.strictEqual(res.body.exists, false);
   assert.strictEqual(res.body.ownerId, LM.id);
-  assert.ok(calls.includes('profile.findUnique'));
+  assert.ok(calls.includes('profile.findMany'));
 });
 
+
+// ---------------------------------------------------------------------------
+// Several companies per issuer
+// ---------------------------------------------------------------------------
+
+const { createCompany, updateCompany, makeDefault, removeCompany } = require('../src/controllers/billingProfileController');
+
+const LM_A = { id: 1, ownerId: LM.id, label: 'A', isDefault: true, invoiceNextNumber: 5 };
+const LM_B = { id: 2, ownerId: LM.id, label: 'B', isDefault: false, invoiceNextNumber: 1 };
+
+test('GET lists every company, default first, and keeps `profile` = the default', async () => {
+  const [req] = reqFor(LM, LM.id, {}, { rows: [LM_B, LM_A] });
+  const res = fakeRes();
+  await get(req, res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.deepStrictEqual(res.body.profiles.map((p) => p.label), ['A', 'B']);
+  assert.strictEqual(res.body.defaultId, 1);
+  assert.strictEqual(res.body.profile.invoiceNextNumber, 5);
+});
+
+test('PUT without an id updates the default company, not another one', async () => {
+  const [req] = reqFor(LM, LM.id, { issuerName: 'Nuevo' }, { rows: [LM_A, LM_B] });
+  const res = fakeRes();
+  await set(req, res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(req.prisma.store.find((r) => r.id === 1).issuerName, 'Nuevo');
+  assert.strictEqual(req.prisma.store.find((r) => r.id === 2).issuerName, undefined);
+});
+
+test('POST creates a company; the first is the default, the next ones are not', async () => {
+  const [req1] = reqFor(LM, LM.id, { label: 'Primera' });
+  const res1 = fakeRes();
+  await createCompany(req1, res1);
+  assert.strictEqual(res1.statusCode, 201);
+  assert.strictEqual(res1.body.company.isDefault, true);
+
+  const [req2] = reqFor(LM, LM.id, { label: 'Segunda', invoicePrefix: 'S-' }, { rows: [LM_A] });
+  const res2 = fakeRes();
+  await createCompany(req2, res2);
+  assert.strictEqual(res2.statusCode, 201);
+  assert.strictEqual(res2.body.company.isDefault, false);
+  assert.strictEqual(res2.body.company.invoicePrefix, 'S-');
+});
+
+test('POST without a name is refused, with nothing written', async () => {
+  const [req, calls] = reqFor(LM, LM.id, { issuerName: 'X' });
+  const res = fakeRes();
+  await createCompany(req, res);
+  assert.strictEqual(res.statusCode, 400);
+  assert.ok(!calls.includes('profile.create'));
+});
+
+test('company writes are refused for another partner, before anything is read', async () => {
+  for (const [fn, body, profileId] of [[createCompany, { label: 'X' }], [updateCompany, { label: 'X' }, 1], [makeDefault, {}, 1], [removeCompany, {}, 1]]) {
+    const [req, calls] = reqFor(LM, OTHER_PARTNER.id, body, { profileId, rows: [LM_A] });
+    const res = fakeRes();
+    await fn(req, res);
+    assert.strictEqual(res.statusCode, 403);
+    assert.deepStrictEqual(calls, []);
+  }
+});
+
+test('PUT /:profileId updates that company only, and 404s for a company of another owner', async () => {
+  const [req] = reqFor(LM, LM.id, { label: 'B2' }, { profileId: 2, rows: [LM_A, LM_B] });
+  const res = fakeRes();
+  await updateCompany(req, res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(req.prisma.store.find((r) => r.id === 2).label, 'B2');
+
+  const [req2] = reqFor(LM, LM.id, { label: 'Z' }, { profileId: 2, rows: [{ ...LM_B, ownerId: 999 }] });
+  const res2 = fakeRes();
+  await updateCompany(req2, res2);
+  assert.strictEqual(res2.statusCode, 404);
+});
+
+test('make default leaves exactly one default', async () => {
+  const [req] = reqFor(LM, LM.id, {}, { profileId: 2, rows: [LM_A, LM_B] });
+  const res = fakeRes();
+  await makeDefault(req, res);
+  assert.strictEqual(res.statusCode, 200);
+  assert.deepStrictEqual(req.prisma.store.filter((r) => r.isDefault).map((r) => r.id), [2]);
+});
+
+test('delete refuses the default and a company with invoices, and removes an unused one', async () => {
+  const [reqDef] = reqFor(LM, LM.id, {}, { profileId: 1, rows: [LM_A, LM_B] });
+  const resDef = fakeRes();
+  await removeCompany(reqDef, resDef);
+  assert.strictEqual(resDef.statusCode, 400);
+
+  const [reqUsed] = reqFor(LM, LM.id, {}, { profileId: 2, rows: [LM_A, LM_B] });
+  reqUsed.prisma.invoice.count = async () => 3;
+  const resUsed = fakeRes();
+  await removeCompany(reqUsed, resUsed);
+  assert.strictEqual(resUsed.statusCode, 409);
+  assert.match(resUsed.body.error, /3 factura/);
+
+  const [reqOk, callsOk] = reqFor(LM, LM.id, {}, { profileId: 2, rows: [LM_A, LM_B] });
+  const resOk = fakeRes();
+  await removeCompany(reqOk, resOk);
+  assert.strictEqual(resOk.statusCode, 200);
+  assert.ok(callsOk.includes('profile.delete'));
+});
+
+test('the counter still may not move backwards once a company has issued', async () => {
+  const [req] = reqFor(LM, LM.id, { invoiceNextNumber: 2 }, { profileId: 1, rows: [LM_A] });
+  req.prisma.invoice.count = async () => 4;
+  const res = fakeRes();
+  await updateCompany(req, res);
+  assert.strictEqual(res.statusCode, 400);
+  assert.match(res.body.error, /no puede retroceder/);
+});

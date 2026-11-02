@@ -20,5 +20,11 @@ const ROLES_WITH_AN_ISSUER = [ROLES.OWNER, ROLES.WHITELABEL, ROLES.AGENCY];
 
 router.get('/:userId', requireRole(...ROLES_WITH_AN_ISSUER), controller.get);
 router.put('/:userId', requireRole(...ROLES_WITH_AN_ISSUER), controller.set);
+// An issuer's companies (one BillingProfile per legal entity it invoices from).
+// Same two-layer rule: the role gate here, canConfigureBillingProfile inside.
+router.post('/:userId', requireRole(...ROLES_WITH_AN_ISSUER), controller.createCompany);
+router.put('/:userId/:profileId', requireRole(...ROLES_WITH_AN_ISSUER), controller.updateCompany);
+router.post('/:userId/:profileId/default', requireRole(...ROLES_WITH_AN_ISSUER), controller.makeDefault);
+router.delete('/:userId/:profileId', requireRole(...ROLES_WITH_AN_ISSUER), controller.removeCompany);
 
 module.exports = router;
