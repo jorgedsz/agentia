@@ -205,6 +205,11 @@ export default function Invoices() {
   const [issuerSaving, setIssuerSaving] = useState(false)
   const [issuerMsg, setIssuerMsg] = useState('')
   const [issuerError, setIssuerError] = useState('')
+  // The issuer's companies and the one the panel is editing. `companies` comes
+  // from the same GET as the form; `companyId` null = "no company yet".
+  const [companies, setCompanies] = useState([])
+  const [companyId, setCompanyId] = useState(null)
+  const [companyLabel, setCompanyLabel] = useState('')
   const [accountsError, setAccountsError] = useState('')
 
   // The hand-made invoice form. Collapsed until asked for, because the page is
@@ -333,8 +338,14 @@ export default function Invoices() {
   const loadIssuer = async () => {
     try {
       const { data } = await billingProfileAPI.get(user.id)
+      const list = Array.isArray(data.profiles) ? data.profiles : []
+      setCompanies(list)
       setIssuerExists(!!data.exists)
-      setIssuerForm(invoiceFormFrom(data.profile))
+      // Keep the company that was on screen if it still exists, else the default.
+      const keep = list.find((c) => c.id === companyId) || list.find((c) => c.isDefault) || null
+      setCompanyId(keep ? keep.id : null)
+      setCompanyLabel(keep ? keep.label : '')
+      setIssuerForm(invoiceFormFrom(keep || data.profile))
       setIssuerError('')
     } catch (err) {
       // A refusal here is worth showing: it is either a role that may not
@@ -346,17 +357,74 @@ export default function Invoices() {
     }
   }
 
+  // Switching company loads ALL its data into the form: nothing is retyped.
+  const selectCompanyFrom = (c) => { setCompanyId(c.id); setCompanyLabel(c.label); setIssuerForm(invoiceFormFrom(c)) }
+  const selectCompany = (id) => {
+    const c = companies.find((x) => String(x.id) === String(id))
+    if (!c) return
+    selectCompanyFrom(c)
+    setIssuerMsg('')
+    setIssuerError('')
+  }
+
+  // A new company starts from the empty form with its own numbering; the
+  // issuer fills it in and saves.
+  const createCompany = async () => {
+    const label = window.prompt('Nombre de la nueva empresa (solo para ti, no se imprime):')
+    if (!label || !label.trim()) return
+    setIssuerError('')
+    setIssuerMsg('')
+    try {
+      const { data } = await billingProfileAPI.createCompany(user.id, { label: label.trim(), ...invoicePayloadFrom(EMPTY_INVOICE_PROFILE) })
+      await loadIssuer()
+      selectCompanyFrom(data.company)
+      setIssuerMsg('Empresa creada. Completa sus datos y guarda.')
+    } catch (err) {
+      setIssuerError(err.response?.data?.error || 'No se pudo crear la empresa')
+    }
+  }
+
+  const makeCompanyDefault = async () => {
+    setIssuerError('')
+    try {
+      await billingProfileAPI.makeDefault(user.id, companyId)
+      await loadIssuer()
+      setIssuerMsg('Ahora es la empresa predeterminada.')
+    } catch (err) {
+      setIssuerError(err.response?.data?.error || 'No se pudo cambiar la predeterminada')
+    }
+  }
+
+  const removeCompany = async () => {
+    if (!window.confirm(`¿Eliminar la empresa «${companyLabel}»? Sus clientes pasan a la predeterminada.`)) return
+    setIssuerError('')
+    try {
+      await billingProfileAPI.removeCompany(user.id, companyId)
+      setCompanyId(null)
+      await loadIssuer()
+      setIssuerMsg('Empresa eliminada.')
+    } catch (err) {
+      setIssuerError(err.response?.data?.error || 'No se pudo eliminar la empresa')
+    }
+  }
+
   const saveIssuer = async () => {
     setIssuerSaving(true)
     setIssuerMsg('')
     setIssuerError('')
     try {
-      const { data } = await billingProfileAPI.save(user.id, invoicePayloadFrom(issuerForm))
-      setIssuerExists(!!data.exists)
+      // The company on screen; with none yet, the first one is created as the default.
+      const payload = { ...invoicePayloadFrom(issuerForm), ...(companyId ? { label: companyLabel } : {}) }
+      const { data } = companyId
+        ? await billingProfileAPI.updateCompany(user.id, companyId, payload)
+        : await billingProfileAPI.save(user.id, payload)
+      const saved = data.company || data.profile
+      setIssuerExists(true)
       // Re-seeded from what the server actually stored, not from what was
       // typed: coerced rates and the default tax label come back here.
-      setIssuerForm(invoiceFormFrom(data.profile))
-      setIssuerMsg('Datos de facturación guardados.')
+      setIssuerForm(invoiceFormFrom(saved))
+      await loadIssuer()
+      setIssuerMsg('Empresa guardada.')
       // Switching the tax on is what makes this account bill with tax, which is
       // the same flag the payments list below is gated on — so the list has to
       // be re-read rather than keep saying there is nothing to show.
@@ -871,7 +939,7 @@ export default function Invoices() {
             <span>
               <span className="block text-sm font-semibold text-gray-900 dark:text-white">Datos de facturación</span>
               <span className="block text-xs text-gray-500 dark:text-gray-400">
-                Tu impuesto, la numeración de tus facturas y los datos del emisor que se imprimen en ellas.
+                Tus empresas emisoras: su impuesto, su numeración y los datos que se imprimen en sus facturas.
               </span>
               {canManage && !viewingOwn && (
                 <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -891,6 +959,49 @@ export default function Invoices() {
 
               {issuerLoaded && (
                 <>
+                  <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] items-end">
+                    <div>
+                      <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Empresa</label>
+                      <select
+                        value={companyId ?? ''}
+                        onChange={(e) => selectCompany(e.target.value)}
+                        disabled={companies.length === 0}
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                      >
+                        {companies.length === 0 && <option value="">Sin empresas todavía</option>}
+                        {companies.map((c) => (
+                          <option key={c.id} value={c.id}>{c.label}{c.isDefault ? ' (predeterminada)' : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Nombre interno</label>
+                      <input
+                        value={companyLabel}
+                        onChange={(e) => setCompanyLabel(e.target.value)}
+                        disabled={!companyId}
+                        maxLength={60}
+                        className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={createCompany} className="px-3 py-2 text-sm border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover">＋ Nueva empresa</button>
+                    </div>
+                  </div>
+                  {companyId && companies.length > 1 && (
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {!companies.find((c) => c.id === companyId)?.isDefault && (
+                        <>
+                          <button onClick={makeCompanyDefault} className="px-3 py-1 rounded-lg border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300">Hacer predeterminada</button>
+                          <button onClick={removeCompany} className="px-3 py-1 rounded-lg border border-red-300 text-red-600 dark:text-red-400">Eliminar</button>
+                        </>
+                      )}
+                      <span className="text-gray-500 dark:text-gray-400 self-center">
+                        La predeterminada emite para los clientes que no tienen empresa asignada. Una empresa con facturas no se puede eliminar.
+                      </span>
+                    </div>
+                  )}
+
                   <BillingProfileFields
                     form={issuerForm}
                     onChange={(patch) => setIssuerForm(f => ({ ...f, ...patch }))}
@@ -923,7 +1034,7 @@ export default function Invoices() {
                       disabled={issuerSaving}
                       className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
                     >
-                      {issuerSaving ? 'Guardando…' : 'Guardar datos de facturación'}
+                      {issuerSaving ? 'Guardando…' : 'Guardar empresa'}
                     </button>
                   </div>
                 </>
