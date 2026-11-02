@@ -216,19 +216,17 @@ export default function Invoices() {
   // read far more often than it is written to.
   const [manualOpen, setManualOpen] = useState(false)
   const [manualForm, setManualForm] = useState({
-    userId: '', amount: '', applyTaxes: true, concept: '', paidAt: todayInput(),
+    userId: '', amount: '', applyTaxes: true, concept: '', paidAt: todayInput(), profileId: '',
   })
   const [manualSaving, setManualSaving] = useState(false)
   const [manualError, setManualError] = useState('')
-  // The invoices raised in THIS session, newest first.
-  //
-  // They are kept here because the table below cannot show them: it lists
-  // PAYMENTS, and a hand-made invoice has none — that is the whole point of it.
-  // Without this strip, closing the document would be the last time anybody
-  // could reach the number that was just spent, short of knowing its id. It is
-  // session-only on purpose and says so: it is a receipt for what was just
-  // done, not a second list of invoices.
-  const [manualCreated, setManualCreated] = useState([])
+  // Every invoice of the selected account, and which company issues for it.
+  // Same `subject` guard as the payments: rows are shown only while they are
+  // about the account in the picker. This is also where a hand-made invoice is
+  // found again - the payments table cannot list it, since it has no payment.
+  const [history, setHistory] = useState({ subject: null, invoices: [], company: null })
+  const [historyError, setHistoryError] = useState('')
+  const [companySaving, setCompanySaving] = useState(false)
   // Which payments request is the current one. A ref and not state: it is read
   // and written inside one async call and must never trigger a render.
   const loadSeq = useRef(0)
@@ -237,6 +235,7 @@ export default function Invoices() {
     // `load()` with no argument reads whichever account is selected, which at
     // mount is always the viewer's own.
     load()
+    loadHistory()
     // The accounts a manager may act on, from the endpoint that already answers
     // that for all three manager roles - the same list the account switcher and
     // SubAccounts read. A failure here only costs the picker its options; the
@@ -245,6 +244,8 @@ export default function Invoices() {
       authAPI.getAccessibleAccounts()
         .then(({ data }) => setAccounts(Array.isArray(data.accounts) ? data.accounts : []))
         .catch(() => setAccountsError('No se pudieron cargar las cuentas'))
+      // The companies, for the client's "Empresa emisora" and the manual form.
+      if (canConfigureIssuer) loadIssuer()
     }
   }, [canManage])
 
@@ -309,6 +310,37 @@ export default function Invoices() {
     }
   }
 
+  const historySeq = useRef(0)
+  const loadHistory = async (id = accountId) => {
+    if (!canManage || id === 'me') { setHistory({ subject: String(id), invoices: [], company: null }); return }
+    const seq = ++historySeq.current
+    try {
+      const { data: res } = await invoicesAPI.history(id)
+      if (historySeq.current !== seq) return
+      setHistory({ subject: String(id), invoices: Array.isArray(res.invoices) ? res.invoices : [], company: res.company || null })
+      setHistoryError('')
+    } catch (err) {
+      if (historySeq.current !== seq) return
+      setHistory({ subject: String(id), invoices: [], company: null })
+      setHistoryError(err.response?.data?.error || 'No se pudo cargar el historial de facturas')
+    }
+  }
+
+  // Which company issues this client's FUTURE invoices; '' = the default.
+  const assignCompany = async (value) => {
+    setCompanySaving(true)
+    setError('')
+    try {
+      await invoicesAPI.setCompany(Number(accountId), value === '' ? null : Number(value))
+      await loadHistory()
+      setNotice('Empresa emisora actualizada. Aplica a las próximas facturas de esta cuenta.')
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo cambiar la empresa emisora')
+    } finally {
+      setCompanySaving(false)
+    }
+  }
+
   // Switching account: the table, the totals and `billsWithTax` all belong to
   // the account chosen, so they are all re-read. The issuer panel is NOT
   // touched - see loadIssuer.
@@ -316,6 +348,7 @@ export default function Invoices() {
     setAccountId(value)
     setNotice('')
     load(value)
+    loadHistory(value)
   }
 
   const toggleIssuer = () => {
@@ -454,6 +487,8 @@ export default function Invoices() {
     setManualForm((f) => ({
       ...f,
       userId: f.userId || (accountId !== 'me' ? String(accountId) : ''),
+      profileId: f.profileId || (history.subject === String(accountId) && history.company?.effectiveProfileId
+        ? String(history.company.effectiveProfileId) : ''),
       paidAt: f.paidAt || todayInput(),
     }))
   }
@@ -487,12 +522,8 @@ export default function Invoices() {
         applyTaxes: manualForm.applyTaxes,
         concept: manualForm.concept,
         paidAt: dateToInstant(manualForm.paidAt),
+        profileId: manualForm.profileId ? Number(manualForm.profileId) : undefined,
       })
-      const client = accounts.find((a) => String(a.id) === String(manualForm.userId))
-      setManualCreated((prev) => [
-        { invoice: res.invoice, clientName: client?.name || client?.email || `Cuenta #${manualForm.userId}` },
-        ...prev,
-      ])
       setInvoice(res.invoice)
       setManualOpen(false)
       // The client, the box and the date are kept: raising several in a row for
@@ -501,6 +532,7 @@ export default function Invoices() {
       // gets issued twice under two numbers.
       setManualForm((f) => ({ ...f, amount: '', concept: '' }))
       load()
+      loadHistory()
     } catch (err) {
       // The server's own Spanish, word for word: a 403 for a client this viewer
       // does not issue for, a 409 for one with no issuer configured at all.
@@ -508,6 +540,18 @@ export default function Invoices() {
       setManualError(err.response?.data?.error || 'No se pudo crear la factura')
     } finally {
       setManualSaving(false)
+    }
+  }
+
+  // From the history: an invoice that already exists, read by its id (the
+  // document view offers Descargar itself).
+  const openInvoiceById = async (id) => {
+    setError('')
+    try {
+      const { data: res } = await invoicesAPI.get(id)
+      setInvoice(res.invoice)
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo cargar la factura')
     }
   }
 
@@ -570,6 +614,7 @@ export default function Invoices() {
       const { data: res } = await invoicesAPI.regenerate(invoice.id)
       setInvoice(res.invoice)
       load()
+      loadHistory()
       // `amountsRebuilt` false is not a failure: the payment behind this
       // invoice is gone, so the figures on it are the only surviving record of
       // what was charged and were left untouched rather than recomputed to 0.
@@ -636,8 +681,12 @@ export default function Invoices() {
   // hardcoded 27. The tax follows `taxEnabled` exactly as buildInvoiceData does:
   // a profile with a rate stored but the tax switched off shows no tax row, so
   // the wording must not promise one.
-  const manualRetentionRate = Number(issuerForm.retentionRate) || 0
-  const manualTaxRate = issuerForm.taxEnabled ? (Number(issuerForm.taxRate) || 0) : 0
+  // ...of the company that will issue it: the one picked in the form, else the
+  // default (the form preselects the client's own company when it knows it).
+  const manualCompany = companies.find((c) => String(c.id) === String(manualForm.profileId))
+    || companies.find((c) => c.isDefault) || issuerForm
+  const manualRetentionRate = Number(manualCompany.retentionRate) || 0
+  const manualTaxRate = manualCompany.taxEnabled ? (Number(manualCompany.taxRate) || 0) : 0
   const manualAmount = amountOrNull(manualForm.amount)
   const manualPreview = manualAmount === null
     ? null
@@ -650,8 +699,8 @@ export default function Invoices() {
   // than as a chain of ternaries inside the JSX: a sentence assembled in three
   // conditional fragments is a sentence nobody can check by reading it.
   const manualRatePhrase = [
-    manualTaxRate > 0 ? `${manualTaxRate}% de ${issuerForm.taxLabel || 'impuesto'}` : null,
-    manualRetentionRate > 0 ? `${manualRetentionRate}% de ${issuerForm.retentionLabel || 'retención'}` : null,
+    manualTaxRate > 0 ? `${manualTaxRate}% de ${manualCompany.taxLabel || 'impuesto'}` : null,
+    manualRetentionRate > 0 ? `${manualRetentionRate}% de ${manualCompany.retentionLabel || 'retención'}` : null,
   ].filter(Boolean).join(' y ')
 
   return (
@@ -709,6 +758,62 @@ export default function Invoices() {
               Elige otra arriba para ver y emitir sus facturas.
             </p>
           )}
+
+          {!viewingOwn && history.subject === String(accountId) && (
+            <div className="mt-4 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4 space-y-4">
+              {canConfigureIssuer && companies.length > 0 && history.company?.effectiveProfileId != null && (
+                <div className="max-w-md">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Empresa emisora de {subjectName}</label>
+                  <select
+                    value={history.company.assignedProfileId ?? ''}
+                    disabled={companySaving}
+                    onChange={(e) => assignCompany(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white"
+                  >
+                    <option value="">Predeterminada ({companies.find((c) => c.isDefault)?.label || '—'})</option>
+                    {companies.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Sus próximas facturas, automáticas y a mano, salen con esta empresa. Las ya emitidas no cambian.
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Historial de facturas</h2>
+                {historyError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{historyError}</p>}
+                {!historyError && history.invoices.length === 0 && (
+                  <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Todavía no hay facturas emitidas a esta cuenta.</p>
+                )}
+                {history.invoices.length > 0 && (
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs uppercase text-gray-500 dark:text-gray-400">
+                          <th className="py-2 pr-3">Nº</th><th className="py-2 pr-3">Fecha</th><th className="py-2 pr-3">Empresa</th>
+                          <th className="py-2 pr-3">Concepto</th><th className="py-2 pr-3 text-right">Total</th><th className="py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {history.invoices.map((inv) => (
+                          <tr key={inv.id} className="border-t border-gray-100 dark:border-dark-border text-gray-700 dark:text-gray-300">
+                            <td className="py-2 pr-3 font-medium">{inv.number}</td>
+                            <td className="py-2 pr-3">{fmtDate(inv.paidAt || inv.issuedAt)}</td>
+                            <td className="py-2 pr-3">{inv.companyLabel || '—'}</td>
+                            <td className="py-2 pr-3">{inv.concept || (inv.kind === 'manual' ? 'Factura a mano' : 'Pago')}</td>
+                            <td className="py-2 pr-3 text-right">{money(inv.total)}</td>
+                            <td className="py-2 text-right">
+                              <button onClick={() => openInvoiceById(inv.id)} className="text-primary-600 dark:text-primary-400 hover:underline">Ver</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -736,8 +841,8 @@ export default function Invoices() {
           {manualOpen && (
             <div className="mt-3 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4 space-y-4">
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Esta factura no lleva ningún pago detrás: toma el siguiente número de <strong>tu</strong> numeración
-                y se emite con <strong>tus</strong> datos de emisor. No registra nada como cobrado.
+                Esta factura no lleva ningún pago detrás: toma el siguiente número de la <strong>empresa que emite</strong>
+                y se imprime con sus datos. No registra nada como cobrado.
               </p>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -745,7 +850,16 @@ export default function Invoices() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cliente</label>
                   <select
                     value={manualForm.userId}
-                    onChange={(e) => setManualForm(f => ({ ...f, userId: e.target.value }))}
+                    onChange={async (e) => {
+                      const userId = e.target.value
+                      setManualForm(f => ({ ...f, userId, profileId: '' }))
+                      if (!userId) return
+                      try {
+                        const { data: res } = await invoicesAPI.history(userId, 1)
+                        const eff = res.company?.effectiveProfileId
+                        setManualForm(f => (f.userId === userId ? { ...f, profileId: eff ? String(eff) : '' } : f))
+                      } catch { /* the select stays on "la de este cliente" and the server decides */ }
+                    }}
                     className="w-full px-3 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white"
                   >
                     <option value="">Elige el cliente…</option>
@@ -807,6 +921,23 @@ export default function Invoices() {
                     La línea de DESCRIPCIÓN. Si lo dejas vacío se usa el concepto de recarga de saldo.
                   </p>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Empresa que emite</label>
+                  <select
+                    value={manualForm.profileId}
+                    onChange={(e) => setManualForm(f => ({ ...f, profileId: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white"
+                  >
+                    <option value="">La de este cliente</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.label}{c.isDefault ? ' (predeterminada)' : ''}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Toma el siguiente número de esa empresa y se emite con sus datos. Cambiarla aquí vale solo para esta factura.
+                  </p>
+                </div>
               </div>
 
               {/* THE BOX, SAYING WHAT IT DOES WITH THE ISSUER'S OWN RATES —
@@ -842,8 +973,8 @@ export default function Invoices() {
                         <strong>Marcada:</strong> se aplican tus tasas ({manualRatePhrase}).
                         {manualPreview ? (
                           <> La factura dirá <strong>NETO {money(manualPreview.subtotal)}</strong>
-                            {manualPreview.taxAmount > 0 ? <> · {issuerForm.taxLabel || 'impuesto'} {money(manualPreview.taxAmount)}</> : null}
-                            {manualPreview.retention > 0 ? <> · {issuerForm.retentionLabel || 'RETENCIÓN'} −{money(manualPreview.retention)}</> : null}
+                            {manualPreview.taxAmount > 0 ? <> · {manualCompany.taxLabel || 'impuesto'} {money(manualPreview.taxAmount)}</> : null}
+                            {manualPreview.retention > 0 ? <> · {manualCompany.retentionLabel || 'RETENCIÓN'} −{money(manualPreview.retention)}</> : null}
                             {' '}· <strong>TOTAL A PAGAR {money(manualPreview.total)}</strong>.
                           </>
                         ) : ' Escribe el monto para ver las cifras exactas.'}
@@ -885,32 +1016,6 @@ export default function Invoices() {
             </div>
           )}
 
-          {/* What was just raised, so the number stays reachable after the
-              document is closed — the table below lists payments and cannot
-              show any of these. */}
-          {manualCreated.length > 0 && (
-            <div className="mt-3 rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card p-3">
-              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                Facturas creadas a mano en esta sesión
-              </p>
-              <ul className="mt-2 space-y-1">
-                {manualCreated.map(({ invoice: created, clientName }) => (
-                  <li key={created.id} className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                    <button
-                      onClick={() => setInvoice(created)}
-                      className="px-2 py-1 font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:underline"
-                    >
-                      {created.number}
-                    </button>
-                    <span>{clientName} · {money(created.total)} · {fmtDate(created.paidAt)}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
-                Esta lista es solo de esta sesión; las facturas quedan guardadas igual.
-              </p>
-            </div>
-          )}
         </div>
       )}
 
