@@ -29,6 +29,7 @@
 // caller then behaves exactly as it did before this existed.
 
 const { getEffectiveBilling } = require('./whopConfig');
+const { pickIssuerProfile } = require('./issuerProfile');
 
 function describeValue(value) {
   // JSON.stringify(NaN) is "null", which would misreport a NaN as a null - keep
@@ -158,7 +159,9 @@ async function resolveTaxConfig(prisma, userId, options = {}) {
     if (mode !== 'own_stripe') return NO_TAX;
     if (!partnerId) return NO_TAX;
 
-    const profile = await prisma.billingProfile.findUnique({ where: { ownerId: partnerId } });
+    // The company that issues for THIS client: its assignment if it has one
+    // under this partner, otherwise the partner's default (utils/issuerProfile).
+    const profile = await pickIssuerProfile(prisma, partnerId, userId);
     if (!profile) return NO_TAX;
 
     return {

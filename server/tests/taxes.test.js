@@ -107,7 +107,7 @@ test('subtotal plus tax always equals total, to the cent', () => {
 test('a client under a tax-enabled partner inherits the rate', async () => {
   const prisma = {
     user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: 9, billingMode: 'platform' }) },
-    billingProfile: { findUnique: async ({ where }) => (where.ownerId === 9 ? { id: 5, ownerId: 9, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' } : null) },
+    billingProfile: { findFirst: async ({ where }) => (where.ownerId === 9 ? { id: 5, ownerId: 9, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' } : null) },
   };
   const cfg = await resolveTaxConfig(prisma, 1, { partnerId: 9, mode: 'own_stripe' });
   assert.strictEqual(cfg.taxEnabled, true);
@@ -121,7 +121,7 @@ test('resolveTaxConfig reports chargeTaxToClient off and on, straight off the pr
   const makePrisma = (chargeTaxToClient) => ({
     user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: 9, billingMode: 'platform' }) },
     billingProfile: {
-      findUnique: async () => ({ id: 5, ownerId: 9, taxEnabled: true, chargeTaxToClient, taxRate: 27, taxLabel: 'ITBIS' }),
+      findFirst: async () => ({ id: 5, ownerId: 9, taxEnabled: true, chargeTaxToClient, taxRate: 27, taxLabel: 'ITBIS' }),
     },
   });
 
@@ -143,7 +143,7 @@ test('a tax-enabled profile with chargeTaxToClient off never reaches the card, e
   const prisma = {
     user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: 9, billingMode: 'platform' }) },
     billingProfile: {
-      findUnique: async () => ({ id: 5, ownerId: 9, taxEnabled: true, chargeTaxToClient: false, taxRate: 27, taxLabel: 'ITBIS' }),
+      findFirst: async () => ({ id: 5, ownerId: 9, taxEnabled: true, chargeTaxToClient: false, taxRate: 27, taxLabel: 'ITBIS' }),
     },
   };
   const cfg = await resolveTaxConfig(prisma, 1, { partnerId: 9, mode: 'own_stripe' });
@@ -158,7 +158,7 @@ test('a tax-enabled profile with chargeTaxToClient off never reaches the card, e
 test('a profile with the tax switched off resolves to rate 0', async () => {
   const prisma = {
     user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: 9, billingMode: 'platform' }) },
-    billingProfile: { findUnique: async () => ({ id: 5, ownerId: 9, taxEnabled: false, taxRate: 27, taxLabel: 'ITBIS' }) },
+    billingProfile: { findFirst: async () => ({ id: 5, ownerId: 9, taxEnabled: false, taxRate: 27, taxLabel: 'ITBIS' }) },
   };
   const cfg = await resolveTaxConfig(prisma, 1, { partnerId: 9, mode: 'own_stripe' });
   assert.strictEqual(cfg.taxEnabled, false);
@@ -168,7 +168,7 @@ test('a profile with the tax switched off resolves to rate 0', async () => {
 test('an account with no partner above it resolves to rate 0', async () => {
   const prisma = {
     user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: null, billingMode: 'platform' }) },
-    billingProfile: { findUnique: async () => null },
+    billingProfile: { findFirst: async () => null },
   };
   const cfg = await resolveTaxConfig(prisma, 1, { partnerId: null, mode: 'own_stripe' });
   assert.strictEqual(cfg.taxEnabled, false);
@@ -190,7 +190,7 @@ test('the tax is gated off anything but own_stripe, even with the partner inject
   const prisma = {
     user: { findUnique: async () => ({ id: 1, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' }) },
     billingProfile: {
-      findUnique: async ({ where }) => (where.ownerId === 9
+      findFirst: async ({ where }) => (where.ownerId === 9
         ? { id: 42, ownerId: 9, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' }
         : null),
     },
@@ -253,7 +253,7 @@ test('computeCharge throws on NaN', () => {
 test('resolveTaxConfig returns NO_TAX instead of throwing when prisma blows up', async () => {
   const prisma = {
     user: { findUnique: async () => { throw new Error('connection reset'); } },
-    billingProfile: { findUnique: async () => { throw new Error('should not be reached'); } },
+    billingProfile: { findFirst: async () => { throw new Error('should not be reached'); } },
   };
   const cfg = await resolveTaxConfig(prisma, 1); // no partnerId override - exercises getEffectiveBilling too
   assert.strictEqual(cfg.taxEnabled, false);
@@ -286,7 +286,7 @@ test('a tax-enabled profile resolves to rate 0 when the money is collected throu
       },
     },
     billingProfile: {
-      findUnique: async ({ where }) => (where.ownerId === 9
+      findFirst: async ({ where }) => (where.ownerId === 9
         ? { id: 77, ownerId: 9, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' }
         : null),
     },
@@ -323,7 +323,7 @@ test('resolveTaxConfig walks the real inheritance path for an own_stripe partner
       },
     },
     billingProfile: {
-      findUnique: async ({ where }) => (where.ownerId === 9
+      findFirst: async ({ where }) => (where.ownerId === 9
         ? { id: 88, ownerId: 9, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' }
         : null),
     },
@@ -332,4 +332,25 @@ test('resolveTaxConfig walks the real inheritance path for an own_stripe partner
   assert.strictEqual(cfg.taxEnabled, true);
   assert.strictEqual(cfg.taxRate, 27);
   assert.strictEqual(cfg.profile.id, 88);
+});
+
+test('resolveTaxConfig uses the company the client is assigned to, not the default', async () => {
+  const A = { id: 5, ownerId: 9, isDefault: true, taxEnabled: true, chargeTaxToClient: false, taxRate: 27, taxLabel: 'ITBIS' };
+  const B = { id: 6, ownerId: 9, isDefault: false, taxEnabled: true, chargeTaxToClient: true, taxRate: 18, taxLabel: 'ITBIS' };
+  const prisma = {
+    billingProfile: {
+      findFirst: async ({ where }) => {
+        if (where.assignedClients) return where.assignedClients.some.id === 1 ? B : null;
+        return where.ownerId === 9 ? A : null;
+      },
+    },
+  };
+  const assigned = await resolveTaxConfig(prisma, 1, { partnerId: 9, mode: 'own_stripe' });
+  assert.strictEqual(assigned.profile.id, 6);
+  assert.strictEqual(assigned.taxRate, 18);
+  assert.strictEqual(assigned.chargeTaxToClient, true);
+
+  const other = await resolveTaxConfig(prisma, 2, { partnerId: 9, mode: 'own_stripe' });
+  assert.strictEqual(other.profile.id, 5);
+  assert.strictEqual(other.taxRate, 27);
 });
