@@ -286,8 +286,19 @@ export const invoicesAPI = {
   // that ISSUES this client's invoices may (403), and a client whose
   // governing partner has no billing profile is refused with 409: there is no
   // numbering to spend and nothing to print as emisor.
-  createManual: ({ userId, amount, applyTaxes, concept, paidAt }) =>
-    api.post('/invoices/manual', { userId, amount, applyTaxes, concept, paidAt }),
+  //
+  // `profileId` (optional) raises it from another of the same issuer's
+  // companies; without it, the client's own company issues it.
+  createManual: ({ userId, amount, applyTaxes, concept, paidAt, profileId }) =>
+    api.post('/invoices/manual', { userId, amount, applyTaxes, concept, paidAt, ...(profileId ? { profileId } : {}) }),
+  // Every invoice of one account, automatic and manual, newest first, plus
+  // which company issues for it: `{ accountId, invoices, company:
+  // { assignedProfileId, effectiveProfileId, ownerId } }`.
+  history: (forUserId, limit) => api.get('/invoices/history', {
+    params: { ...(forUserId ? { forUserId } : {}), ...(limit ? { limit } : {}) },
+  }),
+  // Which of the issuer's companies issues this client's FUTURE invoices; null = the default.
+  setCompany: (userId, profileId) => api.put(`/invoices/accounts/${userId}/company`, { profileId }),
 }
 
 // A partner's invoicing profile: its tax, its invoice numbering, and everything
@@ -297,6 +308,12 @@ export const invoicesAPI = {
 export const billingProfileAPI = {
   get: (userId) => api.get(`/billing-profile/${userId}`),
   save: (userId, data) => api.put(`/billing-profile/${userId}`, data),
+  // An issuer's companies. `get` answers `{ profiles, defaultId, profile }`
+  // (`profile` = the default, as before); `save` keeps editing the default.
+  createCompany: (userId, data) => api.post(`/billing-profile/${userId}`, data),
+  updateCompany: (userId, profileId, data) => api.put(`/billing-profile/${userId}/${profileId}`, data),
+  makeDefault: (userId, profileId) => api.post(`/billing-profile/${userId}/${profileId}/default`),
+  removeCompany: (userId, profileId) => api.delete(`/billing-profile/${userId}/${profileId}`),
 }
 
 // Rates API
