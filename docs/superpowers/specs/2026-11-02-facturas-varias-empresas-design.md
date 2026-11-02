@@ -32,15 +32,15 @@ Separately, invoices made by hand never show up again after the session that cre
 
 `BillingProfile`
 - Drop `@unique` on `ownerId` (keep an index). An owner may have N profiles.
-- Add `label String` — the internal name shown in selectors ("Nebo AI", "Sword"). Migrated rows get `issuerName` or `"Principal"`.
-- Add `isDefault Boolean @default(false)`. Exactly one default per owner, enforced in code (a write that sets one default unsets the others in the same transaction). Migrated rows get `true`.
+- Add `label String @default("Principal")` — the internal name shown in selectors ("Nebo AI", "Sword").
+- Add `isDefault Boolean @default(true)`. Exactly one default per owner, enforced in code: every company created after the first is written with `isDefault: false`, and "make default" unsets the others in the same transaction. The column default is `true` so that `prisma db push` (how this project applies schema changes, at container start) turns every existing profile — at most one per owner today — into its owner's default with no backfill script.
 
 `User`
-- Add `billingProfileId Int?` → `BillingProfile`, `onDelete: SetNull`. The company that issues this client's invoices. Null means "the default of whoever issues for me".
+- Add `issuerProfileId Int?` → `BillingProfile` (relation `"ClientIssuerProfile"`, `onDelete: SetNull`). The company that issues this client's invoices. Null means "the default of whoever issues for me". (`User.billingProfile`, the owner side of `"BillingProfileOwner"`, becomes `billingProfiles BillingProfile[]`; nothing in `src` reads it.)
 
 `Invoice` is unchanged: it already stores `profileId` plus `issuerSnapshot`, so old documents keep saying what they said.
 
-Migration: the schema change runs the same way the project applies schema changes today; a one-off backfill sets `label` and `isDefault = true` on every existing profile (there is at most one per owner today, so this cannot produce two defaults).
+Migration: none beyond `prisma db push`. Dropping a unique constraint and adding columns with defaults loses no data.
 
 ## Resolving the company — one function
 
@@ -48,7 +48,7 @@ Migration: the schema change runs the same way the project applies schema change
 
 1. Find the client's issuer (`partnerId`), exactly as today via `getEffectiveBilling`.
 2. If `profileId` was passed (manual override), use it — only if it belongs to that issuer; otherwise refuse.
-3. Else, if the client has `billingProfileId` **and** that profile belongs to that issuer, use it. (A stale assignment — client moved to another partner — is ignored, not honoured.)
+3. Else, if the client has `issuerProfileId` **and** that profile belongs to that issuer, use it. (A stale assignment — client moved to another partner — is ignored, not honoured.)
 4. Else the issuer's default profile.
 5. None → null (same as today's "no issuer configured").
 
