@@ -18,6 +18,10 @@ router.get('/by-purchase/:purchaseId', controller.getByPurchase);
 // an invoice id. The narrow rule of an ISSUER, never the client (see
 // createManual).
 router.post('/manual', controller.createManual);
+// Every invoice of one account, and which of the issuer's companies issues for
+// it. Declared before '/:id' for the same reason as 'by-purchase'.
+router.get('/history', controller.listHistory);
+router.put('/accounts/:userId/company', controller.setAccountCompany);
 
 router.get('/:id', controller.getOne);
 

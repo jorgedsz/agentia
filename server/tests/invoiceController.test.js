@@ -343,7 +343,7 @@ function listPrisma(purchases = []) {
     calls,
     user: { findUnique: async ({ where }) => BILLING_TREE[where.id] || null },
     billingProfile: {
-      findUnique: async ({ where }) => (where.ownerId === 10
+      findFirst: async ({ where }) => (where.ownerId === 10 && (where.id === undefined || where.id === 1)
         ? { id: 1, ownerId: 10, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' }
         : null),
     },
@@ -825,7 +825,7 @@ function manualCtrlPrisma(profileOverrides = {}) {
     profile,
     user: { findUnique: async ({ where }) => MANUAL_TREE[where.id] || null },
     billingProfile: {
-      findUnique: async ({ where }) => (where.ownerId === profile.ownerId ? profile : null),
+      findFirst: async ({ where }) => (where.ownerId === profile.ownerId && (where.id === undefined || where.id === profile.id) ? profile : null),
     },
     $transaction: async (fn) => fn({
       billingProfile: {
@@ -1105,4 +1105,83 @@ test('createManual: the looser issuer lookup did not loosen who may issue - a cl
 
   assert.strictEqual(res.code, 403);
   assert.strictEqual(prisma.created.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// Several companies: override on a manual invoice, history, assignment
+// ---------------------------------------------------------------------------
+
+const { listHistory, setAccountCompany } = require('../src/controllers/invoiceController');
+
+test('createManual with profileId of the same issuer uses that company', async () => {
+  const prisma = manualCtrlPrisma();
+  const res = await callManual(prisma, ISSUER, { userId: 30, amount: 100, applyTaxes: false, profileId: 1 });
+  assert.strictEqual(res.code, 201);
+});
+
+test('createManual with a profileId of another issuer is refused before anything is written', async () => {
+  const prisma = manualCtrlPrisma();
+  const res = await callManual(prisma, ISSUER, { userId: 30, amount: 100, applyTaxes: false, profileId: 999 });
+  assert.strictEqual(res.code, 403);
+  assert.strictEqual(prisma.created.length, 0);
+});
+
+function historyPrisma(invoices, user = { id: 30, issuerProfileId: 2 }) {
+  return {
+    user: { findUnique: async ({ where }) => (where.id === user.id ? user : MANUAL_TREE[where.id] || null) },
+    billingProfile: { findFirst: async () => ({ id: 1, ownerId: 10, label: 'A', isDefault: true }) },
+    invoice: {
+      findMany: async ({ where, take }) => invoices.filter((i) => i.userId === where.userId).slice(0, take),
+    },
+  };
+}
+
+test('history lists manual and automatic invoices of the account, with company and kind', async () => {
+  const invoices = [
+    { id: 2, userId: 30, number: 'B-1', issuedAt: new Date('2026-11-02'), paidAt: null, total: 50, currency: 'USD', creditPurchaseId: null, conceptLines: JSON.stringify([{ description: 'Servicio', total: 50 }]), issuerSnapshot: '{}', profile: { label: 'B' } },
+    { id: 1, userId: 30, number: 'A-7', issuedAt: new Date('2026-10-01'), paidAt: null, total: 127, currency: 'USD', creditPurchaseId: 9, conceptLines: '[]', issuerSnapshot: JSON.stringify({ name: 'Empresa A' }), profile: null },
+  ];
+  const res = fakeRes();
+  await listHistory({ prisma: historyPrisma(invoices), user: { id: 1, role: 'OWNER' }, query: { forUserId: '30' } }, res);
+  assert.strictEqual(res.code, 200);
+  assert.deepStrictEqual(res.body.invoices.map((i) => [i.number, i.kind, i.companyLabel, i.concept]), [
+    ['B-1', 'manual', 'B', 'Servicio'],
+    ['A-7', 'automatic', 'Empresa A', ''],
+  ]);
+  assert.strictEqual(res.body.company.assignedProfileId, 2);
+});
+
+test('history refuses an account the requester cannot read', async () => {
+  const res = fakeRes();
+  await listHistory({ prisma: historyPrisma([]), user: { id: 60, role: 'AGENCY' }, query: { forUserId: '30' } }, res);
+  assert.strictEqual(res.code, 403);
+});
+
+test('assigning a company: the issuer may, to its own company only', async () => {
+  const updates = [];
+  const prisma = {
+    ...manualCtrlPrisma(),
+    user: {
+      findUnique: async ({ where }) => MANUAL_TREE[where.id] || null,
+      update: async ({ where, data }) => { updates.push([where.id, data.issuerProfileId]); return {}; },
+    },
+    auditLog: { create: async () => ({}) },
+  };
+  const ok = fakeRes();
+  await setAccountCompany({ prisma, user: ISSUER, params: { userId: '30' }, body: { profileId: 1 }, headers: {}, socket: {} }, ok);
+  assert.strictEqual(ok.code, 200);
+  assert.deepStrictEqual(updates, [[30, 1]]);
+
+  const foreign = fakeRes();
+  await setAccountCompany({ prisma, user: ISSUER, params: { userId: '30' }, body: { profileId: 999 }, headers: {}, socket: {} }, foreign);
+  assert.strictEqual(foreign.code, 403);
+
+  const back = fakeRes();
+  await setAccountCompany({ prisma, user: ISSUER, params: { userId: '30' }, body: { profileId: null }, headers: {}, socket: {} }, back);
+  assert.strictEqual(back.code, 200);
+  assert.deepStrictEqual(updates.at(-1), [30, null]);
+
+  const outsider = fakeRes();
+  await setAccountCompany({ prisma, user: { id: 60, role: 'AGENCY' }, params: { userId: '30' }, body: { profileId: 1 }, headers: {}, socket: {} }, outsider);
+  assert.strictEqual(outsider.code, 403);
 });

@@ -16,6 +16,8 @@ const {
 const { resolveTaxConfig } = require('../utils/taxes');
 const { getAncestorPartners } = require('../utils/whopConfig');
 const { canConfigureBillingProfile } = require('../utils/accountAccess');
+const { findOwnedProfile } = require('../utils/issuerProfile');
+const { logAudit } = require('../utils/auditLog');
 
 // A client's own invoice list is a side panel, not an accounting export: a cap
 // keeps one account with years of auto-recharges from returning thousands of
@@ -579,7 +581,18 @@ const createManual = async (req, res) => {
       });
     }
 
-    if (!canConfigureBillingProfile(req.user, profile.ownerId)) {
+    // ONE INVOICE FROM ANOTHER OF THE SAME ISSUER'S COMPANIES. Only a company
+    // of the issuer that governs this client: a profileId of anyone else is a
+    // refusal, not a fallback, because printing another issuer's RNC on this
+    // client's document is exactly what must be impossible. Checked before
+    // anything is written, like the two permissions below.
+    let issuerProfile = profile;
+    if (req.body?.profileId !== undefined && req.body?.profileId !== null && req.body?.profileId !== '') {
+      issuerProfile = await findOwnedProfile(req.prisma, profile.ownerId, req.body.profileId);
+      if (!issuerProfile) return res.status(403).json({ error: 'Esa empresa no emite las facturas de este cliente.' });
+    }
+
+    if (!canConfigureBillingProfile(req.user, issuerProfile.ownerId)) {
       return res.status(403).json({ error: 'Solo quien emite las facturas de este cliente puede crearle una.' });
     }
     if (!(await canReadAccount(req.prisma, req.user, userId))) {
@@ -587,7 +600,7 @@ const createManual = async (req, res) => {
     }
 
     const invoice = await issueManualInvoice(req.prisma, {
-      profile, client, amount, concept, applyTaxes, paidAt,
+      profile: issuerProfile, client, amount, concept, applyTaxes, paidAt,
     });
 
     // Through the same present() every other route uses, so a hand-made invoice
@@ -599,8 +612,122 @@ const createManual = async (req, res) => {
   }
 };
 
+/**
+ * EVERY INVOICE OF ONE ACCOUNT, automatic and manual, newest first.
+ * GET /api/invoices/history?forUserId=&limit=
+ *
+ * Built from Invoice rows, not from payments - that is what lets a hand-made
+ * invoice, which has no payment, be found again. Unlike listMine it does not
+ * hang on taxEnabled: a manual invoice can exist for a client whose issuer shows
+ * no tax. Same reader rule as listMine (canReadAccount).
+ *
+ * `kind` is 'automatic' while the payment behind the invoice still exists and
+ * 'manual' otherwise; an automatic invoice whose payment was deleted reads as
+ * manual, which is the only information left about it.
+ */
+const listHistory = async (req, res) => {
+  try {
+    const requested = parseInt(req.query.limit);
+    const limit = Math.min(Number.isFinite(requested) && requested > 0 ? requested : DEFAULT_LIMIT, MAX_LIMIT);
+    let subjectId = req.user.id;
+    if (req.query.forUserId !== undefined) {
+      subjectId = parseInt(req.query.forUserId);
+      if (!Number.isFinite(subjectId)) return res.status(400).json({ error: 'Cuenta no válida.' });
+    }
+    if (!(await canReadAccount(req.prisma, req.user, subjectId))) {
+      return res.status(403).json({ error: 'No puedes ver las facturas de esta cuenta.' });
+    }
+
+    const rows = await req.prisma.invoice.findMany({
+      where: { userId: subjectId },
+      orderBy: [{ issuedAt: 'desc' }, { id: 'desc' }],
+      take: limit,
+      include: { profile: { select: { id: true, label: true } } },
+    });
+    const invoices = rows.map((inv) => {
+      const lines = parseSnapshot(inv.conceptLines, [], 'conceptLines', inv.id);
+      const issuer = parseSnapshot(inv.issuerSnapshot, {}, 'issuerSnapshot', inv.id);
+      return {
+        id: inv.id,
+        number: inv.number,
+        issuedAt: inv.issuedAt,
+        paidAt: inv.paidAt ?? null,
+        total: inv.total,
+        currency: inv.currency,
+        concept: (Array.isArray(lines) && lines[0] && lines[0].description) || '',
+        profileId: inv.profile ? inv.profile.id : inv.profileId ?? null,
+        companyLabel: (inv.profile && inv.profile.label) || issuer.name || '',
+        kind: inv.creditPurchaseId ? 'automatic' : 'manual',
+      };
+    });
+
+    const account = await req.prisma.user.findUnique({ where: { id: subjectId } });
+    const effective = await resolveManualIssuerProfile(req.prisma, subjectId).catch(() => null);
+    res.json({
+      accountId: subjectId,
+      invoices,
+      company: {
+        assignedProfileId: account?.issuerProfileId ?? null,
+        effectiveProfileId: effective ? effective.id : null,
+        ownerId: effective ? effective.ownerId : null,
+      },
+    });
+  } catch (error) {
+    console.error('Error listing the invoice history:', error.message);
+    res.status(500).json({ error: 'No se pudo cargar el historial de facturas' });
+  }
+};
+
+/**
+ * WHICH COMPANY ISSUES THIS CLIENT'S INVOICES.
+ * PUT /api/invoices/accounts/:userId/company   { profileId | null }
+ *
+ * null = the issuer's default. Only whoever issues for this client may change
+ * it (the createManual rule: canConfigureBillingProfile on the governing issuer,
+ * plus canReadAccount), and only to one of that issuer's own companies. Affects
+ * FUTURE invoices only: issued ones keep their profileId and snapshot.
+ */
+const setAccountCompany = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    if (!Number.isFinite(userId)) return res.status(400).json({ error: 'Cuenta no válida.' });
+    if (!(await canReadAccount(req.prisma, req.user, userId))) {
+      return res.status(403).json({ error: 'No puedes ver las facturas de esta cuenta.' });
+    }
+    const current = await resolveManualIssuerProfile(req.prisma, userId);
+    if (!current) return res.status(409).json({ error: 'Este cliente no tiene un emisor de facturas configurado.' });
+    if (!canConfigureBillingProfile(req.user, current.ownerId)) {
+      return res.status(403).json({ error: 'Solo quien emite las facturas de este cliente puede cambiarle la empresa.' });
+    }
+
+    let profileId = null;
+    if (req.body?.profileId !== undefined && req.body?.profileId !== null && req.body?.profileId !== '') {
+      const target = await findOwnedProfile(req.prisma, current.ownerId, req.body.profileId);
+      if (!target) return res.status(403).json({ error: 'Esa empresa no emite las facturas de este cliente.' });
+      profileId = target.id;
+    }
+    await req.prisma.user.update({ where: { id: userId }, data: { issuerProfileId: profileId } });
+    logAudit(req.prisma, {
+      userId,
+      actorId: req.user.id,
+      actorType: 'user',
+      action: 'billing_profile.assign',
+      resourceType: 'user',
+      resourceId: String(userId),
+      details: { issuerProfileId: profileId },
+      req,
+    });
+    res.json({ accountId: userId, assignedProfileId: profileId });
+  } catch (error) {
+    console.error('Error assigning the issuing company:', error.message);
+    res.status(500).json({ error: 'No se pudo cambiar la empresa emisora' });
+  }
+};
+
 module.exports = {
   listMine,
+  listHistory,
+  setAccountCompany,
   createManual,
   presentPayment,
   getOne,
