@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { usersAPI, billingPeriodsAPI, creditsAPI } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
+import { cardLabel } from '../../utils/cardLabel'
 
 // Roles that manage other accounts. Everyone else sees only their own.
 const MANAGER_ROLES = ['OWNER', 'WHITELABEL', 'AGENCY']
@@ -320,7 +321,7 @@ export default function BillingPeriods() {
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
               <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Tarjeta guardada</p>
               <p className="text-sm font-medium text-gray-900 dark:text-white mt-2">
-                {data.hasCard ? `Sí · ${data.provider === 'stripe' ? 'Stripe' : 'Whop'}` : 'No'}
+                {data.hasCard ? `${data.card ? cardLabel(data.card) : 'Sí'} · ${data.provider === 'stripe' ? 'Stripe' : 'Whop'}` : 'No'}
               </p>
             </div>
           </div>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { payAPI } from '../../services/api'
 import ChargeBreakdown, { useChargeQuote } from '../Dashboard/ChargeBreakdown'
+import { cardLabel } from '../../utils/cardLabel'
 
 // Public, per-client payment page. Opened directly from a link or embedded in
 // someone else's site with ?embed=1 (which drops the outer padding so the iframe
@@ -204,7 +205,9 @@ export default function PaymentPortalPage() {
                 : data.hasCard ? 'Cambiar la tarjeta guardada' : 'Guardar una tarjeta para futuros pagos'}
             </button>
             {data.hasCard && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">Ya tienes una tarjeta guardada.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                {data.card ? <>Tarjeta guardada: <span className="font-medium text-gray-700 dark:text-gray-300">{cardLabel(data.card)}</span></> : 'Ya tienes una tarjeta guardada.'}
+              </p>
             )}
           </>
         ) : (

@@ -6,6 +6,7 @@ const { logAudit } = require('../utils/auditLog');
 const { createCreditCheckout, createCardSetupCheckout, resolveReceiptEmail, CheckoutError, creditsLabel, manualTopUpBlocker } = require('../services/creditCheckout');
 const { decrypt } = require('../utils/encryption');
 const { returnBase } = require('../utils/returnBase');
+const { cardsOnFile } = require('../services/cardOnFile');
 const { decryptPHI } = require('../utils/phiEncryption');
 const { resolveCharge } = require('../utils/taxes');
 
@@ -584,6 +585,7 @@ const getCardStatus = async (req, res) => {
       outstanding: target.vapiCredits < 0 ? Math.round(-target.vapiCredits * 100) / 100 : 0,
       hasCard: !!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId),
       hasBackupCard: !!(isStripe ? target.stripePaymentMethodIdBackup : target.whopPaymentMethodIdBackup),
+      ...(await cardsOnFile(req.prisma, target, { mode })),
       provider: isStripe ? 'stripe' : mode,
       min: CHARGE_MIN_AMOUNT,
       max: CREDITS_MAX_AMOUNT,
@@ -1226,6 +1228,7 @@ const getAutoRecharge = async (req, res) => {
     const user = await req.prisma.user.findUnique({
       where: { id: req.user.id },
       select: {
+        id: true,
         autoRechargeEnabled: true,
         autoRechargeThreshold: true,
         autoRechargeAmount: true,
@@ -1261,6 +1264,7 @@ const getAutoRecharge = async (req, res) => {
       // Which column holds the card depends on the provider governing this account.
       hasCard: !!(billing.mode === 'own_stripe' ? user?.stripePaymentMethodId : user?.whopPaymentMethodId),
       hasBackupCard: !!(billing.mode === 'own_stripe' ? user?.stripePaymentMethodIdBackup : user?.whopPaymentMethodIdBackup),
+      ...(await cardsOnFile(req.prisma, user, { mode: billing.mode })),
       // Surface the last decline so the customer knows why the card failed
       // instead of auto-recharge going quiet after 3 silent failures.
       lastError: user?.autoRechargeLastError || null,
