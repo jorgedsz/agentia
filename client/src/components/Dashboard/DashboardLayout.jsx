@@ -8,6 +8,7 @@ import ChatAssistant from './ChatAssistant'
 import NotificationToasts from './NotificationToasts'
 import WhopCheckoutModal from './WhopCheckoutModal'
 import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
+import { cardLabel } from '../../utils/cardLabel'
 
 // THIS MODAL IS THE ONLY PLACE A CLIENT TOPS UP. The screen that looks like the
 // top-up page, Credits.jsx, has been orphaned since February and was deleted
@@ -828,6 +829,8 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
         threshold: data.threshold ?? '',
         amount: data.amount ?? '',
         hasCard: !!data.hasCard,
+        card: data.card || null,
+        backupCard: data.backupCard || null,
         selfServiceDisabled: !!data.selfServiceDisabled,
         manualTopUpBlocked: data.manualTopUpBlocked || null,
         lastError: data.lastError || null,
@@ -1132,7 +1135,7 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                     {t('credits.autoRecharge') || 'Auto-recarga'}
                   </h3>
                   <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${ar.hasCard ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
-                    {ar.hasCard ? (t('credits.cardOnFile') || 'Tarjeta guardada') : (t('credits.noCard') || 'Sin tarjeta')}
+                    {ar.hasCard ? (ar.card ? cardLabel(ar.card) : (t('credits.cardOnFile') || 'Tarjeta guardada')) : (t('credits.noCard') || 'Sin tarjeta')}
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">

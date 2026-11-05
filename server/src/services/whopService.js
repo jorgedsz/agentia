@@ -119,6 +119,15 @@ async function chargeOffSession({ memberId, userId, paymentMethodId, amount, met
 
 // ── Memberships ──
 
+// A saved payment method, with its card's brand and last four digits.
+// Needs the member:payment_methods:read permission on the API key.
+async function getPaymentMethod(paymentMethodId, config) {
+  const { data } = await axios.get(`${WHOP_API_BASE}/payment_methods/${encodeURIComponent(paymentMethodId)}`, {
+    headers: getHeaders(config), timeout: 8000,
+  });
+  return data;
+}
+
 async function getMembership(membershipId) {
   const { data } = await axios.get(`${WHOP_API_BASE}/memberships/${membershipId}`, { headers: getHeaders() });
   return data;
@@ -153,6 +162,7 @@ function verifyWebhook(rawBody, headers, secretOverride) {
 }
 
 module.exports = {
+  getPaymentMethod,
   createProduct,
   createPlan,
   createCheckoutSession,
