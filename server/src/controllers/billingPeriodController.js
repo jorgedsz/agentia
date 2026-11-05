@@ -58,6 +58,7 @@ const list = async (req, res) => {
       },
       provider: isStripe ? 'stripe' : mode,
       hasCard: !!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId),
+      card: await require('../services/cardOnFile').cardOnFile(req.prisma, target, { mode }),
       timezone: billing.TIMEZONE,
       periods,
     });
@@ -389,6 +390,7 @@ const cyclePlan = async (req, res) => {
     res.json({
       plan,
       hasCard: !!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId),
+      card: await require('../services/cardOnFile').cardOnFile(req.prisma, target, { mode }),
       lastChargeAt: target.cycleLastChargeAt,
       lastError: target.autoRechargeLastError || null,
     });

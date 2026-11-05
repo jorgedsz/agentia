@@ -15,6 +15,10 @@ const { getAncestorPartners } = require('../utils/whopConfig');
 const budgets = require('../services/budgets');
 const budgetRequests = require('../services/budgetRequests');
 const { notifyAll } = require('../services/notifications');
+const { cardOnFile } = require('../services/cardOnFile');
+
+// Public pages only show which card it is: brand and last four, never expiry.
+const publicCard = (c) => (c ? { brand: c.brand, last4: c.last4 } : null);
 
 const MIN_PAYMENT = 0.5;   // Stripe rejects anything smaller
 const MAX_PAYMENT = 10000;
@@ -98,6 +102,7 @@ const getBilling = async (req, res) => {
       balance: Math.round(user.vapiCredits * 100) / 100,
       outstanding: user.vapiCredits < 0 ? Math.round(-user.vapiCredits * 100) / 100 : 0,
       hasCard: !!(isStripe ? user.stripePaymentMethodId : user.whopPaymentMethodId),
+      card: publicCard(await cardOnFile(req.prisma, user, { mode })),
       // Only the full outstanding balance can be paid, so the emailed usage
       // report always accounts for exactly the amount charged. Nothing owed (or
       // less than Stripe's floor) means there is nothing to pay right now.

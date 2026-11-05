@@ -168,6 +168,10 @@ async function chargeOffSession({ customerId, paymentMethodId, amount, descripti
 
 // ── Payment methods ──
 
+async function getPaymentMethod(paymentMethodId, secretKey) {
+  return client(secretKey).paymentMethods.retrieve(paymentMethodId);
+}
+
 async function detachPaymentMethod(paymentMethodId, secretKey) {
   return client(secretKey).paymentMethods.detach(paymentMethodId);
 }
@@ -214,6 +218,7 @@ async function verifyCredentials(secretKey) {
 }
 
 module.exports = {
+  getPaymentMethod,
   toCents,
   fromCents,
   ensureCustomer,

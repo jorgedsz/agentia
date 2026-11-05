@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { authAPI, usersAPI, whopAPI, stripeAPI, creditsAPI, payAPI, phoneSwitchAPI, infraCostAPI, billingProfileAPI } from '../../services/api'
 import BillingProfileFields, { EMPTY_INVOICE_PROFILE, invoiceFormFrom, invoicePayloadFrom } from './BillingProfileFields'
+import { cardLabel } from '../../utils/cardLabel'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -1037,7 +1038,7 @@ export default function AccountManagement() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Cobrar con tarjeta guardada</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${cardStatus.hasCard ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-dark-hover dark:text-gray-400'}`}>
-                    {cardStatus.hasCard ? `tarjeta en ${cardStatus.provider === 'stripe' ? 'Stripe' : 'Whop'}` : 'sin tarjeta'}
+                    {cardStatus.hasCard ? (cardStatus.card ? `${cardLabel(cardStatus.card)} · ${cardStatus.provider === 'stripe' ? 'Stripe' : 'Whop'}` : `tarjeta en ${cardStatus.provider === 'stripe' ? 'Stripe' : 'Whop'}`) : 'sin tarjeta'}
                   </span>
                 </div>
 
