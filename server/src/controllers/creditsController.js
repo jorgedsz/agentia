@@ -5,6 +5,7 @@ const { settleCreditPurchase } = require('../utils/creditSettlement');
 const { logAudit } = require('../utils/auditLog');
 const { createCreditCheckout, createCardSetupCheckout, resolveReceiptEmail, CheckoutError, creditsLabel, manualTopUpBlocker } = require('../services/creditCheckout');
 const { decrypt } = require('../utils/encryption');
+const { returnBase } = require('../utils/returnBase');
 const { decryptPHI } = require('../utils/phiEncryption');
 const { resolveCharge } = require('../utils/taxes');
 
@@ -789,10 +790,12 @@ const purchaseCredits = async (req, res) => {
     // Where the money goes — the partner's Stripe, the partner's Whop, or the
     // platform's — is decided inside createCreditCheckout, which the public
     // payment page uses as well so both routes bill identically.
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    // Back to the domain the user paid from (a partner's panel keeps its
+    // session and brand), straight onto the dashboard.
+    const base = await returnBase(req);
     const result = await createCreditCheckout(req.prisma, req.user.id, amount, {
-      successUrl: `${clientUrl}/credits?checkout=success`,
-      cancelUrl: `${clientUrl}/credits?checkout=cancelled`,
+      successUrl: `${base}/dashboard?checkout=success`,
+      cancelUrl: `${base}/dashboard?checkout=cancelled`,
     });
     res.json(result);
   } catch (error) {
@@ -1163,10 +1166,10 @@ function startAutoRechargeScheduler(prisma) {
  */
 const setupCard = async (req, res) => {
   try {
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const base = await returnBase(req);
     const result = await createCardSetupCheckout(req.prisma, req.user.id, req.body?.slot, {
-      successUrl: `${clientUrl}/credits?setup=success`,
-      cancelUrl: `${clientUrl}/credits?setup=cancelled`,
+      successUrl: `${base}/dashboard?setup=success`,
+      cancelUrl: `${base}/dashboard?setup=cancelled`,
     });
     res.json(result);
   } catch (error) {

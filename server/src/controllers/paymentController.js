@@ -518,7 +518,7 @@ const purchase = async (req, res) => {
       }
 
       const whopService = require('../services/whopService');
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+      const base = await require('../utils/returnBase').returnBase(req);
       const session = await whopService.createCheckoutSession({
         planId,
         metadata: {
@@ -527,7 +527,7 @@ const purchase = async (req, res) => {
           billingCycle: cycle,
           type: 'subscription',
         },
-        redirectUrl: `${clientUrl}/payments?checkout=success`,
+        redirectUrl: `${base}/dashboard/payments?checkout=success`,
       });
 
       return res.json({

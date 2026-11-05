@@ -71,7 +71,7 @@ const createCheckout = async (req, res) => {
         return res.status(400).json({ error: `No Whop plan for $${tier} credit tier. Sync products first.` });
       }
 
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+      const base = await require('../utils/returnBase').returnBase(req);
       const session = await whopService.createCheckoutSession({
         planId,
         metadata: {
@@ -79,7 +79,7 @@ const createCheckout = async (req, res) => {
           type: 'credits',
           credits: String(tier),
         },
-        redirectUrl: `${clientUrl}/credits?checkout=success`,
+        redirectUrl: `${base}/dashboard?checkout=success`,
       });
 
       return res.json({
@@ -124,7 +124,7 @@ const createCheckout = async (req, res) => {
       return res.status(400).json({ error: `No Whop plan configured for billing cycle: ${cycle}` });
     }
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const base = await require('../utils/returnBase').returnBase(req);
     const session = await whopService.createCheckoutSession({
       planId,
       metadata: {
@@ -133,7 +133,7 @@ const createCheckout = async (req, res) => {
         billingCycle: cycle,
         type: 'subscription',
       },
-      redirectUrl: `${clientUrl}/payments?checkout=success`,
+      redirectUrl: `${base}/dashboard/payments?checkout=success`,
     });
 
     res.json({
