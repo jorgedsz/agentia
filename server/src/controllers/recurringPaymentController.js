@@ -442,7 +442,9 @@ async function sendNotification(prisma, entry) {
   let checkoutUrl = null;
   let checkoutId = null;
   try {
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    // No request here (it runs from the scheduler): the client goes back to
+    // their partner's own domain, like the public payment page.
+    const base = await require('../utils/returnBase').partnerBase(prisma, entry.userId);
     const session = await whopService.createCheckoutSession({
       planId: whopPlanId,
       metadata: {
@@ -450,7 +452,7 @@ async function sendNotification(prisma, entry) {
         type: 'recurring_payment',
         recurringPaymentId: String(entry.id),
       },
-      redirectUrl: `${clientUrl}/payments?checkout=success`,
+      redirectUrl: `${base}/dashboard/payments?checkout=success`,
     });
     checkoutUrl = session.purchase_url;
     checkoutId = session.id;
