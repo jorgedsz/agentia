@@ -145,7 +145,7 @@ const syncBilling = async (req, res) => {
         rate = isOutbound ? rates.outboundRate : rates.inboundRate;
       }
 
-      const cost = callCharge(durationSeconds, rate);
+      const cost = callCharge(durationSeconds, rate, isOutbound);
 
       // Create or update call log
       if (existingLog) {
