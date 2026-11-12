@@ -46,6 +46,23 @@ async function getEffectiveRates(prisma, userId) {
 }
 
 /**
+ * Minutes a call is billed for: every started minute counts as a whole one,
+ * the way Twilio bills the line (35 s → 1, 61 s → 2). A call that never
+ * connected (0 s) is not billed. Charging the exact seconds instead left most
+ * calls — which last under a minute — cheaper than the minute Twilio charges
+ * for them.
+ */
+function billableMinutes(durationSeconds) {
+  const s = Number(durationSeconds) || 0;
+  return s > 0 ? Math.ceil(s / 60) : 0;
+}
+
+/** What a call costs the account: its billed minutes at the agent's rate. */
+function callCharge(durationSeconds, rate) {
+  return billableMinutes(durationSeconds) * (Number(rate) || 0);
+}
+
+/**
  * Get the per-minute rate for a specific agent.
  * Every agent is charged a flat DEFAULT_AGENT_RATE ($0.15/min) unless the OWNER
  * set a manual price on that agent (pricePerMinute, optionally with profitPercent).
@@ -141,6 +158,8 @@ async function seedDefaultRates(prisma) {
 module.exports = {
   getEffectiveRates,
   getAgentRate,
+  billableMinutes,
+  callCharge,
   seedDefaultRates,
   DEFAULT_MODEL_RATE,
   DEFAULT_TRANSCRIBER_RATE,

@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const { getApiKeys } = require('../utils/getApiKeys');
 const { encryptPHI, encryptFile } = require('../utils/phiEncryption');
-const { getAgentRate } = require('../utils/pricingUtils');
+const { getAgentRate, callCharge } = require('../utils/pricingUtils');
 const recordingStorage = require('../utils/recordingStorage');
 const fs = require('fs');
 const path = require('path');
@@ -804,8 +804,7 @@ const handleEvent = async (req, res) => {
       rate = isOutbound ? (user?.outboundRate ?? 0.10) : (user?.inboundRate ?? 0.05);
     }
 
-    const durationMinutes = durationSeconds / 60;
-    const cost = durationMinutes * rate;
+    const cost = callCharge(durationSeconds, rate);
     const outcome = categorizeOutcome(call, endedReason, message);
 
     // 4. Update or create CallLog (encrypt PHI fields before DB write)
