@@ -1,4 +1,4 @@
-const { getAgentRate } = require('../utils/pricingUtils');
+const { getAgentRate, callCharge } = require('../utils/pricingUtils');
 
 /**
  * Get current call rates
@@ -119,7 +119,6 @@ const syncBilling = async (req, res) => {
       // Determine call type and user
       const isOutbound = call.type === 'outboundPhoneCall';
       const durationSeconds = call.duration || 0;
-      const durationMinutes = durationSeconds / 60;
 
       // Find the user who owns this call (via assistant)
       let userId = null;
@@ -146,7 +145,7 @@ const syncBilling = async (req, res) => {
         rate = isOutbound ? rates.outboundRate : rates.inboundRate;
       }
 
-      const cost = durationMinutes * rate;
+      const cost = callCharge(durationSeconds, rate);
 
       // Create or update call log
       if (existingLog) {

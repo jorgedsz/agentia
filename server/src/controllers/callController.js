@@ -2,7 +2,7 @@ const vapiService = require('../services/vapiService');
 const { getVapiKeyForUser } = require('../utils/getApiKeys');
 const { decryptPHI } = require('../utils/phiEncryption');
 const { logAudit } = require('../utils/auditLog');
-const { getAgentRate } = require('../utils/pricingUtils');
+const { getAgentRate, callCharge } = require('../utils/pricingUtils');
 const { findGhlConnection, ghlRequest, getValidToken } = require('./ghlController');
 const { decrypt } = require('../utils/encryption');
 const { allowsNegativeBalance } = require('../utils/negativeBalance');
@@ -651,8 +651,6 @@ const syncCallBilling = async (prisma, vapiCalls) => {
 
   for (const { call, existingLog, userId, agentId, durationSeconds } of callsToBill) {
     const isOutbound = call.type === 'outboundPhoneCall';
-    const durationMinutes = durationSeconds / 60;
-
     const dynamicRate = agentId ? agentRateCache[agentId] : null;
     let rate;
     if (dynamicRate) {
@@ -664,7 +662,7 @@ const syncCallBilling = async (prisma, vapiCalls) => {
       rate = isOutbound ? outboundRate : inboundRate;
     }
 
-    const cost = durationMinutes * rate;
+    const cost = callCharge(durationSeconds, rate);
     const outcome = categorizeOutcome(call);
 
     if (existingLog) {
