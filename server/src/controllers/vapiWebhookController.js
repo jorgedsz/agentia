@@ -804,7 +804,7 @@ const handleEvent = async (req, res) => {
       rate = isOutbound ? (user?.outboundRate ?? 0.10) : (user?.inboundRate ?? 0.05);
     }
 
-    const cost = callCharge(durationSeconds, rate);
+    const cost = callCharge(durationSeconds, rate, isOutbound);
     const outcome = categorizeOutcome(call, endedReason, message);
 
     // 4. Update or create CallLog (encrypt PHI fields before DB write)

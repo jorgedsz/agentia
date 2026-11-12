@@ -662,7 +662,7 @@ const syncCallBilling = async (prisma, vapiCalls) => {
       rate = isOutbound ? outboundRate : inboundRate;
     }
 
-    const cost = callCharge(durationSeconds, rate);
+    const cost = callCharge(durationSeconds, rate, isOutbound);
     const outcome = categorizeOutcome(call);
 
     if (existingLog) {
