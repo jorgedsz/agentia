@@ -177,15 +177,41 @@ sword-3-132-126-1.sslip.io {
 
 ### Task 4: Caddy para los cuatro dominios
 
-- [ ] **Step 1:** En el Caddyfile:
+**No agregar los dominios reales al Caddyfile antes de la noche del cambio:** con el DNS todavía en Lightsail, Caddy intentaría sacar certificados que fallan, y Let's Encrypt bloquea un dominio por una hora tras 5 validaciones fallidas.
+
+- [ ] **Step 1: Certificado de origen de Cloudflare** (Jorge): Cloudflare → `swordaisolutions.com` y `lmconsultingai.com` → SSL/TLS → Origin Server → Create certificate (RSA, 15 años, hostnames `*.swordaisolutions.com, swordaisolutions.com` y `lmconsultingai.com, *.lmconsultingai.com`). Guardar certificado y llave en `/opt/nebo/certs/` (600) por SSH, sin pasarlos por el chat. Con esto esos dos dominios se cambian con el proxy de Cloudflare encendido (SSL **Full (strict)**), sin esperar ningún certificado.
+- [ ] **Step 2: Dejar listo `/opt/nebo/sword-dominios.caddy`** (fuera del Caddyfile hasta el cambio):
 
 ```
-app.swordaisolutions.com, panel.neboaiconsulting.com, lmconsultingai.com, goatai.us {
-	reverse_proxy sword:8080
+app.swordaisolutions.com {
+	tls /certs/swordaisolutions.pem /certs/swordaisolutions.key
+	import sword_proxy
+}
+lmconsultingai.com {
+	tls /certs/lmconsultingai.pem /certs/lmconsultingai.key
+	import sword_proxy
+}
+panel.neboaiconsulting.com, goatai.us {
+	import sword_proxy
+}
+```
+
+y el fragmento común, que sí puede entrar ya al Caddyfile (no declara dominios):
+
+```
+(sword_proxy) {
+	reverse_proxy sword:8080 {
+		# Durante un reinicio de Sword las solicitudes esperan hasta 30 s en vez de fallar.
+		lb_try_duration 30s
+		lb_try_interval 500ms
+		health_uri /api/health
+		health_interval 10s
+	}
 	encode zstd gzip
 }
 ```
-Caddy pedirá los certificados cuando el DNS apunte aquí (Task 5). `caddy validate` y `caddy reload`. Hasta el cambio de DNS, los intentos de certificado fallan sin afectar a nada más.
+
+`/opt/nebo/certs` se monta en el contenedor de Caddy como `/certs:ro` (cambio en `docker-compose.yml`).
 
 ---
 
@@ -193,11 +219,13 @@ Caddy pedirá los certificados cuando el DNS apunte aquí (Task 5). `caddy valid
 
 - [ ] **Step 1: Lightsail suelta las tareas** — secret `TAREAS=off` en GitHub y re-ejecutar el último despliegue de `main` (mismo commit `C1`). Esperar a que el despliegue esté ACTIVE y ver en sus logs `[Tareas] TAREAS=off`.
 - [ ] **Step 2: nebocore toma las tareas** — quitar `TAREAS=off` de `/opt/nebo/sword.env` y `docker compose up -d sword`. En los logs: las tareas arrancan. (Entre el Step 1 y este pasan uno o dos minutos sin tareas: la recarga automática corre cada 2 minutos y se pone al día sola.)
-- [ ] **Step 3: DNS** (Jorge):
-  - Cloudflare: `app.swordaisolutions.com`, `lmconsultingai.com` y `goatai.us` → registro **A 3.132.126.1**, nube **gris (solo DNS)** para que Caddy saque el certificado.
+- [ ] **Step 3: Caddy toma los dominios** — `import /opt/nebo/sword-dominios.caddy` al final del Caddyfile (montado en el contenedor), `caddy validate`, `caddy reload`.
+- [ ] **Step 4: DNS** (Jorge):
+  - Cloudflare: `app.swordaisolutions.com` y `lmconsultingai.com` → registro **A 3.132.126.1** con la **nube naranja** (proxy) y SSL **Full (strict)**: usan el certificado de origen, el cambio es instantáneo.
+  - Cloudflare: `goatai.us` → **A 3.132.126.1**, nube gris (como hoy).
   - Squarespace: `panel.neboaiconsulting.com` → quitar el CNAME, poner **A 3.132.126.1**.
-- [ ] **Step 4: Comprobar** — para cada dominio: `curl -sI https://<dominio>/api/health` responde desde nebocore (sin `Server: cloudflare` en los de nube gris) y el certificado es de Let's Encrypt; en `docker compose logs sword` entran webhooks de Vapi; una llamada de prueba de JH queda registrada con su costo. Mientras el DNS termina de propagar, quien todavía llegue a Lightsail sigue atendido normal (misma base, sin tareas).
-- [ ] **Step 5 (opcional):** volver a encender la nube naranja de Cloudflare en `app.swordaisolutions.com` y `lmconsultingai.com` con SSL **Full (strict)**.
+  - Para `goatai.us` y `panel…`: apenas cambie el DNS, `caddy reload` para que pida el certificado en el acto, y vigilar `docker compose logs caddy` hasta ver `certificate obtained`.
+- [ ] **Step 5: Comprobar** — para cada dominio: `curl -sI https://<dominio>/api/health` responde desde nebocore; en `docker compose logs sword` entran webhooks de Vapi; una llamada de prueba de JH queda registrada con su costo. Mientras el DNS termina de propagar, quien todavía llegue a Lightsail sigue atendido normal (misma base, sin tareas).
 
 **Volver atrás:** DNS a como estaba (Cloudflare a Lightsail; Squarespace al CNAME de Lightsail), `TAREAS=off` en nebocore y quitar el secret `TAREAS` + redeploy en Lightsail.
 
@@ -205,7 +233,7 @@ Caddy pedirá los certificados cuando el DNS apunte aquí (Task 5). `caddy valid
 
 ### Task 6: Despliegue automático en nebocore
 
-- [ ] **Step 1:** `/opt/nebo/actualizar-sword.sh` + `nebo-sword.timer` (cada minuto), como el de la web: si `main` tiene commit nuevo → `git reset --hard` → `docker compose build sword` → `up -d` → esperar el health check → si no queda sano, volver a la imagen anterior (`nebo-sword:anterior`).
+- [ ] **Step 1:** `/opt/nebo/actualizar-sword.sh` + `nebo-sword.timer` (cada minuto), como el de la web: si `main` tiene commit nuevo → `git reset --hard` → `docker compose build sword` **con la versión vieja todavía atendiendo** → etiquetar la imagen actual como `nebo-sword:anterior` → `up -d` (10–20 s de reinicio, que Caddy cubre con `lb_try_duration`) → esperar el health check → si no queda sano, volver a `nebo-sword:anterior`.
 - [ ] **Step 2:** En `deploy-lightsail.yml`, cambiar el disparador a `workflow_dispatch` (solo a mano) para que un push a `main` deje de desplegar en Lightsail.
 - [ ] **Step 3:** Una semana después, sin incidentes: Jorge borra el contenedor de Lightsail (deja de cobrarse). La base de Lightsail sigue hasta la Etapa B.
 
