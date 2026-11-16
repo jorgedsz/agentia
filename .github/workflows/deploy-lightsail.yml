@@ -111,6 +111,8 @@ jobs:
           WHOP_API_KEY: ${{ secrets.WHOP_API_KEY }}
           WHOP_COMPANY_ID: ${{ secrets.WHOP_COMPANY_ID }}
           WHOP_WEBHOOK_SECRET: ${{ secrets.WHOP_WEBHOOK_SECRET }}
+          # "off" starts this copy without its background jobs (moving to nebocore)
+          TAREAS: ${{ secrets.TAREAS }}
           # Recordings → Lightsail Object Storage (S3-compatible)
           RECORDINGS_S3_BUCKET: ${{ secrets.RECORDINGS_S3_BUCKET }}
           RECORDINGS_S3_REGION: ${{ secrets.RECORDINGS_S3_REGION }}
@@ -155,6 +157,7 @@ jobs:
             --arg WHOP_API_KEY "$WHOP_API_KEY" \
             --arg WHOP_COMPANY_ID "$WHOP_COMPANY_ID" \
             --arg WHOP_WEBHOOK_SECRET "$WHOP_WEBHOOK_SECRET" \
+            --arg TAREAS "$TAREAS" \
             --arg RECORDINGS_S3_BUCKET "$RECORDINGS_S3_BUCKET" \
             --arg RECORDINGS_S3_REGION "$RECORDINGS_S3_REGION" \
             --arg AWS_ACCESS_KEY_ID "$BUCKET_AWS_ACCESS_KEY_ID" \
@@ -187,6 +190,7 @@ jobs:
                   WHOP_API_KEY: $WHOP_API_KEY,
                   WHOP_COMPANY_ID: $WHOP_COMPANY_ID,
                   WHOP_WEBHOOK_SECRET: $WHOP_WEBHOOK_SECRET,
+                  TAREAS: $TAREAS,
                   RECORDINGS_S3_BUCKET: $RECORDINGS_S3_BUCKET,
                   RECORDINGS_S3_REGION: $RECORDINGS_S3_REGION,
                   AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID,
