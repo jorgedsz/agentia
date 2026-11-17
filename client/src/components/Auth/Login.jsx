@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { brandingAPI } from '../../services/api'
+import { DEFAULT_BRAND_LOGO } from '../../utils/hostBranding'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -11,6 +12,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [branding, setBranding] = useState(null)
+  const [brandingChecked, setBrandingChecked] = useState(false)
   const { login } = useAuth()
   const { darkMode, toggleDarkMode } = useTheme()
   const { t, language, toggleLanguage } = useLanguage()
@@ -18,12 +20,13 @@ export default function Login() {
 
   // Whitelabel branding — pulled by hostname so visitors on custom domains
   // (e.g. lmconsultingai.com) see the right logo + name on the login page.
-  // Falls back silently to the default Sword AI branding when the endpoint
+  // Falls back silently to the default NEBO branding when the endpoint
   // returns null or fails.
   useEffect(() => {
     brandingAPI.getByHost(window.location.host)
       .then((r) => { if (r.data?.branding) setBranding(r.data.branding) })
       .catch(() => {})
+      .finally(() => setBrandingChecked(true))
   }, [])
 
   const handleSubmit = async (e) => {
@@ -69,10 +72,10 @@ export default function Login() {
 
       <div className="max-w-md w-full space-y-8">
         <div>
-          {branding?.companyLogo && (
+          {(branding?.companyLogo || (brandingChecked && !branding?.companyName)) && (
             <img
-              src={branding.companyLogo}
-              alt={branding.companyName || ''}
+              src={branding?.companyLogo || DEFAULT_BRAND_LOGO}
+              alt={branding?.companyName || 'NEBO'}
               className="mx-auto mb-4 max-h-20 w-auto object-contain"
             />
           )}

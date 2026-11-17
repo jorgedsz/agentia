@@ -65,7 +65,7 @@
     "messagesPausedBanner": "Los mensajes de chatbot están pausados para tu cuenta. Contacta a tu administrador para reanudar."
   },
   "auth": {
-    "title": "Sword AI",
+    "title": "NEBO",
     "signIn": "Inicia sesión en tu cuenta",
     "emailLabel": "Correo electrónico",
     "emailPlaceholder": "tu@ejemplo.com",
@@ -1844,7 +1844,7 @@
     "catManagement": "Gestión",
     "catBilling": "Facturación",
     "catSettings": "Configuración",
-    "vid1Title": "Primeros pasos con Sword AI",
+    "vid1Title": "Primeros pasos con NEBO",
     "vid1Desc": "Aprende a navegar el panel, entender las secciones principales y configurar tu cuenta por primera vez.",
     "vid2Title": "Resumen del Panel y Navegación",
     "vid2Desc": "Recorrido por la barra lateral, estadísticas generales, acciones rápidas y cómo cambiar entre modo oscuro y claro.",

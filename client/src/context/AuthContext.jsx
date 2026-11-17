@@ -77,7 +77,8 @@ export function AuthProvider({ children }) {
             companyName: hostData.branding.companyName,
             companyLogo: hostData.branding.companyLogo,
             companyTagline: hostData.branding.companyTagline,
-            creditsLabel: hostData.branding.creditsLabel || null
+            creditsLabel: hostData.branding.creditsLabel || null,
+            ready: true
           })
           return
         }
@@ -88,10 +89,14 @@ export function AuthProvider({ children }) {
         companyName: data.companyName,
         companyLogo: data.companyLogo,
         companyTagline: data.companyTagline,
-        creditsLabel: data.creditsLabel || null
+        creditsLabel: data.creditsLabel || null,
+        ready: true
       })
     } catch (err) {
       console.error('Failed to fetch branding:', err)
+      // `ready` lets the dashboard show the platform logo only once it knows the
+      // account has none of its own (no flash of it on whitelabel domains).
+      setBranding((b) => ({ ...b, ready: true }))
     }
   }
 

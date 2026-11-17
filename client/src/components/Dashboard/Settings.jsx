@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI, vapiKeyPoolAPI, complianceAPI, paymentsAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 import PricingSettings from './PricingSettings'
-import { applyBranding } from '../../utils/hostBranding'
+import { applyBranding, DEFAULT_BRAND_NAME } from '../../utils/hostBranding'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -928,7 +928,7 @@ function BrandingTab() {
             )}
             <div>
               <h1 className="text-lg font-bold text-primary-600 dark:text-primary-400">
-                {branding.companyName || 'Sword AI'}
+                {branding.companyName || DEFAULT_BRAND_NAME}
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {branding.companyTagline || 'AI Voice Platform'}
@@ -952,7 +952,7 @@ function BrandingTab() {
               value={branding.companyName}
               onChange={(e) => setBranding({ ...branding, companyName: e.target.value })}
               disabled={!canEdit}
-              placeholder="Sword AI"
+              placeholder="NEBO"
               className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
             />
           </div>

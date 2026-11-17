@@ -9,6 +9,7 @@ import NotificationToasts from './NotificationToasts'
 import WhopCheckoutModal from './WhopCheckoutModal'
 import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
 import { cardLabel } from '../../utils/cardLabel'
+import { DEFAULT_BRAND_NAME, DEFAULT_BRAND_LOGO } from '../../utils/hostBranding'
 
 // THIS MODAL IS THE ONLY PLACE A CLIENT TOPS UP. The screen that looks like the
 // top-up page, Credits.jsx, has been orphaned since February and was deleted
@@ -443,9 +444,9 @@ export default function DashboardLayout() {
         {/* Logo */}
         <div className="p-4 border-b border-gray-200 dark:border-dark-border">
           <div className="flex items-center gap-3">
-            {branding?.companyLogo ? (
+            {(branding?.companyLogo || branding?.ready) ? (
               <img
-                src={branding.companyLogo}
+                src={branding?.companyLogo || DEFAULT_BRAND_LOGO}
                 alt="Company logo"
                 className="w-8 h-8 rounded-lg object-contain bg-white dark:bg-dark-hover"
                 onError={(e) => { e.target.style.display = 'none' }}
@@ -453,7 +454,7 @@ export default function DashboardLayout() {
             ) : null}
             <div>
               <h1 className="text-xl font-bold text-primary-600 dark:text-primary-400">
-                {branding?.companyName || 'Sword AI'}
+                {branding?.companyName || DEFAULT_BRAND_NAME}
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {branding?.companyTagline || 'AI Voice Platform'}
