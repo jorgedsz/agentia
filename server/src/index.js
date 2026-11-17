@@ -510,10 +510,13 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  callbackController.startScheduler(prisma);
-  followUpController.startScheduler(prisma);
-  chatbotFollowUpController.startScheduler(prisma);
-  recurringPaymentController.startScheduler(prisma);
-  startAutoRechargeScheduler(prisma);
-  startCalendarMetaRefresher(prisma);
+  // TAREAS=off starts this copy without its background jobs (see utils/schedulers.js).
+  require('./utils/schedulers').startSchedulers(prisma, [
+    { start: (p) => callbackController.startScheduler(p) },
+    { start: (p) => followUpController.startScheduler(p) },
+    { start: (p) => chatbotFollowUpController.startScheduler(p) },
+    { start: (p) => recurringPaymentController.startScheduler(p) },
+    { start: (p) => startAutoRechargeScheduler(p) },
+    { start: (p) => startCalendarMetaRefresher(p) },
+  ]);
 });
