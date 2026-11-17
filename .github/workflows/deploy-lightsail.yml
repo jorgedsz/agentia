@@ -1,11 +1,12 @@
 name: Deploy to Lightsail Container Service
 
-# Auto-deploys on push to main. Equivalent to Railway's auto-deploy hook.
-# Manual trigger also available from the Actions tab.
+# Manual only. Since 2026-11-16 Sword is served from nebocore, which deploys main
+# by itself (/opt/nebo/actualizar-sword.sh, timer nebo-sword.timer; copy in
+# deploy/nebocore/). Lightsail stays as a standby with TAREAS=off (and serves
+# goatai.us) until it is shut down. Running this by hand deploys main there too;
+# both copies share the database, so keep them on the same commit.
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 # Serialize deploys: Lightsail rejects a new deployment while one is in progress
