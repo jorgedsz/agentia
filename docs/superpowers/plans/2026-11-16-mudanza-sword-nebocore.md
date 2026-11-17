@@ -231,7 +231,17 @@ y el fragmento común, que sí puede entrar ya al Caddyfile (no declara dominios
 
 ---
 
+#### Lo que pasó la noche del cambio (2026-11-16)
+
+- No se agrandó nebocore (Task 2 pendiente): con Sword y sus tareas quedan ~900 MB libres más 2 GB de swap. Se agranda si hace falta.
+- Caddy no se recreó: los certificados de origen se copiaron al volumen `caddy_data` (`/data/sword-certs`) y los dominios se agregaron al Caddyfile con `caddy reload` (sin corte). Cada dominio de Cloudflare tiene además un bloque `http://` para que no haya bucle si la zona estuviera en SSL Flexible.
+- Orden real: DNS de Cloudflare (A `3.132.126.1`, con proxy) → secret `TAREAS=off` y despliegue v127 de Lightsail → `TAREAS='on'` en nebocore → `panel.neboaiconsulting.com` en Squarespace (A) y luego en Caddy (Let's Encrypt al primer intento).
+- `goatai.us` no está en Cloudflare de Jorge: se queda en Lightsail.
+- Vuelta atrás: DNS a Lightsail, `TAREAS='off'` en nebocore, borrar el secret `TAREAS` y desplegar Lightsail a mano.
+
 ### Task 6: Despliegue automático en nebocore
+
+Hecho el 2026-11-16: `/opt/nebo/actualizar-sword.sh` (copia en `deploy/nebocore/actualizar-sword.sh`), `nebo-sword.service` como `ubuntu` y `nebo-sword.timer` cada minuto; el commit desplegado se anota en `/opt/nebo/sword-commit`. Logs: `journalctl -u nebo-sword.service`. `--forzar` despliega aunque no haya commit nuevo.
 
 - [ ] **Step 1:** `/opt/nebo/actualizar-sword.sh` + `nebo-sword.timer` (cada minuto), como el de la web: si `main` tiene commit nuevo → `git reset --hard` → `docker compose build sword` **con la versión vieja todavía atendiendo** → etiquetar la imagen actual como `nebo-sword:anterior` → `up -d` (10–20 s de reinicio, que Caddy cubre con `lb_try_duration`) → esperar el health check → si no queda sano, volver a `nebo-sword:anterior`.
 - [ ] **Step 2:** En `deploy-lightsail.yml`, cambiar el disparador a `workflow_dispatch` (solo a mano) para que un push a `main` deje de desplegar en Lightsail.
