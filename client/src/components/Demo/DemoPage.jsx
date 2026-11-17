@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { demoAPI } from '../../services/api'
+import { DEFAULT_BRAND_NAME } from '../../utils/hostBranding'
 
 const INDUSTRIES = [
   'Healthcare', 'Real Estate', 'Legal', 'Insurance', 'Home Services',
@@ -489,7 +490,7 @@ export default function DemoPage() {
             </div>
           )}
           <span className="text-xl font-bold text-primary-600 dark:text-primary-400">
-            {branding.companyName || 'Sword AI'}
+            {branding.companyName || DEFAULT_BRAND_NAME}
           </span>
         </div>
 
@@ -1147,7 +1148,7 @@ export default function DemoPage() {
             </div>
           )}
           <span className="text-lg font-bold text-primary-600 dark:text-primary-400">
-            {branding.companyName || 'Sword AI'}
+            {branding.companyName || DEFAULT_BRAND_NAME}
           </span>
         </div>
         <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
@@ -1156,7 +1157,7 @@ export default function DemoPage() {
           <a href="/login" className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors">Sign In</a>
         </div>
         <span className="text-sm text-gray-400 dark:text-gray-500">
-          &copy; {new Date().getFullYear()} {branding.companyName || 'Sword AI'}. All rights reserved.
+          &copy; {new Date().getFullYear()} {branding.companyName || DEFAULT_BRAND_NAME}. All rights reserved.
         </span>
       </div>
     </footer>

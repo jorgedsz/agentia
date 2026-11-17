@@ -29,6 +29,10 @@ function setIcon(rel, href) {
   document.head.appendChild(link)
 }
 
+// The platform's own brand, shown when an account has no branding of its own.
+export const DEFAULT_BRAND_NAME = 'NEBO'
+export const DEFAULT_BRAND_LOGO = '/nebo-icon.jpg'
+
 export function applyBranding(branding) {
   if (!branding) return
   const name = (branding.companyName || '').trim()
