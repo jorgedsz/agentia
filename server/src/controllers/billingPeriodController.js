@@ -7,7 +7,7 @@
 const billing = require('../services/billingPeriods');
 const { buildPaymentReport } = require('../services/paymentReport');
 const { canManageAccount } = require('../utils/accountAccess');
-const { getEffectiveBilling } = require('../utils/whopConfig');
+const { getEffectiveBilling } = require('../utils/billingMode');
 const { extractDeclineReason } = require('../utils/autoRecharge');
 const { logAudit } = require('../utils/auditLog');
 
@@ -57,7 +57,7 @@ const list = async (req, res) => {
         balance: Math.round(target.vapiCredits * 100) / 100,
       },
       provider: isStripe ? 'stripe' : mode,
-      hasCard: !!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId),
+      hasCard: isStripe && !!target.stripePaymentMethodId,
       card: await require('../services/cardOnFile').cardOnFile(req.prisma, target, { mode }),
       timezone: billing.TIMEZONE,
       periods,
@@ -286,8 +286,11 @@ const charge = async (req, res) => {
     if (blocked) return res.status(409).json({ error: blocked });
 
     const { mode } = await getEffectiveBilling(req.prisma, target.id).catch(() => ({ mode: 'platform' }));
-    const isStripe = mode === 'own_stripe';
-    if (!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId)) {
+    // Only Stripe accounts have a card; platform and manual ones are loaded by hand.
+    if (mode !== 'own_stripe') {
+      return res.status(400).json({ error: 'Esta cuenta está en carga manual de saldo: no tiene tarjeta que cobrar.' });
+    }
+    if (!target.stripePaymentMethodId) {
       return res.status(400).json({ error: 'La cuenta no tiene una tarjeta guardada. El cliente debe agregarla desde su panel.' });
     }
 
@@ -316,7 +319,7 @@ const charge = async (req, res) => {
       req,
     });
 
-    const settled = isStripe && result?.status === 'succeeded';
+    const settled = result?.status === 'succeeded';
     const periods = await billing.syncPeriods(req.prisma, target);
     res.json({
       success: true,
@@ -389,7 +392,7 @@ const cyclePlan = async (req, res) => {
 
     res.json({
       plan,
-      hasCard: !!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId),
+      hasCard: isStripe && !!target.stripePaymentMethodId,
       card: await require('../services/cardOnFile').cardOnFile(req.prisma, target, { mode }),
       lastChargeAt: target.cycleLastChargeAt,
       lastError: target.autoRechargeLastError || null,

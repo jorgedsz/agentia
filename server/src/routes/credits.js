@@ -38,7 +38,7 @@ router.use(authMiddleware);
 // List all users with credits (filtered by role)
 router.get('/', listCredits);
 
-// Purchase credits via Whop checkout
+// Purchase credits via the account's Stripe checkout
 router.post('/purchase', purchaseCredits);
 
 // What an amount will really cost (the tax on top, and the card total).

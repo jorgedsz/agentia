@@ -9,9 +9,9 @@
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const { createCreditCheckout, createCardSetupCheckout, confirmStripeCheckout, CheckoutError } = require('../services/creditCheckout');
-const { getEffectiveBilling } = require('../utils/whopConfig');
+const { getEffectiveBilling, isSelfServiceMode } = require('../utils/billingMode');
 const { resolveCharge } = require('../utils/taxes');
-const { getAncestorPartners } = require('../utils/whopConfig');
+const { getAncestorPartners } = require('../utils/billingMode');
 const budgets = require('../services/budgets');
 const budgetRequests = require('../services/budgetRequests');
 const { notifyAll } = require('../services/notifications');
@@ -101,12 +101,13 @@ const getBilling = async (req, res) => {
       brand: { companyName: brand?.companyName || null, companyLogo: brand?.companyLogo || null },
       balance: Math.round(user.vapiCredits * 100) / 100,
       outstanding: user.vapiCredits < 0 ? Math.round(-user.vapiCredits * 100) / 100 : 0,
-      hasCard: !!(isStripe ? user.stripePaymentMethodId : user.whopPaymentMethodId),
+      hasCard: isStripe && !!user.stripePaymentMethodId,
       card: publicCard(await cardOnFile(req.prisma, user, { mode })),
       // Only the full outstanding balance can be paid, so the emailed usage
       // report always accounts for exactly the amount charged. Nothing owed (or
-      // less than Stripe's floor) means there is nothing to pay right now.
-      canPay: mode !== 'manual' && user.vapiCredits < 0 && -user.vapiCredits >= MIN_PAYMENT,
+      // less than Stripe's floor) means there is nothing to pay right now. Only
+      // Stripe accounts pay by card; platform and manual ones are loaded by hand.
+      canPay: isSelfServiceMode(mode) && user.vapiCredits < 0 && -user.vapiCredits >= MIN_PAYMENT,
       usage: {
         days: 30,
         calls: { count: calls?._count || 0, cost: Math.round((calls?._sum?.costCharged || 0) * 100) / 100, minutes: Math.round((calls?._sum?.durationSeconds || 0) / 60) },
@@ -351,10 +352,12 @@ const getWallet = async (req, res) => {
       brand: { companyName: brand?.companyName || null, companyLogo: brand?.companyLogo || null },
       balance: round(user.vapiCredits),
       outstanding: owed,
-      canPay: mode !== 'manual' && owed >= MIN_PAYMENT,
+      // Only Stripe accounts pay by card; platform and manual ones are loaded
+      // by hand.
+      canPay: isSelfServiceMode(mode) && owed >= MIN_PAYMENT,
       // Loading credit by choice, as opposed to paying off what is owed.
-      canTopUp: mode !== 'manual',
-      hasCard: !!(mode === 'own_stripe' ? user.stripePaymentMethodId : user.whopPaymentMethodId),
+      canTopUp: isSelfServiceMode(mode),
+      hasCard: mode === 'own_stripe' && !!user.stripePaymentMethodId,
       // Approving from here is off unless the partner set a key for it.
       canApprove: !!user.budgetApprovalKey,
       min: MIN_PAYMENT,

@@ -56,7 +56,6 @@ const portalRoutes = require('./routes/portal');
 const googleWorkspaceRoutes = require('./routes/googleWorkspace');
 const trainingRoutes = require('./routes/training');
 const playbookRoutes = require('./routes/playbook');
-const whopRoutes = require('./routes/whop');
 const stripeRoutes = require('./routes/stripe');
 const paymentPortalRoutes = require('./routes/paymentPortal');
 const billingPeriodRoutes = require('./routes/billingPeriods');
@@ -219,9 +218,8 @@ app.use(cors({
   credentials: true
 }));
 
-// Whop webhook needs raw body BEFORE express.json() parses it
-app.use('/api/whop/webhook', express.raw({ type: 'application/json' }));
-// Same for Stripe: the signature is checked against the exact bytes Stripe sent
+// Stripe webhook needs raw body BEFORE express.json() parses it: the signature
+// is checked against the exact bytes Stripe sent
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -282,7 +280,6 @@ app.use('/api/portal', portalRoutes);
 app.use('/api/google-workspace', googleWorkspaceRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/playbook', playbookRoutes);
-app.use('/api/whop', whopRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/pay', paymentPortalRoutes);
 app.use('/api/billing-periods', billingPeriodRoutes);

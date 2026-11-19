@@ -179,7 +179,8 @@ test('an account with no partner above it resolves to rate 0', async () => {
 // The gate that keeps the tax on the Stripe path. Everything else about this
 // account says "tax it" - a real partner above it, a profile with taxEnabled
 // and a 27% rate - and it still resolves to no tax, purely because the money
-// would be collected through Whop, whose settlement never issues an invoice.
+// would not be collected through Stripe, the only path that issues an invoice
+// (the legacy `own_whop` value is in the list to pin that it stays untaxed).
 // Asserted with the partner injected so the gate is proven to apply even to a
 // caller that already resolved who governs the account. The mocks deliberately
 // RESOLVE rather than throw: a throwing mock would land in resolveTaxConfig's
@@ -267,16 +268,15 @@ test('resolveTaxConfig returns NO_TAX instead of throwing when prisma blows up',
 // getAncestorPartners) before taxes.js ever touches billingProfile. The tests
 // above all pass `partnerId` explicitly, which bypasses this entirely.
 //
-// This is the own_whop shape, and the whole point is that it resolves to NO
+// This is the manual shape, and the whole point is that it resolves to NO
 // tax: getEffectiveBilling finds a real partner (id 9) with a profile that has
-// taxEnabled and a 27% rate, and the mode gate still refuses it, because the
-// Whop settlement path in whopController.js would collect the tax without ever
-// issuing the invoice that has to accompany it. The own_stripe twin of this
-// test below uses the SAME mock shape and does resolve to 27, which is what
-// pins this 0 on the mode rather than on the mock.
-test('a tax-enabled profile resolves to rate 0 when the money is collected through Whop', async () => {
+// taxEnabled and a 27% rate, and the mode gate still refuses it, because only
+// the Stripe path issues the invoice that has to accompany a taxed charge. The
+// own_stripe twin of this test below uses the SAME mock shape and does resolve
+// to 27, which is what pins this 0 on the mode rather than on the mock.
+test('a tax-enabled profile resolves to rate 0 when the account is not on Stripe', async () => {
   const CLIENT = { id: 1, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' };
-  const PARTNER = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_whop' };
+  const PARTNER = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'manual' };
   const prisma = {
     user: {
       findUnique: async ({ where }) => {
@@ -291,11 +291,11 @@ test('a tax-enabled profile resolves to rate 0 when the money is collected throu
         : null),
     },
   };
-  // Sanity: this mock really does put an own_whop partner above the account,
+  // Sanity: this mock really does put a manual partner above the account,
   // so the 0 below is the gate's doing and not a broken inheritance walk.
-  const { getEffectiveBilling } = require('../src/utils/whopConfig');
+  const { getEffectiveBilling } = require('../src/utils/billingMode');
   const billing = await getEffectiveBilling(prisma, 1);
-  assert.strictEqual(billing.mode, 'own_whop');
+  assert.strictEqual(billing.mode, 'manual');
   assert.strictEqual(billing.partner.id, 9);
 
   const cfg = await resolveTaxConfig(prisma, 1);
@@ -304,13 +304,47 @@ test('a tax-enabled profile resolves to rate 0 when the money is collected throu
   assert.strictEqual(cfg.profile, null);
 });
 
-// LM Consulting's actual configuration is own_stripe, not own_whop - and
+// A partner still stored as the removed `own_whop` mode governs nothing: the
+// account reads as platform, with no partner, and so no tax and no issuer.
+test('a legacy own_whop partner reads as platform', async () => {
+  const CLIENT = { id: 1, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' };
+  const PARTNER = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_whop' };
+  const prisma = {
+    user: { findUnique: async ({ where }) => (where.id === 1 ? CLIENT : where.id === 9 ? PARTNER : null) },
+    billingProfile: {
+      findFirst: async ({ where }) => (where.ownerId === 9
+        ? { id: 77, ownerId: 9, taxEnabled: true, taxRate: 27, taxLabel: 'ITBIS' }
+        : null),
+    },
+  };
+  const { getEffectiveBilling } = require('../src/utils/billingMode');
+  assert.deepStrictEqual(await getEffectiveBilling(prisma, 1), { mode: 'platform', partner: null });
+  const cfg = await resolveTaxConfig(prisma, 1);
+  assert.strictEqual(cfg.taxRate, 0);
+  assert.strictEqual(cfg.profile, null);
+});
+
+// A legacy own_whop agency no longer stops the walk: a Stripe whitelabel above
+// it now governs the agency's clients, as it would for a platform agency.
+test('a legacy own_whop agency under a Stripe whitelabel inherits the Stripe', async () => {
+  const CLIENT = { id: 1, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' };
+  const AGENCY = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: 5, billingMode: 'own_whop' };
+  const WL = { id: 5, role: 'WHITELABEL', agencyId: null, whitelabelId: null, billingMode: 'own_stripe' };
+  const rows = { 1: CLIENT, 9: AGENCY, 5: WL };
+  const prisma = { user: { findUnique: async ({ where }) => rows[where.id] || null } };
+  const { getEffectiveBilling } = require('../src/utils/billingMode');
+  const billing = await getEffectiveBilling(prisma, 1);
+  assert.strictEqual(billing.mode, 'own_stripe');
+  assert.strictEqual(billing.partner.id, 5);
+});
+
+// LM Consulting's actual configuration is own_stripe, not manual - and
 // getEffectiveBilling resolves it through a different branch: it returns as
 // soon as it finds an own_stripe partner while walking ancestors (inside
 // getAncestorPartners' loop), rather than via the separate direct-parent
-// lookup own_whop/manual go through afterwards. This test mirrors that branch
+// lookup manual goes through afterwards. This test mirrors that branch
 // exactly (verified by calling getEffectiveBilling with this same mock
-// directly) instead of assuming it behaves like the own_whop case above.
+// directly) instead of assuming it behaves like the manual case above.
 test('resolveTaxConfig walks the real inheritance path for an own_stripe partner (LM Consulting\'s actual setup)', async () => {
   const CLIENT = { id: 1, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' };
   const PARTNER = { id: 9, role: 'WHITELABEL', agencyId: null, whitelabelId: null, billingMode: 'own_stripe' };

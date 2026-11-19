@@ -1,5 +1,5 @@
 const { AUTO_RECHARGE_MAX_FAILS, extractDeclineReason } = require('../utils/autoRecharge');
-const { getWhopConfigForUser, getEffectiveBilling } = require('../utils/whopConfig');
+const { getEffectiveBilling, isSelfServiceMode } = require('../utils/billingMode');
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 const { settleCreditPurchase } = require('../utils/creditSettlement');
 const { logAudit } = require('../utils/auditLog');
@@ -558,7 +558,7 @@ async function canCollectFrom(prisma, requester, target) {
   if (!requester || !target || requester.id === target.id) return false;
   if (requester.role === 'OWNER') return true;
   if (requester.role !== 'AGENCY' && requester.role !== 'WHITELABEL') return false;
-  const { getAncestorPartners } = require('../utils/whopConfig');
+  const { getAncestorPartners } = require('../utils/billingMode');
   const ancestors = await getAncestorPartners(prisma, target);
   return ancestors.some((a) => a.id === requester.id);
 }
@@ -583,8 +583,10 @@ const getCardStatus = async (req, res) => {
       balance: target.vapiCredits,
       // What the account owes: the balance below zero, nothing when in credit.
       outstanding: target.vapiCredits < 0 ? Math.round(-target.vapiCredits * 100) / 100 : 0,
-      hasCard: !!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId),
-      hasBackupCard: !!(isStripe ? target.stripePaymentMethodIdBackup : target.whopPaymentMethodIdBackup),
+      // Only Stripe accounts have a card; platform and manual ones are topped
+      // up by hand.
+      hasCard: isStripe && !!target.stripePaymentMethodId,
+      hasBackupCard: isStripe && !!target.stripePaymentMethodIdBackup,
       ...(await cardsOnFile(req.prisma, target, { mode })),
       provider: isStripe ? 'stripe' : mode,
       min: CHARGE_MIN_AMOUNT,
@@ -621,11 +623,12 @@ const chargeCardForUser = async (req, res) => {
     }
 
     const { mode } = await getEffectiveBilling(req.prisma, target.id).catch(() => ({ mode: 'platform' }));
-    if (mode === 'manual') {
+    // Only Stripe accounts can be charged; platform and manual ones are topped
+    // up by hand.
+    if (mode !== 'own_stripe') {
       return res.status(400).json({ error: 'Esta cuenta está en carga manual de saldo: no tiene tarjeta que cobrar.' });
     }
-    const isStripe = mode === 'own_stripe';
-    if (!(isStripe ? target.stripePaymentMethodId : target.whopPaymentMethodId)) {
+    if (!target.stripePaymentMethodId) {
       return res.status(400).json({ error: 'La cuenta no tiene una tarjeta guardada. El cliente debe agregarla desde su panel.' });
     }
 
@@ -638,9 +641,9 @@ const chargeCardForUser = async (req, res) => {
       return res.status(400).json({ error: reason });
     }
 
-    // Stripe settles synchronously, so the balance is already updated; Whop
-    // reports back by webhook a few seconds later.
-    const settled = isStripe && result?.status === 'succeeded';
+    // Stripe settles synchronously, so the balance is normally already updated;
+    // a charge still processing reports back by webhook.
+    const settled = result?.status === 'succeeded';
     const fresh = await req.prisma.user.findUnique({
       where: { id: target.id },
       select: { vapiCredits: true },
@@ -668,7 +671,7 @@ const chargeCardForUser = async (req, res) => {
         amount,
         charged: breakdown.total,
         taxAmount: breakdown.taxAmount,
-        provider: isStripe ? 'stripe' : 'whop',
+        provider: 'stripe',
         settled,
       },
       req,
@@ -770,13 +773,12 @@ const listCredits = async (req, res) => {
 };
 
 /**
- * Purchase credits via Whop checkout (variable amount).
+ * Purchase credits via the account's Stripe checkout (variable amount).
  * POST /api/credits/purchase
  * Body: { amount: number } — any value within [MIN, MAX]; $1 = 1 credit.
  *
- * Creates a one-time Whop plan inline for the requested amount, then a
- * checkout configuration for that plan. Auto-bootstraps the credits
- * Product + Whop product on first purchase so no manual sync is required.
+ * Only accounts under a partner billing through Stripe can buy; the rest are
+ * refused with the manual-billing message (see services/creditCheckout.js).
  */
 const CREDITS_MIN_AMOUNT = 1;
 const CREDITS_MAX_AMOUNT = 10000;
@@ -789,8 +791,8 @@ const purchaseCredits = async (req, res) => {
       return res.status(400).json({ error: `Amount must be between $${CREDITS_MIN_AMOUNT} and $${CREDITS_MAX_AMOUNT}.` });
     }
 
-    // Where the money goes — the partner's Stripe, the partner's Whop, or the
-    // platform's — is decided inside createCreditCheckout, which the public
+    // Where the money goes — the partner's Stripe, or nowhere for accounts
+    // without one — is decided inside createCreditCheckout, which the public
     // payment page uses as well so both routes bill identically.
     // Back to the domain the user paid from (a partner's panel keeps its
     // session and brand), straight onto the dashboard.
@@ -810,17 +812,17 @@ const purchaseCredits = async (req, res) => {
 };
 
 // ──────────────────────────────────────────────────────────────────────────
-// Auto-recharge (Whop off-session charges)
+// Auto-recharge (Stripe off-session charges)
 // ──────────────────────────────────────────────────────────────────────────
 
 const AUTO_RECHARGE_COOLDOWN_MS = 5 * 60 * 1000; // min gap between auto charges
 const AUTO_RECHARGE_DAILY_CAP = 5;               // max auto charges per 24h (safety)
 
 /**
- * Charge a user's saved Whop card off-session and record a PENDING CreditPurchase
- * keyed by the inline one-time plan id. The existing payment.succeeded webhook
- * credits the balance via that plan id (no reliance on Whop metadata).
- * Returns the Whop payment object. Throws if the user has no saved card.
+ * Charge a user's saved Stripe card off-session and record the CreditPurchase,
+ * settling it right away when Stripe reports success.
+ * Returns the Stripe PaymentIntent. Throws if the user has no saved card or is
+ * not on Stripe billing (platform and manual accounts have no card payment).
  *
  * `amount` is the PRE-TAX subtotal — the credits asked for, a cut's top-up, a
  * month's outstanding — and is what reaches the balance. A partner that
@@ -837,124 +839,34 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
   };
 
   // What the card really pays, once the governing partner's tax is added on
-  // top of the subtotal the caller worked out. Resolved once, before either
-  // provider branch, so the charge and the row recording it cannot disagree.
+  // top of the subtotal the caller worked out. Resolved once, up front, so the
+  // charge and the row recording it cannot disagree.
   const charge = await resolveCharge(prisma, user.id, amount);
 
-  // Stripe accounts charge their saved PaymentMethod directly. Unlike Whop, Stripe
-  // settles synchronously, so a success here is final and the credits are added
-  // right away; the webhook that follows is a no-op thanks to the pending claim.
+  // Stripe accounts charge their saved PaymentMethod directly. Stripe settles
+  // synchronously, so a success here is final and the credits are added right
+  // away; the webhook that follows is a no-op thanks to the pending claim.
+  // Nobody else has a card to charge.
   const stripe = await getStripeConfigForUser(prisma, user.id);
-  if (stripe.mode === 'own_stripe') {
-    if (!stripe.isConfigured) throw new Error('Stripe is not configured for this account');
-
-    const paymentMethodId = card?.paymentMethodId || user.stripePaymentMethodId;
-    if (!paymentMethodId) {
-      const err = new Error('No saved payment method');
-      err.code = 'NO_CARD';
-      throw err;
-    }
-
-    const stripeService = require('../services/stripeService');
-    const customerId = await stripeService.ensureCustomer(prisma, user, stripe.secretKey);
-    // `credits` is the pre-tax subtotal and is what the balance gets; `amount`
-    // is what the card is charged. They differ by exactly `taxAmount`.
-    const purchase = await prisma.creditPurchase.create({
-      data: {
-        userId: user.id,
-        amount: charge.total,
-        credits: charge.subtotal,
-        taxRate: charge.taxRate,
-        taxAmount: charge.taxAmount,
-        status: 'pending',
-        kind,
-        paymentMethodId,
-        ...periodData,
-      },
-    });
-
-    let intent;
-    try {
-      intent = await stripeService.chargeOffSession({
-        customerId,
-        paymentMethodId,
-        amount: charge.total,
-        // An off-session PaymentIntent has no line items, so unlike the hosted
-        // checkout there is nowhere for the split to show except here and in
-        // the metadata below. Spell it out when there is a tax, so the Stripe
-        // dashboard does not read "($100)" against a $127 charge; with no tax
-        // the wording stays exactly what it always was.
-        description: charge.taxAmount > 0
-          ? `${creditsLabel(kind)} ($${charge.subtotal} + $${charge.taxAmount} ${charge.taxLabel})`
-          : `${creditsLabel(kind)} ($${charge.subtotal})`,
-        // Second line of defence against a double charge: two automatic attempts
-        // for the same card in the same window reach Stripe with the same key,
-        // and Stripe hands back the first payment instead of making another.
-        // Deliberately NOT keyed on the amount - keying on user, card and time
-        // window is what makes adding a tax on top unable to open a second
-        // charge window for the same shortfall.
-        idempotencyKey: ['auto_recharge', 'cycle_topup'].includes(kind)
-          ? `${kind}:${user.id}:${paymentMethodId}:${Math.floor(Date.now() / AUTO_RECHARGE_COOLDOWN_MS)}`
-          : undefined,
-        receiptEmail: await resolveReceiptEmail(prisma, user),
-        metadata: {
-          userId: String(user.id), type: 'credits', kind,
-          purchaseId: String(purchase.id), credits: String(charge.subtotal),
-          subtotal: String(charge.subtotal),
-          taxRate: String(charge.taxRate),
-          taxAmount: String(charge.taxAmount),
-        },
-      }, stripe.secretKey);
-    } catch (err) {
-      // A declined off-session charge is rejected synchronously and no webhook
-      // follows, so the pending row must be closed here - otherwise it holds the
-      // auto-recharge lock forever.
-      await prisma.creditPurchase.updateMany({
-        where: { id: purchase.id, status: 'pending' },
-        data: { status: 'failed', errorMessage: extractDeclineReason(err) },
-      }).catch(() => {});
-      throw err;
-    }
-
-    await prisma.creditPurchase.update({
-      where: { id: purchase.id },
-      data: { stripePaymentIntentId: intent.id },
-    }).catch(() => {});
-
-    if (intent.status === 'succeeded') {
-      const fresh = await prisma.creditPurchase.findUnique({ where: { id: purchase.id } });
-      if (fresh) await settleCreditPurchase(prisma, fresh, { paymentIntentId: intent.id, payload: intent });
-    }
-    return intent;
+  if (stripe.mode !== 'own_stripe') {
+    const err = new Error('This account has no card payment: its balance is topped up by hand');
+    err.code = 'NO_CARD';
+    throw err;
   }
+  if (!stripe.isConfigured) throw new Error('Stripe is not configured for this account');
 
-  // Charge a specific saved card. `card` = { paymentMethodId, memberId }; defaults
-  // to the user's primary card. whopMemberId is optional — a setup-mode checkout
-  // vaults a card without creating a member.
-  const paymentMethodId = card?.paymentMethodId || user.whopPaymentMethodId;
-  const memberId = (card ? card.memberId : user.whopMemberId) || null;
+  const paymentMethodId = card?.paymentMethodId || user.stripePaymentMethodId;
   if (!paymentMethodId) {
     const err = new Error('No saved payment method');
     err.code = 'NO_CARD';
     throw err;
   }
 
-  const whopService = require('../services/whopService');
-  // Route the charge through the user's partner Whop (if any) so the money lands
-  // in the partner's account; the saved card was vaulted in that same company.
-  const whop = await getWhopConfigForUser(prisma, user.id);
-  const payment = await whopService.chargeOffSession({
-    memberId,
-    userId: user.whopCustomerId || null,
-    paymentMethodId,
-    amount: charge.total,
-    metadata: { userId: String(user.id), type: 'credits', kind, credits: String(charge.subtotal) },
-  }, whop.config);
-
-  const planId = payment.plan?.id || payment.plan_id || null;
-  // Same split as the Stripe path above: `credits` is the pre-tax subtotal the
-  // balance gets, `amount` is what the card paid.
-  await prisma.creditPurchase.create({
+  const stripeService = require('../services/stripeService');
+  const customerId = await stripeService.ensureCustomer(prisma, user, stripe.secretKey);
+  // `credits` is the pre-tax subtotal and is what the balance gets; `amount`
+  // is what the card is charged. They differ by exactly `taxAmount`.
+  const purchase = await prisma.creditPurchase.create({
     data: {
       userId: user.id,
       amount: charge.total,
@@ -963,20 +875,71 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
       taxAmount: charge.taxAmount,
       status: 'pending',
       kind,
-      whopPlanId: planId,
-      paymentMethodId, // so the webhook can fall back to the next card on decline
+      paymentMethodId,
       ...periodData,
     },
-  }).catch((e) => console.error('[Credits] Failed to record pending off-session purchase:', e.message));
+  });
 
-  return payment;
+  let intent;
+  try {
+    intent = await stripeService.chargeOffSession({
+      customerId,
+      paymentMethodId,
+      amount: charge.total,
+      // An off-session PaymentIntent has no line items, so unlike the hosted
+      // checkout there is nowhere for the split to show except here and in
+      // the metadata below. Spell it out when there is a tax, so the Stripe
+      // dashboard does not read "($100)" against a $127 charge; with no tax
+      // the wording stays exactly what it always was.
+      description: charge.taxAmount > 0
+        ? `${creditsLabel(kind)} ($${charge.subtotal} + $${charge.taxAmount} ${charge.taxLabel})`
+        : `${creditsLabel(kind)} ($${charge.subtotal})`,
+      // Second line of defence against a double charge: two automatic attempts
+      // for the same card in the same window reach Stripe with the same key,
+      // and Stripe hands back the first payment instead of making another.
+      // Deliberately NOT keyed on the amount - keying on user, card and time
+      // window is what makes adding a tax on top unable to open a second
+      // charge window for the same shortfall.
+      idempotencyKey: ['auto_recharge', 'cycle_topup'].includes(kind)
+        ? `${kind}:${user.id}:${paymentMethodId}:${Math.floor(Date.now() / AUTO_RECHARGE_COOLDOWN_MS)}`
+        : undefined,
+      receiptEmail: await resolveReceiptEmail(prisma, user),
+      metadata: {
+        userId: String(user.id), type: 'credits', kind,
+        purchaseId: String(purchase.id), credits: String(charge.subtotal),
+        subtotal: String(charge.subtotal),
+        taxRate: String(charge.taxRate),
+        taxAmount: String(charge.taxAmount),
+      },
+    }, stripe.secretKey);
+  } catch (err) {
+    // A declined off-session charge is rejected synchronously and no webhook
+    // follows, so the pending row must be closed here - otherwise it holds the
+    // auto-recharge lock forever.
+    await prisma.creditPurchase.updateMany({
+      where: { id: purchase.id, status: 'pending' },
+      data: { status: 'failed', errorMessage: extractDeclineReason(err) },
+    }).catch(() => {});
+    throw err;
+  }
+
+  await prisma.creditPurchase.update({
+    where: { id: purchase.id },
+    data: { stripePaymentIntentId: intent.id },
+  }).catch(() => {});
+
+  if (intent.status === 'succeeded') {
+    const fresh = await prisma.creditPurchase.findUnique({ where: { id: purchase.id } });
+    if (fresh) await settleCreditPurchase(prisma, fresh, { paymentIntentId: intent.id, payload: intent });
+  }
+  return intent;
 }
 
 /**
  * After a card declines, charge the NEXT saved card (backup fallback). Called from
  * the payment.failed webhook. `failedPaymentMethodId` is the card that just failed;
  * we charge the next one in priority order. Returns true if a next card was
- * charged, false if there's no further card to try. Throws only if the Whop call
+ * charged, false if there's no further card to try. Throws only if the charge
  * itself is rejected synchronously.
  *
  * `amount` is the PRE-TAX subtotal, like performOffSessionCharge's: pass the
@@ -988,7 +951,8 @@ async function chargeNextCard(prisma, userId, amount, kind, failedPaymentMethodI
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return false;
   const { mode } = await getEffectiveBilling(prisma, userId).catch(() => ({ mode: 'platform' }));
-  const cards = getSavedCards(user, mode === 'own_stripe' ? 'stripe' : 'whop');
+  if (mode !== 'own_stripe') return false; // only Stripe accounts have cards
+  const cards = getSavedCards(user);
   const idx = cards.findIndex((c) => c.paymentMethodId === failedPaymentMethodId);
   const next = idx >= 0 ? cards[idx + 1] : null;
   if (!next) return false; // no backup card left to try
@@ -1010,12 +974,11 @@ async function triggerAutoRecharge(prisma, userId) {
     // Cut billing tops the same account up on its own schedule; running both
     // would charge the card twice for the same shortfall.
     if (user.cycleBillingEnabled) return;
-    // Manual-billing accounts never self-charge — their provider loads credit.
+    // Only Stripe accounts self-charge. Platform and manual accounts have no
+    // card payment — whoever manages them loads credit by hand.
     const billing = await getEffectiveBilling(prisma, userId).catch(() => ({ mode: 'platform' }));
-    if (billing.mode === 'manual') return;
-    // The saved card lives in a different column per provider.
-    const isStripe = billing.mode === 'own_stripe';
-    if (!(isStripe ? user.stripePaymentMethodId : user.whopPaymentMethodId)) return; // no saved card
+    if (billing.mode !== 'own_stripe') return;
+    if (!user.stripePaymentMethodId) return; // no saved card
     const threshold = user.autoRechargeThreshold;
     const amount = user.autoRechargeAmount;
     if (!(threshold > 0) || !(amount > 0)) return;
@@ -1026,8 +989,8 @@ async function triggerAutoRecharge(prisma, userId) {
       return;
     }
 
-    // Lock — don't fire while a recent auto charge is still settling. Whop settles
-    // off-session charges in seconds, so anything still "pending" after 30 minutes
+    // Lock — don't fire while a recent auto charge is still settling. Off-session
+    // charges settle in seconds, so anything still "pending" after 30 minutes
     // is a lost webhook, not an in-flight charge; it must not block forever (that
     // silently freezes auto-recharge). Mark stale pendings failed so they release
     // the lock, and surface why.
@@ -1041,7 +1004,7 @@ async function triggerAutoRecharge(prisma, userId) {
       if (ageMs < PENDING_STALE_MS) return; // genuinely in flight — wait for its webhook
       await prisma.creditPurchase.update({
         where: { id: pending.id },
-        data: { status: 'failed', errorMessage: 'Whop nunca confirmó este cobro (webhook no recibido). Revisa la configuración del webhook.' },
+        data: { status: 'failed', errorMessage: 'El proveedor de pago nunca confirmó este cobro (webhook no recibido). Revisa la configuración del webhook.' },
       }).catch(() => {});
       console.warn(`[Auto-Recharge] Released stale pending charge #${pending.id} for user ${userId} (age ${Math.round(ageMs / 60000)}m)`);
     }
@@ -1074,12 +1037,12 @@ async function triggerAutoRecharge(prisma, userId) {
     });
     if (claimed.count !== 1) return; // another run already owns this charge
 
-    // Try each saved card in priority order. A card that Whop ACCEPTS (returns
-    // "processing") settles async — its real success/failure arrives via webhook,
-    // and the payment.failed handler falls back to the next card there. Here we
-    // only walk to the next card when Whop rejects the API call synchronously.
+    // Try each saved card in priority order. A charge that is accepted but still
+    // processing settles async — its real success/failure arrives via webhook,
+    // and the payment-failed handler falls back to the next card there. Here we
+    // only walk to the next card when the charge is rejected synchronously.
     const { getSavedCards, recordAutoRechargeFailure } = require('../utils/autoRecharge');
-    const cards = getSavedCards(user, isStripe ? 'stripe' : 'whop');
+    const cards = getSavedCards(user);
     let lastErr = null;
     for (const card of cards) {
       try {
@@ -1103,40 +1066,25 @@ async function triggerAutoRecharge(prisma, userId) {
 // ── Auto-recharge background scheduler ──
 // triggerAutoRecharge only runs right after a voice call is billed. That misses
 // balances that drop via chatbot messages, manual adjustments, or that simply sit
-// below the threshold with no new calls. This scheduler periodically scans every
-// enabled account and tops up any whose balance is under its threshold. All the
-// guardrails (cooldown, pending lock, daily cap, card, amount) live inside
-// triggerAutoRecharge, so this just finds candidates and calls it.
+// below the threshold with no new calls. This scheduler was built to sweep those
+// accounts, but its candidate query only ever matched cards saved with the card
+// provider removed in 2026-11, so Stripe accounts were never swept here — they
+// top up from the call webhook alone. The candidate sweep went with that
+// provider; what remains is releasing stale pendings, which Stripe needs too.
 const AUTO_RECHARGE_SCAN_INTERVAL_MS = 2 * 60 * 1000; // every 2 minutes
 let autoRechargeScannerInterval = null;
 
 async function processAutoRecharges(prisma) {
   try {
-    // Release stale off-session pendings (any kind) — Whop settles in seconds, so
-    // anything still "pending" after 30 min is a lost webhook. Clears the "cobro en
-    // proceso sin confirmar" banner and unblocks future auto charges.
+    // Release stale off-session pendings (any kind) — off-session charges settle
+    // in seconds, so anything still "pending" after 30 min is a lost webhook.
+    // Clears the "cobro en proceso sin confirmar" banner and unblocks future
+    // auto charges.
     const staleBefore = new Date(Date.now() - 30 * 60 * 1000);
     await prisma.creditPurchase.updateMany({
       where: { kind: { in: ['auto_recharge', 'manual_card'] }, status: 'pending', createdAt: { lt: staleBefore } },
-      data: { status: 'failed', errorMessage: 'Whop nunca confirmó este cobro (webhook no recibido).' },
+      data: { status: 'failed', errorMessage: 'El proveedor de pago nunca confirmó este cobro (webhook no recibido).' },
     }).catch(() => {});
-
-    const candidates = await prisma.user.findMany({
-      where: {
-        autoRechargeEnabled: true,
-        whopPaymentMethodId: { not: null },
-        autoRechargeThreshold: { not: null },
-        autoRechargeAmount: { not: null },
-      },
-      select: { id: true, vapiCredits: true, autoRechargeThreshold: true },
-    });
-    const due = candidates.filter(u => u.vapiCredits < u.autoRechargeThreshold);
-    if (due.length) {
-      console.log(`[Auto-Recharge] Scanner: ${due.length} account(s) below threshold`);
-    }
-    for (const u of due) {
-      await triggerAutoRecharge(prisma, u.id); // guardrails inside; never throws
-    }
   } catch (err) {
     console.error('[Auto-Recharge] Scanner error:', err.message);
   }
@@ -1162,8 +1110,8 @@ function startAutoRechargeScheduler(prisma) {
 }
 
 /**
- * Create a setup-mode Whop checkout so the customer can vault a card without
- * being charged. Returns { sessionId } for the WhopCheckoutEmbed.
+ * Create a setup-mode Stripe checkout so the customer can vault a card without
+ * being charged. Returns { provider: 'stripe', checkoutUrl }.
  * POST /api/credits/setup-card
  */
 const setupCard = async (req, res) => {
@@ -1191,8 +1139,8 @@ const removeCard = async (req, res) => {
   try {
     const slot = (req.body?.slot || req.query?.slot) === 'backup' ? 'backup' : 'primary';
     const data = slot === 'backup'
-      ? { whopPaymentMethodIdBackup: null, whopMemberIdBackup: null, stripePaymentMethodIdBackup: null }
-      : { whopPaymentMethodId: null, whopMemberId: null, stripePaymentMethodId: null };
+      ? { stripePaymentMethodIdBackup: null }
+      : { stripePaymentMethodId: null };
 
     // Detach the card in Stripe too, so removing it here also stops it from living
     // in the partner's Stripe account. Best-effort: if the detach fails we still
@@ -1232,8 +1180,6 @@ const getAutoRecharge = async (req, res) => {
         autoRechargeEnabled: true,
         autoRechargeThreshold: true,
         autoRechargeAmount: true,
-        whopPaymentMethodId: true,
-        whopPaymentMethodIdBackup: true,
         stripePaymentMethodId: true,
         stripePaymentMethodIdBackup: true,
         autoRechargeFailCount: true,
@@ -1261,9 +1207,9 @@ const getAutoRecharge = async (req, res) => {
       enabled: !!user?.autoRechargeEnabled,
       threshold: user?.autoRechargeThreshold ?? null,
       amount: user?.autoRechargeAmount ?? null,
-      // Which column holds the card depends on the provider governing this account.
-      hasCard: !!(billing.mode === 'own_stripe' ? user?.stripePaymentMethodId : user?.whopPaymentMethodId),
-      hasBackupCard: !!(billing.mode === 'own_stripe' ? user?.stripePaymentMethodIdBackup : user?.whopPaymentMethodIdBackup),
+      // Only Stripe accounts have a card; platform and manual ones have none.
+      hasCard: billing.mode === 'own_stripe' && !!user?.stripePaymentMethodId,
+      hasBackupCard: billing.mode === 'own_stripe' && !!user?.stripePaymentMethodIdBackup,
       ...(await cardsOnFile(req.prisma, user, { mode: billing.mode })),
       // Surface the last decline so the customer knows why the card failed
       // instead of auto-recharge going quiet after 3 silent failures.
@@ -1274,9 +1220,10 @@ const getAutoRecharge = async (req, res) => {
       disabledByFailures: failCount >= AUTO_RECHARGE_MAX_FAILS && !user?.autoRechargeEnabled,
       pending: pending ? { amount: pending.amount, ageMinutes: pendingAgeMin } : null,
       recentAttempts: recent.map(p => ({ amount: p.amount, status: p.status, kind: p.kind, error: p.errorMessage || null, at: p.createdAt })),
-      // When manual, the client can't self-purchase — their provider loads credit.
+      // Off Stripe (platform or manual), the account can't self-purchase —
+      // whoever manages it loads credit by hand.
       billingMode: billing.mode,
-      selfServiceDisabled: billing.mode === 'manual',
+      selfServiceDisabled: !isSelfServiceMode(billing.mode),
       // Why buying or recharging by hand is paused right now (auto-recharge due
       // or a top-up still settling), or null. The panel disables those buttons.
       manualTopUpBlocked: await manualTopUpBlocker(req.prisma, req.user.id).catch(() => null),
@@ -1300,10 +1247,11 @@ const updateAutoRecharge = async (req, res) => {
 
     const user = await req.prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { whopPaymentMethodId: true, stripePaymentMethodId: true },
+      select: { stripePaymentMethodId: true },
     });
     const { mode } = await getEffectiveBilling(req.prisma, req.user.id).catch(() => ({ mode: 'platform' }));
-    const savedCard = mode === 'own_stripe' ? user?.stripePaymentMethodId : user?.whopPaymentMethodId;
+    // Only Stripe accounts have a card to auto-recharge with.
+    const savedCard = mode === 'own_stripe' ? user?.stripePaymentMethodId : null;
 
     if (enabled) {
       if (!savedCard) {
@@ -1351,13 +1299,13 @@ const rechargeNow = async (req, res) => {
     const blocked = await manualTopUpBlocker(req.prisma, req.user.id);
     if (blocked) return res.status(409).json({ error: blocked });
 
-    const whop = await getWhopConfigForUser(req.prisma, req.user.id);
-    if (whop.mode === 'manual') {
+    // Only Stripe accounts pay by card; platform and manual ones are topped up
+    // by hand.
+    const stripe = await getStripeConfigForUser(req.prisma, req.user.id);
+    if (stripe.mode !== 'own_stripe') {
       return res.status(403).json({ error: MANUAL_BILLING_MSG });
     }
-    const isStripe = whop.mode === 'own_stripe';
-    const stripe = isStripe ? await getStripeConfigForUser(req.prisma, req.user.id) : null;
-    if (isStripe ? !stripe.isConfigured : !whop.isConfigured) {
+    if (!stripe.isConfigured) {
       return res.status(400).json({ error: 'Payment processing is not configured' });
     }
     const amount = Math.round(parseFloat(req.body?.amount) * 100) / 100;
@@ -1366,14 +1314,14 @@ const rechargeNow = async (req, res) => {
     }
 
     const user = await req.prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!(isStripe ? user?.stripePaymentMethodId : user?.whopPaymentMethodId)) { // whop member id is optional (setup-mode checkout)
+    if (!user?.stripePaymentMethodId) {
       return res.status(400).json({ error: 'No saved payment method. Add a card first.' });
     }
 
     const result = await performOffSessionCharge(req.prisma, user, amount, 'manual_card');
-    // Stripe settles on the spot, so the credits are already in; Whop settles
-    // asynchronously and its webhook adds them a moment later.
-    const settled = isStripe && result?.status === 'succeeded';
+    // Stripe settles on the spot, so the credits are normally already in; a
+    // charge still processing is settled by the webhook a moment later.
+    const settled = result?.status === 'succeeded';
 
     // The card paid the taxed total while the balance got `amount`. Reported
     // after the charge and never allowed to fail it: the money has already

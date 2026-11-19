@@ -793,6 +793,8 @@ const MANUAL_TREE = {
   // can be invoiced in no way other than by hand.
   70: { id: 70, role: 'WHITELABEL', agencyId: null, whitelabelId: null, billingMode: 'manual' },
   71: { id: 71, role: 'CLIENT', agencyId: 70, whitelabelId: null, billingMode: null, email: 'c71@biz.com', name: 'Cliente 71' },
+  // Partner 80 is still stored as the removed `own_whop` mode, which now reads
+  // as platform: it governs nothing, so client 81 has no issuer.
   80: { id: 80, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_whop' },
   81: { id: 81, role: 'CLIENT', agencyId: 80, whitelabelId: null, billingMode: null, email: 'c81@biz.com', name: 'Cliente 81' },
   // Bills manually and has NO profile: no issuer, in any mode.
@@ -1079,12 +1081,15 @@ test('createManual: a client under a MANUAL-billing partner with a profile is no
   assert.strictEqual(prisma.created.length, 1);
 });
 
-test('createManual: a client under an own_whop partner with a profile is now invoiced too', async () => {
+// Whop was removed (2026-11): a legacy own_whop partner reads as platform, so
+// its client has no governing issuer and the invoice is refused like any other
+// client without one. Nothing is numbered.
+test('createManual: a client under a legacy own_whop partner has no issuer and is refused', async () => {
   const prisma = manualCtrlPrisma({ ownerId: 80 });
   const res = await callManual(prisma, { id: 80, role: 'AGENCY' }, { userId: 81, amount: 250 });
 
-  assert.strictEqual(res.code, 201);
-  assert.strictEqual(prisma.created.length, 1);
+  assert.strictEqual(res.code, 409);
+  assert.strictEqual(prisma.created.length, 0);
 });
 
 // Dropping the MODE condition did not drop the PROFILE condition.

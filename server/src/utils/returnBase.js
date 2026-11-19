@@ -45,7 +45,7 @@ async function returnBase(req) {
  */
 async function partnerBase(prisma, userId) {
   try {
-    const { getAncestorPartners } = require('./whopConfig');
+    const { getAncestorPartners } = require('./billingMode');
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return clientUrl();
     for (const a of await getAncestorPartners(prisma, user)) {

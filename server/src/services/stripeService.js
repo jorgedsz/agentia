@@ -1,6 +1,6 @@
 const Stripe = require('stripe');
 
-// Per-partner Stripe credentials. Unlike Whop, there is no platform-wide Stripe
+// Per-partner Stripe credentials. There is no platform-wide Stripe
 // account: Stripe is only ever used by a partner that configured its own keys
 // (billingMode = "own_stripe"), so every call here takes that partner's secret
 // key. Clients are cached per key so we don't rebuild one on every request.
@@ -146,7 +146,7 @@ async function createSetupCheckout({ customerId, metadata, successUrl, cancelUrl
 
 // ── Off-session charge (auto-recharge / 1-click recharge) ──
 
-// Charges a saved card with the customer absent. Unlike Whop, Stripe settles
+// Charges a saved card with the customer absent. Stripe settles
 // synchronously here: a returned status of "succeeded" means the money is in.
 // A card that needs 3-D Secure raises authentication_required, which surfaces as
 // a decline — the customer then has to pay through a hosted checkout instead.

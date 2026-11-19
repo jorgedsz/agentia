@@ -1,7 +1,7 @@
 // The saved card as people recognise it: brand and last four digits.
 //
-// The account only stores the provider's payment-method id (Stripe or Whop),
-// so the digits are asked from the provider that governs the account. A saved
+// The account only stores Stripe's payment-method id, so the digits are asked
+// from the Stripe that governs the account. Only Stripe accounts have a card. A saved
 // payment method never changes its digits, so answers are cached by id.
 // Anything that goes wrong (no permission on the key, provider down, card
 // removed) returns null and the screens fall back to "card on file".
@@ -12,11 +12,12 @@ const cache = new Map(); // `${provider}:${id}` -> { at, card }
 function columnsFor(mode, slot) {
   const backup = slot === 'backup';
   if (mode === 'own_stripe') return { provider: 'stripe', field: backup ? 'stripePaymentMethodIdBackup' : 'stripePaymentMethodId' };
-  if (mode === 'manual') return null;
-  return { provider: 'whop', field: backup ? 'whopPaymentMethodIdBackup' : 'whopPaymentMethodId' };
+  // Platform and manual accounts have no card payment (legacy Whop cards
+  // left on old rows are never shown).
+  return null;
 }
 
-// Both providers answer with a `card` object; Whop has used flat fields too.
+// Stripe answers with a `card` object; flat fields are tolerated too.
 function toCard(pm) {
   const c = pm?.card || pm || {};
   const last4 = c.last4 || c.last_four || c.card_last4 || pm?.last4 || null;
@@ -40,12 +41,6 @@ function defaultFetchers() {
       if (!secretKey) return null;
       return require('./stripeService').getPaymentMethod(id, secretKey);
     },
-    whop: async (prisma, user, id) => {
-      const { getWhopConfigForUser } = require('../utils/whopConfig');
-      const { config, isConfigured } = await getWhopConfigForUser(prisma, user.id);
-      if (!isConfigured) return null;
-      return require('./whopService').getPaymentMethod(id, config);
-    },
   };
 }
 
@@ -58,7 +53,7 @@ async function cardOnFile(prisma, user, { slot = 'primary', mode, fetchers } = {
   try {
     if (!user) return null;
     if (!mode) {
-      const { getEffectiveBilling } = require('../utils/whopConfig');
+      const { getEffectiveBilling } = require('../utils/billingMode');
       mode = (await getEffectiveBilling(prisma, user.id).catch(() => ({ mode: 'platform' }))).mode;
     }
     const cols = columnsFor(mode, slot);

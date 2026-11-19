@@ -321,7 +321,7 @@ export default function BillingPeriods() {
             <div className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4">
               <p className="text-xs uppercase text-gray-500 dark:text-gray-400">Tarjeta guardada</p>
               <p className="text-sm font-medium text-gray-900 dark:text-white mt-2">
-                {data.hasCard ? `${data.card ? cardLabel(data.card) : 'Sí'} · ${data.provider === 'stripe' ? 'Stripe' : 'Whop'}` : 'No'}
+                {data.hasCard ? `${data.card ? cardLabel(data.card) : 'Sí'} · Stripe` : 'No'}
               </p>
             </div>
           </div>

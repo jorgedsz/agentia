@@ -90,7 +90,7 @@ export default function WalletPage() {
     }
   }, [searchParams])
 
-  // Stripe and Whop refuse to run inside an iframe, so from an embed the
+  // Stripe refuses to run inside an iframe, so from an embed the
   // checkout opens in a new tab.
   const goTo = (url) => {
     if (window.top !== window.self) window.open(url, '_blank', 'noopener')

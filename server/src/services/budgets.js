@@ -10,7 +10,7 @@
 // in a transaction with a conditional update, so two tools debiting the same
 // budget at once cannot both spend the last dollar.
 
-const { getAncestorPartners } = require('../utils/whopConfig');
+const { getAncestorPartners } = require('../utils/billingMode');
 
 const round = (n) => Math.round((n || 0) * 100) / 100;
 const MAX_AMOUNT = 100000;

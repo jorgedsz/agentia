@@ -1,8 +1,7 @@
 const axios = require('axios');
-const whopService = require('../services/whopService');
 const stripeService = require('../services/stripeService');
 const { decrypt } = require('../utils/encryption');
-const { getEffectiveBilling } = require('../utils/whopConfig');
+const { getEffectiveBilling } = require('../utils/billingMode');
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 const { getSavedCards, extractDeclineReason } = require('../utils/autoRecharge');
 
@@ -31,6 +30,23 @@ function startOfDay(date) {
 
 function isOwner(req) {
   return req.user?.role === 'OWNER';
+}
+
+// Entries are collected by charging the client's saved Stripe card. Rows made
+// before the checkout-link provider was removed (2026-11) carry provider 'whop';
+// they are still listed so the history stays visible, but
+// nothing is ever sent or charged for them again.
+function isLegacyEntry(entry) {
+  return entry.provider !== 'stripe_card';
+}
+
+// Log each skipped legacy entry once per process, not on every hourly pass.
+const loggedLegacy = new Set();
+function skipLegacy(entry) {
+  if (!loggedLegacy.has(entry.id)) {
+    loggedLegacy.add(entry.id);
+    console.warn(`[RecurringPayment] id=${entry.id} uses the removed provider "${entry.provider}"; skipping it (charge it by hand or recreate it).`);
+  }
 }
 
 // ── GET /api/recurring-payments ──
@@ -80,29 +96,12 @@ const create = async (req, res) => {
     const notifyBefore = Math.max(0, parseInt(daysBeforeNotify ?? 3) || 0);
     const firstDate = firstPaymentDate ? new Date(firstPaymentDate) : addDays(new Date(), days);
 
-    // Clients under a partner billing through Stripe are charged on their saved
-    // card each cycle, in that partner's Stripe — no checkout link, no Whop plan.
+    // Recurring payments are charged on the client's saved card each cycle, in
+    // the Stripe of the partner that governs it. Clients off Stripe (platform or
+    // manual billing) have no card payment, so there is nothing to collect with.
     const billing = await getEffectiveBilling(req.prisma, client.id).catch(() => ({ mode: 'platform' }));
-    const provider = billing.mode === 'own_stripe' ? 'stripe_card' : 'whop';
-
-    // Auto-create Whop product + one-time plan so we can spin a fresh checkout per cycle
-    let whopProductId = null;
-    let whopPlanId = null;
-    if (provider === 'whop') try {
-      const product = await whopService.createProduct(
-        `Recurring - ${client.name || client.email} - $${amt}`,
-        description || `Recurring payment for ${client.email}`
-      );
-      whopProductId = product.id;
-      const plan = await whopService.createPlan(whopProductId, {
-        price: amt,
-        billingCycle: 'lifetime', // one-time plan, reused each cycle
-        name: `Recurring $${amt} - ${client.email}`,
-      });
-      whopPlanId = plan.id;
-    } catch (err) {
-      console.error('recurringPayment.create: Whop plan creation failed:', err.response?.data || err.message);
-      return res.status(500).json({ error: 'Failed to create Whop plan for recurring payment. Check WHOP_API_KEY and WHOP_COMPANY_ID.' });
+    if (billing.mode !== 'own_stripe') {
+      return res.status(400).json({ error: 'This client has no card payment (its balance is topped up by hand), so a recurring payment cannot be collected from it.' });
     }
 
     const item = await req.prisma.recurringPayment.create({
@@ -117,9 +116,8 @@ const create = async (req, res) => {
         daysBeforeNotify: notifyBefore,
         nextPaymentDate: firstDate,
         status: 'active',
-        provider,
-        whopProductId,
-        whopPlanId,
+        // Always explicit: the column still defaults to the removed provider.
+        provider: 'stripe_card',
         notes: notes || null,
       },
       include: {
@@ -164,45 +162,8 @@ const update = async (req, res) => {
     if (status !== undefined && ['active', 'paused', 'cancelled'].includes(status)) data.status = status;
     if (notes !== undefined) data.notes = notes || null;
 
-    // Whop plan prices are fixed at creation. If amount changed, try to spin a
-    // new plan so the next checkout link charges the new amount. We do this
-    // BEFORE the DB write when possible, but failures here must not block the
-    // core update — the amount still persists and the scheduler will retry
-    // plan generation at next notification time.
-    const newAmount = data.amount ?? existing.amount;
-    const amountChanged = data.amount !== undefined && data.amount !== existing.amount;
-    let whopWarning = null;
-    // A Stripe entry has no plan to regenerate: the new amount is simply what the
-    // next automatic charge takes from the saved card.
-    if (amountChanged && existing.provider !== 'stripe_card') {
-      try {
-        const clientEmail = existing.user?.email || 'client';
-        let productId = existing.whopProductId;
-        if (!productId) {
-          const product = await whopService.createProduct(
-            `Recurring - ${existing.user?.name || clientEmail} - $${newAmount}`,
-            data.description ?? existing.description ?? `Recurring payment for ${clientEmail}`
-          );
-          productId = product.id;
-          data.whopProductId = productId;
-        }
-        const plan = await whopService.createPlan(productId, {
-          price: newAmount,
-          billingCycle: 'lifetime',
-          name: `Recurring $${newAmount} - ${clientEmail}`,
-        });
-        data.whopPlanId = plan.id;
-        data.lastCheckoutUrl = null;
-        console.log(`[RecurringPayment] id=${id} amount changed ${existing.amount} → ${newAmount}; new Whop plan ${plan.id}`);
-      } catch (err) {
-        whopWarning = `Amount updated, but Whop plan regeneration failed (${err.response?.data?.message || err.message}). Next checkout link will still be generated on demand.`;
-        console.error('recurringPayment.update: Whop plan regeneration failed — continuing with DB update:', err.response?.data || err.message);
-        // Clear the stale Whop plan so fireNow/scheduler will re-attempt
-        data.whopPlanId = null;
-        data.lastCheckoutUrl = null;
-      }
-    }
-
+    // A saved-card entry has no plan to regenerate: a new amount is simply what
+    // the next automatic charge takes from the card.
     const item = await req.prisma.recurringPayment.update({
       where: { id },
       data,
@@ -210,7 +171,7 @@ const update = async (req, res) => {
         user: { select: { id: true, name: true, email: true, phoneNumber: true, companyName: true } },
       },
     });
-    res.json({ item, ...(whopWarning ? { warning: whopWarning } : {}) });
+    res.json({ item });
   } catch (err) {
     console.error('recurringPayment.update error:', err);
     res.status(500).json({ error: 'Failed to update recurring payment' });
@@ -239,7 +200,7 @@ const markPaid = async (req, res) => {
     const existing = await req.prisma.recurringPayment.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Not found' });
 
-    const item = await advanceToNextCycle(req.prisma, existing, { whopPaymentId: null, source: 'manual' });
+    const item = await advanceToNextCycle(req.prisma, existing, { source: 'manual' });
     res.json({ item });
   } catch (err) {
     console.error('recurringPayment.markPaid error:', err);
@@ -258,6 +219,9 @@ const fireNow = async (req, res) => {
       include: { user: true },
     });
     if (!existing) return res.status(404).json({ error: 'Not found' });
+    if (isLegacyEntry(existing)) {
+      return res.status(400).json({ error: 'This recurring payment was paid through a provider that no longer exists. Recreate it to collect from the client\'s card.' });
+    }
 
     const result = await sendNotification(req.prisma, existing);
     res.json({ ok: true, ...result });
@@ -268,7 +232,7 @@ const fireNow = async (req, res) => {
 };
 
 // ── Internal: advance to next cycle after payment ──
-async function advanceToNextCycle(prisma, entry, { whopPaymentId, stripePaymentIntentId, source }) {
+async function advanceToNextCycle(prisma, entry, { stripePaymentIntentId, source }) {
   const now = new Date();
   // Advance from the current scheduled date, not `now`, so cycles stay aligned
   const base = entry.nextPaymentDate < now ? now : entry.nextPaymentDate;
@@ -281,7 +245,6 @@ async function advanceToNextCycle(prisma, entry, { whopPaymentId, stripePaymentI
       lastNotifiedAt: null,
       lastNotifiedForDate: null,
       nextPaymentDate: next,
-      lastWhopPaymentId: whopPaymentId || entry.lastWhopPaymentId,
       lastStripePaymentIntentId: stripePaymentIntentId || entry.lastStripePaymentIntentId,
       // A paid cycle clears the previous decline and the failure dedup stamp.
       lastChargeError: null,
@@ -295,7 +258,7 @@ async function advanceToNextCycle(prisma, entry, { whopPaymentId, stripePaymentI
   console.log(`[RecurringPayment] Advanced id=${entry.id} (source=${source}) → next ${next.toISOString()}`);
 
   // Fire confirmation webhook (best-effort — never blocks the cycle advance)
-  sendConfirmation(prisma, updated, { whopPaymentId, stripePaymentIntentId, source, paidAt: now }).catch((err) => {
+  sendConfirmation(prisma, updated, { stripePaymentIntentId, source, paidAt: now }).catch((err) => {
     console.error(`[RecurringPayment] Confirmation webhook failed for id=${entry.id}:`, err.message);
   });
 
@@ -303,7 +266,7 @@ async function advanceToNextCycle(prisma, entry, { whopPaymentId, stripePaymentI
 }
 
 // ── Internal: send a payment-confirmed webhook ──
-async function sendConfirmation(prisma, entry, { whopPaymentId, stripePaymentIntentId, source, paidAt }) {
+async function sendConfirmation(prisma, entry, { stripePaymentIntentId, source, paidAt }) {
   const settings = await prisma.platformSettings.findFirst();
   const webhookEnc = settings?.recurringPaymentWebhookUrl;
   const webhookUrl = webhookEnc ? decrypt(webhookEnc) : '';
@@ -326,7 +289,6 @@ async function sendConfirmation(prisma, entry, { whopPaymentId, stripePaymentInt
     periodDays: entry.periodDays,
     paidAt: (paidAt || new Date()).toISOString(),
     nextPaymentDate: entry.nextPaymentDate,
-    whopPaymentId: whopPaymentId || null,
     stripePaymentIntentId: stripePaymentIntentId || null,
     // 'saved_card' means the client was charged automatically and owes nothing;
     // 'checkout_link' means they paid a link themselves.
@@ -341,10 +303,9 @@ async function sendConfirmation(prisma, entry, { whopPaymentId, stripePaymentInt
 }
 
 // ── Internal: send a payment-FAILED webhook ──
-// reason: 'payment_declined' (Whop payment.failed) | 'overdue' (not paid by due
-// date) | 'card_declined' (saved card refused the automatic charge) | 'no_card'
+// reason: 'card_declined' (saved card refused the automatic charge) | 'no_card'
 // (nothing saved to charge) | 'stripe_not_configured'
-async function sendFailureNotification(prisma, entry, { reason, whopPaymentId, declineReason } = {}) {
+async function sendFailureNotification(prisma, entry, { reason, declineReason } = {}) {
   const settings = await prisma.platformSettings.findFirst();
   const webhookEnc = settings?.recurringPaymentWebhookUrl;
   const webhookUrl = webhookEnc ? decrypt(webhookEnc) : '';
@@ -375,7 +336,6 @@ async function sendFailureNotification(prisma, entry, { reason, whopPaymentId, d
     periodDays: entry.periodDays,
     nextPaymentDate: entry.nextPaymentDate,
     paymentLink: entry.lastCheckoutUrl || null,
-    whopPaymentId: whopPaymentId || null,
     chargeMode: entry.provider === 'stripe_card' ? 'saved_card' : 'checkout_link',
     // What the bank said, so the message to the client can be specific.
     declineReason: declineReason || null,
@@ -388,119 +348,13 @@ async function sendFailureNotification(prisma, entry, { reason, whopPaymentId, d
 }
 
 // ── Internal: send a notification via webhook ──
+// Only saved-card entries are notified; a legacy entry has no way to be paid.
 async function sendNotification(prisma, entry) {
-  if (entry.provider === 'stripe_card') return sendUpcomingChargeNotice(prisma, entry);
-
-  // Resolve webhook URL from PlatformSettings
-  const settings = await prisma.platformSettings.findFirst();
-  const webhookEnc = settings?.recurringPaymentWebhookUrl;
-  const webhookUrl = webhookEnc ? decrypt(webhookEnc) : '';
-  if (!webhookUrl) {
-    throw new Error('Recurring payment webhook URL not configured in Platform Settings');
+  if (isLegacyEntry(entry)) {
+    skipLegacy(entry);
+    return { skipped: true, reason: 'legacy_provider' };
   }
-
-  // Load client if not included
-  let client = entry.user;
-  if (!client) {
-    client = await prisma.user.findUnique({
-      where: { id: entry.userId },
-      select: { id: true, name: true, email: true, phoneNumber: true, companyName: true },
-    });
-  }
-
-  // Lazy plan creation: if plan is missing (e.g. amount was updated and regen
-  // failed at edit time), create one now so the webhook has a valid link.
-  let whopPlanId = entry.whopPlanId;
-  let whopProductId = entry.whopProductId;
-  if (!whopPlanId) {
-    try {
-      if (!whopProductId) {
-        const product = await whopService.createProduct(
-          `Recurring - ${client?.name || client?.email || 'client'} - $${entry.amount}`,
-          entry.description || `Recurring payment for ${client?.email || 'client'}`
-        );
-        whopProductId = product.id;
-      }
-      const plan = await whopService.createPlan(whopProductId, {
-        price: entry.amount,
-        billingCycle: 'lifetime',
-        name: `Recurring $${entry.amount} - ${client?.email || 'client'}`,
-      });
-      whopPlanId = plan.id;
-      await prisma.recurringPayment.update({
-        where: { id: entry.id },
-        data: { whopPlanId, whopProductId },
-      });
-      console.log(`[RecurringPayment] Lazy-created Whop plan ${whopPlanId} for id=${entry.id}`);
-    } catch (err) {
-      console.error(`[RecurringPayment] Lazy plan creation failed for id=${entry.id}:`, err.response?.data || err.message);
-      throw new Error('Failed to create Whop plan for recurring payment');
-    }
-  }
-
-  // Generate a fresh Whop checkout session for this cycle
-  let checkoutUrl = null;
-  let checkoutId = null;
-  try {
-    // No request here (it runs from the scheduler): the client goes back to
-    // their partner's own domain, like the public payment page.
-    const base = await require('../utils/returnBase').partnerBase(prisma, entry.userId);
-    const session = await whopService.createCheckoutSession({
-      planId: whopPlanId,
-      metadata: {
-        userId: String(entry.userId),
-        type: 'recurring_payment',
-        recurringPaymentId: String(entry.id),
-      },
-      redirectUrl: `${base}/dashboard/payments?checkout=success`,
-    });
-    checkoutUrl = session.purchase_url;
-    checkoutId = session.id;
-  } catch (err) {
-    console.error(`[RecurringPayment] Whop checkout creation failed for id=${entry.id}:`, err.response?.data || err.message);
-    throw new Error('Failed to generate Whop checkout link');
-  }
-
-  const payload = {
-    type: 'recurring_payment_due',
-    recurringPaymentId: entry.id,
-    client: {
-      id: client?.id,
-      name: client?.name || null,
-      email: client?.email || null,
-      phoneNumber: client?.phoneNumber || null,
-      companyName: client?.companyName || null,
-    },
-    amount: entry.amount,
-    currency: entry.currency,
-    period: entry.periodLabel,
-    periodDays: entry.periodDays,
-    daysBeforeNotify: entry.daysBeforeNotify,
-    nextPaymentDate: entry.nextPaymentDate,
-    paymentLink: checkoutUrl,
-    checkoutId,
-    description: entry.description || null,
-    sentAt: new Date().toISOString(),
-  };
-
-  try {
-    await axios.post(webhookUrl, payload, { timeout: 15000 });
-  } catch (err) {
-    console.error(`[RecurringPayment] Webhook POST failed for id=${entry.id}:`, err.response?.status, err.message);
-    throw new Error('Webhook request failed');
-  }
-
-  await prisma.recurringPayment.update({
-    where: { id: entry.id },
-    data: {
-      lastNotifiedAt: new Date(),
-      lastNotifiedForDate: entry.nextPaymentDate,
-      lastCheckoutUrl: checkoutUrl,
-    },
-  });
-
-  console.log(`[RecurringPayment] Notified id=${entry.id} (client ${client?.email}) — due ${entry.nextPaymentDate.toISOString()}`);
-  return { paymentLink: checkoutUrl, client };
+  return sendUpcomingChargeNotice(prisma, entry);
 }
 
 // ── Internal: heads-up before an automatic charge ──
@@ -573,7 +427,7 @@ async function chargeSavedCard(prisma, entry) {
     return { charged: false, reason: 'stripe_not_configured' };
   }
 
-  const cards = getSavedCards(user, 'stripe');
+  const cards = getSavedCards(user);
   if (cards.length === 0) return { charged: false, reason: 'no_card' };
 
   // Stamp the attempt before charging: a crash mid-charge must not leave the
@@ -673,8 +527,8 @@ const chargeNow = async (req, res) => {
       include: { user: { select: { id: true, name: true, email: true, phoneNumber: true, companyName: true } } },
     });
     if (!entry) return res.status(404).json({ error: 'Not found' });
-    if (entry.provider !== 'stripe_card') {
-      return res.status(400).json({ error: 'This recurring payment is collected with a checkout link, not a saved card.' });
+    if (isLegacyEntry(entry)) {
+      return res.status(400).json({ error: 'This recurring payment was paid through a provider that no longer exists, not a saved card.' });
     }
 
     const result = await chargeSavedCard(req.prisma, entry);
@@ -725,24 +579,17 @@ async function processDueNotifications(prisma) {
 
     for (const entry of active) {
       try {
-        // Overdue check: the due date passed without a payment. A successful
-        // payment advances nextPaymentDate, so an active entry with a past
-        // nextPaymentDate means this cycle went unpaid. Notify once per cycle.
-        if (startOfDay(new Date(entry.nextPaymentDate)) < today) {
-          // Saved-card entries are owned by the charge sweep above, which already
-          // notifies with the real decline reason. Don't double-message them.
-          if (entry.provider === 'stripe_card') continue;
-          const alreadyFlagged = entry.lastFailureNotifiedForDate &&
-            new Date(entry.lastFailureNotifiedForDate).getTime() === new Date(entry.nextPaymentDate).getTime();
-          if (!alreadyFlagged) {
-            await sendFailureNotification(prisma, entry, { reason: 'overdue' });
-            await prisma.recurringPayment.update({
-              where: { id: entry.id },
-              data: { lastFailureNotifiedForDate: entry.nextPaymentDate },
-            });
-          }
+        // A legacy entry can no longer be paid or charged: skip it entirely
+        // instead of telling the client every cycle that it is overdue.
+        if (isLegacyEntry(entry)) {
+          skipLegacy(entry);
           continue;
         }
+
+        // Past due: saved-card entries are owned by the charge sweep above,
+        // which already notifies with the real decline reason. Don't
+        // double-message them.
+        if (startOfDay(new Date(entry.nextPaymentDate)) < today) continue;
 
         const triggerDate = addDays(entry.nextPaymentDate, -entry.daysBeforeNotify);
         if (today < startOfDay(triggerDate)) continue;
@@ -764,61 +611,6 @@ async function processDueNotifications(prisma) {
   }
 }
 
-// ── Whop webhook integration: called from whopController on payment.succeeded ──
-async function handleWhopPaymentForRecurring(prisma, paymentData, metadata) {
-  // Fast path: metadata has our id
-  const recurringPaymentId = metadata?.recurringPaymentId ? parseInt(metadata.recurringPaymentId) : null;
-  if (recurringPaymentId) {
-    const entry = await prisma.recurringPayment.findUnique({ where: { id: recurringPaymentId } });
-    if (entry) {
-      await advanceToNextCycle(prisma, entry, { whopPaymentId: paymentData.id, source: 'whop_webhook' });
-      return true;
-    }
-  }
-
-  // Fallback: match by plan + user
-  const planId = paymentData.plan?.id || paymentData.membership?.plan_id;
-  if (planId) {
-    const entry = await prisma.recurringPayment.findFirst({
-      where: { whopPlanId: planId, status: 'active' },
-      orderBy: { nextPaymentDate: 'asc' },
-    });
-    if (entry) {
-      await advanceToNextCycle(prisma, entry, { whopPaymentId: paymentData.id, source: 'whop_webhook_fallback' });
-      return true;
-    }
-  }
-
-  return false;
-}
-
-// ── Whop webhook integration: called from whopController on payment.failed ──
-// A declined card during a recurring checkout. Notifies the client; does NOT
-// advance the cycle (the payment isn't due yet/again).
-async function handleWhopPaymentFailedForRecurring(prisma, paymentData, metadata) {
-  const include = { user: { select: { id: true, name: true, email: true, phoneNumber: true, companyName: true } } };
-
-  let entry = null;
-  const recurringPaymentId = metadata?.recurringPaymentId ? parseInt(metadata.recurringPaymentId) : null;
-  if (recurringPaymentId) {
-    entry = await prisma.recurringPayment.findUnique({ where: { id: recurringPaymentId }, include });
-  }
-  if (!entry) {
-    const planId = paymentData.plan?.id || paymentData.membership?.plan_id;
-    if (planId) {
-      entry = await prisma.recurringPayment.findFirst({
-        where: { whopPlanId: planId, status: 'active' },
-        orderBy: { nextPaymentDate: 'asc' },
-        include,
-      });
-    }
-  }
-  if (!entry) return false;
-
-  await sendFailureNotification(prisma, entry, { reason: 'payment_declined', whopPaymentId: paymentData.id });
-  return true;
-}
-
 module.exports = {
   list,
   create,
@@ -830,6 +622,4 @@ module.exports = {
   startScheduler,
   processDueNotifications,
   chargeDueRecurringPayments,
-  handleWhopPaymentForRecurring,
-  handleWhopPaymentFailedForRecurring,
 };

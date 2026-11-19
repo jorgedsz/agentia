@@ -5,7 +5,7 @@
 // holds for an agency's clients as well as the agency itself. Nobody may use
 // these admin paths on their own account: self-service has its own flows.
 
-const { getAncestorPartners } = require('./whopConfig');
+const { getAncestorPartners } = require('./billingMode');
 
 async function canManageAccount(prisma, requester, target) {
   if (!requester || !target || requester.id === target.id) return false;

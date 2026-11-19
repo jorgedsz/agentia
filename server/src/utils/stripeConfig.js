@@ -3,11 +3,12 @@
 // Stripe is always partner-owned: a partner (e.g. LM Consulting Group) set to
 // billingMode "own_stripe" collects with its own keys, and its ENTIRE subtree —
 // its agencies and their clients — pays into that same Stripe account. There is
-// no platform-wide Stripe fallback; accounts outside such a subtree keep using
-// Whop. The inheritance itself lives in whopConfig.getEffectiveBilling.
+// no platform-wide Stripe fallback; accounts outside such a subtree have no
+// self-service card payment. The inheritance itself lives in
+// billingMode.getEffectiveBilling.
 
 const { decrypt } = require('./encryption');
-const { getEffectiveBilling } = require('./whopConfig');
+const { getEffectiveBilling } = require('./billingMode');
 
 /**
  * Stripe credentials that govern this user, or isConfigured:false when Stripe

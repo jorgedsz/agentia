@@ -108,10 +108,6 @@ jobs:
           PAYPAL_CLIENT_SECRET: ${{ secrets.PAYPAL_CLIENT_SECRET }}
           PAYPAL_MODE: ${{ secrets.PAYPAL_MODE }}
           PAYPAL_WEBHOOK_ID: ${{ secrets.PAYPAL_WEBHOOK_ID }}
-          # Whop
-          WHOP_API_KEY: ${{ secrets.WHOP_API_KEY }}
-          WHOP_COMPANY_ID: ${{ secrets.WHOP_COMPANY_ID }}
-          WHOP_WEBHOOK_SECRET: ${{ secrets.WHOP_WEBHOOK_SECRET }}
           # "off" starts this copy without its background jobs (moving to nebocore)
           TAREAS: ${{ secrets.TAREAS }}
           # Recordings → Lightsail Object Storage (S3-compatible)
@@ -155,9 +151,6 @@ jobs:
             --arg PAYPAL_CLIENT_SECRET "$PAYPAL_CLIENT_SECRET" \
             --arg PAYPAL_MODE "$PAYPAL_MODE" \
             --arg PAYPAL_WEBHOOK_ID "$PAYPAL_WEBHOOK_ID" \
-            --arg WHOP_API_KEY "$WHOP_API_KEY" \
-            --arg WHOP_COMPANY_ID "$WHOP_COMPANY_ID" \
-            --arg WHOP_WEBHOOK_SECRET "$WHOP_WEBHOOK_SECRET" \
             --arg TAREAS "$TAREAS" \
             --arg RECORDINGS_S3_BUCKET "$RECORDINGS_S3_BUCKET" \
             --arg RECORDINGS_S3_REGION "$RECORDINGS_S3_REGION" \
@@ -188,9 +181,6 @@ jobs:
                   PAYPAL_CLIENT_SECRET: $PAYPAL_CLIENT_SECRET,
                   PAYPAL_MODE: $PAYPAL_MODE,
                   PAYPAL_WEBHOOK_ID: $PAYPAL_WEBHOOK_ID,
-                  WHOP_API_KEY: $WHOP_API_KEY,
-                  WHOP_COMPANY_ID: $WHOP_COMPANY_ID,
-                  WHOP_WEBHOOK_SECRET: $WHOP_WEBHOOK_SECRET,
                   TAREAS: $TAREAS,
                   RECORDINGS_S3_BUCKET: $RECORDINGS_S3_BUCKET,
                   RECORDINGS_S3_REGION: $RECORDINGS_S3_REGION,

@@ -3,10 +3,12 @@
 // The same two flows are needed from three places: the credits panel inside the
 // app, the public payment page a client opens from a link or an embed, and any
 // future surface. They must route the money identically — through the Stripe of
-// the partner that governs the account, or through Whop — so the logic lives
-// here and each caller only supplies its own return URLs.
+// the partner that governs the account — so the logic lives here and each caller
+// only supplies its own return URLs. Accounts not under such a partner (platform
+// and manual billing) have no self-service card payment: whoever manages them
+// tops the balance up by hand.
 
-const { getWhopConfigForUser, getAncestorPartners } = require('../utils/whopConfig');
+const { getAncestorPartners } = require('../utils/billingMode');
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 const { resolveCharge } = require('../utils/taxes');
 
@@ -50,7 +52,7 @@ async function manualTopUpBlocker(prisma, userId) {
     return `Hay una recarga automática de ${money(inFlight.amount)} en curso. Espera a que se confirme antes de cargar saldo.`;
   }
 
-  const hasCard = !!(user.stripePaymentMethodId || user.whopPaymentMethodId);
+  const hasCard = !!user.stripePaymentMethodId;
   if (user.autoRechargeEnabled && !user.cycleBillingEnabled && hasCard
       && user.autoRechargeThreshold > 0 && user.vapiCredits < user.autoRechargeThreshold) {
     // autoRechargeAmount is the pre-tax subtotal: it is what reaches the
@@ -131,10 +133,9 @@ async function nextPeriodFor(prisma, userId) {
 
 /**
  * Start a credit purchase for `userId`.
- * Returns the Stripe shape ({ provider, checkoutUrl, purchaseId, amount }) or the
- * Whop shape ({ checkoutId, planId, purchaseUrl, amount }), matching what each
- * provider's front-end expects. Both carry `amount` = what the card will be
- * charged and `breakdown` = how that splits into credits and tax.
+ * Returns { provider: 'stripe', checkoutUrl, purchaseId, amount, breakdown }:
+ * `amount` = what the card will be charged and `breakdown` = how that splits
+ * into credits and tax. Accounts without a Stripe partner are refused (403).
  *
  * `amount` IN is the balance the client asked for, and is what reaches the
  * balance. A partner that collects a tax charges it on top, so the card may pay
@@ -169,133 +170,21 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
   };
 
   // Accounts under a partner billing through Stripe check out in that partner's
-  // Stripe account; everyone else follows the Whop path below.
+  // Stripe account; nobody else can pay by card.
   const stripe = await getStripeConfigForUser(prisma, userId);
-  if (stripe.mode === 'own_stripe') {
-    if (!stripe.isConfigured) throw new CheckoutError('Payment processing is not configured');
+  if (stripe.mode !== 'own_stripe') throw new CheckoutError(MANUAL_BILLING_MSG, 403);
+  if (!stripe.isConfigured) throw new CheckoutError('Payment processing is not configured');
 
-    const stripeService = require('./stripeService');
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    const customerId = await stripeService.ensureCustomer(prisma, user, stripe.secretKey);
+  const stripeService = require('./stripeService');
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const customerId = await stripeService.ensureCustomer(prisma, user, stripe.secretKey);
 
-    // The pending row is created BEFORE the checkout so its id can ride along in
-    // the session metadata - that id is how the webhook finds the buyer. Stripe
-    // propagates metadata (Whop does not), so no one-time-plan trick is needed.
-    const period = await nextPeriodFor(prisma, userId);
-    // `credits` is the pre-tax subtotal and is what the balance gets; `amount`
-    // is what the card is charged. They differ by exactly `taxAmount`.
-    const purchase = await prisma.creditPurchase.create({
-      data: {
-        userId,
-        amount: charge.total,
-        credits: charge.subtotal,
-        taxRate: charge.taxRate,
-        taxAmount: charge.taxAmount,
-        status: 'pending',
-        kind: 'manual',
-        ...period,
-      },
-    });
-
-    const session = await stripeService.createPaymentCheckout({
-      customerId,
-      amount: charge.total,
-      // Two lines rather than one taxed line: the split then shows on Stripe's
-      // own receipt and in the dashboard the partner reconciles against, not
-      // only on the invoice we issue ourselves. An untaxed account's zero tax
-      // line is dropped, leaving exactly the single line it always had.
-      lines: [
-        { name: `${creditsLabel('manual')} ($${charge.subtotal})`, amount: charge.subtotal },
-        { name: `${charge.taxLabel} (${charge.taxRate}%)`, amount: charge.taxAmount },
-      ],
-      description: `${creditsLabel('manual')} $${charge.subtotal} · ${user.companyName || user.name || user.email}`,
-      receiptEmail: await resolveReceiptEmail(prisma, user),
-      metadata: {
-        userId: String(userId),
-        type: 'credits',
-        purchaseId: String(purchase.id),
-        credits: String(charge.subtotal),
-        subtotal: String(charge.subtotal),
-        taxRate: String(charge.taxRate),
-        taxAmount: String(charge.taxAmount),
-      },
-      successUrl,
-      cancelUrl,
-      saveCard: true,
-    }, stripe.secretKey);
-
-    if (session.payment_intent) {
-      await prisma.creditPurchase.update({
-        where: { id: purchase.id },
-        data: { stripePaymentIntentId: session.payment_intent },
-      }).catch(() => {});
-    }
-
-    return { provider: 'stripe', checkoutUrl: session.url, purchaseId: purchase.id, amount: charge.total, breakdown };
-  }
-
-  // Route to the user's partner Whop (LM Consulting, etc.) when configured, so
-  // the money lands in the partner's account; otherwise the platform's global Whop.
-  const whop = await getWhopConfigForUser(prisma, userId);
-  if (whop.mode === 'manual') throw new CheckoutError(MANUAL_BILLING_MSG, 403);
-  if (!whop.isConfigured) throw new CheckoutError('Payment processing is not configured');
-
-  const whopService = require('./whopService');
-
-  // Resolve the "Credits" product for this billing account. Partners keep their
-  // own credits product in their own Whop company (cached on the partner user);
-  // the platform uses the shared Product row.
-  let creditsProductId;
-  if (whop.source === 'partner') {
-    creditsProductId = whop.partner.whopCreditsProductId;
-    if (!creditsProductId) {
-      const whopProduct = await whopService.createProduct('Credits', 'VAPI call credits', whop.config);
-      creditsProductId = whopProduct.id;
-      await prisma.user.update({
-        where: { id: whop.partner.id },
-        data: { whopCreditsProductId: creditsProductId },
-      });
-    }
-  } else {
-    let creditsProduct = await prisma.product.findUnique({ where: { slug: 'credits' } });
-    if (!creditsProduct) {
-      creditsProduct = await prisma.product.create({
-        data: { name: 'Credits', slug: 'credits', description: 'VAPI call credits', isActive: true, sortOrder: 999 },
-      });
-    }
-    if (!creditsProduct.whopProductId) {
-      const whopProduct = await whopService.createProduct('Credits', 'VAPI call credits', whop.config);
-      creditsProduct = await prisma.product.update({
-        where: { id: creditsProduct.id },
-        data: { whopProductId: whopProduct.id },
-      });
-    }
-    creditsProductId = creditsProduct.whopProductId;
-  }
-
-  // Create a one-time Whop plan for this exact amount, then the checkout. The
-  // plan carries the TAXED total: Whop takes a single price and ignores the
-  // plan name, so unlike Stripe above there is nowhere for the split to ride
-  // along and the breakdown lives only on the invoice we issue ourselves. No
-  // account that collects a tax checks out this way today; this keeps the
-  // numbers correct rather than clever.
-  const plan = await whopService.createPlan(creditsProductId, {
-    price: charge.total,
-    billingCycle: 'lifetime',
-    name: `${creditsLabel('manual')} ($${charge.subtotal})`,
-  }, whop.config);
-
-  const session = await whopService.createCheckoutSession({
-    planId: plan.id,
-    metadata: { userId: String(userId), type: 'credits', credits: String(charge.subtotal) },
-    redirectUrl: successUrl,
-  }, whop.config);
-
-  // Record a PENDING purchase keyed by the unique one-time plan id. This is the
-  // reliable link back to the buyer: Whop doesn't propagate checkout metadata to
-  // webhooks and the payer's email may differ from their app account, but the
-  // plan id we just created always appears in the payment webhook as data.plan.id.
-  await prisma.creditPurchase.create({
+  // The pending row is created BEFORE the checkout so its id can ride along in
+  // the session metadata - that id is how the webhook finds the buyer.
+  const period = await nextPeriodFor(prisma, userId);
+  // `credits` is the pre-tax subtotal and is what the balance gets; `amount`
+  // is what the card is charged. They differ by exactly `taxAmount`.
+  const purchase = await prisma.creditPurchase.create({
     data: {
       userId,
       amount: charge.total,
@@ -303,46 +192,69 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
       taxRate: charge.taxRate,
       taxAmount: charge.taxAmount,
       status: 'pending',
-      whopPlanId: plan.id,
-      ...(await nextPeriodFor(prisma, userId)),
+      kind: 'manual',
+      ...period,
     },
-  }).catch((err) => console.error('[Credits] Failed to create pending purchase:', err.message));
+  });
 
-  return { checkoutId: session.id, planId: plan.id, purchaseUrl: session.purchase_url, amount: charge.total, breakdown };
+  const session = await stripeService.createPaymentCheckout({
+    customerId,
+    amount: charge.total,
+    // Two lines rather than one taxed line: the split then shows on Stripe's
+    // own receipt and in the dashboard the partner reconciles against, not
+    // only on the invoice we issue ourselves. An untaxed account's zero tax
+    // line is dropped, leaving exactly the single line it always had.
+    lines: [
+      { name: `${creditsLabel('manual')} ($${charge.subtotal})`, amount: charge.subtotal },
+      { name: `${charge.taxLabel} (${charge.taxRate}%)`, amount: charge.taxAmount },
+    ],
+    description: `${creditsLabel('manual')} $${charge.subtotal} · ${user.companyName || user.name || user.email}`,
+    receiptEmail: await resolveReceiptEmail(prisma, user),
+    metadata: {
+      userId: String(userId),
+      type: 'credits',
+      purchaseId: String(purchase.id),
+      credits: String(charge.subtotal),
+      subtotal: String(charge.subtotal),
+      taxRate: String(charge.taxRate),
+      taxAmount: String(charge.taxAmount),
+    },
+    successUrl,
+    cancelUrl,
+    saveCard: true,
+  }, stripe.secretKey);
+
+  if (session.payment_intent) {
+    await prisma.creditPurchase.update({
+      where: { id: purchase.id },
+      data: { stripePaymentIntentId: session.payment_intent },
+    }).catch(() => {});
+  }
+
+  return { provider: 'stripe', checkoutUrl: session.url, purchaseId: purchase.id, amount: charge.total, breakdown };
 }
 
 /**
  * Start a card-vaulting checkout for `userId` (no charge).
- * Returns { provider: 'stripe', checkoutUrl } or { sessionId, purchaseUrl }.
+ * Returns { provider: 'stripe', checkoutUrl }. Accounts without a Stripe partner
+ * are refused (403): there is no card to save for them.
  */
 async function createCardSetupCheckout(prisma, userId, slot, { successUrl, cancelUrl }) {
   const requestedSlot = slot === 'backup' ? 'backup' : 'primary';
 
   const stripe = await getStripeConfigForUser(prisma, userId);
-  if (stripe.mode === 'own_stripe') {
-    if (!stripe.isConfigured) throw new CheckoutError('Payment processing is not configured');
-    const stripeService = require('./stripeService');
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    const customerId = await stripeService.ensureCustomer(prisma, user, stripe.secretKey);
-    const session = await stripeService.createSetupCheckout({
-      customerId,
-      metadata: { userId: String(userId), type: 'setup', slot: requestedSlot },
-      successUrl,
-      cancelUrl,
-    }, stripe.secretKey);
-    return { provider: 'stripe', checkoutUrl: session.url };
-  }
-
-  const whop = await getWhopConfigForUser(prisma, userId);
-  if (whop.mode === 'manual') throw new CheckoutError(MANUAL_BILLING_MSG, 403);
-  if (!whop.isConfigured) throw new CheckoutError('Payment processing is not configured');
-
-  const whopService = require('./whopService');
-  const session = await whopService.createSetupCheckout({
+  if (stripe.mode !== 'own_stripe') throw new CheckoutError(MANUAL_BILLING_MSG, 403);
+  if (!stripe.isConfigured) throw new CheckoutError('Payment processing is not configured');
+  const stripeService = require('./stripeService');
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const customerId = await stripeService.ensureCustomer(prisma, user, stripe.secretKey);
+  const session = await stripeService.createSetupCheckout({
+    customerId,
     metadata: { userId: String(userId), type: 'setup', slot: requestedSlot },
-    redirectUrl: successUrl,
-  }, whop.config);
-  return { sessionId: session.id, purchaseUrl: session.purchase_url };
+    successUrl,
+    cancelUrl,
+  }, stripe.secretKey);
+  return { provider: 'stripe', checkoutUrl: session.url };
 }
 
 /**

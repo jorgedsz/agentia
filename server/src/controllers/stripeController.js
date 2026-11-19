@@ -1,6 +1,6 @@
 const stripeService = require('../services/stripeService');
 const { encrypt } = require('../utils/encryption');
-const { generateWebhookToken } = require('../utils/whopConfig');
+const { generateWebhookToken } = require('../utils/billingMode');
 const { getPartnerByStripeWebhookToken } = require('../utils/stripeConfig');
 const { recordAutoRechargeFailure, extractDeclineReason } = require('../utils/autoRecharge');
 const { settleCreditPurchase } = require('../utils/creditSettlement');
@@ -24,8 +24,15 @@ const REQUIRED_EVENTS = [
 ];
 
 // ──────────────────────────────────────────────────────────────────────────
-// OWNER: manage a partner's own Stripe credentials
+// OWNER: manage a partner's billing mode, negative-balance allowance and own
+// Stripe credentials (the one endpoint for a partner's billing settings)
 // ──────────────────────────────────────────────────────────────────────────
+
+// A partner still stored as `own_whop` (Whop was removed in 2026-11) is billed
+// as platform, so that is what the selector shows.
+function displayBillingMode(mode) {
+  return !mode || mode === 'own_whop' ? 'platform' : mode;
+}
 
 // GET /api/stripe/partner/:userId/config
 const getPartnerStripeConfig = async (req, res) => {
@@ -34,7 +41,7 @@ const getPartnerStripeConfig = async (req, res) => {
     const partner = await req.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true, role: true, name: true, email: true, billingMode: true,
+        id: true, role: true, name: true, email: true, billingMode: true, allowNegativeBalance: true,
         stripeSecretKey: true, stripePublishableKey: true,
         stripeWebhookSecret: true, stripeWebhookToken: true,
       },
@@ -45,7 +52,8 @@ const getPartnerStripeConfig = async (req, res) => {
       userId: partner.id,
       role: partner.role,
       isPartner: partner.role === 'WHITELABEL' || partner.role === 'AGENCY',
-      billingMode: partner.billingMode || 'platform',
+      billingMode: displayBillingMode(partner.billingMode),
+      allowNegativeBalance: !!partner.allowNegativeBalance,
       publishableKey: partner.stripePublishableKey || '',
       hasSecretKey: !!partner.stripeSecretKey,
       hasWebhookSecret: !!partner.stripeWebhookSecret,
@@ -60,7 +68,7 @@ const getPartnerStripeConfig = async (req, res) => {
 };
 
 // PUT /api/stripe/partner/:userId/config
-// Body: { secretKey?, publishableKey?, webhookSecret?, billingMode?, clear? }
+// Body: { secretKey?, publishableKey?, webhookSecret?, billingMode?, allowNegativeBalance?, clear? }
 // Omitted/empty secrets keep the stored value; `clear: true` wipes the config and
 // sends the partner back to platform billing.
 const setPartnerStripeConfig = async (req, res) => {
@@ -87,8 +95,11 @@ const setPartnerStripeConfig = async (req, res) => {
       return res.json({ cleared: true });
     }
 
-    const { secretKey, publishableKey, webhookSecret, billingMode } = req.body || {};
+    const { secretKey, publishableKey, webhookSecret, billingMode, allowNegativeBalance } = req.body || {};
     const data = {};
+
+    // Let all accounts below this partner keep calling/messaging at a negative balance
+    if (typeof allowNegativeBalance === 'boolean') data.allowNegativeBalance = allowNegativeBalance;
 
     if (secretKey && secretKey.trim()) {
       const key = secretKey.trim();
@@ -108,7 +119,7 @@ const setPartnerStripeConfig = async (req, res) => {
     if (typeof publishableKey === 'string') data.stripePublishableKey = publishableKey.trim() || null;
     if (webhookSecret && webhookSecret.trim()) data.stripeWebhookSecret = encrypt(webhookSecret.trim());
 
-    if (['platform', 'own_whop', 'own_stripe', 'manual'].includes(billingMode)) {
+    if (['platform', 'own_stripe', 'manual'].includes(billingMode)) {
       // Don't let a partner be switched to Stripe before its keys exist — every
       // payment under it would fail with "not configured".
       if (billingMode === 'own_stripe' && !data.stripeSecretKey && !partner.stripeSecretKey) {
@@ -125,13 +136,14 @@ const setPartnerStripeConfig = async (req, res) => {
       where: { id: userId },
       data,
       select: {
-        billingMode: true, stripeSecretKey: true, stripePublishableKey: true,
+        billingMode: true, allowNegativeBalance: true, stripeSecretKey: true, stripePublishableKey: true,
         stripeWebhookSecret: true, stripeWebhookToken: true,
       },
     });
 
     res.json({
-      billingMode: updated.billingMode,
+      billingMode: displayBillingMode(updated.billingMode),
+      allowNegativeBalance: !!updated.allowNegativeBalance,
       publishableKey: updated.stripePublishableKey || '',
       hasSecretKey: !!updated.stripeSecretKey,
       hasWebhookSecret: !!updated.stripeWebhookSecret,

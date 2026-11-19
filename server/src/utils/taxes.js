@@ -28,7 +28,7 @@
 // account with no tax-enabled partner above it resolves to rate 0, and every
 // caller then behaves exactly as it did before this existed.
 
-const { getEffectiveBilling } = require('./whopConfig');
+const { getEffectiveBilling } = require('./billingMode');
 const { pickIssuerProfile } = require('./issuerProfile');
 
 function describeValue(value) {
@@ -121,26 +121,12 @@ function computeCharge(subtotal, taxConfig) {
  * it is logged loudly here — a swallowed error means a partner quietly stops
  * collecting a tax it is legally required to collect.
  *
- * ONLY `own_stripe` is taxed. Not a policy choice — a safety gate, because
- * only the Stripe path can actually produce the invoice that must accompany a
- * taxed charge:
- *
- *   - Whop settles through its own parallel implementation in
- *     controllers/whopController.js (~l.265-296), which never calls
- *     settleCreditPurchase. A taxed `own_whop` account would therefore be
- *     charged the taxed total, credited the right credits, and issued NO
- *     invoice — and its billing period would never settle either, since both
- *     of those live in utils/creditSettlement.js.
- *   - Worse, whopController.js's orphan-payment fallback (~l.422) credits
- *     `data.usd_total`, the TAXED total, as credits — so a taxed Whop payment
- *     that arrived without its pending row would hand the client the tax as
- *     balance.
- *
- * So the tax must not reach the Whop path until those two settlement
- * implementations are unified behind settleCreditPurchase. This costs nothing
- * today: the only tax-enabled partner bills through `own_stripe`, and
- * `manual`-mode accounts never produce a CreditPurchase at all. Remove this
- * gate only together with that unification.
+ * ONLY `own_stripe` is taxed: it is the only path that takes card payments,
+ * and the only one that produces the invoice that must accompany a taxed
+ * charge (utils/creditSettlement.js). `platform` and `manual` accounts are
+ * topped up by hand and never produce a self-service CreditPurchase. Keep this
+ * gate if another processor is ever added, until it settles through
+ * settleCreditPurchase as well.
  */
 async function resolveTaxConfig(prisma, userId, options = {}) {
   const NO_TAX = {
@@ -154,8 +140,8 @@ async function resolveTaxConfig(prisma, userId, options = {}) {
       if (partnerId === undefined) partnerId = billing.partner?.id ?? null;
       if (mode === undefined) mode = billing.mode;
     }
-    // getEffectiveBilling hands back a partner for own_whop and manual too, so
-    // the mode has to be checked explicitly - a profile alone is not enough.
+    // getEffectiveBilling hands back a partner for manual too, so the mode has
+    // to be checked explicitly - a profile alone is not enough.
     if (mode !== 'own_stripe') return NO_TAX;
     if (!partnerId) return NO_TAX;
 

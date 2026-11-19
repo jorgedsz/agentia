@@ -381,7 +381,7 @@ function makeFakePrisma({ client, partner, profile, existingInvoice = null }) {
 
 // own_stripe is the only mode that gets taxed, and therefore the only one that
 // can produce an invoice at all - resolveTaxConfig gates every other mode to
-// NO_TAX because the Whop settlement path never issues one (see utils/taxes.js).
+// NO_TAX because no other mode takes card payments (see utils/taxes.js).
 const PARTNER = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_stripe' };
 const CLIENT_UNDER_PARTNER = { ...CLIENT, role: 'CLIENT', agencyId: 9, whitelabelId: null, billingMode: 'platform' };
 
@@ -1232,11 +1232,14 @@ test('resolveManualIssuerProfile finds the issuer of a client under a MANUAL-bil
   assert.strictEqual((await resolveTaxConfig(prisma, 42)).profile, null);
 });
 
-test('resolveManualIssuerProfile finds the issuer of a client under an own_whop partner, where the automatic path finds none', async () => {
+// Whop was removed (2026-11): a partner still stored as `own_whop` reads as
+// platform, so it governs nothing and its clients have no issuer - like a
+// client under a platform partner. Re-mark the partner `manual` to invoice them.
+test('resolveManualIssuerProfile finds no issuer for a client under a legacy own_whop partner', async () => {
   const partner = { id: 9, role: 'AGENCY', agencyId: null, whitelabelId: null, billingMode: 'own_whop' };
   const prisma = issuerPrisma(partner, PROFILE_OF_9);
 
-  assert.strictEqual((await resolveManualIssuerProfile(prisma, 42))?.ownerId, 9);
+  assert.strictEqual(await resolveManualIssuerProfile(prisma, 42), null);
   assert.strictEqual((await resolveTaxConfig(prisma, 42)).profile, null);
 });
 
@@ -1260,8 +1263,8 @@ test('resolveManualIssuerProfile returns null when nothing governs the account a
 });
 
 // THE TEST THAT PROVES THE GATE WAS NOT QUIETLY WIDENED FOR EVERYONE. The
-// automatic path is the thing that must not have moved: a Whop or manual
-// payment still issues NO invoice on its own, profile or no profile, which is
+// automatic path is the thing that must not have moved: a manual (or legacy
+// own_whop) payment still issues NO invoice on its own, profile or no profile, which is
 // what utils/taxes.js's gate is there to guarantee.
 test('the AUTOMATIC path is unchanged: a settled payment under a non-Stripe partner still issues nothing, even with a profile on file', async () => {
   for (const billingMode of ['manual', 'own_whop']) {

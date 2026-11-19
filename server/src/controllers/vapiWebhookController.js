@@ -870,7 +870,7 @@ const handleEvent = async (req, res) => {
       console.log(`[VAPI Webhook] Billed user ${userId}: $${cost.toFixed(4)}`);
 
       // 5b. Auto-recharge if the new balance dropped below the user's threshold.
-      // Fire-and-forget: Whop settles async and the webhook adds the credits.
+      // Fire-and-forget: a failed charge must never hold up the call webhook.
       const { triggerAutoRecharge } = require('./creditsController');
       triggerAutoRecharge(prisma, userId).catch(err =>
         console.error('[Auto-Recharge] trigger failed:', err.message)
