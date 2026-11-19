@@ -14,7 +14,7 @@ const {
   buildRegeneratedInvoiceData, conceptFor,
 } = require('../services/invoiceService');
 const { resolveTaxConfig } = require('../utils/taxes');
-const { getAncestorPartners } = require('../utils/whopConfig');
+const { getAncestorPartners } = require('../utils/billingMode');
 const { canConfigureBillingProfile } = require('../utils/accountAccess');
 const { findOwnedProfile } = require('../utils/issuerProfile');
 const { logAudit } = require('../utils/auditLog');

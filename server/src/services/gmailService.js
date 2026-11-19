@@ -10,7 +10,7 @@
 // than the platform.
 
 const { getAccessToken } = require('./googleWorkspaceService');
-const { getAncestorPartners } = require('../utils/whopConfig');
+const { getAncestorPartners } = require('../utils/billingMode');
 
 const GMAIL_SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send';
 

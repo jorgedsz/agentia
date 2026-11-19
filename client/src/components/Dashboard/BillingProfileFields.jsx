@@ -5,7 +5,7 @@
 // payload. Two places edit it:
 //
 //   · AccountManagement's per-account modal — the OWNER configuring a partner
-//     BELOW it, alongside that partner's Whop/Stripe setup;
+//     BELOW it, alongside that partner's billing mode and Stripe setup;
 //   · the Facturas page — a partner configuring ITSELF, which is the only
 //     surface where a partner can see its own account at all.
 //

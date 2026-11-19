@@ -9,7 +9,7 @@
 const budgets = require('../services/budgets');
 const budgetRequests = require('../services/budgetRequests');
 const { notifyAll } = require('../services/notifications');
-const { getAncestorPartners } = require('../utils/whopConfig');
+const { getAncestorPartners } = require('../utils/billingMode');
 const { authenticateAccountKey } = require('../utils/apiKeyAuth');
 const { canManageAccount } = require('../utils/accountAccess');
 const { logAudit } = require('../utils/auditLog');

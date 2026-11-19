@@ -3,10 +3,9 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { twilioAPI, creditsAPI, whopAPI, agentsAPI, chatbotsAPI, platformSettingsAPI, authAPI, invoicesAPI } from '../../services/api'
+import { twilioAPI, creditsAPI, agentsAPI, chatbotsAPI, platformSettingsAPI, authAPI, invoicesAPI } from '../../services/api'
 import ChatAssistant from './ChatAssistant'
 import NotificationToasts from './NotificationToasts'
-import WhopCheckoutModal from './WhopCheckoutModal'
 import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
 import { cardLabel } from '../../utils/cardLabel'
 import { DEFAULT_BRAND_NAME, DEFAULT_BRAND_LOGO } from '../../utils/hostBranding'
@@ -796,17 +795,21 @@ export default function DashboardLayout() {
   )
 }
 
+// Quick-pick amounts for buying credits. Any amount between min and max works.
+const CREDIT_PRESETS = [10, 25, 50, 100]
+
 function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) {
   const { branding } = useAuth()
-  const [config, setConfig] = useState({ enabled: false, min: 1, max: 10000, presets: [] })
-  const [amount, setAmount] = useState('')
+  // `enabled` turns false only when the account's billing could not be read.
+  // Accounts that cannot pay by card (platform and manual billing) are told so
+  // through ar.selfServiceDisabled instead.
+  const [config, setConfig] = useState({ enabled: true, min: 1, max: 10000, presets: CREDIT_PRESETS })
+  const [amount, setAmount] = useState(String(CREDIT_PRESETS[0]))
   const [loading, setLoading] = useState(true)
   const [buyLoading, setBuyLoading] = useState(false)
-  const [checkoutPlanId, setCheckoutPlanId] = useState(null)
   const [error, setError] = useState('')
   // Auto-recharge + saved card
   const [ar, setAr] = useState({ enabled: false, threshold: '', amount: '', hasCard: false, min: 1, max: 10000 })
-  const [setupSessionId, setSetupSessionId] = useState(null)
   const [setupLoading, setSetupLoading] = useState(false)
   const [arSaving, setArSaving] = useState(false)
   const [rechargeLoading, setRechargeLoading] = useState(false)
@@ -823,44 +826,32 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
   // What the automation will take every time it fires, and what it will credit.
   const autoRechargeQuote = useChargeQuote(ar.amount, quoteCharge, { enabled: ar.hasCard && ar.enabled })
 
-  const fetchAr = () => {
-    creditsAPI.getAutoRecharge()
-      .then(({ data }) => setAr({
-        enabled: !!data.enabled,
-        threshold: data.threshold ?? '',
-        amount: data.amount ?? '',
-        hasCard: !!data.hasCard,
-        card: data.card || null,
-        backupCard: data.backupCard || null,
-        selfServiceDisabled: !!data.selfServiceDisabled,
-        manualTopUpBlocked: data.manualTopUpBlocked || null,
-        lastError: data.lastError || null,
-        disabledByFailures: !!data.disabledByFailures,
-        failCount: data.failCount || 0,
-        maxFails: data.maxFails || 3,
-        pending: data.pending || null,
-        min: data.min || 1,
-        max: data.max || 10000,
-      }))
-      .catch(() => {})
-  }
-
-  useEffect(() => {
-    whopAPI.getCreditTiers()
+  const fetchAr = () => creditsAPI.getAutoRecharge()
       .then(({ data }) => {
-        setConfig({
+        setConfig(c => ({ ...c, enabled: true, min: data.min || 1, max: data.max || 10000 }))
+        setAr({
           enabled: !!data.enabled,
+          threshold: data.threshold ?? '',
+          amount: data.amount ?? '',
+          hasCard: !!data.hasCard,
+          card: data.card || null,
+          backupCard: data.backupCard || null,
+          selfServiceDisabled: !!data.selfServiceDisabled,
+          manualTopUpBlocked: data.manualTopUpBlocked || null,
+          lastError: data.lastError || null,
+          disabledByFailures: !!data.disabledByFailures,
+          failCount: data.failCount || 0,
+          maxFails: data.maxFails || 3,
+          pending: data.pending || null,
           min: data.min || 1,
           max: data.max || 10000,
-          presets: Array.isArray(data.presets) ? data.presets : [],
         })
-        if (Array.isArray(data.presets) && data.presets.length) {
-          setAmount(String(data.presets[0]))
-        }
       })
+
+  useEffect(() => {
+    fetchAr()
       .catch(() => setConfig(c => ({ ...c, enabled: false })))
       .finally(() => setLoading(false))
-    fetchAr()
   }, [])
 
   const handleBuy = async () => {
@@ -874,13 +865,9 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
     try {
       const { data } = await creditsAPI.purchase(num)
       // Stripe returns a hosted checkout URL: leave the app and come back through
-      // the ?checkout=success redirect. Whop renders its checkout in the modal below.
+      // the ?checkout=success redirect.
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl
-        return
-      }
-      if (data.planId) {
-        setCheckoutPlanId(data.planId)
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create checkout')
@@ -889,34 +876,20 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
     }
   }
 
-  const handleCheckoutComplete = () => {
-    setCheckoutPlanId(null)
-    setShowCreditModal(false)
-    if (onCreditsUpdated) setTimeout(onCreditsUpdated, 2000)
-  }
-
   const handleAddCard = async () => {
     setSetupLoading(true)
     setError('')
     try {
       const { data } = await creditsAPI.setupCard()
-      // Stripe vaults the card on its own hosted page; Whop uses the embed.
+      // Stripe vaults the card on its own hosted page.
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl
-        return
       }
-      if (data.sessionId) setSetupSessionId(data.sessionId)
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to start card setup')
     } finally {
       setSetupLoading(false)
     }
-  }
-
-  const handleSetupComplete = () => {
-    setSetupSessionId(null)
-    setArMsg(t('credits.cardSaved') || 'Tarjeta guardada.')
-    setTimeout(fetchAr, 2000)
   }
 
   const handleSaveAr = async () => {
@@ -935,7 +908,7 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
       setArMsg(t('credits.autoRechargeSaved') || 'Auto-recarga actualizada.')
       // Switching auto-recharge on below the threshold makes it charge on its own
       // within minutes; refresh so the manual buttons pause right away.
-      fetchAr()
+      fetchAr().catch(() => {})
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to save auto-recharge')
     } finally {
@@ -974,7 +947,7 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
     setError('')
     try {
       const { data } = await creditsAPI.rechargeNow(amt)
-      // Stripe settles on the spot; Whop confirms seconds later by webhook.
+      // Stripe settles on the spot; a charge still processing confirms by webhook.
       setArMsg(data?.settled
         ? (t('credits.rechargeDone') || 'Pago aprobado. Tus créditos ya están acreditados.')
         : (t('credits.rechargeProcessing') || 'Cobro en proceso. Los créditos aparecerán en breve.'))
@@ -987,29 +960,6 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
   }
 
   const closeModal = () => setShowCreditModal(false)
-
-  // Show Whop checkout embed (purchase)
-  if (checkoutPlanId) {
-    return (
-      <WhopCheckoutModal
-        planId={checkoutPlanId}
-        onComplete={handleCheckoutComplete}
-        onClose={() => setCheckoutPlanId(null)}
-      />
-    )
-  }
-
-  // Show Whop setup embed (save card without charging)
-  if (setupSessionId) {
-    return (
-      <WhopCheckoutModal
-        sessionId={setupSessionId}
-        title={t('credits.addCard') || 'Agregar tarjeta'}
-        onComplete={handleSetupComplete}
-        onClose={() => setSetupSessionId(null)}
-      />
-    )
-  }
 
   return (
     <>
@@ -1164,12 +1114,12 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                   </div>
                 )}
 
-                {/* Charge stuck in "pending" — Whop accepted it but no webhook came back */}
+                {/* Charge stuck in "pending" — accepted but no webhook came back */}
                 {ar.pending && (
                   <div className="mb-3 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-xs">
                     <p className="font-semibold text-amber-800 dark:text-amber-300">Cobro en proceso sin confirmar</p>
                     <p className="text-amber-700 dark:text-amber-400 mt-0.5">
-                      ${ar.pending.amount} lleva {ar.pending.ageMinutes} min sin respuesta de Whop. Si supera 30 min, revisa que el webhook de Whop esté configurado.
+                      ${ar.pending.amount} lleva {ar.pending.ageMinutes} min sin respuesta del proveedor de pago. Si supera 30 min, revisa que el webhook de Stripe esté configurado.
                     </p>
                   </div>
                 )}

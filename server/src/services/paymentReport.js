@@ -378,7 +378,7 @@ async function postToWebhook(url, payload) {
 
 /** The brand the client knows: the nearest partner above with a company name. */
 async function brandOf(prisma, user) {
-  const { getAncestorPartners } = require('../utils/whopConfig');
+  const { getAncestorPartners } = require('../utils/billingMode');
   const ancestors = await getAncestorPartners(prisma, user).catch(() => []);
   for (const a of ancestors) {
     const partner = await prisma.user.findUnique({ where: { id: a.id }, select: { companyName: true } });

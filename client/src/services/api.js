@@ -438,18 +438,8 @@ export const complianceAPI = {
   getAuditLogs: (params) => api.get('/compliance/audit-logs', { params })
 }
 
-// Whop API
-export const whopAPI = {
-  createCheckout: (data) => api.post('/whop/create-checkout', data),
-  getMembershipStatus: () => api.get('/whop/membership-status'),
-  getCreditTiers: () => api.get('/whop/credit-tiers'),
-  syncProducts: () => api.post('/whop/sync-products'),
-  // Partner Whop credentials (OWNER)
-  getPartnerConfig: (userId) => api.get(`/whop/partner/${userId}/config`),
-  setPartnerConfig: (userId, data) => api.put(`/whop/partner/${userId}/config`, data),
-}
-
-// Partner Stripe credentials (OWNER). Stripe is always partner-owned: a partner
+// Partner billing settings (OWNER): billing mode, negative-balance allowance and
+// the partner's own Stripe. Stripe is always partner-owned: a partner
 // set to billingMode 'own_stripe' collects every payment in its own subtree.
 export const stripeAPI = {
   getPartnerConfig: (userId) => api.get(`/stripe/partner/${userId}/config`),

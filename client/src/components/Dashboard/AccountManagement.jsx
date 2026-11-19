@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { authAPI, usersAPI, whopAPI, stripeAPI, creditsAPI, payAPI, phoneSwitchAPI, infraCostAPI, billingProfileAPI } from '../../services/api'
+import { authAPI, usersAPI, stripeAPI, creditsAPI, payAPI, phoneSwitchAPI, infraCostAPI, billingProfileAPI } from '../../services/api'
 import BillingProfileFields, { EMPTY_INVOICE_PROFILE, invoiceFormFrom, invoicePayloadFrom } from './BillingProfileFields'
 import { cardLabel } from '../../utils/cardLabel'
 
@@ -86,15 +86,13 @@ export default function AccountManagement() {
   const [newRole, setNewRole] = useState('')
   const [roleSaving, setRoleSaving] = useState(false)
 
-  // Partner Whop modal state
-  const [whopTarget, setWhopTarget] = useState(null)
-  const [whopForm, setWhopForm] = useState({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '', allowNegativeBalance: false })
-  const [whopStatus, setWhopStatus] = useState(null)
-  const [whopSaving, setWhopSaving] = useState(false)
-  const [whopMsg, setWhopMsg] = useState('')
-
-  // Stripe credentials for the same partner (billingMode 'own_stripe'). Unlike
-  // Whop, Stripe applies to the partner's WHOLE subtree, agencies included.
+  // Partner billing modal state: the billing mode, the negative-balance
+  // allowance and, for billingMode 'own_stripe', the partner's own Stripe —
+  // which applies to the partner's WHOLE subtree, agencies included.
+  const [modeTarget, setModeTarget] = useState(null)
+  const [modeForm, setModeForm] = useState({ billingMode: 'platform', allowNegativeBalance: false })
+  const [modeSaving, setModeSaving] = useState(false)
+  const [modeMsg, setModeMsg] = useState('')
   const [stripeForm, setStripeForm] = useState({ secretKey: '', publishableKey: '', webhookSecret: '' })
   const [stripeStatus, setStripeStatus] = useState(null)
 
@@ -105,28 +103,21 @@ export default function AccountManagement() {
   const [invoiceForm, setInvoiceForm] = useState(EMPTY_INVOICE_PROFILE)
   const [invoiceProfileExists, setInvoiceProfileExists] = useState(false)
 
-  const openWhopModal = async (account) => {
-    setWhopTarget(account)
-    setWhopForm({ billingMode: 'platform', companyId: '', apiKey: '', webhookSecret: '', allowNegativeBalance: false })
-    setWhopStatus(null)
-    setWhopMsg('')
+  const openBillingModeModal = async (account) => {
+    setModeTarget(account)
+    setModeForm({ billingMode: 'platform', allowNegativeBalance: false })
+    setModeMsg('')
     setStripeForm({ secretKey: '', publishableKey: '', webhookSecret: '' })
     setStripeStatus(null)
     setInvoiceForm(EMPTY_INVOICE_PROFILE)
     setInvoiceProfileExists(false)
     try {
-      const { data } = await whopAPI.getPartnerConfig(account.id)
-      setWhopStatus(data)
-      setWhopForm(f => ({ ...f, billingMode: data.billingMode || 'platform', companyId: data.companyId || '', allowNegativeBalance: !!data.allowNegativeBalance }))
-    } catch {
-      setWhopMsg('No se pudo cargar la configuración.')
-    }
-    try {
       const { data } = await stripeAPI.getPartnerConfig(account.id)
       setStripeStatus(data)
+      setModeForm({ billingMode: data.billingMode || 'platform', allowNegativeBalance: !!data.allowNegativeBalance })
       setStripeForm(f => ({ ...f, publishableKey: data.publishableKey || '' }))
     } catch {
-      // Stripe never configured for this partner — the form starts empty.
+      setModeMsg('No se pudo cargar la configuración.')
     }
     try {
       const { data } = await billingProfileAPI.get(account.id)
@@ -138,30 +129,29 @@ export default function AccountManagement() {
     }
   }
 
-  const saveWhop = async () => {
-    if (!whopTarget) return
-    setWhopSaving(true)
-    setWhopMsg('')
+  const saveBillingMode = async () => {
+    if (!modeTarget) return
+    setModeSaving(true)
+    setModeMsg('')
     try {
-      // Stripe keys and the switch to own_stripe live on the Stripe endpoint, which
-      // refuses the switch until a working secret key is stored.
-      if (whopForm.billingMode === 'own_stripe' || stripeForm.secretKey || stripeForm.webhookSecret) {
-        const { data: sData } = await stripeAPI.setPartnerConfig(whopTarget.id, {
-          billingMode: whopForm.billingMode,
-          secretKey: stripeForm.secretKey,         // blank keeps existing
-          publishableKey: stripeForm.publishableKey,
-          webhookSecret: stripeForm.webhookSecret, // blank keeps existing
-        })
-        setStripeStatus(sData)
-        setStripeForm(f => ({ ...f, secretKey: '', webhookSecret: '' }))
-      }
-      if (whopForm.billingMode === 'own_stripe') {
-        // Negative balance is stored on the same row but only the Whop endpoint writes it.
-        await whopAPI.setPartnerConfig(whopTarget.id, { allowNegativeBalance: !!whopForm.allowNegativeBalance })
+      // One endpoint holds the mode, the negative-balance allowance and the
+      // Stripe keys; it refuses the switch to own_stripe until a working secret
+      // key is stored.
+      const { data } = await stripeAPI.setPartnerConfig(modeTarget.id, {
+        billingMode: modeForm.billingMode,
+        allowNegativeBalance: !!modeForm.allowNegativeBalance,
+        secretKey: stripeForm.secretKey,         // blank keeps existing
+        publishableKey: stripeForm.publishableKey,
+        webhookSecret: stripeForm.webhookSecret, // blank keeps existing
+      })
+      setStripeStatus(data)
+      setStripeForm(f => ({ ...f, secretKey: '', webhookSecret: '' }))
+      setModeForm({ billingMode: data.billingMode || modeForm.billingMode, allowNegativeBalance: !!data.allowNegativeBalance })
+      if (modeForm.billingMode === 'own_stripe') {
         // The invoicing profile lives behind its own endpoint, which validates
         // the tax rate and refuses to move the numbering sequence backwards once
         // invoices exist. Letting it throw puts the server's own message in
-        // whopMsg below, which is the point — those are the errors the partner
+        // modeMsg below, which is the point — those are the errors the partner
         // needs to read, word for word.
         //
         // OWNER only, matching the form above: a partner may write its OWN
@@ -169,28 +159,16 @@ export default function AccountManagement() {
         // one of its agencies would 403 and turn an otherwise good Stripe save
         // into an error. That partner configures its own on its Facturas page.
         if (user?.role === ROLES.OWNER) {
-          const { data: pData } = await billingProfileAPI.save(whopTarget.id, invoicePayloadFrom(invoiceForm))
+          const { data: pData } = await billingProfileAPI.save(modeTarget.id, invoicePayloadFrom(invoiceForm))
           setInvoiceProfileExists(!!pData.exists)
           setInvoiceForm(invoiceFormFrom(pData.profile))
         }
-        setWhopMsg('Guardado.')
-        setWhopSaving(false)
-        return
       }
-      const { data } = await whopAPI.setPartnerConfig(whopTarget.id, {
-        billingMode: whopForm.billingMode,
-        companyId: whopForm.companyId,
-        apiKey: whopForm.apiKey,           // blank keeps existing
-        webhookSecret: whopForm.webhookSecret, // blank keeps existing
-        allowNegativeBalance: !!whopForm.allowNegativeBalance,
-      })
-      setWhopStatus(data)
-      setWhopForm(f => ({ ...f, billingMode: data.billingMode || f.billingMode, allowNegativeBalance: !!data.allowNegativeBalance, apiKey: '', webhookSecret: '' }))
-      setWhopMsg('Guardado.')
+      setModeMsg('Guardado.')
     } catch (e) {
-      setWhopMsg(e.response?.data?.error || 'Error al guardar.')
+      setModeMsg(e.response?.data?.error || 'Error al guardar.')
     } finally {
-      setWhopSaving(false)
+      setModeSaving(false)
     }
   }
 
@@ -267,19 +245,21 @@ export default function AccountManagement() {
     }
   }
 
-  const clearWhop = async () => {
-    if (!whopTarget) return
-    if (!window.confirm('¿Borrar la configuración de Whop de este partner? Sus cobros volverán a la cuenta global.')) return
-    setWhopSaving(true)
+  // Back to platform billing. The partner's Stripe keys are kept, so switching
+  // back to own_stripe later needs no re-entry.
+  const resetBillingMode = async () => {
+    if (!modeTarget) return
+    if (!window.confirm('¿Volver este partner a la facturación de la plataforma? Sus clientes no podrán pagar con tarjeta; tú les cargas el saldo.')) return
+    setModeSaving(true)
     try {
-      await whopAPI.setPartnerConfig(whopTarget.id, { clear: true })
-      setWhopStatus({ configured: false, companyId: '', hasApiKey: false, hasWebhookSecret: false, webhookUrl: null })
-      setWhopForm({ companyId: '', apiKey: '', webhookSecret: '' })
-      setWhopMsg('Configuración borrada.')
+      const { data } = await stripeAPI.setPartnerConfig(modeTarget.id, { billingMode: 'platform' })
+      setStripeStatus(data)
+      setModeForm(f => ({ ...f, billingMode: 'platform' }))
+      setModeMsg('Configuración restablecida.')
     } catch (e) {
-      setWhopMsg(e.response?.data?.error || 'Error al borrar.')
+      setModeMsg(e.response?.data?.error || 'Error al restablecer.')
     } finally {
-      setWhopSaving(false)
+      setModeSaving(false)
     }
   }
 
@@ -885,7 +865,7 @@ export default function AccountManagement() {
                                       </button>
                                     )}
                                     {canBilling && (
-                                      <button onClick={() => { setRowMenu(null); openWhopModal(account) }}
+                                      <button onClick={() => { setRowMenu(null); openBillingModeModal(account) }}
                                         className="w-full text-left px-4 py-2 text-sm text-purple-700 dark:text-purple-300 hover:bg-gray-50 dark:hover:bg-dark-hover">
                                         Facturación
                                       </button>
@@ -1038,7 +1018,7 @@ export default function AccountManagement() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Cobrar con tarjeta guardada</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${cardStatus.hasCard ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-dark-hover dark:text-gray-400'}`}>
-                    {cardStatus.hasCard ? (cardStatus.card ? `${cardLabel(cardStatus.card)} · ${cardStatus.provider === 'stripe' ? 'Stripe' : 'Whop'}` : `tarjeta en ${cardStatus.provider === 'stripe' ? 'Stripe' : 'Whop'}`) : 'sin tarjeta'}
+                    {cardStatus.hasCard ? (cardStatus.card ? `${cardLabel(cardStatus.card)} · Stripe` : `tarjeta en Stripe`) : 'sin tarjeta'}
                   </span>
                 </div>
 
@@ -1802,35 +1782,34 @@ export default function AccountManagement() {
         </div>
       )}
 
-      {/* Partner Whop config modal (OWNER → WHITELABEL) */}
-      {whopTarget && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setWhopTarget(null)}>
+      {/* Partner billing config modal (OWNER → WHITELABEL / AGENCY) */}
+      {modeTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setModeTarget(null)}>
           <div className="bg-white dark:bg-dark-card rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-dark-border">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Modo de facturación</h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{whopTarget.email} · {whopTarget.role}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{modeTarget.email} · {modeTarget.role}</p>
               </div>
-              <button onClick={() => setWhopTarget(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+              <button onClick={() => setModeTarget(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <div className="p-5 space-y-4">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Cómo pagan <strong>los clientes de este partner</strong>. El partner siempre te compra sus créditos a ti (tu Whop global); esto define cómo le pagan a él sus cuentas.
+                Cómo pagan <strong>los clientes de este partner</strong>. El saldo del partner se lo cargas tú; esto define cómo le pagan a él sus cuentas.
               </p>
 
               {/* Mode selector */}
               <div className="space-y-2">
                 {[
-                  { value: 'platform', title: 'Whop de la plataforma', desc: 'Los clientes del partner pagan por tu Whop global (tú recibes el dinero).' },
-                  { value: 'own_whop', title: 'Su propio Whop', desc: 'Los clientes del partner pagan por el Whop del partner — el dinero le llega directo a él.' },
+                  { value: 'platform', title: 'Plataforma', desc: 'Los clientes del partner no pagan con tarjeta: tú les cargas el saldo a mano desde el panel.' },
                   { value: 'own_stripe', title: 'Su propio Stripe', desc: 'Todo lo que cuelga del partner — sus agencias y los clientes de esas agencias — paga por el Stripe del partner. El dinero le llega directo a él.' },
                   { value: 'manual', title: 'Carga manual de saldo', desc: 'Los clientes del partner no compran solos: el partner les carga crédito desde "Gestionar" y arregla el pago con ellos por fuera.' },
                 ].map(opt => (
-                  <label key={opt.value} className={`flex gap-2 p-3 rounded-xl border cursor-pointer transition-colors ${whopForm.billingMode === opt.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}>
-                    <input type="radio" name="billingMode" checked={whopForm.billingMode === opt.value}
-                      onChange={() => setWhopForm(f => ({ ...f, billingMode: opt.value }))} className="mt-0.5 text-primary-600 focus:ring-primary-500" />
+                  <label key={opt.value} className={`flex gap-2 p-3 rounded-xl border cursor-pointer transition-colors ${modeForm.billingMode === opt.value ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-dark-hover'}`}>
+                    <input type="radio" name="billingMode" checked={modeForm.billingMode === opt.value}
+                      onChange={() => setModeForm(f => ({ ...f, billingMode: opt.value }))} className="mt-0.5 text-primary-600 focus:ring-primary-500" />
                     <div>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">{opt.title}</span>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{opt.desc}</p>
@@ -1843,8 +1822,8 @@ export default function AccountManagement() {
               <label className="flex gap-2 p-3 rounded-xl border border-gray-200 dark:border-dark-border cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover">
                 <input
                   type="checkbox"
-                  checked={!!whopForm.allowNegativeBalance}
-                  onChange={(e) => setWhopForm(f => ({ ...f, allowNegativeBalance: e.target.checked }))}
+                  checked={!!modeForm.allowNegativeBalance}
+                  onChange={(e) => setModeForm(f => ({ ...f, allowNegativeBalance: e.target.checked }))}
                   className="mt-0.5 text-primary-600 focus:ring-primary-500"
                 />
                 <div>
@@ -1853,50 +1832,8 @@ export default function AccountManagement() {
                 </div>
               </label>
 
-              {/* Whop credentials — only for own_whop */}
-              {whopForm.billingMode === 'own_whop' && (
-                <div className="space-y-4 border-t border-gray-100 dark:border-dark-border pt-4">
-                  <div className={`px-3 py-2 rounded-lg text-xs font-medium ${whopStatus?.configured ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'}`}>
-                    {whopStatus?.configured ? '✓ Whop del partner configurado — cobros van a su cuenta' : 'Falta configurar el Whop del partner (API key + company).'}
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">Company ID (biz_...)</label>
-                    <input type="text" value={whopForm.companyId} onChange={(e) => setWhopForm(f => ({ ...f, companyId: e.target.value }))}
-                      placeholder="biz_XXXXXXXX"
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
-                      API Key {whopStatus?.hasApiKey && <span className="text-green-600 dark:text-green-400 normal-case">· ya guardada (deja en blanco para conservarla)</span>}
-                    </label>
-                    <input type="password" value={whopForm.apiKey} onChange={(e) => setWhopForm(f => ({ ...f, apiKey: e.target.value }))}
-                      placeholder={whopStatus?.hasApiKey ? '•••••••• (sin cambios)' : 'Whop API key'} autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
-                      Webhook Secret {whopStatus?.hasWebhookSecret && <span className="text-green-600 dark:text-green-400 normal-case">· ya guardado</span>}
-                    </label>
-                    <input type="password" value={whopForm.webhookSecret} onChange={(e) => setWhopForm(f => ({ ...f, webhookSecret: e.target.value }))}
-                      placeholder={whopStatus?.hasWebhookSecret ? '•••••••• (sin cambios)' : 'ws_... webhook signing secret'} autoComplete="new-password"
-                      className="w-full px-3 py-2 border border-gray-200 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-900 dark:text-white text-sm" />
-                  </div>
-
-                  {whopStatus?.webhookUrl && (
-                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                      <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">URL de webhook para el panel de Whop de este partner:</p>
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 text-xs break-all text-blue-700 dark:text-blue-300">{whopStatus.webhookUrl}</code>
-                        <button onClick={() => navigator.clipboard.writeText(whopStatus.webhookUrl)} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex-shrink-0">Copiar</button>
-                      </div>
-                      <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-1">Pégala en Whop → Developer → Webhooks, y suscribe payment.succeeded, payment.failed y setup_intent.succeeded.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Stripe credentials — only for own_stripe */}
-              {whopForm.billingMode === 'own_stripe' && (
+              {modeForm.billingMode === 'own_stripe' && (
                 <div className="space-y-4 border-t border-gray-100 dark:border-dark-border pt-4">
                   <div className={`px-3 py-2 rounded-lg text-xs font-medium ${stripeStatus?.configured ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'}`}>
                     {stripeStatus?.configured
@@ -1943,10 +1880,6 @@ export default function AccountManagement() {
                     </div>
                   )}
 
-                  <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                    Las tarjetas guardadas en Whop no se pueden trasladar a Stripe: al cambiar de modo, las cuentas con auto-recarga tendrán que volver a cargar su tarjeta.
-                  </p>
-
                   {/* Impuesto y facturación del partner.
                       OWNER only: a partner may read and write its OWN profile
                       and nobody else's, so showing this form to a whitelabel
@@ -1988,7 +1921,7 @@ export default function AccountManagement() {
                 </div>
               )}
 
-              {whopForm.billingMode === 'manual' && (
+              {modeForm.billingMode === 'manual' && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-dark-border pt-3">
                   Los clientes de este partner no verán la opción de comprar créditos. El partner les carga saldo desde <strong>Gestionar → cobro/créditos</strong> y arregla el pago con ellos por fuera.
                 </p>
@@ -1997,22 +1930,22 @@ export default function AccountManagement() {
               {/* Anything that is not the success word is the server's own
                   refusal — a tax rate over 100, a numbering sequence moved
                   backwards — and has to read like one. */}
-              {whopMsg && (
-                <p className={`text-sm ${whopMsg === 'Guardado.' ? 'text-gray-600 dark:text-gray-400' : 'text-red-600 dark:text-red-400'}`}>
-                  {whopMsg}
+              {modeMsg && (
+                <p className={`text-sm ${modeMsg === 'Guardado.' || modeMsg === 'Configuración restablecida.' ? 'text-gray-600 dark:text-gray-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {modeMsg}
                 </p>
               )}
             </div>
             <div className="flex items-center justify-between gap-3 p-5 border-t border-gray-100 dark:border-dark-border">
-              <button onClick={clearWhop} disabled={whopSaving || (whopForm.billingMode === 'platform' && !whopStatus?.configured)}
+              <button onClick={resetBillingMode} disabled={modeSaving || (stripeStatus?.billingMode || 'platform') === 'platform'}
                 className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg disabled:opacity-40">
                 Restablecer
               </button>
               <div className="flex items-center gap-3">
-                <button onClick={() => setWhopTarget(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">Cerrar</button>
-                <button onClick={saveWhop} disabled={whopSaving}
+                <button onClick={() => setModeTarget(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">Cerrar</button>
+                <button onClick={saveBillingMode} disabled={modeSaving}
                   className="px-5 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50">
-                  {whopSaving ? 'Guardando…' : 'Guardar'}
+                  {modeSaving ? 'Guardando…' : 'Guardar'}
                 </button>
               </div>
             </div>

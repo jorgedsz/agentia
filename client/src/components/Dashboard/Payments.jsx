@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useLanguage } from '../../context/LanguageContext'
-import { paymentsAPI, usersAPI, whopAPI, recurringPaymentsAPI } from '../../services/api'
-import WhopCheckoutModal from './WhopCheckoutModal'
+import { paymentsAPI, usersAPI, recurringPaymentsAPI } from '../../services/api'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -41,9 +40,6 @@ export default function Payments() {
   const [assignSelections, setAssignSelections] = useState({}) // { productId: { selected, billingCycle } }
   const [assignSaving, setAssignSaving] = useState(false)
 
-  // Whop checkout
-  const [checkoutModal, setCheckoutModal] = useState(null) // null | { planId }
-  const [syncingWhop, setSyncingWhop] = useState(false)
   const [searchParams] = useSearchParams()
 
   // Recurring payments
@@ -208,7 +204,7 @@ export default function Payments() {
   }
 
   const deleteRecurring = async (item) => {
-    if (!confirm(`Delete recurring payment for ${item.user?.email}? This does not cancel the Whop plan.`)) return
+    if (!confirm(`Delete recurring payment for ${item.user?.email}? `)) return
     try {
       await recurringPaymentsAPI.remove(item.id)
       setSuccess('Recurring payment deleted')
@@ -359,29 +355,6 @@ export default function Payments() {
     }
   }
 
-  // ── Whop ──
-
-  const handleSyncWhop = async () => {
-    setSyncingWhop(true)
-    setError('')
-    try {
-      const { data } = await whopAPI.syncProducts()
-      setSuccess(`Synced ${data.synced?.length || 0} products to Whop`)
-      fetchData()
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to sync products to Whop')
-    } finally {
-      setSyncingWhop(false)
-    }
-  }
-
-  const handleCheckoutComplete = (receiptId) => {
-    setCheckoutModal(null)
-    setSuccess(t('payments.checkoutSuccess') || 'Payment completed! Your subscription will activate shortly.')
-    // Give webhook a moment to process
-    setTimeout(() => fetchData(), 2000)
-  }
-
   // ── Helpers ──
 
   const getPriceForCycle = (product, cycle) => {
@@ -513,9 +486,6 @@ export default function Payments() {
           <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('payments.products')}</h2>
             <div className="flex gap-2">
-              <button onClick={handleSyncWhop} disabled={syncingWhop} className="px-3 py-1.5 border border-gray-300 dark:border-dark-border text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors disabled:opacity-50">
-                {syncingWhop ? 'Syncing...' : 'Sync to Whop'}
-              </button>
               <button onClick={openCreateProduct} className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors">
                 {t('payments.createProduct')}
               </button>
@@ -735,7 +705,7 @@ export default function Payments() {
           <div className="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recurring Payments</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Configure per-client recurring billing. Every notification fires a webhook with the amount, client phone number, and a fresh Whop payment link.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Configure per-client recurring billing. The client's saved card is charged automatically each cycle; only clients on Stripe billing can have one. A webhook is fired before each charge and when one fails.</p>
             </div>
             <button onClick={openCreateRecurring} className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm hover:bg-primary-700 transition-colors">
               New Recurring Payment
@@ -779,15 +749,21 @@ export default function Payments() {
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${item.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : item.status === 'paused' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                           {item.status}
                         </span>
-                        {item.provider === 'stripe_card' && (
+                        {item.provider === 'stripe_card' ? (
                           <span className="block mt-1 text-[11px] text-gray-500 dark:text-gray-400" title={item.lastChargeError || 'The saved card is charged automatically each cycle'}>
                             {item.lastChargeError ? '💳 card declined' : '💳 auto-charged'}
+                          </span>
+                        ) : (
+                          <span className="block mt-1 text-[11px] text-gray-500 dark:text-gray-400" title="Paid through a checkout link of a provider that no longer exists. Nothing is sent or charged for it; recreate it to charge the client's card.">
+                            legacy · inactive
                           </span>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1 justify-end flex-wrap">
-                          <button onClick={() => fireRecurringNotification(item)} className="px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-gray-300" title="Send notification now">Send</button>
+                          {item.provider === 'stripe_card' && (
+                            <button onClick={() => fireRecurringNotification(item)} className="px-2 py-1 text-xs border border-gray-300 dark:border-dark-border rounded hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-gray-300" title="Send notification now">Send</button>
+                          )}
                           {item.provider === 'stripe_card' && (
                             <button onClick={() => chargeRecurringNow(item)} className="px-2 py-1 text-xs border border-primary-300 dark:border-primary-800 text-primary-700 dark:text-primary-400 rounded hover:bg-primary-50 dark:hover:bg-primary-900/20" title="Charge the saved card now">Charge</button>
                           )}
@@ -980,15 +956,6 @@ export default function Payments() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Whop Checkout Modal */}
-      {checkoutModal && (
-        <WhopCheckoutModal
-          planId={checkoutModal.planId}
-          onComplete={handleCheckoutComplete}
-          onClose={() => setCheckoutModal(null)}
-        />
       )}
 
       {/* Assign Products Modal */}

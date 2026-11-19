@@ -41,7 +41,7 @@
 // subtotal + taxAmount - retention = received + taxAmount - see buildInvoiceData.
 
 const { round2, resolveTaxConfig } = require('../utils/taxes');
-const { getEffectiveBilling } = require('../utils/whopConfig');
+const { getEffectiveBilling } = require('../utils/billingMode');
 const { pickIssuerProfile } = require('../utils/issuerProfile');
 const { amountToSpanishWords } = require('../utils/numberToWords');
 
@@ -363,12 +363,10 @@ async function issueInvoiceForPurchase(prisma, purchase) {
  * question for every automatic emission.
  *
  * That helper gates on `own_stripe` and returns no profile for any other
- * billing mode. Its own comment says exactly what that gate is for, and both
- * reasons are about MONEY MOVING: a taxed charge must be able to produce the
- * invoice that accompanies it, and the Whop settlement path in
- * controllers/whopController.js never calls settleCreditPurchase, so a taxed
- * `own_whop` account would be charged the taxed total and issued no document at
- * all. A hand-made invoice does neither of those things. It charges no card and
+ * billing mode. Its own comment says exactly what that gate is for, and it is
+ * about MONEY MOVING: a taxed charge must be able to produce the invoice that
+ * accompanies it, which only the Stripe settlement path does. A hand-made
+ * invoice does neither of those things. It charges no card and
  * it settles no payment: it records a document for money that was arranged
  * somewhere else entirely.
  *
@@ -392,8 +390,9 @@ async function issueInvoiceForPurchase(prisma, purchase) {
  * the same helper resolveTaxConfig asks - that walk (own_stripe anywhere up the
  * chain, otherwise a client's direct provider) is not re-spelled here. Only the
  * mode condition is dropped: getEffectiveBilling hands back a partner for
- * `own_whop` and `manual` too, and that partner is read as the issuer instead of
- * being discarded.
+ * `manual` too, and that partner is read as the issuer instead of being
+ * discarded. (A partner still stored as the removed `own_whop` mode governs
+ * nothing any more - it reads as platform - so its clients have no issuer here.)
  *
  * Returns the BillingProfile, or null when there is no governing partner or it
  * has no profile - which is the caller's cue to refuse: no profile means no

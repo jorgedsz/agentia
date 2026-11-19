@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@vapi-ai/web": "^2.5.2",
-    "@whop/checkout": "^0.0.52",
     "axios": "^1.6.7",
     "html2pdf.js": "^0.14.0",
     "jspdf": "^4.2.1",

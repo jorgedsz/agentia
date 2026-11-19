@@ -467,6 +467,12 @@ const getCatalog = async (req, res) => {
 };
 
 const purchase = async (req, res) => {
+  // No payment provider collects for products since Whop was removed, so a
+  // self-service "purchase" would activate them for free. The owner assigns
+  // products instead (POST /user-products/:userId).
+  if (req.user.role !== 'OWNER') {
+    return res.status(403).json({ error: 'Los productos los asigna tu proveedor; no hay compra en línea.' });
+  }
   try {
     const { products: productsInput } = req.body;
     // productsInput: [{ productId, billingCycle }]
@@ -475,7 +481,6 @@ const purchase = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const whopEnabled = !!process.env.WHOP_API_KEY;
 
     // Get existing active products
     const existingProducts = await req.prisma.userProduct.findMany({
@@ -495,50 +500,8 @@ const purchase = async (req, res) => {
     const productMap = {};
     productRecords.forEach((p) => { productMap[p.id] = p; });
 
-    // If Whop is enabled, redirect to Whop checkout for the first new product
-    // (multi-product checkout can be extended later)
-    if (whopEnabled) {
-      const firstNew = productsInput.find(
-        (item) => productMap[item.productId] && !existingIds.has(item.productId)
-      );
-      if (!firstNew) {
-        return res.status(400).json({ error: 'All selected products are already owned' });
-      }
-      const product = productMap[firstNew.productId];
-      const cycle = firstNew.billingCycle || 'monthly';
-
-      if (!product.whopPlanIds) {
-        return res.status(400).json({ error: 'Product not synced with Whop. Ask admin to sync products.' });
-      }
-      let planMap;
-      try { planMap = JSON.parse(product.whopPlanIds); } catch { planMap = {}; }
-      const planId = planMap[cycle];
-      if (!planId) {
-        return res.status(400).json({ error: `No Whop plan for billing cycle: ${cycle}` });
-      }
-
-      const whopService = require('../services/whopService');
-      const base = await require('../utils/returnBase').returnBase(req);
-      const session = await whopService.createCheckoutSession({
-        planId,
-        metadata: {
-          userId: String(userId),
-          productId: String(product.id),
-          billingCycle: cycle,
-          type: 'subscription',
-        },
-        redirectUrl: `${base}/dashboard/payments?checkout=success`,
-      });
-
-      return res.json({
-        requiresCheckout: true,
-        checkoutId: session.id,
-        planId,
-        purchaseUrl: session.purchase_url,
-      });
-    }
-
-    // Whop not enabled — instant activation (legacy flow)
+    // Instant activation: no payment provider collects for products. Active
+    // products only feed the owner's revenue figures; nothing is unlocked by them.
     const results = [];
     for (const item of productsInput) {
       const product = productMap[item.productId];

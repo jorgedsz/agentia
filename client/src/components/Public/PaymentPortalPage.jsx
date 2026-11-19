@@ -69,7 +69,8 @@ export default function PaymentPortalPage() {
 
   // Coming back from the payment provider. Stripe returns the session id, which
   // the server verifies with Stripe and credits on the spot — the balance never
-  // depends on the webhook alone. Whop has no session to verify, so it just waits.
+  // depends on the webhook alone. Without a session id there is nothing to
+  // verify, so it just waits.
   useEffect(() => {
     if (searchParams.get('pago') === 'ok') {
       const sessionId = searchParams.get('session_id')
@@ -86,7 +87,7 @@ export default function PaymentPortalPage() {
     if (searchParams.get('tarjeta') === 'ok') setNotice('Tarjeta guardada correctamente.')
   }, [searchParams])
 
-  // Stripe and Whop refuse to run inside an iframe, so from an embed the
+  // Stripe refuses to run inside an iframe, so from an embed the
   // checkout has to open in a new tab; on the standalone page we just navigate.
   const goTo = (url) => {
     if (window.top !== window.self) window.open(url, '_blank', 'noopener')

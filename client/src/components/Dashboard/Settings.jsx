@@ -3322,7 +3322,7 @@ function WebhooksTab() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-sm font-medium text-gray-900 dark:text-white">Recurring Payment Webhook URL</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Fires before each recurring payment is due. Payload includes client info, phone number, amount, and a fresh Whop payment link.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Fires before each recurring payment is charged to the client's saved card, and when a charge fails. Payload includes client info, phone number and amount.</p>
           </div>
           {hasRecurringWebhook && (
             <span className="px-2 py-1 bg-green-500/10 text-green-500 text-xs font-medium rounded-full">Active</span>
