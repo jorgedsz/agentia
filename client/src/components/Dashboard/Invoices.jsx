@@ -216,9 +216,13 @@ export default function Invoices() {
   // read far more often than it is written to.
   const [manualOpen, setManualOpen] = useState(false)
   const [manualForm, setManualForm] = useState({
-    userId: '', amount: '', applyTaxes: true, concept: '', paidAt: todayInput(), profileId: '',
+    userId: '', amount: '', applyTaxes: true, concept: '', paidAt: todayInput(), profileId: '', number: '',
   })
   const [manualSaving, setManualSaving] = useState(false)
+  // Where the chosen client's OWN numbering stands ({ next, prefix, padding,
+  // taken }), so the number field can open on it and say «ya usado» while the
+  // issuer types. Null until a client is picked or while it loads.
+  const [manualSeq, setManualSeq] = useState(null)
   const [manualError, setManualError] = useState('')
   // Every invoice of the selected account, and which company issues for it.
   // Same `subject` guard as the payments: rows are shown only while they are
@@ -472,6 +476,30 @@ export default function Invoices() {
     }
   }
 
+  // Each company counts each client's invoices on its own, so the number is
+  // fetched for the client AND the company picked, and the field is reset to it
+  // every time either changes: a number typed for one means nothing for another.
+  const loadManualSeq = async (userId, profileId) => {
+    setManualSeq(null)
+    if (!userId) return
+    try {
+      const { data: seq } = await invoicesAPI.nextNumber(userId, profileId || undefined)
+      setManualSeq(seq)
+      setManualForm((f) => (
+        String(f.userId) === String(userId) && String(f.profileId || '') === String(profileId || '')
+          ? { ...f, number: String(seq.next) } : f
+      ))
+    } catch (err) {
+      setManualSeq(null)
+      setManualForm((f) => ({ ...f, number: '' }))
+    }
+  }
+
+  useEffect(() => {
+    if (manualOpen) loadManualSeq(manualForm.userId, manualForm.profileId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manualOpen, manualForm.userId, manualForm.profileId])
+
   // Open the hand-made invoice form.
   //
   // It seeds the client from the picker above when another account is already
@@ -511,6 +539,10 @@ export default function Invoices() {
     if (!manualForm.userId) return setManualError('Elige el cliente de la factura.')
     if (amount === null) return setManualError('El monto debe ser un número mayor que cero.')
     if (!manualForm.paidAt) return setManualError('Elige la fecha de la factura.')
+    const typedNumber = manualForm.number === '' ? null : Number(manualForm.number)
+    if (typedNumber !== null && (!Number.isInteger(typedNumber) || typedNumber < 1)) {
+      return setManualError('El número de factura debe ser un entero mayor que cero.')
+    }
 
     setManualSaving(true)
     setManualError('')
@@ -523,6 +555,7 @@ export default function Invoices() {
         concept: manualForm.concept,
         paidAt: dateToInstant(manualForm.paidAt),
         profileId: manualForm.profileId ? Number(manualForm.profileId) : undefined,
+        number: typedNumber,
       })
       setInvoice(res.invoice)
       setManualOpen(false)
@@ -531,6 +564,9 @@ export default function Invoices() {
       // cleared, because reusing either by accident is how the same document
       // gets issued twice under two numbers.
       setManualForm((f) => ({ ...f, amount: '', concept: '' }))
+      // The client's numbering moved; the next time the form opens it must
+      // offer the number after this one, not this one again.
+      setManualSeq(null)
       load()
       loadHistory()
     } catch (err) {
@@ -841,8 +877,8 @@ export default function Invoices() {
           {manualOpen && (
             <div className="mt-3 bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4 space-y-4">
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Esta factura no lleva ningún pago detrás: toma el siguiente número de la <strong>empresa que emite</strong>
-                y se imprime con sus datos. No registra nada como cobrado.
+                Esta factura no lleva ningún pago detrás: toma el número que elijas de la numeración que la
+                <strong> empresa que emite</strong> lleva con <strong>ese cliente</strong>, y se imprime con sus datos. No registra nada como cobrado.
               </p>
 
               <div className="grid gap-4 md:grid-cols-2">
@@ -908,6 +944,47 @@ export default function Invoices() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Número</label>
+                  <div className="flex items-center gap-2">
+                    {manualSeq && (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{manualSeq.prefix}</span>
+                    )}
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={manualForm.number}
+                      disabled={!manualForm.userId}
+                      onChange={(e) => setManualForm(f => ({ ...f, number: e.target.value }))}
+                      placeholder={manualForm.userId ? 'Siguiente' : 'Elige el cliente'}
+                      className="w-full px-3 py-2 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-white disabled:opacity-60"
+                    />
+                  </div>
+                  {(() => {
+                    if (!manualForm.userId) return null
+                    if (!manualSeq) return <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Cargando la numeración del cliente…</p>
+                    const n = Number(manualForm.number)
+                    const full = Number.isInteger(n) && n > 0
+                      ? `${manualSeq.prefix}${String(n).padStart(manualSeq.padding, '0')}`
+                      : null
+                    if (full && manualSeq.taken.includes(n)) {
+                      return (
+                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                          {full} ya está usado en otra factura de este cliente.
+                        </p>
+                      )
+                    }
+                    return (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Cada cliente lleva su propia numeración con cada empresa. Su siguiente es <strong>{manualSeq.prefix}{String(manualSeq.next).padStart(manualSeq.padding, '0')}</strong>;
+                        puedes poner otro, también uno anterior, y la numeración sigue desde el que uses.
+                        {full ? <> Saldrá como <strong>{full}</strong>.</> : null}
+                      </p>
+                    )
+                  })()}
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Concepto</label>
                   <input
                     type="text"
@@ -935,7 +1012,7 @@ export default function Invoices() {
                     ))}
                   </select>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Toma el siguiente número de esa empresa y se emite con sus datos. Cambiarla aquí vale solo para esta factura.
+                    Se emite con sus datos y con la numeración que esa empresa lleva con este cliente. Cambiarla aquí vale solo para esta factura.
                   </p>
                 </div>
               </div>

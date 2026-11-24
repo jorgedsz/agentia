@@ -289,8 +289,19 @@ export const invoicesAPI = {
   //
   // `profileId` (optional) raises it from another of the same issuer's
   // companies; without it, the client's own company issues it.
-  createManual: ({ userId, amount, applyTaxes, concept, paidAt, profileId }) =>
-    api.post('/invoices/manual', { userId, amount, applyTaxes, concept, paidAt, ...(profileId ? { profileId } : {}) }),
+  //
+  // `number` is optional: the correlative the issuer typed (digits only, the
+  // company adds prefix and padding). Blank takes the client's next one. Each
+  // company numbers each client on its OWN, and a number that client already
+  // holds there is refused with 409.
+  createManual: ({ userId, amount, applyTaxes, concept, paidAt, profileId, number }) =>
+    api.post('/invoices/manual', { userId, amount, applyTaxes, concept, paidAt, number, ...(profileId ? { profileId } : {}) }),
+  // Where one client's numbering stands under one company (the client's own
+  // when `profileId` is left out): `{ next, number, prefix, padding, taken }`.
+  // Read-only — nothing is spent until the invoice is created.
+  nextNumber: (userId, profileId) => api.get(`/invoices/next-number/${userId}`, {
+    params: profileId ? { profileId } : {},
+  }),
   // Every invoice of one account, automatic and manual, newest first, plus
   // which company issues for it: `{ accountId, invoices, company:
   // { assignedProfileId, effectiveProfileId, ownerId } }`.

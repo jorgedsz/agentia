@@ -7,6 +7,8 @@ const {
   buildInvoiceData,
   buildRegeneratedInvoiceData,
   formatNumber,
+  correlativeOf,
+  InvoiceNumberTakenError,
   conceptFor,
 } = require('../src/services/invoiceService');
 const { computeCharge, round2, resolveTaxConfig } = require('../src/utils/taxes');
@@ -340,14 +342,23 @@ test('buildInvoiceData: dueAt is 30 days after issuedAt when dueDays is 30', () 
 // 'manual', which is enough for getEffectiveBilling to return that partner)
 // plus the invoice/billingProfile/$transaction surface issueInvoiceForPurchase
 // itself uses. No real database involved anywhere.
-function makeFakePrisma({ client, partner, profile, existingInvoice = null }) {
+//
+// Numbering is per client (InvoiceSequence). The fixtures' `invoiceNextNumber`
+// is kept as the SEED of this client's sequence row, so their numbers read the
+// same as before; `held` are numbers the client already holds under the issuer,
+// and `seeded: false` starts with no row at all.
+function makeFakePrisma({ client, partner, profile, existingInvoice = null, held = [], seeded = true }) {
   const usersById = new Map([[client.id, client], ...(partner ? [[partner.id, partner]] : [])]);
   const billingProfileRow = profile ? { ...profile } : null;
-  const calls = { billingProfileUpdate: 0, invoiceCreate: 0, lastInvoiceData: null };
+  const calls = { sequenceWrite: 0, invoiceCreate: 0, lastInvoiceData: null };
+  const sequences = new Map();
+  if (profile && seeded) sequences.set(`${profile.id}:${client.id}`, { nextNumber: profile.invoiceNextNumber });
+  const heldInvoices = held.map((number) => ({ profileId: profile?.id, userId: client.id, number }));
 
   return {
     _calls: calls,
     _billingProfileRow: () => billingProfileRow,
+    _nextNumber: () => sequences.get(`${profile.id}:${client.id}`)?.nextNumber,
     user: {
       findUnique: async ({ where }) => usersById.get(where.id) || null,
     },
@@ -359,14 +370,18 @@ function makeFakePrisma({ client, partner, profile, existingInvoice = null }) {
     },
     $transaction: async (fn) => {
       const tx = {
-        billingProfile: {
-          update: async ({ data }) => {
-            calls.billingProfileUpdate++;
-            billingProfileRow.invoiceNextNumber += data.invoiceNextNumber.increment;
-            return { ...billingProfileRow };
+        invoiceSequence: {
+          findUnique: async ({ where }) => sequences.get(`${where.profileId_userId.profileId}:${where.profileId_userId.userId}`) || null,
+          upsert: async ({ where, create, update }) => {
+            calls.sequenceWrite++;
+            const key = `${where.profileId_userId.profileId}:${where.profileId_userId.userId}`;
+            const row = sequences.has(key) ? { ...sequences.get(key), ...update } : { ...create };
+            sequences.set(key, row);
+            return row;
           },
         },
         invoice: {
+          findMany: async ({ where }) => heldInvoices.filter((i) => i.profileId === where.profileId && i.userId === where.userId),
           create: async ({ data }) => {
             calls.invoiceCreate++;
             calls.lastInvoiceData = data;
@@ -393,9 +408,9 @@ test('issueInvoiceForPurchase takes the correlative, bumps the profile, and crea
 
   assert.ok(invoice);
   assert.strictEqual(invoice.number, 'FAC-000124');
-  assert.strictEqual(prisma._calls.billingProfileUpdate, 1);
+  assert.strictEqual(prisma._calls.sequenceWrite, 1);
   assert.strictEqual(prisma._calls.invoiceCreate, 1);
-  assert.strictEqual(prisma._billingProfileRow().invoiceNextNumber, 125);
+  assert.strictEqual(prisma._nextNumber(), 125);
 });
 
 // End to end through the real resolveTaxConfig: the issuer shows the tax but
@@ -443,9 +458,9 @@ test('issueInvoiceForPurchase returns the existing invoice without taking a new 
   const invoice = await issueInvoiceForPurchase(prisma, PURCHASE);
 
   assert.strictEqual(invoice, existingInvoice);
-  assert.strictEqual(prisma._calls.billingProfileUpdate, 0);
+  assert.strictEqual(prisma._calls.sequenceWrite, 0);
   assert.strictEqual(prisma._calls.invoiceCreate, 0);
-  assert.strictEqual(prisma._billingProfileRow().invoiceNextNumber, 124);
+  assert.strictEqual(prisma._nextNumber(), 124);
 });
 
 test('issueInvoiceForPurchase returns null when the governing profile has taxEnabled false', async () => {
@@ -455,7 +470,7 @@ test('issueInvoiceForPurchase returns null when the governing profile has taxEna
   const invoice = await issueInvoiceForPurchase(prisma, PURCHASE);
 
   assert.strictEqual(invoice, null);
-  assert.strictEqual(prisma._calls.billingProfileUpdate, 0);
+  assert.strictEqual(prisma._calls.sequenceWrite, 0);
   assert.strictEqual(prisma._calls.invoiceCreate, 0);
 });
 
@@ -468,7 +483,7 @@ test('issueInvoiceForPurchase returns null when there is no profile at all', asy
   const invoice = await issueInvoiceForPurchase(prisma, { ...PURCHASE, userId: standaloneClient.id });
 
   assert.strictEqual(invoice, null);
-  assert.strictEqual(prisma._calls.billingProfileUpdate, 0);
+  assert.strictEqual(prisma._calls.sequenceWrite, 0);
   assert.strictEqual(prisma._calls.invoiceCreate, 0);
 });
 
@@ -1099,9 +1114,9 @@ test('issueManualInvoice takes the correlative the way issuance does, bumping th
   const invoice = await issueManualInvoice(prisma, { profile: RETENTION_PROFILE, client: CLIENT, amount: 100 });
 
   assert.strictEqual(invoice.number, 'FAC-000200');
-  assert.strictEqual(prisma._calls.billingProfileUpdate, 1);
+  assert.strictEqual(prisma._calls.sequenceWrite, 1);
   assert.strictEqual(prisma._calls.invoiceCreate, 1);
-  assert.strictEqual(prisma._billingProfileRow().invoiceNextNumber, 201);
+  assert.strictEqual(prisma._nextNumber(), 201);
 });
 
 test('issueManualInvoice writes the chosen date as paidAt, which is what the document prints as Fecha', async () => {
@@ -1278,7 +1293,7 @@ test('the AUTOMATIC path is unchanged: a settled payment under a non-Stripe part
 
     assert.strictEqual(await issueInvoiceForPurchase(prisma, PURCHASE), null, billingMode);
     // And no number was taken for the document that was not issued.
-    assert.strictEqual(prisma._calls.billingProfileUpdate, 0, billingMode);
+    assert.strictEqual(prisma._calls.sequenceWrite, 0, billingMode);
     assert.strictEqual(prisma._calls.invoiceCreate, 0, billingMode);
   }
 });
@@ -1318,20 +1333,98 @@ test('each company spends its own correlative: A, B, A gives A-1, B-1, A-2', asy
     2: { ...BASE_MANUAL_PROFILE_FOR_NUMBERING, id: 2, invoicePrefix: 'B-', invoicePadding: 1, invoiceNextNumber: 1 },
   };
   const numbers = [];
-  const prisma = {
-    $transaction: async (fn) => fn({
-      billingProfile: {
-        update: async ({ where, data }) => {
-          profiles[where.id].invoiceNextNumber += data.invoiceNextNumber.increment;
-          return { ...profiles[where.id] };
-        },
+  // Each company numbers this client on its own: the sequence row and the
+  // numbers held are both per (profileId, userId).
+  const held = [];
+  const seqs = new Map();
+  const key = (w) => `${w.profileId_userId.profileId}:${w.profileId_userId.userId}`;
+  const db = {
+    invoice: {
+      findMany: async ({ where }) => held.filter((h) => h.profileId === where.profileId && h.userId === where.userId),
+      create: async ({ data }) => { held.push(data); numbers.push(data.number); return { id: numbers.length, ...data }; },
+    },
+    invoiceSequence: {
+      findUnique: async ({ where }) => seqs.get(key(where)) || null,
+      upsert: async ({ where, create, update }) => {
+        seqs.set(key(where), seqs.has(key(where)) ? { ...seqs.get(key(where)), ...update } : { ...create });
+        return seqs.get(key(where));
       },
-      invoice: { create: async ({ data }) => { numbers.push(data.number); return { id: numbers.length, ...data }; } },
-    }),
+    },
   };
+  const prisma = { $transaction: async (fn) => fn(db) };
   const client = { id: 30, name: 'Cliente 30', email: 'c30@biz.com' };
   for (const id of [1, 2, 1]) {
     await issueManualInvoice(prisma, { profile: profiles[id], client, amount: 100, applyTaxes: false });
   }
   assert.deepStrictEqual(numbers, ['A-1', 'B-1', 'A-2']);
+});
+
+// ---------------------------------------------------------------------------
+// Per-client numbering - «la secuencia por cliente es individual»
+// ---------------------------------------------------------------------------
+
+const SEQ_PROFILE = { ...RETENTION_PROFILE };
+
+test('a client with no sequence row carries on from its own highest number: JH, with 1-4 and 12, goes on at 13', async () => {
+  const prisma = makeFakePrisma({
+    client: CLIENT_UNDER_PARTNER, partner: PARTNER, profile: SEQ_PROFILE, seeded: false,
+    held: ['FAC-000001', 'FAC-000002', 'FAC-000003', 'FAC-000004', 'FAC-000012'],
+  });
+  const invoice = await issueManualInvoice(prisma, { profile: SEQ_PROFILE, client: CLIENT, amount: 100 });
+
+  assert.strictEqual(invoice.number, 'FAC-000013');
+  assert.strictEqual(prisma._nextNumber(), 14);
+});
+
+test('a client never invoiced starts its own numbering at 1, whatever the issuer issued to others', async () => {
+  const prisma = makeFakePrisma({ client: CLIENT_UNDER_PARTNER, partner: PARTNER, profile: SEQ_PROFILE, seeded: false });
+  const invoice = await issueManualInvoice(prisma, { profile: SEQ_PROFILE, client: CLIENT, amount: 100 });
+
+  assert.strictEqual(invoice.number, 'FAC-000001');
+});
+
+test('a typed number below the counter is used, and the numbering goes on from it', async () => {
+  const prisma = makeFakePrisma({
+    client: CLIENT_UNDER_PARTNER, partner: PARTNER, profile: { ...SEQ_PROFILE, invoiceNextNumber: 13 },
+    held: ['FAC-000001', 'FAC-000002', 'FAC-000003', 'FAC-000004', 'FAC-000012'],
+  });
+  const invoice = await issueManualInvoice(prisma, { profile: SEQ_PROFILE, client: CLIENT, amount: 100, number: 5 });
+
+  assert.strictEqual(invoice.number, 'FAC-000005');
+  assert.strictEqual(prisma._nextNumber(), 6);
+});
+
+test('a typed number the client already holds is refused and nothing is written', async () => {
+  const prisma = makeFakePrisma({
+    client: CLIENT_UNDER_PARTNER, partner: PARTNER, profile: SEQ_PROFILE, held: ['FAC-000003'],
+  });
+  await assert.rejects(
+    issueManualInvoice(prisma, { profile: SEQ_PROFILE, client: CLIENT, amount: 100, number: 3 }),
+    (err) => err instanceof InvoiceNumberTakenError && /FAC-000003 ya está usado/.test(err.message),
+  );
+  assert.strictEqual(prisma._calls.sequenceWrite, 0);
+  assert.strictEqual(prisma._calls.invoiceCreate, 0);
+});
+
+// The counter may sit inside a range already used after a number was returned;
+// an automatic invoice behind a card charge must step over it, never collide.
+test('an automatic invoice skips the numbers the client already holds', async () => {
+  const profile = { ...PROFILE, ownerId: 9, invoicePrefix: 'FAC-', invoicePadding: 6, invoiceNextNumber: 11, taxEnabled: true, taxRate: 27 };
+  const prisma = makeFakePrisma({
+    client: CLIENT_UNDER_PARTNER, partner: PARTNER, profile, held: ['FAC-000011', 'FAC-000012'],
+  });
+  const invoice = await issueInvoiceForPurchase(prisma, PURCHASE);
+
+  assert.strictEqual(invoice.number, 'FAC-000013');
+  assert.strictEqual(prisma._nextNumber(), 14);
+});
+
+test('correlativeOf takes the prefix off first, even one that ends in digits', () => {
+  assert.strictEqual(correlativeOf('FAC-000012', 'FAC-'), 12);
+  assert.strictEqual(correlativeOf('B0200000007', 'B02'), 7);
+  assert.strictEqual(correlativeOf('sin-numero', 'FAC-'), 0);
+});
+
+test('correlativeOf still counts a number issued under an older prefix, by its trailing digits', () => {
+  assert.strictEqual(correlativeOf('OLD-000009', 'FAC-'), 9);
 });

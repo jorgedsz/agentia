@@ -64,6 +64,85 @@ function formatNumber(profile, correlative) {
 }
 
 /**
+ * The correlative inside a stored number. The issuer's prefix comes off first,
+ * because a prefix may end in digits itself (B02…). A number issued under an
+ * older prefix falls back to its trailing digits, so it still counts.
+ */
+function correlativeOf(number, prefix = '') {
+  const text = number || '';
+  const rest = prefix && text.startsWith(prefix) ? text.slice(prefix.length) : text;
+  const match = /(\d+)$/.exec(rest);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+const MAX_CORRELATIVE = 99999999;
+
+/** A number the issuer typed that this client already holds. */
+class InvoiceNumberTakenError extends Error {
+  constructor(number) {
+    super(`El número ${number} ya está usado en otra factura de este cliente.`);
+    this.code = 'INVOICE_NUMBER_TAKEN';
+    this.number = number;
+  }
+}
+
+/**
+ * Where ONE client's numbering stands under ONE issuer, without spending
+ * anything: the correlatives it already holds and the one the next automatic
+ * invoice would take.
+ *
+ * No InvoiceSequence row yet means the client was never numbered per client,
+ * so it carries on from its own highest number (JH, with FAC-000001…000004 and
+ * FAC-000012 from the shared counter, goes on at 13), and a client with no
+ * invoices at all starts at 1.
+ *
+ * The next number SKIPS what the client already holds. The issuer may move a
+ * client's numbering back on purpose — «devolver el número» — so the counter
+ * can sit inside a range already used, and an automatic invoice behind a card
+ * charge must never fail on the unique index because of it.
+ */
+async function readClientSequence(db, profile, userId) {
+  const profileId = profile.id;
+  const held = await db.invoice.findMany({ where: { profileId, userId }, select: { number: true } });
+  const taken = new Set(held.map((i) => correlativeOf(i.number, profile.invoicePrefix)));
+  const row = await db.invoiceSequence.findUnique({ where: { profileId_userId: { profileId, userId } } });
+  const start = row ? row.nextNumber : Math.max(0, ...taken) + 1;
+  let next = Math.max(1, start);
+  while (taken.has(next)) next += 1;
+  return { taken, next };
+}
+
+/**
+ * SPEND one correlative from this client's own numbering, inside the caller's
+ * transaction — so if the insert that follows fails, the counter rolls back
+ * with it instead of burning a number.
+ *
+ * `requested` is a number the issuer typed. It is refused when this client
+ * already holds it (InvoiceNumberTakenError: the owner chose «no dejar»), and
+ * otherwise used as given, even BELOW the counter — that is what returning a
+ * number means. Either way the counter then goes on from the number just used,
+ * so typing 5 makes the next one 6.
+ *
+ * Two invoices for the same client issued at the very same instant can read
+ * the same next number; the unique index on (profileId, userId, number) refuses
+ * the second insert and its transaction rolls back whole. For an automatic
+ * invoice that is the existing repair path's job (GET /invoices/by-purchase).
+ */
+async function takeClientCorrelative(tx, profile, userId, requested = null) {
+  const { taken, next } = await readClientSequence(tx, profile, userId);
+  const correlative = requested != null ? requested : next;
+  if (requested != null && taken.has(requested)) {
+    throw new InvoiceNumberTakenError(formatNumber(profile, requested));
+  }
+  await tx.invoiceSequence.upsert({
+    where: { profileId_userId: { profileId: profile.id, userId } },
+    create: { profileId: profile.id, userId, nextNumber: correlative + 1 },
+    update: { nextNumber: correlative + 1 },
+  });
+  return { correlative, number: formatNumber(profile, correlative) };
+}
+
+/**
  * The DESCRIPCIÓN row text for a purchase, in Spanish. billingPeriodId wins
  * over `kind` whenever it's set - a payment that settles a billing period is
  * described as that settlement regardless of how it was collected.
@@ -342,16 +421,11 @@ async function issueInvoiceForPurchase(prisma, purchase) {
   if (!client) return null;
 
   return prisma.$transaction(async (tx) => {
-    // The correlative is taken by bumping the counter inside this same
-    // transaction: if the insert below fails, the increment rolls back with
-    // it instead of burning a number nobody used.
-    const bumped = await tx.billingProfile.update({
-      where: { id: profile.id },
-      data: { invoiceNextNumber: { increment: 1 } },
-    });
-    const correlative = bumped.invoiceNextNumber - 1;
-    const number = formatNumber(bumped, correlative);
-    const data = buildInvoiceData({ profile: bumped, client, purchase, number });
+    // The correlative is THIS CLIENT's next one, taken inside this same
+    // transaction: if the insert below fails, the counter rolls back with it
+    // instead of burning a number nobody used.
+    const { number } = await takeClientCorrelative(tx, profile, client.id);
+    const data = buildInvoiceData({ profile, client, purchase, number });
     return tx.invoice.create({ data });
   });
 }
@@ -451,26 +525,22 @@ async function resolveManualIssuerProfile(prisma, userId) {
  *                        issuer leaves the concept blank: the plain top-up
  *                        sentence, which is the default the form opens with.
  *
- * The correlative is taken the way issuance takes it and for the same reason:
- * bumped inside this same transaction, so a failed insert rolls the increment
- * back instead of burning a number nobody used.
+ * The correlative is taken the way issuance takes it, from the CLIENT's own
+ * numbering and inside this same transaction, so a failed insert rolls it back
+ * instead of burning a number nobody used. `number`, when given, is the
+ * correlative the issuer typed instead (see takeClientCorrelative).
  *
  * `profile` and `client` are resolved and PERMISSION-CHECKED by the caller -
  * this function issues, it does not decide who may.
  */
 async function issueManualInvoice(prisma, {
   profile, client, amount, concept = null, applyTaxes = true,
-  paidAt = new Date(), issuedAt = new Date(),
+  paidAt = new Date(), issuedAt = new Date(), number: requested = null,
 }) {
   return prisma.$transaction(async (tx) => {
-    const bumped = await tx.billingProfile.update({
-      where: { id: profile.id },
-      data: { invoiceNextNumber: { increment: 1 } },
-    });
-    const correlative = bumped.invoiceNextNumber - 1;
-    const number = formatNumber(bumped, correlative);
+    const { number } = await takeClientCorrelative(tx, profile, client.id, requested);
     const data = buildInvoiceData({
-      profile: bumped,
+      profile,
       client,
       purchase: { id: null, credits: amount, amount: null, kind: 'manual', settledAt: paidAt },
       number,
@@ -575,5 +645,10 @@ module.exports = {
   buildIssuerSnapshot,
   buildClientSnapshot,
   formatNumber,
+  correlativeOf,
+  readClientSequence,
+  takeClientCorrelative,
+  InvoiceNumberTakenError,
+  MAX_CORRELATIVE,
   conceptFor,
 };
