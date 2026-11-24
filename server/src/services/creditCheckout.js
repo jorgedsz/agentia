@@ -173,7 +173,7 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
   };
 
   // Platform accounts pay on AZUL's payment page (through pagos-azul).
-  const { mode } = await getEffectiveBilling(prisma, userId);
+  const { mode } = await getEffectiveBilling(prisma, userId).catch(() => ({ mode: 'platform' }));
   const provider = cardProviderFor(mode, azul);
   if (provider === null) throw new CheckoutError(MANUAL_BILLING_MSG, 403);
   if (provider === 'azul') return createAzulCheckout(prisma, userId, charge, breakdown, { successUrl, azul });
@@ -260,6 +260,7 @@ async function createAzulCheckout(prisma, userId, charge, breakdown, { successUr
       taxAmount: charge.taxAmount,
       status: 'pending',
       kind: 'manual',
+      processor: 'azul',
       ...period,
     },
   });
@@ -296,25 +297,76 @@ async function saveAzulCardIfNone(prisma, userId, tarjetaId) {
 }
 
 /**
- * Settle an AZUL purchase from its pagos-azul order: used by the public portal on
- * return and by the scheduler when a webhook was lost. A declined or cancelled
- * order fails the purchase. Returns { paid, credited }.
+ * Apply a pagos-azul order to its NEBO purchase. Shared by the webhook, the
+ * portal's return and the scheduler's reconciliation, so they can never disagree.
+ *
+ * - aprobada: settle it. An AZUL purchase marked failed earlier is revived first:
+ *   a hosted order stays payable for 24 h after a decline or a cancel, and the
+ *   buyer may pay it with another card — the money arrived, so the credits must too.
+ * - declinada / cancelada / error: fail the pending purchase (not final for hosted
+ *   orders, see above).
+ * - anything else (pendiente, procesando, por-verificar): leave it pending.
+ * An order whose reference is not this purchase is ignored. Returns { paid, credited }.
  */
-async function confirmAzulOrder(prisma, purchase, { azul = azulPagos.cliente(), settle } = {}) {
-  if (!purchase?.azulOrdenId) return { paid: false, credited: false };
+async function applyAzulOrder(prisma, purchase, orden, { settle } = {}) {
   const settleFn = settle || require('../utils/creditSettlement').settleCreditPurchase;
-  const orden = await azul.obtenerOrden(purchase.azulOrdenId);
+  if (orden.referencia && orden.referencia !== `NEBO-${purchase.id}`) {
+    console.error(`[AZUL] order ${orden.id} belongs to ${orden.referencia}, not purchase ${purchase.id}: ignored`);
+    return { paid: false, credited: false };
+  }
+  if (orden.estado === 'aprobada') {
+    let row = purchase;
+    if (purchase.status === 'failed') {
+      const revived = await prisma.creditPurchase.updateMany({
+        where: { id: purchase.id, status: 'failed', processor: 'azul' },
+        data: { status: 'pending', errorMessage: null },
+      });
+      if (revived.count === 1) {
+        console.warn(`[AZUL] purchase ${purchase.id} was failed but AZUL approved order ${orden.id}: crediting it`);
+        row = { ...purchase, status: 'pending' };
+      }
+    }
+    if (!purchase.azulOrdenId && orden.id) {
+      await prisma.creditPurchase.update({ where: { id: purchase.id }, data: { azulOrdenId: orden.id } }).catch(() => {});
+    }
+    const credited = await settleFn(prisma, row, { payload: orden });
+    await saveAzulCardIfNone(prisma, purchase.userId, orden.tarjetaId);
+    return { paid: true, credited };
+  }
   if (['declinada', 'cancelada', 'error'].includes(orden.estado)) {
     await prisma.creditPurchase.updateMany({
       where: { id: purchase.id, status: 'pending' },
       data: { status: 'failed', errorMessage: String(orden.error || orden.estado).slice(0, 500) },
     });
+  }
+  return { paid: false, credited: false };
+}
+
+/**
+ * Settle an AZUL purchase by asking pagos-azul about it.
+ * - A hosted checkout (has an order id): read the order.
+ * - A saved-card charge: repeat cobrar-tarjeta with the SAME idempotency key.
+ *   pagos-azul answers the earlier order (asking AZUL again if its result was
+ *   unknown), so this never charges twice; if the first request never reached
+ *   pagos-azul, this is that charge, made once.
+ * Returns { paid, credited }.
+ */
+async function confirmAzulOrder(prisma, purchase, { azul = azulPagos.cliente(), settle } = {}) {
+  if (!purchase) return { paid: false, credited: false };
+  let orden;
+  if (purchase.kind !== 'manual' && purchase.paymentMethodId) {
+    orden = await azul.cobrarTarjeta({
+      tarjetaId: purchase.paymentMethodId,
+      monto: purchase.amount,
+      referencia: `NEBO-${purchase.id}`,
+      idempotencia: `nebo-cp-${purchase.id}`,
+    });
+  } else if (purchase.azulOrdenId) {
+    orden = await azul.obtenerOrden(purchase.azulOrdenId);
+  } else {
     return { paid: false, credited: false };
   }
-  if (orden.estado !== 'aprobada') return { paid: false, credited: false };
-  const credited = await settleFn(prisma, purchase, { payload: orden });
-  await saveAzulCardIfNone(prisma, purchase.userId, orden.tarjetaId);
-  return { paid: true, credited };
+  return applyAzulOrder(prisma, purchase, orden, { settle });
 }
 
 /**
@@ -325,7 +377,7 @@ async function confirmAzulOrder(prisma, purchase, { azul = azulPagos.cliente(), 
 async function createCardSetupCheckout(prisma, userId, slot, { successUrl, cancelUrl, azul = azulPagos.cliente() }) {
   const requestedSlot = slot === 'backup' ? 'backup' : 'primary';
 
-  const { mode } = await getEffectiveBilling(prisma, userId);
+  const { mode } = await getEffectiveBilling(prisma, userId).catch(() => ({ mode: 'platform' }));
   const provider = cardProviderFor(mode, azul);
   if (provider === null) throw new CheckoutError(MANUAL_BILLING_MSG, 403);
   if (provider === 'azul') {
@@ -428,6 +480,7 @@ module.exports = {
   createCreditCheckout,
   createCardSetupCheckout,
   confirmAzulOrder,
+  applyAzulOrder,
   saveAzulCardIfNone,
   confirmStripeCheckout,
   reconcileStripePayment,

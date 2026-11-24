@@ -4,18 +4,17 @@
 const azulPagos = require('../services/azulPagos');
 
 async function confirmarDesdeAviso(prisma, purchase, { orden }) {
-  const { settleCreditPurchase } = require('../utils/creditSettlement');
-  const { saveAzulCardIfNone } = require('../services/creditCheckout');
-  if (orden.estado === 'aprobada') {
-    const credited = await settleCreditPurchase(prisma, purchase, { payload: orden });
-    await saveAzulCardIfNone(prisma, purchase.userId, orden.tarjetaId);
-    return { paid: true, credited };
-  }
-  await prisma.creditPurchase.updateMany({
-    where: { id: purchase.id, status: 'pending' },
-    data: { status: 'failed', errorMessage: String(orden.error || 'Declinada').slice(0, 500) },
-  });
-  return { paid: false, credited: false };
+  return require('../services/creditCheckout').applyAzulOrder(prisma, purchase, orden);
+}
+
+// The purchase an order belongs to: by its order id, or — when NEBO never got
+// the id back (the charge's answer was lost) — by the NEBO-<id> reference.
+async function compraDe(prisma, orden) {
+  if (!orden.id) return null;
+  const porOrden = await prisma.creditPurchase.findFirst({ where: { azulOrdenId: orden.id } });
+  if (porOrden) return porOrden;
+  const m = /^NEBO-(\d+)$/.exec(orden.referencia || '');
+  return m ? prisma.creditPurchase.findFirst({ where: { id: Number(m[1]), processor: 'azul' } }) : null;
 }
 
 function crearHandler({ secreto, confirmar = confirmarDesdeAviso } = {}) {
@@ -29,7 +28,7 @@ function crearHandler({ secreto, confirmar = confirmarDesdeAviso } = {}) {
     try { aviso = JSON.parse(crudo.toString('utf8')); } catch { return res.status(400).json({ error: 'JSON inválido' }); }
     const orden = aviso?.orden || {};
     try {
-      const purchase = orden.id ? await req.prisma.creditPurchase.findFirst({ where: { azulOrdenId: orden.id } }) : null;
+      const purchase = await compraDe(req.prisma, orden);
       // Card charges also send a notice; settling is idempotent, so a purchase the
       // synchronous charge already settled is simply left as it is.
       if (purchase && (aviso.evento === 'pago.aprobado' || aviso.evento === 'pago.declinado')) {

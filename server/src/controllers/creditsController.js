@@ -969,6 +969,7 @@ async function performAzulCharge(prisma, user, charge, kind, card, periodData, {
       status: 'pending',
       kind,
       paymentMethodId: tarjetaId,
+      processor: 'azul',
       ...periodData,
     },
   });
@@ -983,11 +984,21 @@ async function performAzulCharge(prisma, user, charge, kind, card, periodData, {
       idempotencia: `nebo-cp-${purchase.id}`,
     });
   } catch (err) {
-    await prisma.creditPurchase.updateMany({
-      where: { id: purchase.id, status: 'pending' },
-      data: { status: 'failed', errorMessage: String(err.message).slice(0, 500) },
-    }).catch(() => {});
-    throw err;
+    // pagos-azul refused it outright (4xx; 501/503 = AZUL not set up there): nothing
+    // was charged, so it is a plain failure and the next card may be tried.
+    const s = err.status;
+    if (s && ((s >= 400 && s < 500) || s === 501 || s === 503)) {
+      await prisma.creditPurchase.updateMany({
+        where: { id: purchase.id, status: 'pending' },
+        data: { status: 'failed', errorMessage: String(err.message).slice(0, 500) },
+      }).catch(() => {});
+      throw err;
+    }
+    // Anything else (timeout, reset, 5xx) may have charged the card: the purchase
+    // stays pending, no other card is tried, and the scheduler repeats the same
+    // idempotency key until pagos-azul gives a definitive answer.
+    console.error(`[AZUL] charge for purchase ${purchase.id} has no answer yet (${err.message}); reconciling later`);
+    return { id: null, status: 'processing' };
   }
 
   await prisma.creditPurchase.update({ where: { id: purchase.id }, data: { azulOrdenId: orden.id } }).catch(() => {});
@@ -997,7 +1008,8 @@ async function performAzulCharge(prisma, user, charge, kind, card, periodData, {
     if (fresh) await settle(prisma, fresh, { payload: orden });
     return { id: orden.id, status: 'succeeded' };
   }
-  if (orden.estado === 'por-verificar') return { id: orden.id, status: 'processing' };
+  // Only a decline or an error is final; any other state is still unknown.
+  if (orden.estado !== 'declinada' && orden.estado !== 'error') return { id: orden.id, status: 'processing' };
 
   const reason = orden.error || 'La tarjeta fue declinada.';
   await prisma.creditPurchase.updateMany({
@@ -1075,6 +1087,9 @@ async function triggerAutoRecharge(prisma, userId) {
     });
     if (pending) {
       const ageMs = Date.now() - new Date(pending.createdAt).getTime();
+      // An AZUL charge may have gone through: it blocks until the scheduler
+      // reconciles it (or, after a day, flags it for a person).
+      if (pending.processor === 'azul') return;
       if (ageMs < PENDING_STALE_MS) return; // genuinely in flight — wait for its webhook
       await prisma.creditPurchase.update({
         where: { id: pending.id },
@@ -1153,17 +1168,35 @@ async function processAutoRecharges(prisma) {
     // AZUL purchases whose result never arrived (lost webhook, or AZUL could not
     // confirm a card charge): ask pagos-azul for the order before anything is
     // released as failed.
+    // Least recently checked first, and each check touches the row, so abandoned
+    // checkouts can never starve a paid one.
+    const DAY_MS = 24 * 3600 * 1000;
     const azulPendientes = await prisma.creditPurchase.findMany({
-      where: {
-        status: 'pending',
-        azulOrdenId: { not: null },
-        createdAt: { lt: new Date(Date.now() - 2 * 60 * 1000), gt: new Date(Date.now() - 2 * 24 * 3600 * 1000) },
-      },
-      take: 20,
+      where: { status: 'pending', processor: 'azul', createdAt: { lt: new Date(Date.now() - 2 * 60 * 1000) } },
+      orderBy: { updatedAt: 'asc' },
+      take: 25,
     }).catch(() => []);
     for (const purchase of azulPendientes) {
       await confirmAzulOrder(prisma, purchase)
         .catch((err) => console.error(`[AZUL] reconcile purchase ${purchase.id}: ${err.message}`));
+      await prisma.creditPurchase.updateMany({ where: { id: purchase.id, status: 'pending' }, data: { processor: 'azul' } }).catch(() => {});
+    }
+    // A hosted AZUL checkout link lasts 24 h: after that it was abandoned.
+    await prisma.creditPurchase.updateMany({
+      where: { status: 'pending', processor: 'azul', kind: 'manual', createdAt: { lt: new Date(Date.now() - DAY_MS - 3600 * 1000) } },
+      data: { status: 'failed', errorMessage: 'El pago no se completó en la página de AZUL.' },
+    }).catch(() => {});
+    // A saved-card charge AZUL still has not answered after a day goes to a person.
+    const sinRespuesta = await prisma.creditPurchase.findMany({
+      where: { status: 'pending', processor: 'azul', kind: { not: 'manual' }, createdAt: { lt: new Date(Date.now() - DAY_MS) } },
+      select: { id: true, userId: true, amount: true },
+    }).catch(() => []);
+    for (const p of sinRespuesta) {
+      console.error(`[AZUL] purchase ${p.id} (user ${p.userId}, $${p.amount}) unresolved after 24 h: check it in AZUL's portal`);
+      await prisma.creditPurchase.updateMany({
+        where: { id: p.id, status: 'pending' },
+        data: { status: 'failed', errorMessage: 'AZUL no confirmó este cobro en 24 h: revísalo en el portal de AZUL antes de volver a cobrar.' },
+      }).catch(() => {});
     }
 
     // Release stale off-session pendings (any kind) — off-session charges settle
@@ -1172,7 +1205,8 @@ async function processAutoRecharges(prisma) {
     // auto charges.
     const staleBefore = new Date(Date.now() - 30 * 60 * 1000);
     await prisma.creditPurchase.updateMany({
-      where: { kind: { in: ['auto_recharge', 'manual_card'] }, status: 'pending', createdAt: { lt: staleBefore } },
+      // AZUL purchases are left to the reconciliation above.
+      where: { kind: { in: ['auto_recharge', 'manual_card'] }, status: 'pending', processor: null, createdAt: { lt: staleBefore } },
       data: { status: 'failed', errorMessage: 'El proveedor de pago nunca confirmó este cobro (webhook no recibido).' },
     }).catch(() => {});
   } catch (err) {

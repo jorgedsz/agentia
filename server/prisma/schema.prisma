@@ -799,6 +799,7 @@ model CreditPurchase {
   whopPlanId            String? // LEGACY, unused (Whop removed 2026-11): one-time Whop plan of a historical purchase
   stripePaymentIntentId String? // Stripe PaymentIntent (pi_...) for this purchase — links the webhook back to this row
   azulOrdenId           String? // pagos-azul order id (AZUL purchases)
+  processor             String? // "azul" for AZUL purchases, set at creation (before the order id is known); null for Stripe
   billingPeriodId       Int? // The month this payment settles, when it was started from the billing-periods screen rather than against the running balance
   periodStart           DateTime? // Usage this payment settles: from here…
   periodEnd             DateTime? // …to here. Frozen when the checkout is created, so the emailed report matches the amount charged even if the account keeps consuming while it pays.

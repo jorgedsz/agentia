@@ -111,6 +111,8 @@ async function blockedReason(prisma, user, plan) {
   });
   if (pending) {
     const age = Date.now() - new Date(pending.createdAt).getTime();
+    // An AZUL top-up blocks until it is reconciled: it may have been charged.
+    if (pending.processor === 'azul') return 'a top-up is still settling';
     if (age < PENDING_STALE_MS) return 'a top-up is still settling';
     await prisma.creditPurchase.updateMany({
       where: { id: pending.id, status: 'pending' },

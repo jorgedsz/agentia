@@ -478,6 +478,10 @@ async function chargeSavedCard(prisma, entry, deps = {}) {
 // card: a retry within the same cycle can never charge the client twice.
 async function chargeSavedAzulCard(prisma, entry, user, azul) {
   if (!azul.habilitado) return { charged: false, reason: 'azul_not_configured' };
+  // pagos-azul is always asked in USD.
+  if (entry.currency && entry.currency !== 'USD') {
+    return { charged: false, reason: 'currency', declineReason: `Los cobros con AZUL se hacen en USD; este recurrente está en ${entry.currency}.` };
+  }
   const cards = getSavedCards(user, 'azul');
   if (cards.length === 0) return { charged: false, reason: 'no_card' };
 
@@ -487,6 +491,9 @@ async function chargeSavedAzulCard(prisma, entry, user, azul) {
   });
 
   const cycle = new Date(entry.nextPaymentDate).toISOString().slice(0, 10);
+  // One key per card and day: the daily retry (and a new card) is a fresh
+  // attempt, while a repeat the same day can never charge twice.
+  const today = new Date().toISOString().slice(0, 10);
   let lastDecline = null;
   for (const card of cards) {
     try {
@@ -495,23 +502,38 @@ async function chargeSavedAzulCard(prisma, entry, user, azul) {
         monto: entry.amount,
         referencia: `NEBO-RP-${entry.id}`,
         descripcion: entry.description || `Pago recurrente ${entry.periodLabel}`,
-        idempotencia: `nebo-rp-${entry.id}-${cycle}${card.slot === 'backup' ? '-b' : ''}`,
+        idempotencia: `nebo-rp-${entry.id}-${cycle}-${card.paymentMethodId}-${today}`,
       });
       if (orden.estado === 'aprobada') {
         console.log(`[RecurringPayment] Charged $${entry.amount} on ${card.slot} AZUL card for id=${entry.id}`);
         return { charged: true, paymentIntentId: orden.id };
       }
-      lastDecline = orden.estado === 'por-verificar'
-        ? 'AZUL no confirmó el cobro; revísalo en el portal de AZUL antes de volver a cobrar.'
-        : (orden.error || 'La tarjeta fue declinada.');
-      // An unconfirmed charge may have gone through: never try the backup on top of it.
-      if (orden.estado === 'por-verificar') break;
+      if (orden.estado === 'declinada' || orden.estado === 'error') {
+        lastDecline = orden.error || 'La tarjeta fue declinada.';
+        continue;
+      }
+      return pauseUnconfirmed(prisma, entry, `AZUL no confirmó el cobro (orden ${orden.id}).`);
     } catch (err) {
-      lastDecline = err.message;
-      console.error(`[RecurringPayment] ${card.slot} AZUL card failed for id=${entry.id}: ${lastDecline}`);
+      const s = err.status;
+      if (s && ((s >= 400 && s < 500) || s === 501 || s === 503)) {
+        lastDecline = err.message;
+        console.error(`[RecurringPayment] ${card.slot} AZUL card refused for id=${entry.id}: ${lastDecline}`);
+        continue;
+      }
+      return pauseUnconfirmed(prisma, entry, `Sin respuesta de AZUL (${err.message}).`);
     }
   }
   return { charged: false, reason: 'card_declined', declineReason: lastDecline };
+}
+
+// An AZUL charge whose outcome is unknown may have gone through. The entry is
+// paused so no later attempt (or the backup card) charges on top of it; a person
+// checks AZUL's portal, then marks it paid or resumes it.
+async function pauseUnconfirmed(prisma, entry, detail) {
+  const declineReason = `${detail} Revisa en el portal de AZUL si se cobró: márcalo pagado o reactívalo.`;
+  await prisma.recurringPayment.update({ where: { id: entry.id }, data: { status: 'paused', lastChargeError: declineReason } }).catch(() => {});
+  console.error(`[RecurringPayment] id=${entry.id} paused: ${detail}`);
+  return { charged: false, reason: 'unconfirmed', declineReason };
 }
 
 // Don't retry a declined card every hour — once a day is enough, and it keeps

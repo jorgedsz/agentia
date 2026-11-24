@@ -73,7 +73,7 @@ test('an unconfirmed AZUL charge stays pending for reconciliation', async () => 
 
 test('pagos-azul refusing the charge fails the purchase and rethrows', async () => {
   const prisma = prismaPlatform();
-  const azul = azulQue(() => { throw new Error('tarjeta no encontrada'); });
+  const azul = azulQue(() => { throw Object.assign(new Error('tarjeta no encontrada'), { status: 404 }); });
   await assert.rejects(performOffSessionCharge(prisma, USER, 10, 'manual_card', null, {}, { azul, settle: async () => true }), /tarjeta no encontrada/);
   assert.strictEqual(prisma.compras[0].status, 'failed');
 });
@@ -109,7 +109,8 @@ test('a recurring AZUL charge uses one idempotency key per cycle and card', asyn
   const entry = { id: 2, userId: 6, amount: 40, provider: 'azul_card', description: 'Plan', nextPaymentDate: new Date('2026-12-01T00:00:00Z') };
   const r = await chargeSavedCard(prisma, entry, { azul });
   assert.deepStrictEqual(r, { charged: true, paymentIntentId: 'r1' });
-  assert.deepStrictEqual(pedidos.map((p) => p.idempotencia), ['nebo-rp-2-2026-12-01', 'nebo-rp-2-2026-12-01-b']);
+  const hoy = new Date().toISOString().slice(0, 10);
+  assert.deepStrictEqual(pedidos.map((p) => p.idempotencia), [`nebo-rp-2-2026-12-01-tj1-${hoy}`, `nebo-rp-2-2026-12-01-tj2-${hoy}`]);
   assert.strictEqual(pedidos[0].monto, 40);
 });
 
