@@ -221,6 +221,8 @@ app.use(cors({
 // Stripe webhook needs raw body BEFORE express.json() parses it: the signature
 // is checked against the exact bytes Stripe sent
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
+// Same for pagos-azul (AZUL): X-Pagos-Firma is an HMAC of the raw body.
+app.use('/api/azul/webhook', express.raw({ type: 'application/json' }));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -281,6 +283,7 @@ app.use('/api/google-workspace', googleWorkspaceRoutes);
 app.use('/api/training', trainingRoutes);
 app.use('/api/playbook', playbookRoutes);
 app.use('/api/stripe', stripeRoutes);
+app.use('/api/azul', require('./routes/azul'));
 app.use('/api/pay', paymentPortalRoutes);
 app.use('/api/billing-periods', billingPeriodRoutes);
 app.use('/api/invoices', invoiceRoutes);
