@@ -72,6 +72,23 @@ export default function PaymentPortalPage() {
   // depends on the webhook alone. Without a session id there is nothing to
   // verify, so it just waits.
   useEffect(() => {
+    // AZUL comes back with ?compra=<purchase>&estado=aprobada|declinada|cancelada.
+    const estado = searchParams.get('estado')
+    const compra = searchParams.get('compra')
+    if (estado && compra) {
+      if (estado !== 'aprobada') {
+        setNotice(estado === 'cancelada' ? 'Cancelaste el pago. No se hizo ningún cargo.' : 'El banco no aprobó el pago. Puedes intentarlo de nuevo.')
+        return
+      }
+      setNotice('Confirmando tu pago…')
+      payAPI.confirm(token, null, compra)
+        .then(({ data }) => data.paid
+          ? '¡Pago recibido! Tu saldo ya está actualizado.'
+          : 'Tu pago está en proceso. El saldo se actualizará en unos minutos.')
+        .catch(() => 'Recibimos tu pago. El saldo puede tardar unos minutos en reflejarse.')
+        .then((message) => { setNotice(message); load() })
+      return
+    }
     if (searchParams.get('pago') === 'ok') {
       const sessionId = searchParams.get('session_id')
       setNotice('Confirmando tu pago…')
@@ -196,15 +213,24 @@ export default function PaymentPortalPage() {
               Se paga el saldo pendiente completo. Al confirmarse, recibirás el detalle de los días que cubre este pago.
             </p>
 
-            <button
-              onClick={saveCard}
-              disabled={working === 'card'}
-              className="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-50"
-            >
-              {working === 'card'
-                ? 'Abriendo…'
-                : data.hasCard ? 'Cambiar la tarjeta guardada' : 'Guardar una tarjeta para futuros pagos'}
-            </button>
+            {/* AZUL keeps the card from the payment itself: there is no card-only step. */}
+            {data.provider === 'azul' ? (
+              !data.hasCard && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                  Tu tarjeta queda guardada para futuros pagos al pagar (pago seguro con AZUL).
+                </p>
+              )
+            ) : (
+              <button
+                onClick={saveCard}
+                disabled={working === 'card'}
+                className="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-hover disabled:opacity-50"
+              >
+                {working === 'card'
+                  ? 'Abriendo…'
+                  : data.hasCard ? 'Cambiar la tarjeta guardada' : 'Guardar una tarjeta para futuros pagos'}
+              </button>
+            )}
             {data.hasCard && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
                 {data.card ? <>Tarjeta guardada: <span className="font-medium text-gray-700 dark:text-gray-300">{cardLabel(data.card)}</span></> : 'Ya tienes una tarjeta guardada.'}

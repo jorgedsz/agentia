@@ -7,7 +7,8 @@
 const billing = require('../services/billingPeriods');
 const { buildPaymentReport } = require('../services/paymentReport');
 const { canManageAccount } = require('../utils/accountAccess');
-const { getEffectiveBilling } = require('../utils/billingMode');
+const { getEffectiveBilling, cardProviderFor } = require('../utils/billingMode');
+const { savedCardId } = require('../utils/savedCard');
 const { extractDeclineReason } = require('../utils/autoRecharge');
 const { logAudit } = require('../utils/auditLog');
 
@@ -46,7 +47,7 @@ const list = async (req, res) => {
 
     const periods = await billing.syncPeriods(req.prisma, target);
     const { mode } = await getEffectiveBilling(req.prisma, target.id).catch(() => ({ mode: 'platform' }));
-    const isStripe = mode === 'own_stripe';
+    const provider = cardProviderFor(mode);
 
     res.json({
       readOnly: target.id === req.user.id,
@@ -56,9 +57,9 @@ const list = async (req, res) => {
         email: target.email,
         balance: Math.round(target.vapiCredits * 100) / 100,
       },
-      provider: isStripe ? 'stripe' : mode,
-      hasCard: isStripe && !!target.stripePaymentMethodId,
-      card: await require('../services/cardOnFile').cardOnFile(req.prisma, target, { mode }),
+      provider: provider || mode,
+      hasCard: !!savedCardId(target, provider),
+      card: await require('../services/cardOnFile').cardOnFile(req.prisma, target, { mode, provider }),
       timezone: billing.TIMEZONE,
       periods,
     });
@@ -286,11 +287,12 @@ const charge = async (req, res) => {
     if (blocked) return res.status(409).json({ error: blocked });
 
     const { mode } = await getEffectiveBilling(req.prisma, target.id).catch(() => ({ mode: 'platform' }));
-    // Only Stripe accounts have a card; platform and manual ones are loaded by hand.
-    if (mode !== 'own_stripe') {
+    // Stripe and AZUL accounts have a card; manual ones are loaded by hand.
+    const provider = cardProviderFor(mode);
+    if (!provider) {
       return res.status(400).json({ error: 'Esta cuenta está en carga manual de saldo: no tiene tarjeta que cobrar.' });
     }
-    if (!target.stripePaymentMethodId) {
+    if (!savedCardId(target, provider)) {
       return res.status(400).json({ error: 'La cuenta no tiene una tarjeta guardada. El cliente debe agregarla desde su panel.' });
     }
 
@@ -388,12 +390,13 @@ const cyclePlan = async (req, res) => {
     const cycle = require('../services/cycleBilling');
     const plan = await cycle.planFor(req.prisma, target);
     const { mode } = await getEffectiveBilling(req.prisma, target.id).catch(() => ({ mode: 'platform' }));
-    const isStripe = mode === 'own_stripe';
+    const provider = cardProviderFor(mode);
 
     res.json({
       plan,
-      hasCard: isStripe && !!target.stripePaymentMethodId,
-      card: await require('../services/cardOnFile').cardOnFile(req.prisma, target, { mode }),
+      provider: provider || mode,
+      hasCard: !!savedCardId(target, provider),
+      card: await require('../services/cardOnFile').cardOnFile(req.prisma, target, { mode, provider }),
       lastChargeAt: target.cycleLastChargeAt,
       lastError: target.autoRechargeLastError || null,
     });

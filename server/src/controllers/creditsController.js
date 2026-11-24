@@ -1,9 +1,11 @@
 const { AUTO_RECHARGE_MAX_FAILS, extractDeclineReason } = require('../utils/autoRecharge');
-const { getEffectiveBilling, isSelfServiceMode } = require('../utils/billingMode');
+const { getEffectiveBilling, isSelfServiceMode, cardProviderFor } = require('../utils/billingMode');
+const { savedCardId, cardColumn } = require('../utils/savedCard');
+const azulPagos = require('../services/azulPagos');
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 const { settleCreditPurchase } = require('../utils/creditSettlement');
 const { logAudit } = require('../utils/auditLog');
-const { createCreditCheckout, createCardSetupCheckout, resolveReceiptEmail, CheckoutError, creditsLabel, manualTopUpBlocker } = require('../services/creditCheckout');
+const { createCreditCheckout, createCardSetupCheckout, resolveReceiptEmail, CheckoutError, creditsLabel, manualTopUpBlocker, confirmAzulOrder } = require('../services/creditCheckout');
 const { decrypt } = require('../utils/encryption');
 const { returnBase } = require('../utils/returnBase');
 const { cardsOnFile } = require('../services/cardOnFile');
@@ -577,18 +579,17 @@ const getCardStatus = async (req, res) => {
     }
 
     const { mode } = await getEffectiveBilling(req.prisma, target.id).catch(() => ({ mode: 'platform' }));
-    const isStripe = mode === 'own_stripe';
+    const provider = cardProviderFor(mode);
 
     res.json({
       balance: target.vapiCredits,
       // What the account owes: the balance below zero, nothing when in credit.
       outstanding: target.vapiCredits < 0 ? Math.round(-target.vapiCredits * 100) / 100 : 0,
-      // Only Stripe accounts have a card; platform and manual ones are topped
-      // up by hand.
-      hasCard: isStripe && !!target.stripePaymentMethodId,
-      hasBackupCard: isStripe && !!target.stripePaymentMethodIdBackup,
-      ...(await cardsOnFile(req.prisma, target, { mode })),
-      provider: isStripe ? 'stripe' : mode,
+      // Stripe and AZUL accounts can have a card; manual ones are topped up by hand.
+      hasCard: !!savedCardId(target, provider),
+      hasBackupCard: !!savedCardId(target, provider, 'backup'),
+      ...(await cardsOnFile(req.prisma, target, { mode, provider })),
+      provider: provider || mode,
       min: CHARGE_MIN_AMOUNT,
       max: CREDITS_MAX_AMOUNT,
     });
@@ -623,12 +624,12 @@ const chargeCardForUser = async (req, res) => {
     }
 
     const { mode } = await getEffectiveBilling(req.prisma, target.id).catch(() => ({ mode: 'platform' }));
-    // Only Stripe accounts can be charged; platform and manual ones are topped
-    // up by hand.
-    if (mode !== 'own_stripe') {
+    // Stripe and AZUL accounts can be charged; manual ones are topped up by hand.
+    const provider = cardProviderFor(mode);
+    if (!provider) {
       return res.status(400).json({ error: 'Esta cuenta está en carga manual de saldo: no tiene tarjeta que cobrar.' });
     }
-    if (!target.stripePaymentMethodId) {
+    if (!savedCardId(target, provider)) {
       return res.status(400).json({ error: 'La cuenta no tiene una tarjeta guardada. El cliente debe agregarla desde su panel.' });
     }
 
@@ -828,7 +829,7 @@ const AUTO_RECHARGE_DAILY_CAP = 5;               // max auto charges per 24h (sa
  * month's outstanding — and is what reaches the balance. A partner that
  * collects a tax charges it on top, so the card may pay more than `amount`.
  */
-async function performOffSessionCharge(prisma, user, amount, kind, card, options = {}) {
+async function performOffSessionCharge(prisma, user, amount, kind, card, options = {}, deps = {}) {
   // A charge started from the billing-periods screen settles one month, so the
   // purchase carries that month and its window: the settlement marks the period
   // paid, and the emailed report covers exactly those days.
@@ -842,6 +843,13 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
   // top of the subtotal the caller worked out. Resolved once, up front, so the
   // charge and the row recording it cannot disagree.
   const charge = await resolveCharge(prisma, user.id, amount);
+
+  // Platform accounts charge their saved AZUL card through pagos-azul.
+  const azul = deps.azul || azulPagos.cliente();
+  const { mode } = await getEffectiveBilling(prisma, user.id).catch(() => ({ mode: 'platform' }));
+  if (cardProviderFor(mode, azul) === 'azul') {
+    return performAzulCharge(prisma, user, charge, kind, card, periodData, { azul, settle: deps.settle || settleCreditPurchase });
+  }
 
   // Stripe accounts charge their saved PaymentMethod directly. Stripe settles
   // synchronously, so a success here is final and the credits are added right
@@ -936,6 +944,82 @@ async function performOffSessionCharge(prisma, user, amount, kind, card, options
 }
 
 /**
+ * The AZUL branch of performOffSessionCharge. pagos-azul charges the saved card
+ * with AZUL's DataVault token and answers synchronously, so an approval settles
+ * right away and a decline fails the purchase and throws (the caller then tries
+ * the next card). The idempotency key is the purchase itself: a retried request
+ * can never charge twice. When AZUL could not confirm, the purchase stays pending
+ * and processAutoRecharges reconciles it from the pagos-azul order.
+ * Returns { id, status: 'succeeded' | 'processing' }, like a PaymentIntent.
+ */
+async function performAzulCharge(prisma, user, charge, kind, card, periodData, { azul, settle }) {
+  const tarjetaId = card?.paymentMethodId || user.azulTarjetaId;
+  if (!tarjetaId) {
+    const err = new Error('No saved payment method');
+    err.code = 'NO_CARD';
+    throw err;
+  }
+  const purchase = await prisma.creditPurchase.create({
+    data: {
+      userId: user.id,
+      amount: charge.total,
+      credits: charge.subtotal,
+      taxRate: charge.taxRate,
+      taxAmount: charge.taxAmount,
+      status: 'pending',
+      kind,
+      paymentMethodId: tarjetaId,
+      processor: 'azul',
+      ...periodData,
+    },
+  });
+
+  let orden;
+  try {
+    orden = await azul.cobrarTarjeta({
+      tarjetaId,
+      monto: charge.total,
+      referencia: `NEBO-${purchase.id}`,
+      descripcion: `${creditsLabel(kind)} ($${charge.subtotal})`,
+      idempotencia: `nebo-cp-${purchase.id}`,
+    });
+  } catch (err) {
+    // pagos-azul refused it outright (4xx; 501/503 = AZUL not set up there): nothing
+    // was charged, so it is a plain failure and the next card may be tried.
+    const s = err.status;
+    if (s && ((s >= 400 && s < 500) || s === 501 || s === 503)) {
+      await prisma.creditPurchase.updateMany({
+        where: { id: purchase.id, status: 'pending' },
+        data: { status: 'failed', errorMessage: String(err.message).slice(0, 500) },
+      }).catch(() => {});
+      throw err;
+    }
+    // Anything else (timeout, reset, 5xx) may have charged the card: the purchase
+    // stays pending, no other card is tried, and the scheduler repeats the same
+    // idempotency key until pagos-azul gives a definitive answer.
+    console.error(`[AZUL] charge for purchase ${purchase.id} has no answer yet (${err.message}); reconciling later`);
+    return { id: null, status: 'processing' };
+  }
+
+  await prisma.creditPurchase.update({ where: { id: purchase.id }, data: { azulOrdenId: orden.id } }).catch(() => {});
+
+  if (orden.estado === 'aprobada') {
+    const fresh = await prisma.creditPurchase.findUnique({ where: { id: purchase.id } });
+    if (fresh) await settle(prisma, fresh, { payload: orden });
+    return { id: orden.id, status: 'succeeded' };
+  }
+  // Only a decline or an error is final; any other state is still unknown.
+  if (orden.estado !== 'declinada' && orden.estado !== 'error') return { id: orden.id, status: 'processing' };
+
+  const reason = orden.error || 'La tarjeta fue declinada.';
+  await prisma.creditPurchase.updateMany({
+    where: { id: purchase.id, status: 'pending' },
+    data: { status: 'failed', errorMessage: String(reason).slice(0, 500), rawPayload: JSON.stringify(orden).slice(0, 10000) },
+  }).catch(() => {});
+  throw Object.assign(new Error(reason), { declineReason: reason });
+}
+
+/**
  * After a card declines, charge the NEXT saved card (backup fallback). Called from
  * the payment.failed webhook. `failedPaymentMethodId` is the card that just failed;
  * we charge the next one in priority order. Returns true if a next card was
@@ -951,8 +1035,9 @@ async function chargeNextCard(prisma, userId, amount, kind, failedPaymentMethodI
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return false;
   const { mode } = await getEffectiveBilling(prisma, userId).catch(() => ({ mode: 'platform' }));
-  if (mode !== 'own_stripe') return false; // only Stripe accounts have cards
-  const cards = getSavedCards(user);
+  const provider = cardProviderFor(mode);
+  if (!provider) return false; // manual accounts have no card
+  const cards = getSavedCards(user, provider);
   const idx = cards.findIndex((c) => c.paymentMethodId === failedPaymentMethodId);
   const next = idx >= 0 ? cards[idx + 1] : null;
   if (!next) return false; // no backup card left to try
@@ -977,8 +1062,9 @@ async function triggerAutoRecharge(prisma, userId) {
     // Only Stripe accounts self-charge. Platform and manual accounts have no
     // card payment — whoever manages them loads credit by hand.
     const billing = await getEffectiveBilling(prisma, userId).catch(() => ({ mode: 'platform' }));
-    if (billing.mode !== 'own_stripe') return;
-    if (!user.stripePaymentMethodId) return; // no saved card
+    const provider = cardProviderFor(billing.mode);
+    if (!provider) return;
+    if (!savedCardId(user, provider)) return; // no saved card
     const threshold = user.autoRechargeThreshold;
     const amount = user.autoRechargeAmount;
     if (!(threshold > 0) || !(amount > 0)) return;
@@ -1001,6 +1087,9 @@ async function triggerAutoRecharge(prisma, userId) {
     });
     if (pending) {
       const ageMs = Date.now() - new Date(pending.createdAt).getTime();
+      // An AZUL charge may have gone through: it blocks until the scheduler
+      // reconciles it (or, after a day, flags it for a person).
+      if (pending.processor === 'azul') return;
       if (ageMs < PENDING_STALE_MS) return; // genuinely in flight — wait for its webhook
       await prisma.creditPurchase.update({
         where: { id: pending.id },
@@ -1042,7 +1131,7 @@ async function triggerAutoRecharge(prisma, userId) {
     // and the payment-failed handler falls back to the next card there. Here we
     // only walk to the next card when the charge is rejected synchronously.
     const { getSavedCards, recordAutoRechargeFailure } = require('../utils/autoRecharge');
-    const cards = getSavedCards(user);
+    const cards = getSavedCards(user, provider);
     let lastErr = null;
     for (const card of cards) {
       try {
@@ -1076,13 +1165,48 @@ let autoRechargeScannerInterval = null;
 
 async function processAutoRecharges(prisma) {
   try {
+    // AZUL purchases whose result never arrived (lost webhook, or AZUL could not
+    // confirm a card charge): ask pagos-azul for the order before anything is
+    // released as failed.
+    // Least recently checked first, and each check touches the row, so abandoned
+    // checkouts can never starve a paid one.
+    const DAY_MS = 24 * 3600 * 1000;
+    const azulPendientes = await prisma.creditPurchase.findMany({
+      where: { status: 'pending', processor: 'azul', createdAt: { lt: new Date(Date.now() - 2 * 60 * 1000) } },
+      orderBy: { updatedAt: 'asc' },
+      take: 25,
+    }).catch(() => []);
+    for (const purchase of azulPendientes) {
+      await confirmAzulOrder(prisma, purchase)
+        .catch((err) => console.error(`[AZUL] reconcile purchase ${purchase.id}: ${err.message}`));
+      await prisma.creditPurchase.updateMany({ where: { id: purchase.id, status: 'pending' }, data: { processor: 'azul' } }).catch(() => {});
+    }
+    // A hosted AZUL checkout link lasts 24 h: after that it was abandoned.
+    await prisma.creditPurchase.updateMany({
+      where: { status: 'pending', processor: 'azul', kind: 'manual', createdAt: { lt: new Date(Date.now() - DAY_MS - 3600 * 1000) } },
+      data: { status: 'failed', errorMessage: 'El pago no se completó en la página de AZUL.' },
+    }).catch(() => {});
+    // A saved-card charge AZUL still has not answered after a day goes to a person.
+    const sinRespuesta = await prisma.creditPurchase.findMany({
+      where: { status: 'pending', processor: 'azul', kind: { not: 'manual' }, createdAt: { lt: new Date(Date.now() - DAY_MS) } },
+      select: { id: true, userId: true, amount: true },
+    }).catch(() => []);
+    for (const p of sinRespuesta) {
+      console.error(`[AZUL] purchase ${p.id} (user ${p.userId}, $${p.amount}) unresolved after 24 h: check it in AZUL's portal`);
+      await prisma.creditPurchase.updateMany({
+        where: { id: p.id, status: 'pending' },
+        data: { status: 'failed', errorMessage: 'AZUL no confirmó este cobro en 24 h: revísalo en el portal de AZUL antes de volver a cobrar.' },
+      }).catch(() => {});
+    }
+
     // Release stale off-session pendings (any kind) — off-session charges settle
     // in seconds, so anything still "pending" after 30 min is a lost webhook.
     // Clears the "cobro en proceso sin confirmar" banner and unblocks future
     // auto charges.
     const staleBefore = new Date(Date.now() - 30 * 60 * 1000);
     await prisma.creditPurchase.updateMany({
-      where: { kind: { in: ['auto_recharge', 'manual_card'] }, status: 'pending', createdAt: { lt: staleBefore } },
+      // AZUL purchases are left to the reconciliation above.
+      where: { kind: { in: ['auto_recharge', 'manual_card'] }, status: 'pending', processor: null, createdAt: { lt: staleBefore } },
       data: { status: 'failed', errorMessage: 'El proveedor de pago nunca confirmó este cobro (webhook no recibido).' },
     }).catch(() => {});
   } catch (err) {
@@ -1138,9 +1262,19 @@ const setupCard = async (req, res) => {
 const removeCard = async (req, res) => {
   try {
     const slot = (req.body?.slot || req.query?.slot) === 'backup' ? 'backup' : 'primary';
-    const data = slot === 'backup'
-      ? { stripePaymentMethodIdBackup: null }
-      : { stripePaymentMethodId: null };
+    const { mode } = await getEffectiveBilling(req.prisma, req.user.id).catch(() => ({ mode: 'platform' }));
+    const provider = cardProviderFor(mode) || 'stripe';
+    const data = { [cardColumn(provider, slot)]: null };
+
+    // An AZUL card is retired in pagos-azul too, so it can never be charged again.
+    if (provider === 'azul') {
+      const current = await req.prisma.user.findUnique({ where: { id: req.user.id } });
+      const tarjetaId = savedCardId(current, 'azul', slot);
+      if (tarjetaId) {
+        await azulPagos.cliente().retirarTarjeta(tarjetaId)
+          .catch((err) => console.error('[Credits] Could not retire AZUL card:', err.message));
+      }
+    }
 
     // Detach the card in Stripe too, so removing it here also stops it from living
     // in the partner's Stripe account. Best-effort: if the detach fails we still
@@ -1182,6 +1316,8 @@ const getAutoRecharge = async (req, res) => {
         autoRechargeAmount: true,
         stripePaymentMethodId: true,
         stripePaymentMethodIdBackup: true,
+        azulTarjetaId: true,
+        azulTarjetaIdBackup: true,
         autoRechargeFailCount: true,
         autoRechargeLastError: true,
         autoRechargeLastErrorAt: true,
@@ -1190,6 +1326,7 @@ const getAutoRecharge = async (req, res) => {
     const failCount = user?.autoRechargeFailCount || 0;
     // Effective billing mode governs whether this account can self-purchase credits.
     const billing = await getEffectiveBilling(req.prisma, req.user.id).catch(() => ({ mode: 'platform' }));
+    const provider = cardProviderFor(billing.mode);
 
     // Diagnostics: a pending off-session charge that never settled (webhook lost)
     // would block every future auto-recharge via the pending lock. Surface it, plus
@@ -1207,10 +1344,13 @@ const getAutoRecharge = async (req, res) => {
       enabled: !!user?.autoRechargeEnabled,
       threshold: user?.autoRechargeThreshold ?? null,
       amount: user?.autoRechargeAmount ?? null,
-      // Only Stripe accounts have a card; platform and manual ones have none.
-      hasCard: billing.mode === 'own_stripe' && !!user?.stripePaymentMethodId,
-      hasBackupCard: billing.mode === 'own_stripe' && !!user?.stripePaymentMethodIdBackup,
-      ...(await cardsOnFile(req.prisma, user, { mode: billing.mode })),
+      // Stripe and AZUL accounts can have a card; manual ones have none.
+      hasCard: !!savedCardId(user, provider),
+      hasBackupCard: !!savedCardId(user, provider, 'backup'),
+      ...(await cardsOnFile(req.prisma, user, { mode: billing.mode, provider })),
+      provider,
+      // AZUL keeps a card only from a purchase, so "add a card" is Stripe-only.
+      cardSetupSupported: provider === 'stripe',
       // Surface the last decline so the customer knows why the card failed
       // instead of auto-recharge going quiet after 3 silent failures.
       lastError: user?.autoRechargeLastError || null,
@@ -1247,11 +1387,11 @@ const updateAutoRecharge = async (req, res) => {
 
     const user = await req.prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { stripePaymentMethodId: true },
+      select: { stripePaymentMethodId: true, azulTarjetaId: true },
     });
     const { mode } = await getEffectiveBilling(req.prisma, req.user.id).catch(() => ({ mode: 'platform' }));
-    // Only Stripe accounts have a card to auto-recharge with.
-    const savedCard = mode === 'own_stripe' ? user?.stripePaymentMethodId : null;
+    // Stripe and AZUL accounts have a card to auto-recharge with.
+    const savedCard = savedCardId(user, cardProviderFor(mode));
 
     if (enabled) {
       if (!savedCard) {
@@ -1299,13 +1439,13 @@ const rechargeNow = async (req, res) => {
     const blocked = await manualTopUpBlocker(req.prisma, req.user.id);
     if (blocked) return res.status(409).json({ error: blocked });
 
-    // Only Stripe accounts pay by card; platform and manual ones are topped up
-    // by hand.
-    const stripe = await getStripeConfigForUser(req.prisma, req.user.id);
-    if (stripe.mode !== 'own_stripe') {
+    // Stripe and AZUL accounts pay by card; manual ones are topped up by hand.
+    const { mode } = await getEffectiveBilling(req.prisma, req.user.id).catch(() => ({ mode: 'platform' }));
+    const provider = cardProviderFor(mode);
+    if (!provider) {
       return res.status(403).json({ error: MANUAL_BILLING_MSG });
     }
-    if (!stripe.isConfigured) {
+    if (provider === 'stripe' && !(await getStripeConfigForUser(req.prisma, req.user.id)).isConfigured) {
       return res.status(400).json({ error: 'Payment processing is not configured' });
     }
     const amount = Math.round(parseFloat(req.body?.amount) * 100) / 100;
@@ -1314,7 +1454,7 @@ const rechargeNow = async (req, res) => {
     }
 
     const user = await req.prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!user?.stripePaymentMethodId) {
+    if (!savedCardId(user, provider)) {
       return res.status(400).json({ error: 'No saved payment method. Add a card first.' });
     }
 

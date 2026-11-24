@@ -666,7 +666,8 @@ export const payAPI = {
   // No amount: the server charges the whole outstanding balance.
   checkout: (token) => portalAxios.post(`/pay/${token}/checkout`),
   saveCard: (token) => portalAxios.post(`/pay/${token}/save-card`),
-  confirm: (token, sessionId) => portalAxios.post(`/pay/${token}/confirm`, { sessionId }),
+  // Stripe returns a sessionId; AZUL returns the NEBO purchase id (`compra`).
+  confirm: (token, sessionId, purchaseId) => portalAxios.post(`/pay/${token}/confirm`, { sessionId, purchaseId }),
   // Admin side (authenticated): issue or rotate an account's link.
   getLink: (userId) => api.get(`/pay/admin/${userId}/link`),
   createLink: (userId, rotate = false) => api.post(`/pay/admin/${userId}/link`, { rotate }),

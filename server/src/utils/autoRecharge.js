@@ -9,20 +9,18 @@
 const AUTO_RECHARGE_MAX_FAILS = 3; // consecutive failures before auto-recharge turns itself off
 
 /**
- * Saved Stripe cards in priority order: primary first, then backup. Off-session
- * charges try them in this order — if the primary declines, the backup is tried
- * next. Stripe cards are PaymentMethods on the account's customer, so there is
- * no member id. Only Stripe accounts have cards: platform and manual accounts
- * have no card payment at all.
+ * Saved cards of `provider` ('stripe' | 'azul') in priority order: primary
+ * first, then backup. Off-session charges try them in this order — if the
+ * primary declines, the backup is tried next. `paymentMethodId` is a Stripe
+ * PaymentMethod id or a pagos-azul tarjetaId; there is no member id.
  * Returns [{ paymentMethodId, memberId, slot }].
  */
-function getSavedCards(user) {
+function getSavedCards(user, provider = 'stripe') {
+  const { savedCardId } = require('./savedCard');
   const cards = [];
-  if (user?.stripePaymentMethodId) {
-    cards.push({ paymentMethodId: user.stripePaymentMethodId, memberId: null, slot: 'primary' });
-  }
-  if (user?.stripePaymentMethodIdBackup) {
-    cards.push({ paymentMethodId: user.stripePaymentMethodIdBackup, memberId: null, slot: 'backup' });
+  for (const slot of ['primary', 'backup']) {
+    const id = savedCardId(user, provider, slot);
+    if (id) cards.push({ paymentMethodId: id, memberId: null, slot });
   }
   return cards;
 }
@@ -61,7 +59,7 @@ function extractDeclineReason(source) {
 const STALE_CARD_MSG = 'Tu tarjeta guardada no es válida con el proveedor de pago actual. Quítala y agrégala de nuevo para que la auto-recarga funcione.';
 function isStaleCardError(reasonSource) {
   const r = (typeof reasonSource === 'string' ? reasonSource : extractDeclineReason(reasonSource)).toLowerCase();
-  return /member (was )?not found|member.*doesn'?t exist|payment ?method (was )?not found|no such (member|payment)|not found.*(member|payment)/.test(r);
+  return /member (was )?not found|member.*doesn'?t exist|payment ?method (was )?not found|no such (member|payment)|not found.*(member|payment)|tarjeta no encontrada/.test(r);
 }
 
 /**

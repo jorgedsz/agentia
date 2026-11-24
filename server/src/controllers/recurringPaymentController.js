@@ -1,7 +1,8 @@
 const axios = require('axios');
 const stripeService = require('../services/stripeService');
 const { decrypt } = require('../utils/encryption');
-const { getEffectiveBilling } = require('../utils/billingMode');
+const { getEffectiveBilling, cardProviderFor } = require('../utils/billingMode');
+const azulPagos = require('../services/azulPagos');
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 const { getSavedCards, extractDeclineReason } = require('../utils/autoRecharge');
 
@@ -36,8 +37,10 @@ function isOwner(req) {
 // before the checkout-link provider was removed (2026-11) carry provider 'whop';
 // they are still listed so the history stays visible, but
 // nothing is ever sent or charged for them again.
+const CARD_PROVIDERS = ['stripe_card', 'azul_card'];
+
 function isLegacyEntry(entry) {
-  return entry.provider !== 'stripe_card';
+  return !CARD_PROVIDERS.includes(entry.provider);
 }
 
 // Log each skipped legacy entry once per process, not on every hourly pass.
@@ -96,11 +99,12 @@ const create = async (req, res) => {
     const notifyBefore = Math.max(0, parseInt(daysBeforeNotify ?? 3) || 0);
     const firstDate = firstPaymentDate ? new Date(firstPaymentDate) : addDays(new Date(), days);
 
-    // Recurring payments are charged on the client's saved card each cycle, in
-    // the Stripe of the partner that governs it. Clients off Stripe (platform or
-    // manual billing) have no card payment, so there is nothing to collect with.
+    // Recurring payments are charged on the client's saved card each cycle: in the
+    // Stripe of the partner that governs it, or on AZUL for platform clients.
+    // Manual clients have no card payment, so there is nothing to collect with.
     const billing = await getEffectiveBilling(req.prisma, client.id).catch(() => ({ mode: 'platform' }));
-    if (billing.mode !== 'own_stripe') {
+    const cardProvider = cardProviderFor(billing.mode);
+    if (!cardProvider) {
       return res.status(400).json({ error: 'This client has no card payment (its balance is topped up by hand), so a recurring payment cannot be collected from it.' });
     }
 
@@ -117,7 +121,7 @@ const create = async (req, res) => {
         nextPaymentDate: firstDate,
         status: 'active',
         // Always explicit: the column still defaults to the removed provider.
-        provider: 'stripe_card',
+        provider: cardProvider === 'azul' ? 'azul_card' : 'stripe_card',
         notes: notes || null,
       },
       include: {
@@ -292,7 +296,7 @@ async function sendConfirmation(prisma, entry, { stripePaymentIntentId, source, 
     stripePaymentIntentId: stripePaymentIntentId || null,
     // 'saved_card' means the client was charged automatically and owes nothing;
     // 'checkout_link' means they paid a link themselves.
-    chargeMode: entry.provider === 'stripe_card' ? 'saved_card' : 'checkout_link',
+    chargeMode: CARD_PROVIDERS.includes(entry.provider) ? 'saved_card' : 'checkout_link',
     source: source || 'unknown',
     description: entry.description || null,
     sentAt: new Date().toISOString(),
@@ -336,7 +340,7 @@ async function sendFailureNotification(prisma, entry, { reason, declineReason } 
     periodDays: entry.periodDays,
     nextPaymentDate: entry.nextPaymentDate,
     paymentLink: entry.lastCheckoutUrl || null,
-    chargeMode: entry.provider === 'stripe_card' ? 'saved_card' : 'checkout_link',
+    chargeMode: CARD_PROVIDERS.includes(entry.provider) ? 'saved_card' : 'checkout_link',
     // What the bank said, so the message to the client can be specific.
     declineReason: declineReason || null,
     description: entry.description || null,
@@ -376,9 +380,9 @@ async function sendUpcomingChargeNotice(prisma, entry) {
   // include, which selects contact fields only and would always look card-less.
   const account = await prisma.user.findUnique({
     where: { id: entry.userId },
-    select: { stripePaymentMethodId: true, stripePaymentMethodIdBackup: true },
+    select: { stripePaymentMethodId: true, stripePaymentMethodIdBackup: true, azulTarjetaId: true, azulTarjetaIdBackup: true },
   });
-  const hasCard = !!(account?.stripePaymentMethodId || account?.stripePaymentMethodIdBackup);
+  const hasCard = getSavedCards(account, entry.provider === 'azul_card' ? 'azul' : 'stripe').length > 0;
 
   const payload = {
     type: 'recurring_payment_due',
@@ -418,9 +422,10 @@ async function sendUpcomingChargeNotice(prisma, entry) {
 // ── Internal: charge one saved-card entry now ──
 // Tries the primary card and then the backup. Returns
 // { charged, reason?, declineReason? }; never throws.
-async function chargeSavedCard(prisma, entry) {
+async function chargeSavedCard(prisma, entry, deps = {}) {
   const user = await prisma.user.findUnique({ where: { id: entry.userId } });
   if (!user) return { charged: false, reason: 'no_card' };
+  if (entry.provider === 'azul_card') return chargeSavedAzulCard(prisma, entry, user, deps.azul || azulPagos.cliente());
 
   const stripe = await getStripeConfigForUser(prisma, entry.userId);
   if (!stripe.isConfigured) {
@@ -469,6 +474,68 @@ async function chargeSavedCard(prisma, entry) {
   return { charged: false, reason: 'card_declined', declineReason: lastDecline };
 }
 
+// The AZUL version of chargeSavedCard. One idempotency key per entry, cycle and
+// card: a retry within the same cycle can never charge the client twice.
+async function chargeSavedAzulCard(prisma, entry, user, azul) {
+  if (!azul.habilitado) return { charged: false, reason: 'azul_not_configured' };
+  // pagos-azul is always asked in USD.
+  if (entry.currency && entry.currency !== 'USD') {
+    return { charged: false, reason: 'currency', declineReason: `Los cobros con AZUL se hacen en USD; este recurrente está en ${entry.currency}.` };
+  }
+  const cards = getSavedCards(user, 'azul');
+  if (cards.length === 0) return { charged: false, reason: 'no_card' };
+
+  await prisma.recurringPayment.update({
+    where: { id: entry.id },
+    data: { lastChargeAttemptAt: new Date() },
+  });
+
+  const cycle = new Date(entry.nextPaymentDate).toISOString().slice(0, 10);
+  // One key per card and day: the daily retry (and a new card) is a fresh
+  // attempt, while a repeat the same day can never charge twice.
+  const today = new Date().toISOString().slice(0, 10);
+  let lastDecline = null;
+  for (const card of cards) {
+    try {
+      const orden = await azul.cobrarTarjeta({
+        tarjetaId: card.paymentMethodId,
+        monto: entry.amount,
+        referencia: `NEBO-RP-${entry.id}`,
+        descripcion: entry.description || `Pago recurrente ${entry.periodLabel}`,
+        idempotencia: `nebo-rp-${entry.id}-${cycle}-${card.paymentMethodId}-${today}`,
+      });
+      if (orden.estado === 'aprobada') {
+        console.log(`[RecurringPayment] Charged $${entry.amount} on ${card.slot} AZUL card for id=${entry.id}`);
+        return { charged: true, paymentIntentId: orden.id };
+      }
+      if (orden.estado === 'declinada' || orden.estado === 'error') {
+        lastDecline = orden.error || 'La tarjeta fue declinada.';
+        continue;
+      }
+      return pauseUnconfirmed(prisma, entry, `AZUL no confirmó el cobro (orden ${orden.id}).`);
+    } catch (err) {
+      const s = err.status;
+      if (s && ((s >= 400 && s < 500) || s === 501 || s === 503)) {
+        lastDecline = err.message;
+        console.error(`[RecurringPayment] ${card.slot} AZUL card refused for id=${entry.id}: ${lastDecline}`);
+        continue;
+      }
+      return pauseUnconfirmed(prisma, entry, `Sin respuesta de AZUL (${err.message}).`);
+    }
+  }
+  return { charged: false, reason: 'card_declined', declineReason: lastDecline };
+}
+
+// An AZUL charge whose outcome is unknown may have gone through. The entry is
+// paused so no later attempt (or the backup card) charges on top of it; a person
+// checks AZUL's portal, then marks it paid or resumes it.
+async function pauseUnconfirmed(prisma, entry, detail) {
+  const declineReason = `${detail} Revisa en el portal de AZUL si se cobró: márcalo pagado o reactívalo.`;
+  await prisma.recurringPayment.update({ where: { id: entry.id }, data: { status: 'paused', lastChargeError: declineReason } }).catch(() => {});
+  console.error(`[RecurringPayment] id=${entry.id} paused: ${detail}`);
+  return { charged: false, reason: 'unconfirmed', declineReason };
+}
+
 // Don't retry a declined card every hour — once a day is enough, and it keeps
 // the client's bank from flagging us.
 const CHARGE_RETRY_MS = 20 * 60 * 60 * 1000;
@@ -481,7 +548,7 @@ const CHARGE_RETRY_MS = 20 * 60 * 60 * 1000;
 async function chargeDueRecurringPayments(prisma) {
   const now = new Date();
   const due = await prisma.recurringPayment.findMany({
-    where: { status: 'active', provider: 'stripe_card', nextPaymentDate: { lte: now } },
+    where: { status: 'active', provider: { in: CARD_PROVIDERS }, nextPaymentDate: { lte: now } },
     include: { user: { select: { id: true, name: true, email: true, phoneNumber: true, companyName: true } } },
   });
 
@@ -491,7 +558,7 @@ async function chargeDueRecurringPayments(prisma) {
 
       const result = await chargeSavedCard(prisma, entry);
       if (result.charged) {
-        await advanceToNextCycle(prisma, entry, { stripePaymentIntentId: result.paymentIntentId, source: 'stripe_card' });
+        await advanceToNextCycle(prisma, entry, { stripePaymentIntentId: result.paymentIntentId, source: entry.provider });
         continue;
       }
 
@@ -622,4 +689,5 @@ module.exports = {
   startScheduler,
   processDueNotifications,
   chargeDueRecurringPayments,
+  chargeSavedCard,
 };
