@@ -80,7 +80,6 @@ export const EMPTY_INVOICE_PROFILE = {
   retentionRate: '0',
   retentionLabel: 'RETENCIÓN',
   invoicePrefix: 'FAC-',
-  invoiceNextNumber: '1',
   invoicePadding: '6',
   dueDays: '0',
   ...Object.fromEntries(INVOICE_TEXT_KEYS.map(key => [key, ''])),
@@ -96,7 +95,6 @@ export const invoiceFormFrom = (profile = {}) => ({
   retentionRate: profile.retentionRate != null ? String(profile.retentionRate) : '0',
   retentionLabel: profile.retentionLabel || 'RETENCIÓN',
   invoicePrefix: profile.invoicePrefix ?? 'FAC-',
-  invoiceNextNumber: profile.invoiceNextNumber != null ? String(profile.invoiceNextNumber) : '1',
   invoicePadding: profile.invoicePadding != null ? String(profile.invoicePadding) : '6',
   dueDays: profile.dueDays != null ? String(profile.dueDays) : '0',
   ...Object.fromEntries(INVOICE_TEXT_KEYS.map(key => [key, profile[key] ?? ''])),
@@ -113,7 +111,6 @@ export const invoicePayloadFrom = (form) => ({
   retentionRate: form.retentionRate,
   retentionLabel: form.retentionLabel,
   invoicePrefix: form.invoicePrefix,
-  invoiceNextNumber: form.invoiceNextNumber,
   invoicePadding: form.invoicePadding,
   dueDays: form.dueDays,
   ...Object.fromEntries(INVOICE_TEXT_KEYS.map(key => [key, form[key]])),
@@ -315,14 +312,8 @@ export default function BillingProfileFields({ form, onChange, profileExists, ta
           <input type="number" min="1" max="20" step="1" value={form.invoicePadding}
             onChange={(e) => set({ invoicePadding: e.target.value })}
             placeholder="6" className={INPUT} />
-        </div>
-        <div>
-          <label className={LABEL}>Próximo número</label>
-          <input type="number" min="1" step="1" value={form.invoiceNextNumber}
-            onChange={(e) => set({ invoiceNextNumber: e.target.value })}
-            placeholder="1" className={INPUT} />
           <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">
-            No puede retroceder una vez que la secuencia ya emitió facturas: los números se repetirían.
+            Cada cliente lleva su propia numeración. El número se elige al crear la factura a mano.
           </p>
         </div>
         <div>

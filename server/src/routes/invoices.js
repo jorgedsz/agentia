@@ -23,6 +23,10 @@ router.post('/manual', controller.createManual);
 router.get('/history', controller.listHistory);
 router.put('/accounts/:userId/company', controller.setAccountCompany);
 
+// Where one client's own numbering stands, for that form to prefill. Literal
+// first segment, declared before '/:id' for the same reason.
+router.get('/next-number/:userId', controller.nextNumber);
+
 router.get('/:id', controller.getOne);
 
 // Rebuilds the document from today's profile and account, KEEPING its number.

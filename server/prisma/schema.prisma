@@ -149,6 +149,7 @@ model User {
   issuerProfileId             Int?
   issuerProfile               BillingProfile?       @relation("ClientIssuerProfile", fields: [issuerProfileId], references: [id], onDelete: SetNull)
   invoices                    Invoice[]
+  invoiceSequences            InvoiceSequence[]
 }
 
 // Per-user credential vault for chatbot tool secrets (Postgres connections,
@@ -887,7 +888,7 @@ model BillingProfile {
   retentionLabel    String    @default("RETENCIÓN")
   // Numbering
   invoicePrefix     String    @default("FAC-")
-  invoiceNextNumber Int       @default(1)
+  invoiceNextNumber Int       @default(1) // No longer read: numbering is per client now, see InvoiceSequence
   invoicePadding    Int       @default(6)
   // Issuer
   issuerName        String? // "RAZÓN SOCIAL DEL EMISOR"
@@ -915,6 +916,7 @@ model BillingProfile {
   contactEmail      String?
   contactWeb        String?
   invoices          Invoice[]
+  sequences         InvoiceSequence[]
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -1002,8 +1004,31 @@ model Invoice {
   regeneratedAt    DateTime?
   createdAt        DateTime        @default(now())
 
-  @@unique([profileId, number])
+  // Per client, not per issuer: every client of an issuer counts its own
+  // FAC-000001, FAC-000002… (see InvoiceSequence), so two clients of the same
+  // issuer may hold the same number. One client may never hold it twice.
+  @@unique([profileId, userId, number])
   @@index([userId, issuedAt])
+}
+
+// The numbering of ONE client under ONE issuer. The owner asked for it: «la
+// secuencia por cliente es individual». BillingProfile.invoiceNextNumber is no
+// longer read; the prefix and the padding still come from the profile.
+//
+// No row yet means the client was never numbered under this scheme, and its
+// next number is then its highest existing one + 1 (see takeClientCorrelative)
+// — which is how invoices issued before this table existed are honoured
+// without a backfill.
+model InvoiceSequence {
+  id         Int            @id @default(autoincrement())
+  profileId  Int
+  profile    BillingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  userId     Int
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nextNumber Int // The correlative the next automatic invoice tries first; numbers this client already holds are skipped
+  updatedAt  DateTime       @updatedAt
+
+  @@unique([profileId, userId])
 }
 
 model Transaction {

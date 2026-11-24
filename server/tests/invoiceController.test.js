@@ -819,24 +819,40 @@ const MANUAL_PROFILE = {
   issuerRnc: '1-01-00000-1',
 };
 
-function manualCtrlPrisma(profileOverrides = {}) {
+// Numbering is per client: with no sequence row the fake answers as if the
+// client's row held the profile's `invoiceNextNumber`, so the fixtures read the
+// same numbers as before. `held` lists numbers already issued, per userId.
+function manualCtrlPrisma(profileOverrides = {}, held = {}) {
   const profile = { ...MANUAL_PROFILE, ...profileOverrides };
   const created = [];
+  const sequences = new Map();
+  const seqKey = (w) => `${w.profileId_userId.profileId}:${w.profileId_userId.userId}`;
+  const sequenceDb = {
+    findUnique: async ({ where }) => sequences.get(seqKey(where)) || { nextNumber: profile.invoiceNextNumber },
+    upsert: async ({ where, create, update }) => {
+      const row = sequences.has(seqKey(where)) ? { ...sequences.get(seqKey(where)), ...update } : { ...create };
+      sequences.set(seqKey(where), row);
+      return row;
+    },
+  };
+  const findHeld = async ({ where }) => [
+    ...(held[where.userId] || []).map((number) => ({ number })),
+    ...created.filter((d) => d.profileId === where.profileId && d.userId === where.userId).map((d) => ({ number: d.number })),
+  ];
   return {
     created,
     profile,
+    sequences,
+    invoice: { findMany: findHeld },
+    invoiceSequence: sequenceDb,
     user: { findUnique: async ({ where }) => MANUAL_TREE[where.id] || null },
     billingProfile: {
       findFirst: async ({ where }) => (where.ownerId === profile.ownerId && (where.id === undefined || where.id === profile.id) ? profile : null),
     },
     $transaction: async (fn) => fn({
-      billingProfile: {
-        update: async ({ data }) => {
-          profile.invoiceNextNumber += data.invoiceNextNumber.increment;
-          return { ...profile };
-        },
-      },
+      invoiceSequence: sequenceDb,
       invoice: {
+        findMany: findHeld,
         create: async ({ data }) => {
           created.push(data);
           return { id: 1000 + created.length, regeneratedAt: null, ...data };
@@ -982,7 +998,7 @@ test('createManual refuses a client whose governing partner has no billing profi
   assert.match(res.body.error, /emisor/);
   // Nothing was written, and no correlative was spent.
   assert.strictEqual(prisma.created.length, 0);
-  assert.strictEqual(prisma.profile.invoiceNextNumber, 300);
+  assert.strictEqual(prisma.sequences.size, 0);
 });
 
 // --- the permission matrix --------------------------------------------------
@@ -1003,7 +1019,7 @@ test('createManual: a client may not raise an invoice for itself', async () => {
 
   assert.strictEqual(res.code, 403);
   assert.strictEqual(prisma.created.length, 0);
-  assert.strictEqual(prisma.profile.invoiceNextNumber, 300, 'no correlative may be spent on a refusal');
+  assert.strictEqual(prisma.sequences.size, 0, 'no correlative may be spent on a refusal');
 });
 
 test('createManual: a client may not raise an invoice for a sibling either', async () => {
@@ -1055,7 +1071,7 @@ test('createManual: a profile sitting on a client row is never the issuer', asyn
   const res = await callManual(prisma, { id: 30, role: 'CLIENT' }, { userId: 30, amount: 100 });
   assert.strictEqual(res.code, 409);
   assert.strictEqual(prisma.created.length, 0);
-  assert.strictEqual(prisma.profile.invoiceNextNumber, 300);
+  assert.strictEqual(prisma.sequences.size, 0);
 });
 
 // --- the billing mode of the issuer is not the issuer's right to issue -------
@@ -1099,7 +1115,7 @@ test('createManual: a client whose governing partner has no profile is still ref
 
   assert.strictEqual(res.code, 409);
   assert.strictEqual(prisma.created.length, 0);
-  assert.strictEqual(prisma.profile.invoiceNextNumber, 300);
+  assert.strictEqual(prisma.sequences.size, 0);
 });
 
 // And the permission rule is untouched by any of it: a looser ISSUER lookup
@@ -1189,4 +1205,64 @@ test('assigning a company: the issuer may, to its own company only', async () =>
   const outsider = fakeRes();
   await setAccountCompany({ prisma, user: { id: 60, role: 'AGENCY' }, params: { userId: '30' }, body: { profileId: 1 }, headers: {}, socket: {} }, outsider);
   assert.strictEqual(outsider.code, 403);
+});
+
+// --- the number, per client --------------------------------------------------
+
+test('createManual uses the number the issuer typed', async () => {
+  const prisma = manualCtrlPrisma();
+  const res = await callManual(prisma, ISSUER, { userId: 30, amount: 100, number: 5 });
+
+  assert.strictEqual(res.code, 201);
+  assert.strictEqual(res.body.invoice.number, 'FAC-000005');
+});
+
+test('createManual refuses with 409 a number this client already holds, and creates nothing', async () => {
+  const prisma = manualCtrlPrisma({}, { 30: ['FAC-000005'] });
+  const res = await callManual(prisma, ISSUER, { userId: 30, amount: 100, number: 5 });
+
+  assert.strictEqual(res.code, 409);
+  assert.match(res.body.error, /FAC-000005 ya está usado/);
+  assert.strictEqual(prisma.created.length, 0);
+});
+
+test('createManual: the same number is free for a different client of the same issuer', async () => {
+  const prisma = manualCtrlPrisma({}, { 30: ['FAC-000005'] });
+  const res = await callManual(prisma, ISSUER, { userId: 31, amount: 100, number: 5 });
+
+  assert.strictEqual(res.code, 201);
+  assert.strictEqual(res.body.invoice.number, 'FAC-000005');
+});
+
+test('createManual refuses a typed number that is not a positive whole number', async () => {
+  for (const number of [0, -3, 2.5, 'abc']) {
+    const prisma = manualCtrlPrisma();
+    const res = await callManual(prisma, ISSUER, { userId: 30, amount: 100, number });
+    assert.strictEqual(res.code, 400, String(number));
+    assert.strictEqual(prisma.created.length, 0);
+  }
+});
+
+const { nextNumber } = require('../src/controllers/invoiceController');
+
+async function callNext(prisma, user, userId) {
+  const res = fakeRes();
+  await nextNumber({ prisma, user, params: { userId: String(userId) } }, res);
+  return res;
+}
+
+test('nextNumber answers the client\'s next number and what it already holds, skipping taken ones', async () => {
+  const prisma = manualCtrlPrisma({ invoiceNextNumber: 5 }, { 30: ['FAC-000005', 'FAC-000006'] });
+  const res = await callNext(prisma, ISSUER, 30);
+
+  assert.strictEqual(res.code, 200);
+  assert.strictEqual(res.body.next, 7);
+  assert.strictEqual(res.body.number, 'FAC-000007');
+  assert.deepStrictEqual(res.body.taken, [5, 6]);
+  assert.strictEqual(prisma.sequences.size, 0, 'reading the next number spends nothing');
+});
+
+test('nextNumber is refused to whoever may not issue for that client', async () => {
+  const res = await callNext(manualCtrlPrisma(), { id: 30, role: 'CLIENT' }, 30);
+  assert.strictEqual(res.code, 403);
 });

@@ -11,7 +11,8 @@
 
 const {
   issueInvoiceForPurchase, issueManualInvoice, resolveManualIssuerProfile,
-  buildRegeneratedInvoiceData, conceptFor,
+  buildRegeneratedInvoiceData, conceptFor, formatNumber, readClientSequence,
+  InvoiceNumberTakenError, MAX_CORRELATIVE,
 } = require('../services/invoiceService');
 const { resolveTaxConfig } = require('../utils/taxes');
 const { getAncestorPartners } = require('../utils/billingMode');
@@ -478,6 +479,62 @@ const regenerate = async (req, res) => {
 };
 
 /**
+ * WHO ISSUES THIS CLIENT'S INVOICES, and whether the caller is that issuer -
+ * the two permissions createManual explains, in that order. Shared with
+ * nextNumber, because whoever may see a client's next number is exactly whoever
+ * may spend it. Returns `{ profile, client }`, or `{ status, error }` to answer
+ * with.
+ */
+async function resolveManualIssuer(req, userId, requestedProfileId = null) {
+  const client = await req.prisma.user.findUnique({ where: { id: userId } });
+  if (!client) return { status: 404, error: 'Cliente no encontrado.' };
+
+  // WHICH ISSUER GOVERNS THIS CLIENT.
+  //
+  // Resolved by resolveManualIssuerProfile and NOT by resolveTaxConfig, which
+  // is what every automatic emission uses. The difference is one condition and
+  // the whole reasoning for it is on that function: resolveTaxConfig refuses
+  // any billing mode but `own_stripe`, a gate that exists to protect charging
+  // and automatic issuance, and a hand-made invoice does neither. Applied here
+  // it would refuse exactly the accounts this feature is for - a partner on
+  // `manual` billing produces no CreditPurchase at all, so its clients can be
+  // invoiced in no other way. The gate itself is left untouched where it
+  // guards the paths it was written for.
+  //
+  // Either way the profile comes back whether or not `taxEnabled` is on: that
+  // flag decides what the totals block SAYS (buildInvoiceData reads it), and
+  // gating issuance on it is right for an automatic emission and wrong here,
+  // where a human is deliberately asking for this one document.
+  const governing = await resolveManualIssuerProfile(req.prisma, userId);
+  if (!governing) {
+    return {
+      status: 409,
+      error: 'Este cliente no tiene un emisor de facturas configurado, así que no hay con qué numerarla ni qué imprimir como emisor.',
+    };
+  }
+
+  // ONE INVOICE FROM ANOTHER OF THE SAME ISSUER'S COMPANIES. Only a company
+  // of the issuer that governs this client: a profileId of anyone else is a
+  // refusal, not a fallback, because printing another issuer's RNC on this
+  // client's document is exactly what must be impossible. Each company keeps
+  // its own numbering per client, so the number is read from the one chosen.
+  let profile = governing;
+  if (requestedProfileId !== undefined && requestedProfileId !== null && requestedProfileId !== '') {
+    profile = await findOwnedProfile(req.prisma, governing.ownerId, requestedProfileId);
+    if (!profile) return { status: 403, error: 'Esa empresa no emite las facturas de este cliente.' };
+  }
+
+  if (!canConfigureBillingProfile(req.user, profile.ownerId)) {
+    return { status: 403, error: 'Solo quien emite las facturas de este cliente puede crearle una.' };
+  }
+  if (!(await canReadAccount(req.prisma, req.user, userId))) {
+    return { status: 403, error: 'No puedes ver las facturas de esta cuenta.' };
+  }
+
+  return { profile, client };
+}
+
+/**
  * RAISE AN INVOICE BY HAND, for an amount the issuer types and a client he
  * picks, with no payment behind it.
  * POST /api/invoices/manual
@@ -555,53 +612,35 @@ const createManual = async (req, res) => {
     // is required to show.
     const applyTaxes = req.body?.applyTaxes !== false;
 
-    const client = await req.prisma.user.findUnique({ where: { id: userId } });
-    if (!client) return res.status(404).json({ error: 'Cliente no encontrado.' });
+    // THE NUMBER, when the issuer typed one: the correlative only, digits
+    // without prefix or padding, which the profile still supplies. Absent or
+    // blank takes the client's next number, the same way an automatic invoice
+    // does. Lower than the counter is allowed on purpose - returning a number
+    // is the point - and one this client already holds is refused below.
+    let number = null;
+    if (req.body?.number !== undefined && req.body?.number !== null && req.body?.number !== '') {
+      number = Number(req.body.number);
+      if (!Number.isInteger(number) || number < 1 || number > MAX_CORRELATIVE) {
+        return res.status(400).json({ error: `El número de factura debe ser un entero entre 1 y ${MAX_CORRELATIVE}.` });
+      }
+    }
 
-    // WHICH ISSUER GOVERNS THIS CLIENT.
-    //
-    // Resolved by resolveManualIssuerProfile and NOT by resolveTaxConfig, which
-    // is what every automatic emission uses. The difference is one condition and
-    // the whole reasoning for it is on that function: resolveTaxConfig refuses
-    // any billing mode but `own_stripe`, a gate that exists to protect charging
-    // and automatic issuance, and a hand-made invoice does neither. Applied here
-    // it would refuse exactly the accounts this feature is for - a partner on
-    // `manual` billing produces no CreditPurchase at all, so its clients can be
-    // invoiced in no other way. The gate itself is left untouched where it
-    // guards the paths it was written for.
-    //
-    // Either way the profile comes back whether or not `taxEnabled` is on: that
-    // flag decides what the totals block SAYS (buildInvoiceData reads it), and
-    // gating issuance on it is right for an automatic emission and wrong here,
-    // where a human is deliberately asking for this one document.
-    const profile = await resolveManualIssuerProfile(req.prisma, userId);
-    if (!profile) {
-      return res.status(409).json({
-        error: 'Este cliente no tiene un emisor de facturas configurado, así que no hay con qué numerarla ni qué imprimir como emisor.',
+    const issuer = await resolveManualIssuer(req, userId, req.body?.profileId);
+    if (issuer.error) return res.status(issuer.status).json({ error: issuer.error });
+    const { profile, client } = issuer;
+
+    let invoice;
+    try {
+      invoice = await issueManualInvoice(req.prisma, {
+        profile, client, amount, concept, applyTaxes, paidAt, number,
       });
+    } catch (error) {
+      // «No dejar»: the typed number is one this client already holds. Nothing
+      // was written - the refusal comes from inside the transaction, before the
+      // insert, and rolls back with it.
+      if (error instanceof InvoiceNumberTakenError) return res.status(409).json({ error: error.message });
+      throw error;
     }
-
-    // ONE INVOICE FROM ANOTHER OF THE SAME ISSUER'S COMPANIES. Only a company
-    // of the issuer that governs this client: a profileId of anyone else is a
-    // refusal, not a fallback, because printing another issuer's RNC on this
-    // client's document is exactly what must be impossible. Checked before
-    // anything is written, like the two permissions below.
-    let issuerProfile = profile;
-    if (req.body?.profileId !== undefined && req.body?.profileId !== null && req.body?.profileId !== '') {
-      issuerProfile = await findOwnedProfile(req.prisma, profile.ownerId, req.body.profileId);
-      if (!issuerProfile) return res.status(403).json({ error: 'Esa empresa no emite las facturas de este cliente.' });
-    }
-
-    if (!canConfigureBillingProfile(req.user, issuerProfile.ownerId)) {
-      return res.status(403).json({ error: 'Solo quien emite las facturas de este cliente puede crearle una.' });
-    }
-    if (!(await canReadAccount(req.prisma, req.user, userId))) {
-      return res.status(403).json({ error: 'No puedes ver las facturas de esta cuenta.' });
-    }
-
-    const invoice = await issueManualInvoice(req.prisma, {
-      profile: issuerProfile, client, amount, concept, applyTaxes, paidAt,
-    });
 
     // Through the same present() every other route uses, so a hand-made invoice
     // reaches the renderer in exactly the shape a settled one does.
@@ -724,11 +763,50 @@ const setAccountCompany = async (req, res) => {
   }
 };
 
+/**
+ * THE NEXT NUMBER OF ONE CLIENT, for the hand-made invoice form to prefill.
+ * GET /api/invoices/next-number/:userId?profileId=
+ *
+ * Each of the issuer's companies numbers each client on its own, so the
+ * optional `profileId` says which company's numbering to read (the same one the
+ * form will send to createManual); without it, the client's own company.
+ *
+ * Read-only: nothing is spent until the invoice is created, so two people
+ * looking at once see the same number and only the first to create gets it.
+ * Same permissions as raising the invoice itself (resolveManualIssuer).
+ *
+ * `taken` lists the correlatives this client already holds, so the form can
+ * say «ya usado» while the issuer types, before asking the server.
+ */
+const nextNumber = async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    if (!Number.isFinite(userId)) return res.status(400).json({ error: 'Elige el cliente de la factura.' });
+
+    const issuer = await resolveManualIssuer(req, userId, req.query?.profileId);
+    if (issuer.error) return res.status(issuer.status).json({ error: issuer.error });
+    const { profile } = issuer;
+
+    const { taken, next } = await readClientSequence(req.prisma, profile, userId);
+    res.json({
+      next,
+      number: formatNumber(profile, next),
+      prefix: profile.invoicePrefix,
+      padding: profile.invoicePadding,
+      taken: [...taken].sort((a, b) => a - b),
+    });
+  } catch (error) {
+    console.error('Error reading the next invoice number:', error.message);
+    res.status(500).json({ error: 'No se pudo leer el próximo número' });
+  }
+};
+
 module.exports = {
   listMine,
   listHistory,
   setAccountCompany,
   createManual,
+  nextNumber,
   presentPayment,
   getOne,
   getByPurchase,
