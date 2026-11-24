@@ -1018,7 +1018,7 @@ export default function AccountManagement() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Cobrar con tarjeta guardada</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${cardStatus.hasCard ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-dark-hover dark:text-gray-400'}`}>
-                    {cardStatus.hasCard ? (cardStatus.card ? `${cardLabel(cardStatus.card)} · Stripe` : `tarjeta en Stripe`) : 'sin tarjeta'}
+                    {cardStatus.hasCard ? (cardStatus.card ? `${cardLabel(cardStatus.card)} · ${cardStatus.provider === 'azul' ? 'AZUL' : 'Stripe'}` : `tarjeta en ${cardStatus.provider === 'azul' ? 'AZUL' : 'Stripe'}`) : 'sin tarjeta'}
                   </span>
                 </div>
 
@@ -1803,7 +1803,7 @@ export default function AccountManagement() {
               {/* Mode selector */}
               <div className="space-y-2">
                 {[
-                  { value: 'platform', title: 'Plataforma', desc: 'Los clientes del partner no pagan con tarjeta: tú les cargas el saldo a mano desde el panel.' },
+                  { value: 'platform', title: 'Plataforma', desc: 'Los clientes del partner pagan con tarjeta por AZUL (la cuenta de Nebo AI), y tú también puedes cargarles saldo a mano desde el panel.' },
                   { value: 'own_stripe', title: 'Su propio Stripe', desc: 'Todo lo que cuelga del partner — sus agencias y los clientes de esas agencias — paga por el Stripe del partner. El dinero le llega directo a él.' },
                   { value: 'manual', title: 'Carga manual de saldo', desc: 'Los clientes del partner no compran solos: el partner les carga crédito desde "Gestionar" y arregla el pago con ellos por fuera.' },
                 ].map(opt => (

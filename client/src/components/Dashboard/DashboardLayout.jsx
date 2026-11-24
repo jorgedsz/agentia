@@ -837,6 +837,9 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
           card: data.card || null,
           backupCard: data.backupCard || null,
           selfServiceDisabled: !!data.selfServiceDisabled,
+          // AZUL keeps a card only from a purchase: no "add card" button there.
+          cardSetupSupported: data.cardSetupSupported !== false,
+          provider: data.provider || null,
           manualTopUpBlocked: data.manualTopUpBlocked || null,
           lastError: data.lastError || null,
           disabledByFailures: !!data.disabledByFailures,
@@ -1119,12 +1122,16 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                   <div className="mb-3 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-xs">
                     <p className="font-semibold text-amber-800 dark:text-amber-300">Cobro en proceso sin confirmar</p>
                     <p className="text-amber-700 dark:text-amber-400 mt-0.5">
-                      ${ar.pending.amount} lleva {ar.pending.ageMinutes} min sin respuesta del proveedor de pago. Si supera 30 min, revisa que el webhook de Stripe esté configurado.
+                      ${ar.pending.amount} lleva {ar.pending.ageMinutes} min sin respuesta del proveedor de pago. {ar.provider === 'azul' ? 'Se revisa sola con AZUL en unos minutos.' : 'Si supera 30 min, revisa que el webhook de Stripe esté configurado.'}
                     </p>
                   </div>
                 )}
 
-                {!ar.hasCard ? (
+                {!ar.hasCard && !ar.cardSetupSupported ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Tu tarjeta se guarda al hacer tu primera compra de créditos (pago seguro con AZUL). Después podrás activar la recarga automática.
+                  </p>
+                ) : !ar.hasCard ? (
                   <button
                     onClick={handleAddCard}
                     disabled={setupLoading}
@@ -1201,13 +1208,13 @@ function AddCreditsModal({ setShowCreditModal, t, userRole, onCreditsUpdated }) 
                     >
                       {arSaving ? (t('common.updating') || 'Guardando...') : (t('common.save') || 'Guardar')}
                     </button>
-                    <button
+                    {ar.cardSetupSupported && <button
                       onClick={handleAddCard}
                       disabled={setupLoading}
                       className="w-full text-xs text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors disabled:opacity-50"
                     >
                       {t('credits.changeCard') || 'Cambiar tarjeta'}
-                    </button>
+                    </button>}
                   </div>
                 )}
               </div>
