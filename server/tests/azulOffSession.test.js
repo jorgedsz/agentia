@@ -97,3 +97,32 @@ test('a period charge carries the period on its purchase', async () => {
   assert.strictEqual(prisma.compras[0].billingPeriodId, 12);
   assert.strictEqual(prisma.compras[0].periodStart, periodStart);
 });
+
+test('a recurring AZUL charge uses one idempotency key per cycle and card', async () => {
+  const { chargeSavedCard } = require('../src/controllers/recurringPaymentController');
+  const pedidos = [];
+  const azul = { habilitado: true, cobrarTarjeta: async (a) => { pedidos.push(a); return a.tarjetaId === 'tj1' ? { id: 'r0', estado: 'declinada', error: 'DENEGADA' } : { id: 'r1', estado: 'aprobada' }; } };
+  const prisma = {
+    user: { findUnique: async () => ({ id: 6, azulTarjetaId: 'tj1', azulTarjetaIdBackup: 'tj2' }) },
+    recurringPayment: { update: async () => ({}) },
+  };
+  const entry = { id: 2, userId: 6, amount: 40, provider: 'azul_card', description: 'Plan', nextPaymentDate: new Date('2026-12-01T00:00:00Z') };
+  const r = await chargeSavedCard(prisma, entry, { azul });
+  assert.deepStrictEqual(r, { charged: true, paymentIntentId: 'r1' });
+  assert.deepStrictEqual(pedidos.map((p) => p.idempotencia), ['nebo-rp-2-2026-12-01', 'nebo-rp-2-2026-12-01-b']);
+  assert.strictEqual(pedidos[0].monto, 40);
+});
+
+test('an unconfirmed recurring AZUL charge does not try the backup card', async () => {
+  const { chargeSavedCard } = require('../src/controllers/recurringPaymentController');
+  const pedidos = [];
+  const azul = { habilitado: true, cobrarTarjeta: async (a) => { pedidos.push(a); return { id: 'r2', estado: 'por-verificar' }; } };
+  const prisma = {
+    user: { findUnique: async () => ({ id: 6, azulTarjetaId: 'tj1', azulTarjetaIdBackup: 'tj2' }) },
+    recurringPayment: { update: async () => ({}) },
+  };
+  const r = await chargeSavedCard(prisma, { id: 3, userId: 6, amount: 40, provider: 'azul_card', nextPaymentDate: new Date('2026-12-01T00:00:00Z') }, { azul });
+  assert.strictEqual(r.charged, false);
+  assert.strictEqual(pedidos.length, 1);
+  assert.match(r.declineReason, /no confirmó/);
+});
