@@ -72,6 +72,23 @@ export default function PaymentPortalPage() {
   // depends on the webhook alone. Without a session id there is nothing to
   // verify, so it just waits.
   useEffect(() => {
+    // AZUL comes back with ?compra=<purchase>&estado=aprobada|declinada|cancelada.
+    const estado = searchParams.get('estado')
+    const compra = searchParams.get('compra')
+    if (estado && compra) {
+      if (estado !== 'aprobada') {
+        setNotice(estado === 'cancelada' ? 'Cancelaste el pago. No se hizo ningún cargo.' : 'El banco no aprobó el pago. Puedes intentarlo de nuevo.')
+        return
+      }
+      setNotice('Confirmando tu pago…')
+      payAPI.confirm(token, null, compra)
+        .then(({ data }) => data.paid
+          ? '¡Pago recibido! Tu saldo ya está actualizado.'
+          : 'Tu pago está en proceso. El saldo se actualizará en unos minutos.')
+        .catch(() => 'Recibimos tu pago. El saldo puede tardar unos minutos en reflejarse.')
+        .then((message) => { setNotice(message); load() })
+      return
+    }
     if (searchParams.get('pago') === 'ok') {
       const sessionId = searchParams.get('session_id')
       setNotice('Confirmando tu pago…')

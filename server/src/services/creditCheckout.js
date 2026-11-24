@@ -263,6 +263,10 @@ async function createAzulCheckout(prisma, userId, charge, breakdown, { successUr
       ...period,
     },
   });
+  // pagos-azul sends the buyer back with ?pago=<its order>&estado=…; `compra`
+  // tells the page which NEBO purchase to confirm on return.
+  const retorno = new URL(successUrl);
+  retorno.searchParams.set('compra', String(purchase.id));
   let orden;
   try {
     orden = await azul.crearOrden({
@@ -271,7 +275,7 @@ async function createAzulCheckout(prisma, userId, charge, breakdown, { successUr
       referencia: `NEBO-${purchase.id}`,
       descripcion: `${creditsLabel('manual')} ($${charge.subtotal})`,
       guardarTarjeta: true,
-      retorno: successUrl,
+      retorno: retorno.toString(),
     });
   } catch (err) {
     await prisma.creditPurchase.update({

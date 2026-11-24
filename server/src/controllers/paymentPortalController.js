@@ -8,8 +8,9 @@
 
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
-const { createCreditCheckout, createCardSetupCheckout, confirmStripeCheckout, CheckoutError } = require('../services/creditCheckout');
-const { getEffectiveBilling, isSelfServiceMode } = require('../utils/billingMode');
+const { createCreditCheckout, createCardSetupCheckout, confirmStripeCheckout, confirmAzulOrder, CheckoutError } = require('../services/creditCheckout');
+const { getEffectiveBilling, isSelfServiceMode, cardProviderFor } = require('../utils/billingMode');
+const { savedCardId } = require('../utils/savedCard');
 const { resolveCharge } = require('../utils/taxes');
 const { getAncestorPartners } = require('../utils/billingMode');
 const budgets = require('../services/budgets');
@@ -72,7 +73,7 @@ const getBilling = async (req, res) => {
     if (!user) return res.status(404).json({ error: 'Payment page not found' });
 
     const { mode } = await getEffectiveBilling(req.prisma, user.id).catch(() => ({ mode: 'platform' }));
-    const isStripe = mode === 'own_stripe';
+    const provider = cardProviderFor(mode);
 
     // Branding comes from the partner above the account, so the page looks like
     // the provider the client actually deals with.
@@ -101,12 +102,13 @@ const getBilling = async (req, res) => {
       brand: { companyName: brand?.companyName || null, companyLogo: brand?.companyLogo || null },
       balance: Math.round(user.vapiCredits * 100) / 100,
       outstanding: user.vapiCredits < 0 ? Math.round(-user.vapiCredits * 100) / 100 : 0,
-      hasCard: isStripe && !!user.stripePaymentMethodId,
-      card: publicCard(await cardOnFile(req.prisma, user, { mode })),
+      hasCard: !!savedCardId(user, provider),
+      card: publicCard(await cardOnFile(req.prisma, user, { mode, provider })),
+      provider,
       // Only the full outstanding balance can be paid, so the emailed usage
       // report always accounts for exactly the amount charged. Nothing owed (or
-      // less than Stripe's floor) means there is nothing to pay right now. Only
-      // Stripe accounts pay by card; platform and manual ones are loaded by hand.
+      // less than the floor) means there is nothing to pay right now. Stripe and
+      // AZUL accounts pay by card; manual ones are loaded by hand.
       canPay: isSelfServiceMode(mode) && user.vapiCredits < 0 && -user.vapiCredits >= MIN_PAYMENT,
       usage: {
         days: 30,
@@ -221,16 +223,27 @@ const startCardSetup = async (req, res) => {
 };
 
 /**
- * The client came back from Stripe: confirm the payment straight away instead of
- * waiting for the webhook, so the balance on the page is already right.
- * POST /api/pay/:token/confirm  Body: { sessionId }
+ * The client came back from Stripe or AZUL: confirm the payment straight away
+ * instead of waiting for the webhook, so the balance on the page is already right.
+ * POST /api/pay/:token/confirm  Body: { sessionId } (Stripe) or { purchaseId } (AZUL)
  */
 const confirmPayment = async (req, res) => {
   try {
     const user = await findByToken(req.prisma, req.params.token);
     if (!user) return res.status(404).json({ error: 'Payment page not found' });
 
-    const result = await confirmStripeCheckout(req.prisma, user.id, req.body?.sessionId);
+    let result;
+    const purchaseId = parseInt(req.body?.purchaseId, 10);
+    if (Number.isInteger(purchaseId)) {
+      // AZUL: only this account's own purchase, and only one paid through AZUL.
+      const purchase = await req.prisma.creditPurchase.findFirst({ where: { id: purchaseId, userId: user.id, azulOrdenId: { not: null } } });
+      if (!purchase) return res.status(404).json({ error: 'Pago no encontrado' });
+      result = purchase.status === 'completed'
+        ? { paid: true, credited: false, alreadySettled: true }
+        : await confirmAzulOrder(req.prisma, purchase);
+    } else {
+      result = await confirmStripeCheckout(req.prisma, user.id, req.body?.sessionId);
+    }
     const fresh = await req.prisma.user.findUnique({ where: { id: user.id }, select: { vapiCredits: true } });
     res.json({ ...result, balance: Math.round((fresh?.vapiCredits ?? 0) * 100) / 100 });
   } catch (error) {
@@ -352,12 +365,11 @@ const getWallet = async (req, res) => {
       brand: { companyName: brand?.companyName || null, companyLogo: brand?.companyLogo || null },
       balance: round(user.vapiCredits),
       outstanding: owed,
-      // Only Stripe accounts pay by card; platform and manual ones are loaded
-      // by hand.
+      // Stripe and AZUL accounts pay by card; manual ones are loaded by hand.
       canPay: isSelfServiceMode(mode) && owed >= MIN_PAYMENT,
       // Loading credit by choice, as opposed to paying off what is owed.
       canTopUp: isSelfServiceMode(mode),
-      hasCard: mode === 'own_stripe' && !!user.stripePaymentMethodId,
+      hasCard: !!savedCardId(user, cardProviderFor(mode)),
       // Approving from here is off unless the partner set a key for it.
       canApprove: !!user.budgetApprovalKey,
       min: MIN_PAYMENT,
@@ -391,7 +403,8 @@ const startTopUp = async (req, res) => {
       successUrl: `${back}?pago=ok`,
       cancelUrl: `${back}?pago=cancelado`,
     });
-    res.json({ url: result.url, sessionId: result.id || null });
+    // createCreditCheckout answers checkoutUrl; `url` is kept for older pages.
+    res.json({ checkoutUrl: result.checkoutUrl, url: result.checkoutUrl, purchaseId: result.purchaseId, provider: result.provider });
   } catch (error) {
     if (error instanceof CheckoutError) return res.status(error.status || 400).json({ error: error.message });
     console.error('Wallet top-up error:', error.message);

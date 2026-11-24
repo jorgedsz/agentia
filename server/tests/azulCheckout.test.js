@@ -67,7 +67,7 @@ test('a platform account buys credits on AZUL and keeps the card', async () => {
   assert.strictEqual(pedido.guardarTarjeta, true);
   assert.strictEqual(pedido.cliente, 'u6');
   assert.strictEqual(pedido.referencia, `NEBO-${compra.id}`);
-  assert.strictEqual(pedido.retorno, URLS.successUrl);
+  assert.strictEqual(pedido.retorno, `${URLS.successUrl}&compra=${compra.id}`);
 });
 
 test('if pagos-azul fails, the purchase is failed and the buyer gets a clear 502', async () => {
