@@ -13,7 +13,8 @@
 // its traffic is charged more, and sooner, without anyone touching a setting.
 
 const { decryptPHI } = require('../utils/phiEncryption');
-const { getEffectiveBilling } = require('./../utils/billingMode');
+const { getEffectiveBilling, cardProviderFor } = require('./../utils/billingMode');
+const { savedCardId } = require('../utils/savedCard');
 const { recordAutoRechargeFailure, extractDeclineReason } = require('../utils/autoRecharge');
 
 const MIN_CHARGE = 0.5;        // Stripe refuses less
@@ -92,10 +93,11 @@ async function blockedReason(prisma, user, plan) {
   if (plan.chargeAmount > MAX_CHARGE) return `the top-up would be $${plan.chargeAmount}, over the per-charge limit`;
 
   const { mode } = await getEffectiveBilling(prisma, user.id).catch(() => ({ mode: 'platform' }));
-  // Only Stripe accounts have a card; platform and manual ones are loaded by hand.
-  if (mode !== 'own_stripe') return 'the provider loads this account by hand';
+  // Stripe and AZUL accounts have a card; manual ones are loaded by hand.
+  const provider = cardProviderFor(mode);
+  if (!provider) return 'the provider loads this account by hand';
 
-  if (!user.stripePaymentMethodId) return 'no saved card to charge';
+  if (!savedCardId(user, provider)) return 'no saved card to charge';
 
   if (user.cycleLastChargeAt && (Date.now() - new Date(user.cycleLastChargeAt).getTime()) < COOLDOWN_MS) {
     return 'charged recently; waiting out the cooldown';
