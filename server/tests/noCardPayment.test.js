@@ -3,8 +3,8 @@ const assert = require('node:assert');
 const { createCreditCheckout, createCardSetupCheckout, CheckoutError, MANUAL_BILLING_MSG } = require('../src/services/creditCheckout');
 const { isSelfServiceMode } = require('../src/utils/billingMode');
 
-// Platform accounts (the default) have no self-service card payment since Whop
-// was removed (2026-11): like manual ones, they are topped up by hand.
+// Platform accounts pay by card through AZUL only when pagos-azul is configured;
+// these tests run without PAGOS_AZUL_*, so platform behaves like manual here.
 
 function prismaFor(rows) {
   return {
@@ -17,11 +17,18 @@ function prismaFor(rows) {
   };
 }
 
-test('only own_stripe is self-service', () => {
-  assert.strictEqual(isSelfServiceMode('own_stripe'), true);
-  for (const mode of ['platform', 'manual', 'own_whop', undefined]) {
-    assert.strictEqual(isSelfServiceMode(mode), false, String(mode));
-  }
+test('the card processor follows the billing mode', () => {
+  const { cardProviderFor } = require('../src/utils/billingMode');
+  const azulOn = { habilitado: true };
+  const azulOff = { habilitado: false };
+  assert.strictEqual(cardProviderFor('own_stripe', azulOn), 'stripe');
+  assert.strictEqual(cardProviderFor('platform', azulOn), 'azul');
+  assert.strictEqual(cardProviderFor('platform', azulOff), null);
+  assert.strictEqual(cardProviderFor('own_whop', azulOn), 'azul'); // legacy reads as platform
+  assert.strictEqual(cardProviderFor('manual', azulOn), null);
+  assert.strictEqual(isSelfServiceMode('own_stripe', azulOff), true);
+  assert.strictEqual(isSelfServiceMode('platform', azulOff), false);
+  assert.strictEqual(isSelfServiceMode('manual', azulOn), false);
 });
 
 for (const [label, rows] of [

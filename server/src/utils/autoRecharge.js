@@ -9,20 +9,18 @@
 const AUTO_RECHARGE_MAX_FAILS = 3; // consecutive failures before auto-recharge turns itself off
 
 /**
- * Saved Stripe cards in priority order: primary first, then backup. Off-session
- * charges try them in this order — if the primary declines, the backup is tried
- * next. Stripe cards are PaymentMethods on the account's customer, so there is
- * no member id. Only Stripe accounts have cards: platform and manual accounts
- * have no card payment at all.
+ * Saved cards of `provider` ('stripe' | 'azul') in priority order: primary
+ * first, then backup. Off-session charges try them in this order — if the
+ * primary declines, the backup is tried next. `paymentMethodId` is a Stripe
+ * PaymentMethod id or a pagos-azul tarjetaId; there is no member id.
  * Returns [{ paymentMethodId, memberId, slot }].
  */
-function getSavedCards(user) {
+function getSavedCards(user, provider = 'stripe') {
+  const { savedCardId } = require('./savedCard');
   const cards = [];
-  if (user?.stripePaymentMethodId) {
-    cards.push({ paymentMethodId: user.stripePaymentMethodId, memberId: null, slot: 'primary' });
-  }
-  if (user?.stripePaymentMethodIdBackup) {
-    cards.push({ paymentMethodId: user.stripePaymentMethodIdBackup, memberId: null, slot: 'backup' });
+  for (const slot of ['primary', 'backup']) {
+    const id = savedCardId(user, provider, slot);
+    if (id) cards.push({ paymentMethodId: id, memberId: null, slot });
   }
   return cards;
 }

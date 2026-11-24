@@ -60,3 +60,14 @@ test('both slots at once', async () => {
   assert.strictEqual(r.backupCard.last4, '5555');
   assert.strictEqual(r.backupCard.brand, 'mastercard');
 });
+
+test('an AZUL account reads its card from pagos-azul', async () => {
+  const fetchers = { azul: async (_p, _u, id) => ({ id, marca: 'VISA', mascara: '****0026', vence: '202812', activa: true }) };
+  const card = await cardOnFile(null, { id: 6, azulTarjetaId: 'tj1' }, { provider: 'azul', fetchers });
+  assert.deepStrictEqual(card, { brand: 'visa', last4: '0026', expMonth: 12, expYear: 2028 });
+});
+
+test('a retired AZUL card is not shown', async () => {
+  const fetchers = { azul: async () => ({ id: 'tj2', marca: 'VISA', mascara: '****0026', vence: '202812', activa: false }) };
+  assert.strictEqual(await cardOnFile(null, { id: 6, azulTarjetaId: 'tj2' }, { provider: 'azul', fetchers }), null);
+});

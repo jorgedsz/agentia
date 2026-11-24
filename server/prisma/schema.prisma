@@ -105,6 +105,8 @@ model User {
   stripeCustomerId            String? // This account's customer id (cus_...) in the governing partner's Stripe
   stripePaymentMethodId       String? // Primary saved card (pm_...) for off-session charges
   stripePaymentMethodIdBackup String? // Backup card — tried automatically if the primary declines
+  azulTarjetaId               String? // pagos-azul saved card (tarjetaId); AZUL's DataVault token stays in pagos-azul
+  azulTarjetaIdBackup         String? // Backup AZUL card, tried if the primary declines
   // ── Fiscal details printed on this account's invoices ──
   billingCompany              String?
   billingRnc                  String?
@@ -796,6 +798,7 @@ model CreditPurchase {
   whopPaymentId         String? // LEGACY, unused (Whop removed 2026-11): Whop payment ID of a historical purchase
   whopPlanId            String? // LEGACY, unused (Whop removed 2026-11): one-time Whop plan of a historical purchase
   stripePaymentIntentId String? // Stripe PaymentIntent (pi_...) for this purchase — links the webhook back to this row
+  azulOrdenId           String? // pagos-azul order id (AZUL purchases)
   billingPeriodId       Int? // The month this payment settles, when it was started from the billing-periods screen rather than against the running balance
   periodStart           DateTime? // Usage this payment settles: from here…
   periodEnd             DateTime? // …to here. Frozen when the checkout is created, so the emailed report matches the amount charged even if the account keeps consuming while it pays.
@@ -822,6 +825,7 @@ model CreditPurchase {
   @@index([userId, createdAt])
   @@index([whopPlanId])
   @@index([stripePaymentIntentId])
+  @@index([azulOrdenId])
 }
 
 // Who issues invoices, and on what terms. One row per partner that bills its
@@ -1076,7 +1080,7 @@ model RecurringPayment {
   // LEGACY - Whop was removed 2026-11; such rows are listed but never notified
   // or charged. The default is left as "whop" only to avoid a migration: code
   // always sets the provider explicitly.
-  provider                   String    @default("whop") // stripe_card (legacy: whop)
+  provider                   String    @default("whop") // stripe_card | azul_card (legacy: whop)
   whopProductId              String? // LEGACY, unused (Whop removed 2026-11)
   whopPlanId                 String? // LEGACY, unused (Whop removed 2026-11)
   lastCheckoutUrl            String? // Most recent generated checkout URL (legacy Whop entries only)

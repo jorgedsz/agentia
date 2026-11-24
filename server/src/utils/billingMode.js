@@ -81,12 +81,24 @@ async function getEffectiveBilling(prisma, userId) {
 }
 
 /**
- * Whether an account can pay by card on its own (buy credits, save a card,
- * auto-recharge). Only Stripe accounts can: platform and manual accounts are
- * topped up by hand by whoever manages them.
+ * Which card processor collects for a billing mode: the partner's Stripe for
+ * own_stripe, AZUL (through pagos-azul, Nebo AI's own merchant) for platform, and
+ * none for manual. Platform has no card payment while pagos-azul is not
+ * configured. `azul` is the pagos-azul client (injected by tests).
+ * Returns 'stripe' | 'azul' | null.
  */
-function isSelfServiceMode(mode) {
-  return mode === 'own_stripe';
+function cardProviderFor(mode, azul = require('../services/azulPagos').cliente()) {
+  if (mode === 'own_stripe') return 'stripe';
+  if (mode === 'manual') return null;
+  return azul.habilitado ? 'azul' : null; // platform (and legacy own_whop)
+}
+
+/**
+ * Whether an account can pay by card on its own (buy credits, save a card,
+ * auto-recharge): only when its billing mode has a card processor.
+ */
+function isSelfServiceMode(mode, azul) {
+  return cardProviderFor(mode, azul) !== null;
 }
 
 /** Generate a URL-safe random token for a partner's webhook path. */
@@ -97,6 +109,7 @@ function generateWebhookToken() {
 module.exports = {
   getAncestorPartners,
   getEffectiveBilling,
+  cardProviderFor,
   isSelfServiceMode,
   generateWebhookToken,
 };
