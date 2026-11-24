@@ -3,12 +3,14 @@
 // The same two flows are needed from three places: the credits panel inside the
 // app, the public payment page a client opens from a link or an embed, and any
 // future surface. They must route the money identically — through the Stripe of
-// the partner that governs the account — so the logic lives here and each caller
-// only supplies its own return URLs. Accounts not under such a partner (platform
-// and manual billing) have no self-service card payment: whoever manages them
-// tops the balance up by hand.
+// the partner that governs the account, or through AZUL (pagos-azul, Nebo AI's own
+// merchant) for platform accounts — so the logic lives here and each caller only
+// supplies its own return URLs. Manual accounts have no self-service card
+// payment: whoever manages them tops the balance up by hand.
 
-const { getAncestorPartners } = require('../utils/billingMode');
+const { getAncestorPartners, getEffectiveBilling, cardProviderFor } = require('../utils/billingMode');
+const { savedCardId } = require('../utils/savedCard');
+const azulPagos = require('./azulPagos');
 const { getStripeConfigForUser } = require('../utils/stripeConfig');
 const { resolveCharge } = require('../utils/taxes');
 
@@ -52,7 +54,8 @@ async function manualTopUpBlocker(prisma, userId) {
     return `Hay una recarga automática de ${money(inFlight.amount)} en curso. Espera a que se confirme antes de cargar saldo.`;
   }
 
-  const hasCard = !!user.stripePaymentMethodId;
+  const { mode } = await getEffectiveBilling(prisma, userId).catch(() => ({ mode: 'platform' }));
+  const hasCard = !!savedCardId(user, cardProviderFor(mode));
   if (user.autoRechargeEnabled && !user.cycleBillingEnabled && hasCard
       && user.autoRechargeThreshold > 0 && user.vapiCredits < user.autoRechargeThreshold) {
     // autoRechargeAmount is the pre-tax subtotal: it is what reaches the
@@ -141,7 +144,7 @@ async function nextPeriodFor(prisma, userId) {
  * balance. A partner that collects a tax charges it on top, so the card may pay
  * more than `amount` - see utils/taxes.js.
  */
-async function createCreditCheckout(prisma, userId, amount, { successUrl, cancelUrl }) {
+async function createCreditCheckout(prisma, userId, amount, { successUrl, cancelUrl, azul = azulPagos.cliente() }) {
   const blocked = await manualTopUpBlocker(prisma, userId);
   if (blocked) throw new CheckoutError(blocked, 409);
 
@@ -169,8 +172,14 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
     total: charge.total,
   };
 
+  // Platform accounts pay on AZUL's payment page (through pagos-azul).
+  const { mode } = await getEffectiveBilling(prisma, userId);
+  const provider = cardProviderFor(mode, azul);
+  if (provider === null) throw new CheckoutError(MANUAL_BILLING_MSG, 403);
+  if (provider === 'azul') return createAzulCheckout(prisma, userId, charge, breakdown, { successUrl, azul });
+
   // Accounts under a partner billing through Stripe check out in that partner's
-  // Stripe account; nobody else can pay by card.
+  // Stripe account.
   const stripe = await getStripeConfigForUser(prisma, userId);
   if (stripe.mode !== 'own_stripe') throw new CheckoutError(MANUAL_BILLING_MSG, 403);
   if (!stripe.isConfigured) throw new CheckoutError('Payment processing is not configured');
@@ -235,12 +244,89 @@ async function createCreditCheckout(prisma, userId, amount, { successUrl, cancel
 }
 
 /**
+ * The AZUL branch of createCreditCheckout: a USD order in pagos-azul (which charges
+ * the RD$ equivalent at the Central Bank's selling rate) paid on AZUL's payment
+ * page. The card is always kept: AZUL has no card-only checkout, so the first
+ * purchase is how an account gets a saved card. The webhook settles it.
+ */
+async function createAzulCheckout(prisma, userId, charge, breakdown, { successUrl, azul }) {
+  const period = await nextPeriodFor(prisma, userId);
+  const purchase = await prisma.creditPurchase.create({
+    data: {
+      userId,
+      amount: charge.total,
+      credits: charge.subtotal,
+      taxRate: charge.taxRate,
+      taxAmount: charge.taxAmount,
+      status: 'pending',
+      kind: 'manual',
+      ...period,
+    },
+  });
+  let orden;
+  try {
+    orden = await azul.crearOrden({
+      monto: charge.total,
+      cliente: `u${userId}`,
+      referencia: `NEBO-${purchase.id}`,
+      descripcion: `${creditsLabel('manual')} ($${charge.subtotal})`,
+      guardarTarjeta: true,
+      retorno: successUrl,
+    });
+  } catch (err) {
+    await prisma.creditPurchase.update({
+      where: { id: purchase.id },
+      data: { status: 'failed', errorMessage: String(err.message).slice(0, 500) },
+    }).catch(() => {});
+    console.error(`[AZUL] order for purchase ${purchase.id} failed: ${err.message}`);
+    throw new CheckoutError('No se pudo iniciar el pago con AZUL. Intenta de nuevo en unos minutos.', 502);
+  }
+  await prisma.creditPurchase.update({ where: { id: purchase.id }, data: { azulOrdenId: orden.id } });
+  return { provider: 'azul', checkoutUrl: orden.urlPago, purchaseId: purchase.id, amount: charge.total, breakdown };
+}
+
+/** Keep `tarjetaId` as the account's primary AZUL card, unless it already has one. */
+async function saveAzulCardIfNone(prisma, userId, tarjetaId) {
+  if (!tarjetaId) return;
+  await prisma.user.updateMany({ where: { id: userId, azulTarjetaId: null }, data: { azulTarjetaId: tarjetaId } });
+}
+
+/**
+ * Settle an AZUL purchase from its pagos-azul order: used by the public portal on
+ * return and by the scheduler when a webhook was lost. A declined or cancelled
+ * order fails the purchase. Returns { paid, credited }.
+ */
+async function confirmAzulOrder(prisma, purchase, { azul = azulPagos.cliente(), settle } = {}) {
+  if (!purchase?.azulOrdenId) return { paid: false, credited: false };
+  const settleFn = settle || require('../utils/creditSettlement').settleCreditPurchase;
+  const orden = await azul.obtenerOrden(purchase.azulOrdenId);
+  if (['declinada', 'cancelada', 'error'].includes(orden.estado)) {
+    await prisma.creditPurchase.updateMany({
+      where: { id: purchase.id, status: 'pending' },
+      data: { status: 'failed', errorMessage: String(orden.error || orden.estado).slice(0, 500) },
+    });
+    return { paid: false, credited: false };
+  }
+  if (orden.estado !== 'aprobada') return { paid: false, credited: false };
+  const credited = await settleFn(prisma, purchase, { payload: orden });
+  await saveAzulCardIfNone(prisma, purchase.userId, orden.tarjetaId);
+  return { paid: true, credited };
+}
+
+/**
  * Start a card-vaulting checkout for `userId` (no charge).
  * Returns { provider: 'stripe', checkoutUrl }. Accounts without a Stripe partner
  * are refused (403): there is no card to save for them.
  */
-async function createCardSetupCheckout(prisma, userId, slot, { successUrl, cancelUrl }) {
+async function createCardSetupCheckout(prisma, userId, slot, { successUrl, cancelUrl, azul = azulPagos.cliente() }) {
   const requestedSlot = slot === 'backup' ? 'backup' : 'primary';
+
+  const { mode } = await getEffectiveBilling(prisma, userId);
+  const provider = cardProviderFor(mode, azul);
+  if (provider === null) throw new CheckoutError(MANUAL_BILLING_MSG, 403);
+  if (provider === 'azul') {
+    throw new CheckoutError('Con AZUL la tarjeta se guarda al hacer tu primera compra de créditos.', 409);
+  }
 
   const stripe = await getStripeConfigForUser(prisma, userId);
   if (stripe.mode !== 'own_stripe') throw new CheckoutError(MANUAL_BILLING_MSG, 403);
@@ -337,6 +423,8 @@ module.exports = {
   nextPeriodFor,
   createCreditCheckout,
   createCardSetupCheckout,
+  confirmAzulOrder,
+  saveAzulCardIfNone,
   confirmStripeCheckout,
   reconcileStripePayment,
 };
