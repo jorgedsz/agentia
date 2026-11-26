@@ -65,7 +65,7 @@
     "messagesPausedBanner": "Chatbot messages are currently paused for your account. Contact your administrator to resume."
   },
   "auth": {
-    "title": "NEBO",
+    "title": "ARM - NEBO AI",
     "signIn": "Sign in to your account",
     "emailLabel": "Email address",
     "emailPlaceholder": "you@example.com",
@@ -78,7 +78,7 @@
     "termsOfService": "Terms of Service"
   },
   "sidebar": {
-    "aiVoicePlatform": "AI Voice Platform",
+    "aiVoicePlatform": "AI Systems Platform",
     "accountBalances": "Account Balances",
     "credits": "Credits",
     "twilio": "Twilio",

@@ -30,8 +30,15 @@ function setIcon(rel, href) {
 }
 
 // The platform's own brand, shown when an account has no branding of its own.
-export const DEFAULT_BRAND_NAME = 'NEBO'
-export const DEFAULT_BRAND_LOGO = '/nebo-icon.jpg'
+export const DEFAULT_BRAND_NAME = 'ARM - NEBO AI'
+// What the sidebar and the login print next to the full logo, which already
+// spells out "NEBO AI".
+export const DEFAULT_BRAND_SHORT_NAME = 'ARM'
+export const DEFAULT_BRAND_TAGLINE = 'AI Systems Platform'
+// The square "N", for small spots and the tab icon.
+export const DEFAULT_BRAND_LOGO = '/nebo-ai-icon.png'
+// The full "NEBO AI" logo, drawn animated by components/BrandLogo.jsx.
+export const DEFAULT_BRAND_FULL_LOGO = '/nebo-ai-logo.png'
 
 export function applyBranding(branding) {
   if (!branding) return

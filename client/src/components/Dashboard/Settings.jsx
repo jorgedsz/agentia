@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { ghlAPI, calendarAPI, teamMembersAPI, platformSettingsAPI, accountSettingsAPI, brandingAPI, vapiKeyPoolAPI, complianceAPI, paymentsAPI } from '../../services/api'
 import { useLanguage } from '../../context/LanguageContext'
 import PricingSettings from './PricingSettings'
-import { applyBranding, DEFAULT_BRAND_NAME } from '../../utils/hostBranding'
+import { applyBranding, DEFAULT_BRAND_NAME, DEFAULT_BRAND_TAGLINE } from '../../utils/hostBranding'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -931,7 +931,7 @@ function BrandingTab() {
                 {branding.companyName || DEFAULT_BRAND_NAME}
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {branding.companyTagline || 'AI Voice Platform'}
+                {branding.companyTagline || DEFAULT_BRAND_TAGLINE}
               </p>
             </div>
           </div>
@@ -952,7 +952,7 @@ function BrandingTab() {
               value={branding.companyName}
               onChange={(e) => setBranding({ ...branding, companyName: e.target.value })}
               disabled={!canEdit}
-              placeholder="NEBO"
+              placeholder={DEFAULT_BRAND_NAME}
               className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
             />
           </div>
@@ -966,7 +966,7 @@ function BrandingTab() {
               value={branding.companyTagline}
               onChange={(e) => setBranding({ ...branding, companyTagline: e.target.value })}
               disabled={!canEdit}
-              placeholder="AI Voice Platform"
+              placeholder={DEFAULT_BRAND_TAGLINE}
               className="w-full px-3 py-2 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
             />
           </div>

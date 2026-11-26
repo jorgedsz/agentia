@@ -65,7 +65,7 @@
     "messagesPausedBanner": "Los mensajes de chatbot están pausados para tu cuenta. Contacta a tu administrador para reanudar."
   },
   "auth": {
-    "title": "NEBO",
+    "title": "ARM - NEBO AI",
     "signIn": "Inicia sesión en tu cuenta",
     "emailLabel": "Correo electrónico",
     "emailPlaceholder": "tu@ejemplo.com",
@@ -78,7 +78,7 @@
     "termsOfService": "Términos de Servicio"
   },
   "sidebar": {
-    "aiVoicePlatform": "Plataforma de Voz IA",
+    "aiVoicePlatform": "Plataforma de Sistemas IA",
     "accountBalances": "Saldos de cuenta",
     "credits": "Créditos",
     "twilio": "Twilio",

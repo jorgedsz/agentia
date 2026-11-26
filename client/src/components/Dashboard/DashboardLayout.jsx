@@ -8,7 +8,8 @@ import ChatAssistant from './ChatAssistant'
 import NotificationToasts from './NotificationToasts'
 import ChargeBreakdown, { useChargeQuote } from './ChargeBreakdown'
 import { cardLabel } from '../../utils/cardLabel'
-import { DEFAULT_BRAND_NAME, DEFAULT_BRAND_LOGO } from '../../utils/hostBranding'
+import { DEFAULT_BRAND_NAME, DEFAULT_BRAND_SHORT_NAME, DEFAULT_BRAND_TAGLINE, DEFAULT_BRAND_LOGO } from '../../utils/hostBranding'
+import BrandLogo from '../BrandLogo'
 
 // THIS MODAL IS THE ONLY PLACE A CLIENT TOPS UP. The screen that looks like the
 // top-up page, Credits.jsx, has been orphaned since February and was deleted
@@ -442,6 +443,21 @@ export default function DashboardLayout() {
       <div className="w-64 h-screen bg-white dark:bg-dark-sidebar border-r border-gray-200 dark:border-dark-border flex flex-col flex-shrink-0">
         {/* Logo */}
         <div className="p-4 border-b border-gray-200 dark:border-dark-border">
+          {/* An account without a brand of its own gets the platform's
+              animated logo; one with only a name keeps the small icon. */}
+          {branding?.ready && !branding?.companyLogo && !branding?.companyName ? (
+            <div className="flex items-center gap-3">
+              <BrandLogo width={116} />
+              <div className="min-w-0">
+                <h1 className="text-xl font-extrabold tracking-wide leading-none text-primary-600 dark:text-primary-400">
+                  {DEFAULT_BRAND_SHORT_NAME}
+                </h1>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 whitespace-nowrap">
+                  {branding?.companyTagline || DEFAULT_BRAND_TAGLINE}
+                </p>
+              </div>
+            </div>
+          ) : (
           <div className="flex items-center gap-3">
             {(branding?.companyLogo || branding?.ready) ? (
               <img
@@ -456,10 +472,11 @@ export default function DashboardLayout() {
                 {branding?.companyName || DEFAULT_BRAND_NAME}
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {branding?.companyTagline || 'AI Voice Platform'}
+                {branding?.companyTagline || DEFAULT_BRAND_TAGLINE}
               </p>
             </div>
           </div>
+          )}
         </div>
 
         {/* Account Balances */}

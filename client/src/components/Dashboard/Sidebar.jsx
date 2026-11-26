@@ -1,6 +1,6 @@
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
-import { DEFAULT_BRAND_NAME, DEFAULT_BRAND_LOGO } from '../../utils/hostBranding'
+import { DEFAULT_BRAND_NAME, DEFAULT_BRAND_TAGLINE, DEFAULT_BRAND_LOGO } from '../../utils/hostBranding'
 
 const ROLES = {
   OWNER: 'OWNER',
@@ -148,7 +148,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
               {branding?.companyName || DEFAULT_BRAND_NAME}
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {branding?.companyTagline || 'AI Voice Platform'}
+              {branding?.companyTagline || DEFAULT_BRAND_TAGLINE}
             </p>
           </div>
         </div>
