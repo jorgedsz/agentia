@@ -4,7 +4,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useLanguage } from '../../context/LanguageContext'
 import { brandingAPI } from '../../services/api'
-import { DEFAULT_BRAND_LOGO } from '../../utils/hostBranding'
+import { DEFAULT_BRAND_NAME, DEFAULT_BRAND_SHORT_NAME, DEFAULT_BRAND_TAGLINE } from '../../utils/hostBranding'
+import BrandLogo from '../BrandLogo'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -72,20 +73,35 @@ export default function Login() {
 
       <div className="max-w-md w-full space-y-8">
         <div>
-          {(branding?.companyLogo || (brandingChecked && !branding?.companyName)) && (
-            <img
-              src={branding?.companyLogo || DEFAULT_BRAND_LOGO}
-              alt={branding?.companyName || 'NEBO'}
-              className="mx-auto mb-4 max-h-20 w-auto object-contain"
-            />
-          )}
-          <h1 className="text-center text-3xl font-extrabold text-primary-600 dark:text-primary-400">
-            {branding?.companyName || t('auth.title')}
-          </h1>
-          {branding?.companyTagline && (
-            <p className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">
-              {branding.companyTagline}
-            </p>
+          {brandingChecked && !branding?.companyLogo && !branding?.companyName ? (
+            <>
+              {/* No brand claims this domain: the platform's animated logo. */}
+              <BrandLogo width={260} className="mx-auto mb-3" />
+              <h1 className="text-center text-xl font-bold tracking-widest text-gray-500 dark:text-gray-400">
+                {DEFAULT_BRAND_SHORT_NAME}
+              </h1>
+              <p className="mt-1 text-center text-sm text-gray-500 dark:text-gray-400">
+                {DEFAULT_BRAND_TAGLINE}
+              </p>
+            </>
+          ) : (
+            <>
+              {branding?.companyLogo && (
+                <img
+                  src={branding.companyLogo}
+                  alt={branding?.companyName || DEFAULT_BRAND_NAME}
+                  className="mx-auto mb-4 max-h-20 w-auto object-contain"
+                />
+              )}
+              <h1 className="text-center text-3xl font-extrabold text-primary-600 dark:text-primary-400">
+                {branding?.companyName || (brandingChecked ? t('auth.title') : '')}
+              </h1>
+              {branding?.companyTagline && (
+                <p className="mt-2 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {branding.companyTagline}
+                </p>
+              )}
+            </>
           )}
           <h2 className="mt-6 text-center text-2xl font-bold text-gray-900 dark:text-white">
             {t('auth.signIn')}

@@ -9,3 +9,28 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Animated platform logo (components/BrandLogo.jsx). */
+.brand-logo { position: relative; aspect-ratio: 1834 / 795; flex-shrink: 0; cursor: default; }
+.brand-logo img, .brand-logo .brand-logo-shine { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; }
+.brand-logo .brand-logo-n { clip-path: inset(0 57.4% 0 0); transform-origin: 21% 50%; animation: brand-logo-pop .7s cubic-bezier(.34, 1.56, .64, 1) .1s both; }
+.brand-logo .brand-logo-t { clip-path: inset(0 0 0 42.4%); animation: brand-logo-wipe .6s cubic-bezier(.22, 1, .36, 1) .45s both; }
+.brand-logo .brand-logo-shine {
+  -webkit-mask: url('/nebo-ai-logo.png') center / 100% 100% no-repeat;
+  mask: url('/nebo-ai-logo.png') center / 100% 100% no-repeat;
+  background: linear-gradient(105deg, transparent 42%, rgba(130, 145, 175, .75) 50%, transparent 58%) no-repeat;
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  pointer-events: none;
+  animation: brand-logo-sweep 6s ease-in-out 1.3s infinite;
+}
+.dark .brand-logo img { filter: invert(1); }
+.dark .brand-logo .brand-logo-shine { background-image: linear-gradient(105deg, transparent 42%, rgba(160, 175, 210, .8) 50%, transparent 58%); }
+
+@keyframes brand-logo-pop { from { transform: scale(.3) rotate(-15deg); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes brand-logo-wipe { from { clip-path: inset(0 100% 0 42.4%); } to { clip-path: inset(0 0 0 42.4%); } }
+@keyframes brand-logo-sweep { 0% { background-position: 150% 0; } 25%, 100% { background-position: -50% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo * { animation: none !important; }
+}
